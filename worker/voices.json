@@ -1,0 +1,232 @@
+{
+  "source": "https://raw.githubusercontent.com/pnnbao97/VieNeu-TTS/22dd2ef2a89bba24a77da6dbc84c75f7f4fda05b/src/vieneu/assets/voices_v3_turbo.json",
+  "license": "Apache-2.0",
+  "default_voice": "Hải Đăng",
+  "voices": [
+    {
+      "id": "Adam bựa",
+      "name": "Adam bựa",
+      "description": "Nam · Bắc · Phong cách tự nhiên",
+      "kind": "preset",
+      "reference_asset_id": null,
+      "consent": false,
+      "engine_voice_id": "Adam bựa"
+    },
+    {
+      "id": "Trúc Ly",
+      "name": "Trúc Ly",
+      "description": "Nữ · Bắc · Phong cách tự nhiên",
+      "kind": "preset",
+      "reference_asset_id": null,
+      "consent": false,
+      "engine_voice_id": "Trúc Ly"
+    },
+    {
+      "id": "Thiện Minh",
+      "name": "Thiện Minh",
+      "description": "Nam · Bắc · Phong cách kể chuyện",
+      "kind": "preset",
+      "reference_asset_id": null,
+      "consent": false,
+      "engine_voice_id": "Thiện Minh"
+    },
+    {
+      "id": "Mai Anh",
+      "name": "Mai Anh",
+      "description": "Nữ · Bắc · Phong cách tin tức",
+      "kind": "preset",
+      "reference_asset_id": null,
+      "consent": false,
+      "engine_voice_id": "Mai Anh"
+    },
+    {
+      "id": "Hải Đăng",
+      "name": "Hải Đăng",
+      "description": "Nam · Bắc · Phong cách tự nhiên",
+      "kind": "preset",
+      "reference_asset_id": null,
+      "consent": false,
+      "engine_voice_id": "Hải Đăng"
+    },
+    {
+      "id": "Thùy Dung",
+      "name": "Thùy Dung",
+      "description": "Nữ · Nam · Phong cách tin tức",
+      "kind": "preset",
+      "reference_asset_id": null,
+      "consent": false,
+      "engine_voice_id": "Thùy Dung"
+    },
+    {
+      "id": "Thiền Tâm Đức",
+      "name": "Thiền Tâm Đức",
+      "description": "Nam · Bắc · Phong cách kể chuyện",
+      "kind": "preset",
+      "reference_asset_id": null,
+      "consent": false,
+      "engine_voice_id": "Thiền Tâm Đức"
+    },
+    {
+      "id": "Ngọc Huyền",
+      "name": "Ngọc Huyền",
+      "description": "Nữ · Bắc · Giọng đọc tự nhiên",
+      "kind": "preset",
+      "reference_asset_id": null,
+      "consent": false,
+      "engine_voice_id": "Ngọc Huyền"
+    },
+    {
+      "id": "Quang Sơn",
+      "name": "Quang Sơn",
+      "description": "Nam · Trung · Phong cách tự nhiên",
+      "kind": "preset",
+      "reference_asset_id": null,
+      "consent": false,
+      "engine_voice_id": "Quang Sơn"
+    },
+    {
+      "id": "Ngọc Trân",
+      "name": "Ngọc Trân",
+      "description": "Nữ · Trung · Phong cách tự nhiên",
+      "kind": "preset",
+      "reference_asset_id": null,
+      "consent": false,
+      "engine_voice_id": "Ngọc Trân"
+    },
+    {
+      "id": "Minh Đức",
+      "name": "Minh Đức",
+      "description": "Nam · Bắc · Phong cách tin tức",
+      "kind": "preset",
+      "reference_asset_id": null,
+      "consent": false,
+      "engine_voice_id": "Minh Đức"
+    },
+    {
+      "id": "Phạm Tuyên",
+      "name": "Phạm Tuyên",
+      "description": "Nam · Bắc · Phong cách tự nhiên",
+      "kind": "preset",
+      "reference_asset_id": null,
+      "consent": false,
+      "engine_voice_id": "Phạm Tuyên"
+    },
+    {
+      "id": "Thái Sơn",
+      "name": "Thái Sơn",
+      "description": "Nam · Nam · Phong cách kể chuyện",
+      "kind": "preset",
+      "reference_asset_id": null,
+      "consent": false,
+      "engine_voice_id": "Thái Sơn"
+    },
+    {
+      "id": "Xuân Vĩnh",
+      "name": "Xuân Vĩnh",
+      "description": "Nam · Bắc · Phong cách tự nhiên",
+      "kind": "preset",
+      "reference_asset_id": null,
+      "consent": false,
+      "engine_voice_id": "Xuân Vĩnh"
+    },
+    {
+      "id": "Thanh Bình",
+      "name": "Thanh Bình",
+      "description": "Nam · Bắc · Phong cách kể chuyện",
+      "kind": "preset",
+      "reference_asset_id": null,
+      "consent": false,
+      "engine_voice_id": "Thanh Bình"
+    },
+    {
+      "id": "Ngọc Linh",
+      "name": "Ngọc Linh",
+      "description": "Nữ · Bắc · Phong cách kể chuyện",
+      "kind": "preset",
+      "reference_asset_id": null,
+      "consent": false,
+      "engine_voice_id": "Ngọc Linh"
+    },
+    {
+      "id": "Đoan Trang",
+      "name": "Đoan Trang",
+      "description": "Nữ · Bắc · Phong cách tự nhiên",
+      "kind": "preset",
+      "reference_asset_id": null,
+      "consent": false,
+      "engine_voice_id": "Đoan Trang"
+    },
+    {
+      "id": "Thục Đoan",
+      "name": "Thục Đoan",
+      "description": "Nữ · Nam · Phong cách kể chuyện",
+      "kind": "preset",
+      "reference_asset_id": null,
+      "consent": false,
+      "engine_voice_id": "Thục Đoan"
+    },
+    {
+      "id": "Minh Triết",
+      "name": "Minh Triết",
+      "description": "Nam · Nam · Phong cách tin tức",
+      "kind": "preset",
+      "reference_asset_id": null,
+      "consent": false,
+      "engine_voice_id": "Minh Triết"
+    },
+    {
+      "id": "Mỹ Duyên",
+      "name": "Mỹ Duyên",
+      "description": "Nữ · Nam · Phong cách đọc truyện",
+      "kind": "preset",
+      "reference_asset_id": null,
+      "consent": false,
+      "engine_voice_id": "Mỹ Duyên"
+    },
+    {
+      "id": "Quỳnh Anh",
+      "name": "Quỳnh Anh",
+      "description": "Nữ · Bắc · Phong cách đọc truyện",
+      "kind": "preset",
+      "reference_asset_id": null,
+      "consent": false,
+      "engine_voice_id": "Quỳnh Anh"
+    },
+    {
+      "id": "Đức Trí",
+      "name": "Đức Trí",
+      "description": "Nam · Nam · Phong cách đọc truyện",
+      "kind": "preset",
+      "reference_asset_id": null,
+      "consent": false,
+      "engine_voice_id": "Đức Trí"
+    },
+    {
+      "id": "Kim Thanh",
+      "name": "Kim Thanh",
+      "description": "Nữ · Nam · Phong cách đọc truyện",
+      "kind": "preset",
+      "reference_asset_id": null,
+      "consent": false,
+      "engine_voice_id": "Kim Thanh"
+    },
+    {
+      "id": "Adam",
+      "name": "Adam",
+      "description": "Nam · Nam · Giọng đọc tự nhiên",
+      "kind": "preset",
+      "reference_asset_id": null,
+      "consent": false,
+      "engine_voice_id": "Adam"
+    },
+    {
+      "id": "Quốc Tuấn",
+      "name": "Quốc Tuấn",
+      "description": "Nam · Bắc · Phong cách tự nhiên",
+      "kind": "preset",
+      "reference_asset_id": null,
+      "consent": false,
+      "engine_voice_id": "Quốc Tuấn"
+    }
+  ]
+}
