@@ -14,6 +14,7 @@ All JSON fields are snake_case. Times are milliseconds except worker STT segment
 - `runtime_status` -> RuntimeStatus
 - `read_text_file({path})` -> string (TXT/SRT/VTT only)
 - `import_asset({path})` -> Asset (copies to app data by hash, original untouched)
+- `get_asset({id})` -> Asset (restore imported source playback)
 - `list_models` -> ModelInfo[]
 - `download_model({id})` -> Job
 - `export_text({path,content})` -> void

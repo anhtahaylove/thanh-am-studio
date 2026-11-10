@@ -1,0 +1,15 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Thanh Âm Studio",
+  "version": "0.1.0",
+  "identifier": "studio.thanham.desktop",
+  "build": {"beforeDevCommand": "npm run dev", "devUrl": "http://localhost:1420", "beforeBuildCommand": "npm run build", "frontendDist": "../dist"},
+  "app": {
+    "windows": [{"title": "Thanh Âm Studio", "width": 1440, "height": 960, "minWidth": 1024, "minHeight": 720}],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost data:; media-src 'self' asset: http://asset.localhost blob:; style-src 'self' 'unsafe-inline'; connect-src ipc: http://ipc.localhost",
+      "assetProtocol": {"enable": true, "scope": ["$APPLOCALDATA/assets/**"]}
+    }
+  },
+  "bundle": {"active": true, "targets": ["nsis"], "resources": {"../worker/": "worker/"}, "windows": {"nsis": {"installMode": "currentUser"}}}
+}
