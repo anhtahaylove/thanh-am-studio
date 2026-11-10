@@ -1,1 +1,1 @@
-{"default":{"identifier":"default","description":"Local desktop window and explicit file dialogs","local":true,"windows":["main"],"permissions":["core:default","dialog:allow-open","dialog:allow-save"]}}
+{"default":{"identifier":"default","description":"Local desktop window and explicit file dialogs","local":true,"windows":["main"],"permissions":["core:default","core:window:allow-destroy","dialog:allow-open","dialog:allow-save"]}}
