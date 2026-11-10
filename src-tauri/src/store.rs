@@ -24,6 +24,7 @@ impl Store {
    CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY, kind TEXT NOT NULL, project_id TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL, data TEXT NOT NULL);
    CREATE TABLE IF NOT EXISTS assets(id TEXT PRIMARY KEY, data TEXT NOT NULL);
    CREATE TABLE IF NOT EXISTS voices(id TEXT PRIMARY KEY, data TEXT NOT NULL);
+   CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, data TEXT NOT NULL);
    PRAGMA user_version=1;").map_err(err)?;
   let s = Self{db:Mutex::new(db),root:root.to_owned()};
   for mut j in s.list_jobs()? { if j["status"] == "running" { j["status"]=json!("interrupted"); j["error"]=json!("Phiên trước dừng giữa chừng. Chọn thử lại."); s.write_job(&j)?; } }
@@ -95,4 +96,11 @@ impl Store {
  pub fn asset(&self,id:&str)->Result<Value>{let d=self.db.lock().map_err(err)?.query_row("SELECT data FROM assets WHERE id=?1",[id],|r|r.get::<_,String>(0)).map_err(|_|"ASSET_NOT_FOUND".to_string())?;parse(d)}
  pub fn list_voices(&self)->Result<Vec<Value>>{let db=self.db.lock().map_err(err)?;let mut q=db.prepare("SELECT data FROM voices ORDER BY id").map_err(err)?;let r=q.query_map([],|r|r.get::<_,String>(0)).map_err(err)?;r.map(|v|parse(v.map_err(err)?)).collect()}
  pub fn save_voice(&self,mut v:Value)->Result<Value>{if v["id"].as_str().unwrap_or("").is_empty(){v["id"]=json!(Uuid::new_v4().to_string())}ident(&v,"name")?;if v["kind"]=="reference"{if v["consent"]!=true{return Err("VOICE_CONSENT_REQUIRED".into())}self.asset(&ident(&v,"reference_asset_id")?)?;}else if v["kind"]!="preset"{return Err("INVALID_VOICE_KIND".into())}self.db.lock().map_err(err)?.execute("INSERT INTO voices VALUES(?1,?2) ON CONFLICT(id) DO UPDATE SET data=excluded.data",params![v["id"].as_str(),v.to_string()]).map_err(err)?;Ok(v)}
+ pub fn settings(&self)->Result<Value>{let d=self.db.lock().map_err(err)?.query_row("SELECT data FROM settings WHERE key='app'",[],|r|r.get::<_,String>(0)).optional().map_err(err)?;d.map_or(Ok(json!({"dictionary":{}})),parse)}
+ pub fn save_settings(&self,v:Value)->Result<Value>{
+  let d=v["dictionary"].as_object().ok_or("INVALID_SETTINGS: dictionary")?;
+  if d.len()>5000||d.iter().any(|(k,x)|k.is_empty()||k.len()>512||x.as_str().is_none_or(|x|x.len()>512)){return Err("INVALID_SETTINGS: dictionary".into())}
+  let s=json!({"dictionary":d});
+  self.db.lock().map_err(err)?.execute("INSERT INTO settings VALUES('app',?1) ON CONFLICT(key) DO UPDATE SET data=excluded.data",[s.to_string()]).map_err(err)?;Ok(s)
+ }
 }

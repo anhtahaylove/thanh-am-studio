@@ -8,6 +8,8 @@ All JSON fields are snake_case. Times are milliseconds except worker STT segment
 - `load_project({id})` -> Project
 - `save_project({project})` -> Project (revision optimistic lock; increments revision)
 - `delete_project({id})` -> void (metadata only, no shared asset deletion)
+- `get_settings` -> AppSettings (defaults to `{dictionary:{}}`)
+- `save_settings({settings})` -> AppSettings (validated: `dictionary` is an object of non-empty string keys to string values, at most 5000 entries, each at most 512 bytes; other fields are dropped)
 - `list_jobs` -> Job[]
 - `enqueue_job({kind,projectId,payload})` -> Job
 - `cancel_job({id})`, `retry_job({id})` -> Job
@@ -27,6 +29,7 @@ Use @tauri-apps/plugin-dialog for open/save dialogs; convertFileSrc(asset.path) 
 ## Data
 ProjectSummary: {id,name,updated_at,revision}
 Project: {id,name,updated_at,revision,segments: Segment[],transcript: TranscriptSegment[],dictionary: Record<string,string>,source_asset_id: string|null}
+AppSettings: {dictionary: Record<string,string>} (app-wide pronunciation dictionary; TTS normalization applies `{...appDictionary, ...project.dictionary}`, so the project entry wins)
 Segment: {id,text,normalized_text,voice_id:string|null,speaker:string,gap_ms:number,takes: Take[],selected_take_id:string|null,trim_start_ms:number,trim_end_ms:number|null,fade_in_ms:number,fade_out_ms:number,gain_db:number}
 Take: {id,asset_id,path,duration_ms,sample_rate,created_at}
 TranscriptSegment: {id,start_ms,end_ms,text}
