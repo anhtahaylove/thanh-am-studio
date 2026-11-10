@@ -39,6 +39,11 @@ try {
         $p = Join-Path $pythonDir $rel
         if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p -Recurse -Force }
     }
+    # Package test suites and ONNX conversion tools are never imported at runtime; they also
+    # carry the deepest paths, which break makensis (MAX_PATH) and long install folders.
+    $site = Join-Path $pythonDir 'Lib\site-packages'
+    Get-ChildItem -LiteralPath $site -Directory -Recurse -Filter 'tests' | Sort-Object { $_.FullName.Length } -Descending | ForEach-Object { Remove-Item -LiteralPath $_.FullName -Recurse -Force }
+    Remove-Item -LiteralPath (Join-Path $site 'onnxruntime\tools') -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $managed -Recurse -Force
 
     $bin = Join-Path $destinationPath 'ffmpeg'

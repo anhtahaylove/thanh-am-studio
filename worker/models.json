@@ -191,7 +191,7 @@
       "artifacts": [
         {
           "path": "config.json",
-          "repo": "mobiuslabsgmbh/faster-whisper-large-v3-turbo",
+          "repo": "dropbox-dash/faster-whisper-large-v3-turbo",
           "revision": "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf",
           "filename": "config.json",
           "size": 2263,
@@ -199,7 +199,7 @@
         },
         {
           "path": "model.bin",
-          "repo": "mobiuslabsgmbh/faster-whisper-large-v3-turbo",
+          "repo": "dropbox-dash/faster-whisper-large-v3-turbo",
           "revision": "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf",
           "filename": "model.bin",
           "size": 1617884929,
@@ -207,7 +207,7 @@
         },
         {
           "path": "preprocessor_config.json",
-          "repo": "mobiuslabsgmbh/faster-whisper-large-v3-turbo",
+          "repo": "dropbox-dash/faster-whisper-large-v3-turbo",
           "revision": "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf",
           "filename": "preprocessor_config.json",
           "size": 340,
@@ -215,7 +215,7 @@
         },
         {
           "path": "tokenizer.json",
-          "repo": "mobiuslabsgmbh/faster-whisper-large-v3-turbo",
+          "repo": "dropbox-dash/faster-whisper-large-v3-turbo",
           "revision": "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf",
           "filename": "tokenizer.json",
           "size": 2710337,
@@ -223,7 +223,7 @@
         },
         {
           "path": "vocabulary.json",
-          "repo": "mobiuslabsgmbh/faster-whisper-large-v3-turbo",
+          "repo": "dropbox-dash/faster-whisper-large-v3-turbo",
           "revision": "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf",
           "filename": "vocabulary.json",
           "size": 1068114,
