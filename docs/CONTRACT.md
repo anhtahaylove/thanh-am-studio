@@ -8,6 +8,8 @@ All JSON fields are snake_case. Times are milliseconds except worker STT segment
 - `load_project({id})` -> Project
 - `save_project({project})` -> Project (revision optimistic lock; increments revision)
 - `delete_project({id})` -> void (metadata only, no shared asset deletion)
+- `get_settings` -> AppSettings (defaults to `{dictionary:{}}`)
+- `save_settings({settings})` -> AppSettings (validated: `dictionary` is an object of non-empty string keys to string values, at most 5000 entries, each at most 512 bytes; other fields are dropped)
 - `list_jobs` -> Job[]
 - `enqueue_job({kind,projectId,payload})` -> Job
 - `cancel_job({id})`, `retry_job({id})` -> Job
@@ -27,6 +29,7 @@ Use @tauri-apps/plugin-dialog for open/save dialogs; convertFileSrc(asset.path) 
 ## Data
 ProjectSummary: {id,name,updated_at,revision}
 Project: {id,name,updated_at,revision,segments: Segment[],transcript: TranscriptSegment[],dictionary: Record<string,string>,source_asset_id: string|null}
+AppSettings: {dictionary: Record<string,string>} (app-wide pronunciation dictionary; TTS normalization applies `{...appDictionary, ...project.dictionary}`, so the project entry wins)
 Segment: {id,text,normalized_text,voice_id:string|null,speaker:string,gap_ms:number,takes: Take[],selected_take_id:string|null,trim_start_ms:number,trim_end_ms:number|null,fade_in_ms:number,fade_out_ms:number,gain_db:number}
 Take: {id,asset_id,path,duration_ms,sample_rate,created_at}
 TranscriptSegment: {id,start_ms,end_ms,text}
@@ -35,6 +38,13 @@ Voice: {id,name,kind:'preset'|'reference',reference_asset_id:string|null,consent
 Job: {id,kind,project_id:string|null,payload:object,status:'queued'|'running'|'succeeded'|'failed'|'cancelled'|'interrupted',progress:number,error:string|null,result:object|null,created_at,updated_at}
 RuntimeStatus: {python_ready:boolean,ffmpeg_ready:boolean,worker_ready:boolean,python_path:string|null,ffmpeg_path:string|null,message:string}
 ModelInfo: {id,name,engine,installed:boolean,revision:string,license:string,description:string}
+
+## Client editing rules
+- Undo/redo keeps at most 50 project snapshots taken per edit (typing within 1s collapses into one step) and is cleared when a project is opened, created, reloaded or deleted. Restoring a snapshot keeps the current `revision` and unions takes per segment id from the current project (a segment created after the snapshot that already owns takes is kept), so undo never removes a take the server added.
+- Segment split: the first half keeps the id, takes and `selected_take_id`; the second gets a new id and no takes. Merge keeps the first segment's id and takes; the next segment's takes are detached from the project (assets stay on disk) after a confirmation.
+- Transcript times are validated before they reach `save_project`: `start_ms >= 0` and `end_ms > start_ms`; invalid edits are rejected in the UI and STT results are clamped to this range.
+- `stt` jobs are only enqueued when `list_models` reports the chosen whisper model as installed.
+- On desktop window close with unsaved edits the UI flushes `save_project` first (capability `core:window:allow-destroy`); if saving fails the user may choose to close and discard.
 
 ## Job kinds and payloads
 - tts: {segment_id,text,voice_id:string|null,reference_asset_id:string|null}; backend resolves voice/reference and model paths; result adds a new take without replacing existing selection (first take auto-selected only when none). Takes are append-only: adding one does not change the project revision, and save_project keeps stored takes the client has not seen.

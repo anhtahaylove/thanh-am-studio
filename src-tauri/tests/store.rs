@@ -102,3 +102,19 @@ fn project_validation_rejects_negative_gaps_before_database_write() {
     p["segments"] = json!([{"id":"one","text":"a","gap_ms":-4,"takes":[]}]);
     assert!(s.save_project(p).unwrap_err().starts_with("INVALID_SEGMENT"));
 }
+
+#[test]
+fn app_settings_default_roundtrip_and_validation() {
+    let tmp = tempfile::tempdir().unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    assert_eq!(s.settings().unwrap(), json!({"dictionary":{}}));
+    let saved = s.save_settings(json!({"dictionary":{"TP.HCM":"Thành phố Hồ Chí Minh"},"ignored":1})).unwrap();
+    assert_eq!(saved, json!({"dictionary":{"TP.HCM":"Thành phố Hồ Chí Minh"}}));
+    drop(s);
+    assert_eq!(Store::open(tmp.path()).unwrap().settings().unwrap(), saved);
+    let s = Store::open(tmp.path()).unwrap();
+    for bad in [json!({}), json!({"dictionary":[]}), json!({"dictionary":{"a":1}}), json!({"dictionary":{"":"x"}})] { assert!(s.save_settings(bad).unwrap_err().starts_with("INVALID_SETTINGS")); }
+    let many: serde_json::Map<String, serde_json::Value> = (0..5001).map(|i| (format!("k{i}"), json!("v"))).collect();
+    assert!(s.save_settings(json!({"dictionary":many})).unwrap_err().starts_with("INVALID_SETTINGS"));
+    assert_eq!(s.settings().unwrap(), saved);
+}
