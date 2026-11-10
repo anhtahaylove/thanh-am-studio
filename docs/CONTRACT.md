@@ -37,7 +37,7 @@ RuntimeStatus: {python_ready:boolean,ffmpeg_ready:boolean,worker_ready:boolean,p
 ModelInfo: {id,name,engine,installed:boolean,revision:string,license:string,description:string}
 
 ## Job kinds and payloads
-- tts: {segment_id,text,voice_id:string|null,reference_asset_id:string|null}; backend resolves voice/reference and model paths; result adds a new take without replacing existing selection (first take auto-selected only when none).
+- tts: {segment_id,text,voice_id:string|null,reference_asset_id:string|null}; backend resolves voice/reference and model paths; result adds a new take without replacing existing selection (first take auto-selected only when none). Takes are append-only: adding one does not change the project revision, and save_project keeps stored takes the client has not seen.
 - stt: {asset_id,model_id:'whisper-small'|'whisper-turbo',language:'vi'|'auto'}; result transcript must not silently overwrite edited transcript: retain result on job, UI applies explicitly.
 - render: {segments:Segment[],normalize:boolean,format:'wav'|'mp3'}; backend resolves selected takes by asset IDs, ignores untrusted payload paths. Output is a new asset.
 - model_download: {model_id}; download pins manifest revision and verifies cached content.
@@ -46,8 +46,9 @@ ModelInfo: {id,name,engine,installed:boolean,revision:string,license:string,desc
 One process per job, one JSON request on stdin, UTF-8 JSON events on stdout; diagnostics stderr. Request: {protocol:1,id,operation:'tts'|'stt'|'render'|'download'|'probe'|'health',payload:object,output_dir,models_dir}. Output: {protocol:1,id,event:'progress',progress:0..1,message?} or {protocol:1,id,event:'result',result:object} or {protocol:1,id,event:'error',code,message}. Exit nonzero on failure. Never report a result before atomic output finalization.
 
 Worker tts payload {text,voice_id?,reference_path?,model_path,output_name}; result {path,duration_ms,sample_rate}.
+Worker tts batch payload {model_path,items:[{text,voice_id?,reference_path?,output_name}]}: the engine loads once; each item reports {protocol:1,id,event:'item',index,result:{path,duration_ms,sample_rate}} or {...,event:'item',index,error:{code,message}}; a failed item does not stop the batch; final result {count}. The desktop batches up to 32 queued tts jobs per worker process.
 Worker stt payload {input_path,model_path,language:'vi'|'auto'}; result {segments:[{start,end,text}],language}.
 Worker render payload {clips:[{path,trim_start_ms,trim_end_ms,gap_ms,fade_in_ms,fade_out_ms,gain_db}],normalize,format,ffmpeg_path?}; result {path,duration_ms,sample_rate}.
 Worker download payload {model_id}; result {model_id,path,revision}.
 
-Resources: worker directory distributed as Tauri resources; Python/FFmpeg resolved from app resource runtime first, env THANHAM_PYTHON / THANHAM_FFMPEG for development only. Missing runtime/model yields actionable error, never placeholder audio.
+Resources: worker directory distributed as Tauri resources; Python/FFmpeg resolved from the bundled resource runtime (runtime/python, runtime/ffmpeg); release builds never use the source checkout, PATH or env vars. Debug builds may fall back to the source tree and THANHAM_PYTHON / THANHAM_FFMPEG. The worker runs as python -I -X utf8 with THANHAM_FFMPEG/THANHAM_FFPROBE set to the bundled binaries. Missing runtime/model yields actionable error, never placeholder audio.

@@ -15,6 +15,43 @@ fn project_roundtrip_uses_revision_lock_and_preserves_unicode() {
 }
 
 #[test]
+fn tts_take_landing_during_edit_is_kept_and_edit_saves() {
+    let tmp = tempfile::tempdir().unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    let mut p = s.create_project("Test").unwrap();
+    p["segments"] = json!([{"id":"one","text":"Xin chào","takes":[],"selected_take_id":null}]);
+    let mut p = s.save_project(p).unwrap();
+    let pid = p["id"].as_str().unwrap().to_owned();
+    s.enqueue("tts", Some(&pid), json!({"segment_id":"one","text":"Xin chào"})).unwrap();
+    let job = s.claim_next().unwrap().unwrap();
+    s.finish(job["id"].as_str().unwrap(), json!({"asset_id":"a1","path":"x.wav","duration_ms":10,"sample_rate":48000})).unwrap();
+    // UI still holds the pre-take copy and the user keeps editing.
+    p["segments"][0]["text"] = json!("Xin chào bạn");
+    let saved = s.save_project(p).unwrap();
+    assert_eq!(saved["segments"][0]["text"], "Xin chào bạn");
+    let takes = saved["segments"][0]["takes"].as_array().unwrap();
+    assert_eq!(takes.len(), 1);
+    assert_eq!(saved["segments"][0]["selected_take_id"], takes[0]["id"]);
+    assert_eq!(s.load_project(&pid).unwrap(), saved);
+}
+
+#[test]
+fn claim_queued_batches_only_queued_jobs_of_one_kind() {
+    let tmp = tempfile::tempdir().unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    let a = s.enqueue("tts", None, json!({})).unwrap();
+    s.enqueue("render", None, json!({})).unwrap();
+    let c = s.enqueue("tts", None, json!({})).unwrap();
+    s.cancel(c["id"].as_str().unwrap()).unwrap();
+    s.enqueue("tts", None, json!({})).unwrap();
+    let got = s.claim_queued("tts", 10).unwrap();
+    assert_eq!(got.len(), 2);
+    assert_eq!(got[0]["id"], a["id"]);
+    assert!(got.iter().all(|j| s.job(j["id"].as_str().unwrap()).unwrap()["status"] == "running"));
+    assert!(s.claim_queued("tts", 10).unwrap().is_empty());
+}
+
+#[test]
 fn reopened_store_marks_running_jobs_interrupted_not_successful() {
     let tmp = tempfile::tempdir().unwrap();
     let id;

@@ -215,12 +215,18 @@ def offline_mode():
     os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
 
 
-def tts(payload, output_dir: Path, progress):
+def tts(payload, output_dir: Path, progress, emit_item=None):
+    """Synthesize one item, or payload['items'] with one engine load, reporting each via emit_item."""
     model_dir = Path(payload.get('model_path', ''))
     verify_model(model_dir, 'vieneu-v3')
-    text = payload.get('text', '')
-    if not isinstance(text, str) or not text.strip() or len(text) > 100000:
-        raise WorkerError('INVALID_TEXT', 'Supply non-empty text, at most 100,000 characters per segment.')
+    batch = 'items' in payload
+    items = payload['items'] if batch else [payload]
+    if not isinstance(items, list) or not 1 <= len(items) <= 1000 or (batch and emit_item is None):
+        raise WorkerError('INVALID_REQUEST', 'items must list 1..1000 segments.')
+    for item in items:
+        text = item.get('text', '') if isinstance(item, dict) else None
+        if not isinstance(text, str) or not text.strip() or len(text) > 100000:
+            raise WorkerError('INVALID_TEXT', 'Supply non-empty text, at most 100,000 characters per segment.')
     offline_mode()
     import numpy as np
     import soundfile as sf
@@ -233,7 +239,7 @@ def tts(payload, output_dir: Path, progress):
         if repo != 'OpenMOSS-Team/MOSS-Audio-Tokenizer-Nano-ONNX':
             raise WorkerError('UNPINNED_MODEL', 'Unexpected model request from engine.')
         return model_dir / 'codec'
-    progress(0.1, 'Loading local VieNeu CPU model')
+    progress(0.05, 'Loading local VieNeu CPU model')
     try:
         OnnxV3LiteEngine._fetch = staticmethod(local_fetch)
         engine = Vieneu(backend='onnx', device='cpu', precision='fp32',
@@ -241,32 +247,46 @@ def tts(payload, output_dir: Path, progress):
             max_batch_size=1, max_streams=1, threads=min(8, os.cpu_count() or 4))
     finally:
         OnnxV3LiteEngine._fetch = staticmethod(original_fetch)
-    kwargs = {'batch_size': 1}
-    if payload.get('reference_path'):
-        reference = Path(payload['reference_path'])
-        if not reference.is_file():
-            raise WorkerError('INPUT_MISSING', 'Reference voice file is missing.')
-        kwargs['ref_audio'] = str(reference)
-    elif payload.get('voice_id'):
-        kwargs['voice'] = payload['voice_id']
-    progress(0.3, 'Synthesizing speech')
-    audio = np.asarray(engine.infer(text, **kwargs), dtype=np.float32)
-    if audio.size == 0 or not np.isfinite(audio).all() or float(np.max(np.abs(audio))) < 1e-7:
-        raise WorkerError('INVALID_AUDIO', 'Engine returned empty, silent or non-finite audio.')
     output_dir.mkdir(parents=True, exist_ok=True)
-    name = payload.get('output_name') or f'{uuid.uuid4()}.wav'
-    if Path(name).suffix.lower() != '.wav':
-        raise WorkerError('INVALID_PATH', 'TTS output must be a WAV file.')
-    final = contained_path(output_dir, name)
-    if final.exists():
-        raise WorkerError('OUTPUT_EXISTS', 'A take already exists at that output name.')
-    partial = final.with_name(final.stem + '.partial.wav')
-    try:
-        sf.write(str(partial), audio, 48000, subtype='PCM_24')
-        os.replace(partial, final)
-    finally:
-        partial.unlink(missing_ok=True)
-    return {'path': str(final), 'duration_ms': round(len(audio) / 48), 'sample_rate': 48000}
+
+    def synth(item):
+        kwargs = {'batch_size': 1}
+        if item.get('reference_path'):
+            reference = Path(item['reference_path'])
+            if not reference.is_file():
+                raise WorkerError('INPUT_MISSING', 'Reference voice file is missing.')
+            kwargs['ref_audio'] = str(reference)
+        elif item.get('voice_id'):
+            kwargs['voice'] = item['voice_id']
+        name = item.get('output_name') or f'{uuid.uuid4()}.wav'
+        if Path(name).suffix.lower() != '.wav':
+            raise WorkerError('INVALID_PATH', 'TTS output must be a WAV file.')
+        final = contained_path(output_dir, name)
+        if final.exists():
+            raise WorkerError('OUTPUT_EXISTS', 'A take already exists at that output name.')
+        audio = np.asarray(engine.infer(item['text'], **kwargs), dtype=np.float32)
+        if audio.size == 0 or not np.isfinite(audio).all() or float(np.max(np.abs(audio))) < 1e-7:
+            raise WorkerError('INVALID_AUDIO', 'Engine returned empty, silent or non-finite audio.')
+        partial = final.with_name(final.stem + '.partial.wav')
+        try:
+            sf.write(str(partial), audio, 48000, subtype='PCM_24')
+            os.replace(partial, final)
+        finally:
+            partial.unlink(missing_ok=True)
+        return {'path': str(final), 'duration_ms': round(len(audio) / 48), 'sample_rate': 48000}
+
+    if not batch:
+        progress(0.3, 'Synthesizing speech')
+        return synth(items[0])
+    for i, item in enumerate(items):
+        progress(0.1 + 0.9 * i / len(items), f'Synthesizing {i+1}/{len(items)}')
+        try:
+            emit_item(i, result=synth(item))
+        except WorkerError as error:
+            emit_item(i, error={'code': error.code, 'message': str(error)})
+        except Exception as error:  # one bad segment must not lose the rest of the batch
+            emit_item(i, error={'code': 'WORKER_ERROR', 'message': f'{type(error).__name__}: {error}'})
+    return {'count': len(items)}
 
 
 def stt(payload, progress):
@@ -331,7 +351,7 @@ def main():
             elif operation == 'probe': result = probe(payload['input_path'], payload.get('ffmpeg_path'))
             elif operation == 'render': result = render(payload, output_dir, progress)
             elif operation == 'download': result = download(payload, models_dir, progress)
-            elif operation == 'tts': result = tts(payload, output_dir, progress)
+            elif operation == 'tts': result = tts(payload, output_dir, progress, lambda index, **v: emit('item', index=index, **v))
             else: result = stt(payload, progress)
         emit('result', result=result)
         return 0
