@@ -6,6 +6,8 @@ use std::{fs,io::{BufRead,BufReader,Write},path::{Path,PathBuf},process::{Comman
 pub const MODELS:&[(&str,&str,&str,&str)] = &[("vieneu-v3","VieNeu v3 Turbo","tts","Apache-2.0"),("whisper-small","Whisper Small","stt","MIT"),("whisper-turbo","Whisper Large v3 Turbo","stt","MIT")];
 /// Queued TTS jobs share one worker process so the model loads once (~13 s on CPU).
 pub const TTS_BATCH:usize=32;
+/// Workers join a kill-on-close job object so a crashed or killed app never leaves Python running.
+#[cfg(windows)] fn worker_job()->usize{static JOB:std::sync::OnceLock<usize>=std::sync::OnceLock::new();*JOB.get_or_init(||unsafe{use windows_sys::Win32::System::JobObjects::*;let h=CreateJobObjectW(std::ptr::null(),std::ptr::null());let mut info:JOBOBJECT_EXTENDED_LIMIT_INFORMATION=std::mem::zeroed();info.BasicLimitInformation.LimitFlags=JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;SetInformationJobObject(h,JobObjectExtendedLimitInformation,&info as *const _ as *const _,std::mem::size_of_val(&info) as u32);h as usize})}
 pub struct Runtime {pub resource:PathBuf,pub source:PathBuf,pub shutdown:AtomicBool}
 fn required(v:&Value,k:&str)->Result<String>{v[k].as_str().filter(|x|!x.is_empty()).map(str::to_string).ok_or_else(||format!("INVALID_PAYLOAD: {k}"))}
 fn model_path(s:&Store,id:&str)->Result<PathBuf>{if !MODELS.iter().any(|m|m.0==id){return Err("INVALID_MODEL".into())}Ok(s.root.join("models").join(id))}
@@ -42,6 +44,7 @@ impl Runtime{
   let mut cmd=Command::new(python);if let Some(f)=self.ffmpeg(){cmd.env("THANHAM_FFMPEG",&f).env("THANHAM_FFPROBE",f.with_file_name("ffprobe.exe"));}cmd.arg("-I").arg("-X").arg("utf8").arg(self.worker()).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::from(log)).env("PYTHONUTF8","1").env("PYTHONIOENCODING","utf-8").env("HF_HUB_DISABLE_TELEMETRY","1");
   #[cfg(windows)] cmd.creation_flags(0x08000000);
   let mut child=cmd.spawn().map_err(|e|format!("WORKER_START: {e}"))?;
+  #[cfg(windows)] unsafe{use std::os::windows::io::AsRawHandle;windows_sys::Win32::System::JobObjects::AssignProcessToJobObject(worker_job() as _,child.as_raw_handle() as _);}
   let mut input=child.stdin.take().ok_or("WORKER_STDIN")?;if let Err(e)=writeln!(input,"{request}"){let _=child.kill();let _=child.wait();return Err(format!("WORKER_REQUEST: {e}"))}drop(input);
   let stdout=child.stdout.take().ok_or("WORKER_STDOUT")?;let(tx,rx)=std::sync::mpsc::channel();thread::spawn(move||{for line in BufReader::new(stdout).lines(){match line{Ok(s)=>{if tx.send(s).is_err(){break}},Err(_)=>break}}});
   let mut result=None;let mut failure=None;
