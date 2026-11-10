@@ -39,6 +39,13 @@ Job: {id,kind,project_id:string|null,payload:object,status:'queued'|'running'|'s
 RuntimeStatus: {python_ready:boolean,ffmpeg_ready:boolean,worker_ready:boolean,python_path:string|null,ffmpeg_path:string|null,message:string}
 ModelInfo: {id,name,engine,installed:boolean,revision:string,license:string,description:string}
 
+## Client editing rules
+- Undo/redo keeps at most 50 project snapshots taken per edit (typing within 1s collapses into one step) and is cleared when a project is opened, created, reloaded or deleted. Restoring a snapshot keeps the current `revision` and unions takes per segment id from the current project (a segment created after the snapshot that already owns takes is kept), so undo never removes a take the server added.
+- Segment split: the first half keeps the id, takes and `selected_take_id`; the second gets a new id and no takes. Merge keeps the first segment's id and takes; the next segment's takes are detached from the project (assets stay on disk) after a confirmation.
+- Transcript times are validated before they reach `save_project`: `start_ms >= 0` and `end_ms > start_ms`; invalid edits are rejected in the UI and STT results are clamped to this range.
+- `stt` jobs are only enqueued when `list_models` reports the chosen whisper model as installed.
+- On desktop window close with unsaved edits the UI flushes `save_project` first (capability `core:window:allow-destroy`); if saving fails the user may choose to close and discard.
+
 ## Job kinds and payloads
 - tts: {segment_id,text,voice_id:string|null,reference_asset_id:string|null}; backend resolves voice/reference and model paths; result adds a new take without replacing existing selection (first take auto-selected only when none). Takes are append-only: adding one does not change the project revision, and save_project keeps stored takes the client has not seen.
 - stt: {asset_id,model_id:'whisper-small'|'whisper-turbo',language:'vi'|'auto'}; result transcript must not silently overwrite edited transcript: retain result on job, UI applies explicitly.

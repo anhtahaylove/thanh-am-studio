@@ -20,3 +20,28 @@ test('navigation, theme and screen sizes have no overflow',async({page})=>{
  await page.getByRole('button',{name:'Chuyển giao diện tối'}).click();await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
  for(const width of [1440,1280,960,640]){await page.setViewportSize({width,height:900});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);}
 });
+test('app dictionary persists, applies to every project and loses to the project dictionary',async({page})=>{
+ await page.goto('/');await page.getByRole('button',{name:'Model & cài đặt',exact:true}).click();
+ await page.getByRole('textbox',{name:'Từ gốc',exact:true}).fill('TP.HCM');await page.getByRole('textbox',{name:'Cách đọc',exact:true}).fill('Thành phố Hồ Chí Minh');await page.getByRole('button',{name:'Thêm cách đọc'}).click();
+ await expect(page.getByText('TP.HCM → Thành phố Hồ Chí Minh')).toBeVisible();await page.reload();await page.getByRole('button',{name:'Model & cài đặt',exact:true}).click();await expect(page.getByText('TP.HCM → Thành phố Hồ Chí Minh')).toBeVisible();
+ await page.getByRole('button',{name:'Tạo giọng đọc',exact:true}).click();await page.getByRole('button',{name:'Viết đoạn đầu tiên'}).click();await page.getByRole('textbox',{name:'Nội dung đoạn 1'}).fill('Xin chào TP.HCM');
+ await page.getByText('Văn bản sau chuẩn hóa',{exact:true}).click();await expect(page.getByText('Xin chào Thành phố Hồ Chí Minh',{exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Từ điển phát âm'}).click();await page.getByRole('textbox',{name:'Từ gốc',exact:true}).fill('TP.HCM');await page.getByRole('textbox',{name:'Cách đọc',exact:true}).fill('Sài Gòn');await page.getByRole('button',{name:'Thêm cách đọc'}).click();
+ await expect(page.getByText('Xin chào Sài Gòn',{exact:true})).toBeVisible();
+});
+test('speaker panel, split, merge and undo/redo edit the script',async({page})=>{
+ await page.goto('/');await page.getByRole('button',{name:'Thêm nội dung',exact:true}).click();await page.getByRole('textbox',{name:'Nội dung cần thêm'}).fill('Câu một. Câu hai.\nDòng sau.');await page.getByRole('button',{name:'Thêm vào kịch bản'}).click();
+ await expect(page.getByRole('combobox',{name:'Giọng của Người dẫn'})).toBeVisible();
+ await page.getByRole('button',{name:'Chia đoạn tại con trỏ'}).first().click();
+ await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toHaveValue('Câu một.');await expect(page.getByRole('textbox',{name:'Nội dung đoạn 2'})).toHaveValue('Câu hai.');await expect(page.getByRole('textbox',{name:'Nội dung đoạn 3'})).toHaveValue('Dòng sau.');
+ await page.getByRole('button',{name:'Gộp với đoạn sau'}).first().click();await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toHaveValue('Câu một. Câu hai.');await expect(page.getByRole('textbox',{name:'Nội dung đoạn 2'})).toHaveValue('Dòng sau.');
+ await page.keyboard.press('Control+z');await expect(page.getByRole('textbox',{name:'Nội dung đoạn 3'})).toHaveValue('Dòng sau.');
+ await page.keyboard.press('Control+Shift+z');await expect(page.getByRole('textbox',{name:'Nội dung đoạn 2'})).toHaveValue('Dòng sau.');
+ await page.getByRole('button',{name:'Hoàn tác (Ctrl+Z)'}).click();await expect(page.getByRole('textbox',{name:'Nội dung đoạn 3'})).toBeVisible();await expect(page.getByRole('button',{name:'Làm lại (Ctrl+Shift+Z)'})).toBeEnabled();
+});
+test('transcript rows can be added and deleted and invalid times are rejected',async({page})=>{
+ await page.goto('/');await page.getByRole('button',{name:'Chép lời',exact:true}).click();await page.getByRole('button',{name:'Thêm dòng'}).click();await page.getByRole('button',{name:'Thêm dòng'}).click();
+ const ends=page.getByLabel('Đến (ms)');await expect(ends).toHaveCount(2);await expect(ends.nth(0)).toHaveValue('1000');await expect(ends.nth(1)).toHaveValue('2000');
+ await ends.nth(0).fill('0');await expect(page.getByRole('alert')).toContainText('Mốc thời gian không hợp lệ');await expect(ends.nth(0)).toHaveValue('1000');
+ await page.getByRole('button',{name:'Xóa dòng'}).first().click();await expect(ends).toHaveCount(1);
+});
