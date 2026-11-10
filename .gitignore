@@ -1,0 +1,16 @@
+node_modules/
+dist/
+target/
+.venv*/
+__pycache__/
+.pytest_cache/
+*.pyc
+runtime/
+models/
+*.wav
+*.mp3
+*.sqlite*
+.env*
+!.env.example
+playwright-report/
+test-results/
