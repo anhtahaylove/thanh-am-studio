@@ -12,6 +12,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import uuid
 
 ROOT = Path(__file__).resolve().parent
@@ -184,28 +185,65 @@ def verify_model(model_dir, expected_id=None):
 
 def download(payload, models_dir: Path, progress):
     spec = model_spec(payload.get('model_id'))
-    from huggingface_hub import hf_hub_download
     destination = contained_path(models_dir, spec['id'])
     destination.mkdir(parents=True, exist_ok=True)
     (destination / 'installed.json').unlink(missing_ok=True)
     files = spec['artifacts']
-    for i, item in enumerate(files):
-        target = contained_path(destination, item['path'])
+    total = sum(item['size'] for item in files)
+    missing = []
+    for item in files:
         try:
-            verify_file(target, item)
+            verify_file(contained_path(destination, item['path']), item)
         except WorkerError:
-            cached = Path(hf_hub_download(repo_id=item['repo'], filename=item['filename'], revision=item['revision'],
-                cache_dir=str(models_dir / '.download-cache')))
-            verify_file(cached, item)
+            missing.append(item)
+    # Downloads land in a per-model staging folder (resumable), then move into place: no second copy.
+    staging = contained_path(models_dir, f".download/{spec['id']}")
+    need = sum(item['size'] for item in missing)
+    free = shutil.disk_usage(models_dir).free
+    if missing and free < need + 256 * 1024 * 1024:
+        raise WorkerError('DISK_FULL', f'Không đủ dung lượng: cần khoảng {math.ceil(need / 2**20)} MB trống, còn {free // 2**20} MB.')
+    done = total - need
+    stop = threading.Event()
+    def watch():
+        while not stop.wait(1):
+            partial = 0
+            with contextlib.suppress(OSError):
+                partial = sum(p.stat().st_size for p in staging.rglob('*') if p.is_file())
+            progress(min(0.99, (done + partial) / total), 'Đang tải model')
+    watcher = threading.Thread(target=watch, daemon=True)
+    watcher.start()
+    # Keep HF/Xet caches inside the app's model folder, never the user's global cache.
+    os.environ['HF_HOME'] = str(models_dir / '.hf')
+    # Plain HTTP streams into a resumable .incomplete file, so byte progress and resume are observable.
+    os.environ['HF_HUB_DISABLE_XET'] = '1'
+    try:
+        from huggingface_hub import hf_hub_download
+        for item in missing:
+            target = contained_path(destination, item['path'])
+            try:
+                fetched = Path(hf_hub_download(repo_id=item['repo'], filename=item['filename'], revision=item['revision'],
+                    local_dir=str(staging)))
+            except Exception as error:
+                raise WorkerError('NETWORK', f'Không tải được {item["filename"]} ({type(error).__name__}). Kiểm tra mạng rồi bấm thử lại; phần đã tải được giữ lại.') from error
+            try:
+                verify_file(fetched, item)
+            except WorkerError:
+                fetched.unlink(missing_ok=True)
+                raise
             target.parent.mkdir(parents=True, exist_ok=True)
-            staging = target.with_name(target.name + '.partial')
-            shutil.copyfile(cached, staging)
-            os.replace(staging, target)
-        progress((i + 1) / len(files), f"Verified {i+1}/{len(files)} model files")
+            os.replace(fetched, target)
+            done += item['size']
+            progress(min(0.99, done / total), 'Đã kiểm tra ' + item['filename'])
+    finally:
+        stop.set()
+        watcher.join()
+    shutil.rmtree(staging, ignore_errors=True)
+    shutil.rmtree(models_dir / '.hf', ignore_errors=True)
     marker = destination / 'installed.json'
     temp = marker.with_suffix('.partial')
     temp.write_text(json.dumps({'model_id': spec['id'], 'revision': spec['revision']}, indent=2), encoding='utf-8')
     os.replace(temp, marker)
+    progress(1, 'Model sẵn sàng')
     return {'model_id': spec['id'], 'path': str(destination), 'revision': spec['revision']}
 
 
@@ -328,9 +366,11 @@ def main():
         sys.stderr.reconfigure(encoding='utf-8')
     wire = sys.stdout
     request_id = 'unknown'
+    lock = threading.Lock()
     def emit(event, **values):
-        wire.write(json.dumps({'protocol': 1, 'id': request_id, 'event': event, **values}, ensure_ascii=False, allow_nan=False) + '\n')
-        wire.flush()
+        with lock:
+            wire.write(json.dumps({'protocol': 1, 'id': request_id, 'event': event, **values}, ensure_ascii=False, allow_nan=False) + '\n')
+            wire.flush()
     def progress(value, message=''):
         emit('progress', progress=max(0, min(1, value)), message=message)
     try:

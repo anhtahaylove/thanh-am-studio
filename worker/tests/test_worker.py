@@ -66,6 +66,15 @@ class WorkerTests(unittest.TestCase):
             self.assertEqual(e['code'], 'MODEL_NOT_READY')
             self.assertEqual(list(Path(td).glob('*.wav')), [])
 
+    def test_download_refuses_when_disk_is_too_small(self):
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as td, \
+                mock.patch.object(worker.shutil, 'disk_usage', return_value=shutil._ntuple_diskusage(10, 9, 1)):
+            with self.assertRaises(worker.WorkerError) as ctx:
+                worker.download({'model_id': 'whisper-small'}, Path(td), lambda *a: None)
+            self.assertEqual(ctx.exception.code, 'DISK_FULL')
+            self.assertFalse((Path(td) / 'whisper-small' / 'installed.json').exists())
+
     @unittest.skipUnless(shutil.which('ffmpeg'), 'FFmpeg required for actual render test')
     def test_actual_render_trim_gap_fade_atomic_output(self):
         with tempfile.TemporaryDirectory() as td:
