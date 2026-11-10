@@ -14,3 +14,4 @@ models/
 !.env.example
 playwright-report/
 test-results/
+tsconfig.tsbuildinfo
