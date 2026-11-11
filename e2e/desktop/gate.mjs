@@ -20,7 +20,7 @@ const sample = () => { for (const p of [procs()].flat()) { const k = p.ProcessNa
 
 async function launch() {
   const t = Date.now();
-  app = spawn(exe, [], {env: {...process.env, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: '--remote-debugging-port=9222'}, stdio: 'ignore'});
+  app = spawn(exe, [], {env: {...process.env, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: '--remote-debugging-port=9222', THANHAM_E2E_CDP_PORT: '9222'}, stdio: 'ignore'});
   browser = undefined;
   for (let i = 0; i < 120 && !browser; i++) { try { browser = await chromium.connectOverCDP('http://127.0.0.1:9222'); } catch { await sleep(500); } }
   page = browser.contexts()[0].pages()[0];

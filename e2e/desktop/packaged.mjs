@@ -37,7 +37,7 @@ const waitJobs = async (kind, count, timeoutMs) => {
 
 async function launch() {
   const started = Date.now();
-  app = spawn(exe, [], {env: {...process.env, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: '--remote-debugging-port=9222'}, stdio: 'ignore'});
+  app = spawn(exe, [], {env: {...process.env, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: '--remote-debugging-port=9222', THANHAM_E2E_CDP_PORT: '9222'}, stdio: 'ignore'});
   let browser;
   for (let i = 0; i < 120 && !browser; i++) { try { browser = await chromium.connectOverCDP('http://127.0.0.1:9222'); } catch { await new Promise((r) => setTimeout(r, 500)); } }
   if (!browser) throw Error('app did not expose WebView2 CDP');
