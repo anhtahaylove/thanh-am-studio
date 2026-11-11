@@ -26,11 +26,12 @@ Last updated 2026-11-11. Evidence below was observed, not inferred; anything not
 | `npm test` | 24 passed |
 | `npm run test:e2e` (browser preview) | 6 passed |
 | `cargo test --tests` | 8 store + 3 runtime passed |
-| `python -m unittest` (worker) | 9 passed (incl. real FFmpeg render, disk-full refusal) |
-| GitHub Actions CI (PRs #1–#3 and `main`) | pass |
+| `python -m unittest` (worker) | 10 passed (incl. real FFmpeg render, disk-full refusal, take peak limiter) |
+| GitHub Actions CI (PRs #1–#5 and `main`) | pass |
 | Real model download (whisper-small) | kill at 34 % then resume completed; 464 MB on disk (1×); proxy-blocked network → `NETWORK` error |
 | Packaged release exe on dev machine (`e2e/desktop/packaged.mjs full`, `reopen`) | all steps PASS |
 | **Clean Windows Sandbox** (Windows 11 26100, no Python/FFmpeg/uv on PATH, 8 GB) | installer 94–100 s; download both models via UI; TTS; preview playback; new take keeps old; restart and reopen project; **network adapters disabled**: TTS, render + save WAV via native dialog to a Unicode path, STT on it + apply, SRT export — all PASS (local builds and the CI-built v0.1.0 installer, see below) |
+| **Whisper Turbo + MP3** (clean Sandbox, CI-built v0.1.0 installer, `packaged.mjs turbo`, network on) | install 111 s; Whisper Large v3 Turbo downloaded via the models page in 47 s and listed as installed; project rendered as MP3 and saved via the native dialog: 161,900 bytes, ffprobe `codec_name=mp3`, 48 kHz, 192 kb/s, 6.68 s; Turbo STT on that MP3 49.6 s including model load, transcript identical to the fixture; applied — PASS |
 | 500-segment gate | see below |
 
 Clean-machine runs found and fixed two release blockers that the dev machine hid: the Python runtime
@@ -70,11 +71,15 @@ The draft is not published. Publishing waits for the human listening pass below.
 
 ## Not verified / known gaps
 
-- Listening quality has not been judged by a human; one listening-pack sentence peaks at full scale (possible clipping). The listening pack (first 20 sentences as
-  separate files in script order, plus the full render) is produced by the gate for an A/B pass.
-  STT round-trip shows audible-risk words (e.g. "giọng" heard as "dọng"); these are flagged for
-  listening, not treated as proof of mispronunciation.
-- Whisper Large v3 Turbo download/inference, reference-voice cloning quality, MP3 export and UI at
-  high DPI were not exercised end-to-end.
+- Listening quality has not been judged by a human; the clipping checks above are signal analysis.
+  The listening pack (first 20 sentences as separate files in script order, plus the full render) is
+  produced by the gate for an A/B pass. STT round-trip shows audible-risk words (e.g. "giọng" heard
+  as "dọng"); these are flagged for listening, not treated as proof of mispronunciation.
+- The v0.1.0 draft was built from `305ce75`, before the take peak limiter (PR #5); it still writes
+  takes that can clip. A new draft is needed before publishing.
+- In the Sandbox run that verified Turbo + MP3, the following offline `export` phase failed once: the
+  saved WAV was not found 10 s after the save dialog was filled (the same phase passed on the
+  previous run). The harness now waits 30 s and lists the folder on failure; not yet re-run.
+- Reference-voice cloning quality and UI at high DPI were not exercised end-to-end.
 - Installers are unsigned (SmartScreen warning). CUDA is not enabled.
 - Preview does not apply loudness normalization; export does when "Chuẩn hóa" is on.
