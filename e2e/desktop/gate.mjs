@@ -3,7 +3,7 @@
 // usage: node gate.mjs <app.exe> <outDir> [segments=500]
 import {chromium} from 'playwright-core';
 import {spawn, execSync} from 'node:child_process';
-import {mkdirSync, writeFileSync, appendFileSync} from 'node:fs';
+import {mkdirSync, writeFileSync, appendFileSync, copyFileSync} from 'node:fs';
 import {join} from 'node:path';
 
 const [exe, out, n = '500'] = process.argv.slice(2);
@@ -91,6 +91,10 @@ try {
   report.total_takes = takes.reduce((a, b) => a + b, 0);
   report.audio_ms = p.segments.reduce((a, s) => a + (s.takes.find((t) => t.id === s.selected_take_id)?.duration_ms ?? 0), 0);
   report.rtf = +(report.tts_wall_s * 1000 / report.audio_ms).toFixed(3);
+  // Listening pack: first 20 sentences as separate files (same order as the script) for a human A/B pass.
+  const pack = join(out, 'listening'); mkdirSync(pack, {recursive: true});
+  p.segments.slice(0, 20).forEach((s, i) => copyFileSync(s.takes.find((t) => t.id === s.selected_take_id).path, join(pack, `${String(i + 1).padStart(2, '0')}.wav`)));
+  writeFileSync(join(pack, 'script.txt'), script.slice(0, 20).map((t, i) => `${String(i + 1).padStart(2, '0')} ${t}`).join('\n'));
   log(`tts done ${JSON.stringify(report)}`);
 
   // Full render through the UI.
@@ -106,6 +110,7 @@ try {
   report.render_s = Math.round((Date.now() - tr) / 1000);
   report.render_duration_ms = render.result.duration_ms;
   report.render_expected_ms = report.audio_ms + 300 * N;
+  copyFileSync(render.result.path, join(pack, 'full-render.wav'));
 
   // STT round trip on the full render; reference = the script that was synthesized.
   const ts = Date.now();
