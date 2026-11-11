@@ -19,12 +19,13 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: npm ci
       - run: npm test
-      - run: cargo test --manifest-path src-tauri/Cargo.toml --tests --locked
       - name: Build private runtime (Python + FFmpeg)
         shell: pwsh
         run: ./scripts/setup-runtime.ps1
       - name: SBOM and notices
         run: python scripts/third_party.py release
+      # tauri-build needs the bundled resources to exist, so test after the runtime is built.
+      - run: cargo test --manifest-path src-tauri/Cargo.toml --tests --locked
       - run: npm run tauri build -- --ci
       - name: Checksums
         shell: pwsh
