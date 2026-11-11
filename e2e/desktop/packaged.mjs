@@ -1,5 +1,5 @@
 // Acceptance run against the packaged desktop app (UI -> Rust -> worker -> files).
-// usage: node packaged.mjs <app.exe> <outDir> <phase: full|reopen|turbo|offline|export>
+// usage: node packaged.mjs <app.exe> <outDir> <phase: full|reopen|turbo|offline|export|clone|dpi>
 // Drives the real WebView2 over CDP; native file dialogs are filled by file-dialog.ps1.
 import {chromium} from 'playwright-core';
 import {spawn, execFileSync} from 'node:child_process';
@@ -187,6 +187,113 @@ try {
       writeFileSync(join(out, 'stt-turbo.txt'), text);
       return `${Date.now() - t} ms (incl. model load): ${text}`;
     });
+  }
+  if (phase === 'clone') {
+    // Reference voice = a preset clip made by the app itself (no third-party voice rights involved).
+    // "Trúc Ly" is female, the engine default "Hải Đăng" is male, so cloning is audible and measurable.
+    const clip = join(out, 'clone'); mkdirSync(clip, {recursive: true});
+    const ref = join(saves, `mẫu giọng ${Date.now()}.wav`);
+    const lines = ['Buổi sáng ở Hà Nội thường bắt đầu bằng tiếng rao quen thuộc trên những con phố nhỏ.', 'Hôm nay chúng tôi giới thiệu một cuốn sách mới về lịch sử và văn hóa Việt Nam.', 'Xin vui lòng giữ trật tự và làm theo hướng dẫn của nhân viên trên tàu.', 'Thời tiết cuối tuần này có mưa rào rải rác ở các tỉnh phía Bắc.', 'Cảm ơn các bạn đã lắng nghe, hẹn gặp lại trong chương trình lần sau.'];
+    const project = async (name, texts, voice) => {
+      const p = await invoke('create_project', {name});
+      p.segments = texts.map((text, i) => ({id: `c${i}`, text, normalized_text: text, voice_id: voice, speaker: 'Người dẫn', gap_ms: 300, takes: [], selected_take_id: null, trim_start_ms: 0, trim_end_ms: null, fade_in_ms: 0, fade_out_ms: 0, gain_db: 0}));
+      await invoke('save_project', {project: p});
+      await nav('Dự án');
+      await page.locator('article', {has: page.getByRole('heading', {name, exact: true})}).getByRole('button', {name: 'Mở dự án'}).click();
+      await page.getByRole('textbox', {name: `Nội dung đoạn ${texts.length}`}).waitFor();
+      return p.id;
+    };
+    const generateAll = async (n) => {
+      const before = await done('tts');
+      await page.getByRole('button', {name: 'Tạo giọng tất cả'}).click();
+      return (await waitJobs('tts', before + n, 15 * 60000)).slice(0, n);
+    };
+    await step('reference clip from preset voice', async () => {
+      const pid = await project('Mẫu giọng kiểm thử', ['Xin chào các bạn, tôi là người dẫn chương trình. Hôm nay trời rất đẹp, chúng ta cùng nhau đi dạo quanh hồ Gươm và nghe kể về những câu chuyện xưa của thành phố.'], 'Trúc Ly');
+      await generateAll(1);
+      const take = (await invoke('load_project', {id: pid})).segments[0].takes[0];
+      copyFileSync(take.path, ref); copyFileSync(take.path, join(clip, 'reference.wav'));
+      return `${take.duration_ms} ms`;
+    });
+    let voiceId;
+    await step('register reference voice via UI with consent', async () => {
+      await nav('Thư viện giọng');
+      await page.getByRole('textbox', {name: 'Tên hiển thị'}).fill('Giọng mẫu kiểm thử');
+      await page.getByRole('button', {name: 'Chọn mẫu audio'}).click();
+      dialog(ref);
+      await page.getByRole('button', {name: 'Chọn mẫu audio'}).waitFor({state: 'detached', timeout: 30000}); // shows the file name once imported
+      const save = page.getByRole('button', {name: 'Lưu mẫu giọng'});
+      if (await save.isEnabled()) throw Error('save enabled before consent');
+      await page.getByRole('checkbox', {name: /quyền sử dụng/}).check();
+      await save.click();
+      const v = (await invoke('list_voices')).find((x) => x.name === 'Giọng mẫu kiểm thử');
+      if (v?.kind !== 'reference' || !v.consent || !v.reference_asset_id) throw Error(JSON.stringify(v));
+      voiceId = v.id;
+      await shot('clone-voice-library');
+    });
+    await step('clone 5 sentences and the same with the default voice', async () => {
+      const pid = await project('Nhân bản giọng', lines, null);
+      await page.getByRole('combobox', {name: 'Giọng của Người dẫn'}).selectOption({label: 'Giọng mẫu kiểm thử'});
+      await page.waitForTimeout(1500); // autosave
+      const cloned = await generateAll(5);
+      if (!cloned.every((j) => j.payload.reference_asset_id && j.payload.voice_id === voiceId)) throw Error(`not cloned: ${JSON.stringify(cloned.map((j) => j.payload))}`);
+      await page.getByRole('combobox', {name: 'Giọng của Người dẫn'}).selectOption({value: ''});
+      await page.waitForTimeout(1500);
+      await generateAll(5);
+      const segs = (await invoke('load_project', {id: pid})).segments;
+      segs.forEach((s, i) => { copyFileSync(s.takes[0].path, join(clip, `clone-${i + 1}.wav`)); copyFileSync(s.takes[1].path, join(clip, `default-${i + 1}.wav`)); });
+      // Intelligibility of each cloned take via the app's own STT.
+      const norm = (s) => s.toLowerCase().normalize('NFC').replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim().split(' ');
+      let errs = 0, words = 0; const rows = [];
+      for (const [i, s] of segs.entries()) {
+        const before = await done('stt');
+        await invoke('enqueue_job', {kind: 'stt', projectId: pid, payload: {asset_id: s.takes[0].asset_id, model_id: 'whisper-small', language: 'vi'}});
+        const [j] = await waitJobs('stt', before + 1, 10 * 60000);
+        const ref = norm(lines[i]), hyp = norm(j.result.transcript.map((x) => x.text).join(' '));
+        let prev = Array.from({length: hyp.length + 1}, (_, k) => k);
+        for (let a = 1; a <= ref.length; a++) { const cur = [a]; for (let b = 1; b <= hyp.length; b++) cur[b] = Math.min(prev[b] + 1, cur[b - 1] + 1, prev[b - 1] + (ref[a - 1] === hyp[b - 1] ? 0 : 1)); prev = cur; }
+        errs += prev[hyp.length]; words += ref.length; rows.push(`${i + 1}\t${hyp.join(' ')}`);
+      }
+      writeFileSync(join(clip, 'stt-clone.txt'), rows.join('\n'));
+      writeFileSync(join(clip, 'script.txt'), lines.map((l, i) => `${i + 1}\t${l}`).join('\n'));
+      return `5 cloned + 5 default takes; clone WER ${(100 * errs / words).toFixed(1)} %`;
+    });
+  }
+  if (phase === 'dpi') {
+    // Emulates the logical (CSS px) window a user gets at high Windows scaling: 1080p at 150 % and the
+    // 1024x720 minimum window at 125 %, 4K at 200 %, and a 1366x768 laptop at 125 % (shorter than the minimum).
+    const cdp = await page.context().newCDPSession(page);
+    const views = [['1080p-150', 1280, 680, 1.5], ['min-125', 1024, 720, 1.25], ['4k-200', 1920, 1040, 2], ['768p-125', 1093, 574, 1.25]];
+    const pages = ['Tạo giọng đọc', 'Chép lời', 'Thư viện giọng', 'Hàng đợi', 'Dự án', 'Model & cài đặt'];
+    await nav('Dự án');
+    await page.getByRole('button', {name: 'Mở dự án'}).first().click();
+    await page.getByRole('textbox', {name: 'Nội dung đoạn 1'}).waitFor();
+    for (const [name, width, height, deviceScaleFactor] of views) {
+      await step(`layout at ${name} (${width}x${height} css px, x${deviceScaleFactor})`, async () => {
+        await cdp.send('Emulation.setDeviceMetricsOverride', {width, height, deviceScaleFactor, mobile: false});
+        const issues = [];
+        for (const [i, p] of pages.entries()) {
+          await nav(p);
+          await page.waitForTimeout(400);
+          const bad = await page.evaluate(() => {
+            const w = document.documentElement.clientWidth, out = [];
+            if (document.documentElement.scrollWidth > w + 1) out.push(`page scrolls horizontally (${document.documentElement.scrollWidth}>${w})`);
+            for (const el of document.querySelectorAll('button, a, label, h1, h2, h3, input, select, textarea, .badge, .status')) {
+              const r = el.getBoundingClientRect(), cs = getComputedStyle(el);
+              if (!r.width || cs.visibility === 'hidden') continue;
+              if (r.right > w + 1) out.push(`${el.tagName.toLowerCase()} "${(el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 30)}" overflows the window by ${Math.round(r.right - w)} px`);
+              else if (el.scrollWidth > el.clientWidth + 1 && cs.overflow !== 'visible' && el.tagName !== 'TEXTAREA' && el.tagName !== 'SELECT') out.push(`${el.tagName.toLowerCase()} "${(el.textContent || '').trim().slice(0, 30)}" text is clipped`);
+            }
+            return [...new Set(out)].slice(0, 8);
+          });
+          await page.screenshot({path: join(out, `dpi-${name}-${i + 1}.png`)});
+          if (bad.length) issues.push(`${p}: ${bad.join('; ')}`);
+        }
+        if (issues.length) throw Error(issues.join(' | '));
+        return `${pages.length} pages clean`;
+      }).catch(() => {}); // recorded as FAIL; keep checking the other sizes
+    }
+    await cdp.send('Emulation.clearDeviceMetricsOverride');
   }
   if (phase === 'export') {
     await nav('Dự án');

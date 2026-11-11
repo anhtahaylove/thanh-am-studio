@@ -110,11 +110,20 @@ try {
     await nav('Hàng đợi');
     for (const j of after.filter((j) => ['interrupted', 'cancelled'].includes(j.status))) await invoke('retry_job', {id: j.id});
 
-    for (let shot = false; ;) {
+    for (let shot = false, waitShot = false; ;) {
       sample();
       const js = await ttsJobs(pid);
       const live = js.find((j) => j.status === 'running' && j.progress >= 0.15 && j.progress < 0.95);
       if (!shot && live) { await queueShot('tts', live); shot = true; }
+      if (!waitShot && js.filter((j) => j.status === 'running' && j.progress === 0).length > 1) {
+        waitShot = true;
+        try {
+          const waiting = page.getByText('Chờ trong lô');
+          await waiting.first().scrollIntoViewIfNeeded();
+          await page.screenshot({path: join(out, 'queue-tts-waiting.png')});
+          log(`queue tts: ${await waiting.count()} rows labelled waiting in batch`);
+        } catch (e) { log(`queue tts waiting: screenshot skipped (${String(e).split(String.fromCharCode(10))[0]})`); }
+      }
       const failed = js.filter((j) => ['failed', 'interrupted'].includes(j.status));
       if (failed.length) throw Error(`tts failed: ${failed[0].error}`);
       if (js.filter((j) => j.status === 'succeeded').length >= N) break;

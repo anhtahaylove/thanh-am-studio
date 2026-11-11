@@ -1,5 +1,6 @@
 # Runs inside Windows Sandbox: clean Windows, no Python/FFmpeg, repo and installer mapped read-only.
-param([string]$Repo = 'C:\repo', [string]$Installer = 'C:\installer', [string]$Out = 'C:\out')
+# -Only runs the listed packaged.mjs phases (network on); -Gate N runs the N-segment gate instead.
+param([string]$Repo = 'C:\repo', [string]$Installer = 'C:\installer', [string]$Out = 'C:\out', [string]$Only = '', [int]$Gate = 0)
 $ErrorActionPreference = 'Continue'
 $log = Join-Path $Out 'sandbox.log'
 function Log($m) { "$(Get-Date -Format o) $m" | Tee-Object -FilePath $log -Append }
@@ -17,15 +18,25 @@ $health = '{"protocol":1,"id":"h","operation":"health","payload":{}}' | & (Join-
 Log "health $health"
 Get-Process thanh-am-studio -ErrorAction SilentlyContinue | Stop-Process -Force
 $harness = Join-Path $Repo 'e2e\desktop\packaged.mjs'
-foreach ($phase in 'full', 'reopen', 'turbo') {
-    & node $harness $exe.FullName $Out $phase *>> $log
-    Log "phase $phase exit=$LASTEXITCODE"
-}
-Get-NetAdapter | Disable-NetAdapter -Confirm:$false
-Log "network disabled: $((Test-NetConnection huggingface.co -Port 443 -WarningAction SilentlyContinue).TcpTestSucceeded)"
-foreach ($phase in 'offline', 'export') {
-    & node $harness $exe.FullName $Out $phase *>> $log
-    Log "phase $phase exit=$LASTEXITCODE"
+if ($Gate) {
+    & node (Join-Path $Repo 'e2e\desktop\gate.mjs') $exe.FullName $Out $Gate *>> $log
+    Log "gate exit=$LASTEXITCODE"
+} elseif ($Only) {
+    foreach ($phase in $Only -split ',') {
+        & node $harness $exe.FullName $Out $phase *>> $log
+        Log "phase $phase exit=$LASTEXITCODE"
+    }
+} else {
+    foreach ($phase in 'full', 'reopen', 'turbo') {
+        & node $harness $exe.FullName $Out $phase *>> $log
+        Log "phase $phase exit=$LASTEXITCODE"
+    }
+    Get-NetAdapter | Disable-NetAdapter -Confirm:$false
+    Log "network disabled: $((Test-NetConnection huggingface.co -Port 443 -WarningAction SilentlyContinue).TcpTestSucceeded)"
+    foreach ($phase in 'offline', 'export') {
+        & node $harness $exe.FullName $Out $phase *>> $log
+        Log "phase $phase exit=$LASTEXITCODE"
+    }
 }
 Get-ChildItem "$env:LOCALAPPDATA\studio.thanham.desktop\jobs" -Recurse -Filter worker.log | Select-Object -Last 3 | ForEach-Object { Copy-Item $_.FullName (Join-Path $Out "worker-$($_.Directory.Name).log") }
 'done' | Set-Content (Join-Path $Out 'DONE')
