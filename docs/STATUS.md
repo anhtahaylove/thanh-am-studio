@@ -1,22 +1,55 @@
 # Thanh Âm Studio status
 
-## Implemented and freshly verified
+Last updated 2026-11-11. Evidence below was observed, not inferred; anything not listed is unverified.
 
-- Rust: SQLite projects, revision-locked saves, content-addressed media imports, interrupted/cancelled/retryable jobs, TTS take preservation and worker boundary tests.
-- UI: six screens, Vietnamese TTS segment editor, dictionary normalization, transcript editing/split/merge, TXT/SRT/VTT export, voice consent, model/job views, theme switch, responsive browser preview.
-- Worker: protocol validation, model manifest/digest verification, CPU VieNeu/faster-whisper adapters, FFmpeg probe/render, atomic outputs, and private-runtime setup.
-- Research: static REA + Craft Anything M0 artifacts and evidence-linked design implications in `docs/research.md`; raw evidence remains under the workspace `work/research/evidence` directory, outside this repository.
+## Implemented
 
-## Commands run on 2026-11-10
+- Self-contained NSIS installer (~195 MiB, per-user, no admin): app + worker + private CPython 3.11.18
+  runtime with the locked CPU closure + app-local MSVC CRT + pinned BtbN LGPL FFmpeg 9.0.2 + third-party notices.
+  Release builds never use the source checkout, PATH or developer env vars.
+- Models downloaded in the app: pinned revisions and per-file digests, plain-HTTP resumable download
+  with byte progress, disk-space check, `NETWORK`/`DISK_FULL` errors, no duplicate cache copy.
+- TTS: script import (sentence-aware), app + project pronunciation dictionaries, speaker-to-voice
+  roles, preset or consented reference voices, split/merge, undo/redo, takes are append-only (new take
+  never replaces old ones; concurrent saves keep server-written takes), preview and export share the
+  trim/fade/gain/gap recipe (export additionally normalizes when enabled).
+- Queue: batched TTS (one worker process loads the model once for up to 32 segments; a failing
+  segment does not stop the batch), cancel, retry, `interrupted` after restart, workers killed with
+  the app through a Windows job object.
+- STT: faster-whisper CPU INT8, explicit apply of results, transcript edit/add/delete rows, timestamp
+  validation, TXT/SRT/VTT export.
 
-- `npm test -- --run`: 12 tests passed.
-- `npm run build`: Vite/TypeScript build passed.
-- `npm run test:e2e`: 3 Playwright tests passed, including 1440/1280/960/640 viewport overflow checks.
-- `python -m unittest discover -s worker/tests -v`: 8 tests passed, including real FFmpeg render validation.
-- `cargo test --manifest-path src-tauri/Cargo.toml --tests`: 8 Rust tests passed.
-- `cargo check --manifest-path src-tauri/Cargo.toml`: passed.
-- `npm run tauri build -- --ci`: passed; NSIS installer created at `src-tauri/target/release/bundle/nsis/Thanh Âm Studio_0.1.0_x64-setup.exe` (2.81 MiB).
+## Verification (2026-11-11)
 
-## Runtime caveat
+| Gate | Result |
+|---|---|
+| `npm test` | 24 passed |
+| `npm run test:e2e` (browser preview) | 6 passed |
+| `cargo test --tests` | 8 store + 3 runtime passed |
+| `python -m unittest` (worker) | 9 passed (incl. real FFmpeg render, disk-full refusal) |
+| GitHub Actions CI (PR #1) | pass |
+| Real model download (whisper-small) | kill at 34 % then resume completed; 464 MB on disk (1×); proxy-blocked network → `NETWORK` error |
+| Packaged release exe on dev machine (`e2e/desktop/packaged.mjs full`, `reopen`) | all steps PASS |
+| **Clean Windows Sandbox** (Windows 11 26100, no Python/FFmpeg/uv on PATH, 8 GB) | installer 94–100 s; download both models via UI; TTS; preview playback; new take keeps old; restart and reopen project; **network adapters disabled**: TTS, render + save WAV via native dialog to a Unicode path, STT on it + apply, SRT export — all PASS |
+| 500-segment gate | see below |
 
-The committed checks cover the worker protocol and FFmpeg path. The worker branch also measured a real CPU TTS/STT smoke with the private Python 3.11 environment; the public repository does not include that environment or model cache. Before calling this a release candidate, repeat that smoke from a clean Windows machine after `scripts/setup-runtime.ps1`, download each selected model, and listen to a fixed Vietnamese corpus while measuring RTF, WER/CER, RAM and disk use.
+Clean-machine runs found and fixed two release blockers that the dev machine hid: the Python runtime
+needed the MSVC C++ runtime (`onnxruntime` import failed), and the dev-machine-only WebView2 debug
+flag. Measured on the dev CPU (i5-13400F, CPU only): model load ≈7 s per batch, ≈2.2 s per short
+sentence, STT of 6 s audio ≈8 s including model load.
+
+### 500-segment gate
+
+Pending — results of `e2e/desktop/gate.mjs` (500 segments, cancel, hard crash mid-batch, restart and
+retry, full render, STT round trip WER/CER, RAM) will be recorded here.
+
+## Not verified / known gaps
+
+- Listening quality has not been judged by a human. The listening pack (first 20 sentences as
+  separate files in script order, plus the full render) is produced by the gate for an A/B pass.
+  STT round-trip shows audible-risk words (e.g. "giọng" heard as "dọng"); these are flagged for
+  listening, not treated as proof of mispronunciation.
+- Whisper Large v3 Turbo download/inference, reference-voice cloning quality, MP3 export and UI at
+  high DPI were not exercised end-to-end.
+- Installers are unsigned (SmartScreen warning). CUDA is not enabled.
+- Preview does not apply loudness normalization; export does when "Chuẩn hóa" is on.

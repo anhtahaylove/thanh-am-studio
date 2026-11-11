@@ -24,7 +24,7 @@ let page, app;
 const shot = async (name) => { try { await page?.screenshot({path: join(out, `${name.replace(/[^\w-]+/g, '_')}.png`)}); } catch {} };
 const invoke = (cmd, args = {}) => page.evaluate(([c, a]) => window.__TAURI_INTERNALS__.invoke(c, a), [cmd, args]);
 const dialog = (path) => log('dialog ' + execFileSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', join(here, 'file-dialog.ps1'), '-Path', path], {encoding: 'utf8'}).trim());
-const nav = (name) => page.getByRole('navigation', {name: 'Điều hướng chính'}).getByRole('button', {name, exact: true}).click();
+const nav = (name) => page.getByRole('navigation', {name: 'Điều hướng chính'}).getByRole('button', {name: new RegExp(`^${name}`)}).click(); // the queue button also carries a count badge
 const waitJobs = async (kind, count, timeoutMs) => {
   const end = Date.now() + timeoutMs;
   while (Date.now() < end) {
