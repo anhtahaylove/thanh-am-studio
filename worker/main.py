@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
-import importlib.util
+import importlib
 import json
 import math
 import os
@@ -12,6 +12,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import uuid
 
 ROOT = Path(__file__).resolve().parent
@@ -184,28 +185,65 @@ def verify_model(model_dir, expected_id=None):
 
 def download(payload, models_dir: Path, progress):
     spec = model_spec(payload.get('model_id'))
-    from huggingface_hub import hf_hub_download
     destination = contained_path(models_dir, spec['id'])
     destination.mkdir(parents=True, exist_ok=True)
     (destination / 'installed.json').unlink(missing_ok=True)
     files = spec['artifacts']
-    for i, item in enumerate(files):
-        target = contained_path(destination, item['path'])
+    total = sum(item['size'] for item in files)
+    missing = []
+    for item in files:
         try:
-            verify_file(target, item)
+            verify_file(contained_path(destination, item['path']), item)
         except WorkerError:
-            cached = Path(hf_hub_download(repo_id=item['repo'], filename=item['filename'], revision=item['revision'],
-                cache_dir=str(models_dir / '.download-cache')))
-            verify_file(cached, item)
+            missing.append(item)
+    # Downloads land in a per-model staging folder (resumable), then move into place: no second copy.
+    staging = contained_path(models_dir, f".download/{spec['id']}")
+    need = sum(item['size'] for item in missing)
+    free = shutil.disk_usage(models_dir).free
+    if missing and free < need + 256 * 1024 * 1024:
+        raise WorkerError('DISK_FULL', f'Không đủ dung lượng: cần khoảng {math.ceil(need / 2**20)} MB trống, còn {free // 2**20} MB.')
+    done = total - need
+    stop = threading.Event()
+    def watch():
+        while not stop.wait(1):
+            partial = 0
+            with contextlib.suppress(OSError):
+                partial = sum(p.stat().st_size for p in staging.rglob('*') if p.is_file())
+            progress(min(0.99, (done + partial) / total), 'Đang tải model')
+    watcher = threading.Thread(target=watch, daemon=True)
+    watcher.start()
+    # Keep HF/Xet caches inside the app's model folder, never the user's global cache.
+    os.environ['HF_HOME'] = str(models_dir / '.hf')
+    # Plain HTTP streams into a resumable .incomplete file, so byte progress and resume are observable.
+    os.environ['HF_HUB_DISABLE_XET'] = '1'
+    try:
+        from huggingface_hub import hf_hub_download
+        for item in missing:
+            target = contained_path(destination, item['path'])
+            try:
+                fetched = Path(hf_hub_download(repo_id=item['repo'], filename=item['filename'], revision=item['revision'],
+                    local_dir=str(staging)))
+            except Exception as error:
+                raise WorkerError('NETWORK', f'Không tải được {item["filename"]} ({type(error).__name__}). Kiểm tra mạng rồi bấm thử lại; phần đã tải được giữ lại.') from error
+            try:
+                verify_file(fetched, item)
+            except WorkerError:
+                fetched.unlink(missing_ok=True)
+                raise
             target.parent.mkdir(parents=True, exist_ok=True)
-            staging = target.with_name(target.name + '.partial')
-            shutil.copyfile(cached, staging)
-            os.replace(staging, target)
-        progress((i + 1) / len(files), f"Verified {i+1}/{len(files)} model files")
+            os.replace(fetched, target)
+            done += item['size']
+            progress(min(0.99, done / total), 'Đã kiểm tra ' + item['filename'])
+    finally:
+        stop.set()
+        watcher.join()
+    shutil.rmtree(staging, ignore_errors=True)
+    shutil.rmtree(models_dir / '.hf', ignore_errors=True)
     marker = destination / 'installed.json'
     temp = marker.with_suffix('.partial')
     temp.write_text(json.dumps({'model_id': spec['id'], 'revision': spec['revision']}, indent=2), encoding='utf-8')
     os.replace(temp, marker)
+    progress(1, 'Model sẵn sàng')
     return {'model_id': spec['id'], 'path': str(destination), 'revision': spec['revision']}
 
 
@@ -215,12 +253,18 @@ def offline_mode():
     os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
 
 
-def tts(payload, output_dir: Path, progress):
+def tts(payload, output_dir: Path, progress, emit_item=None):
+    """Synthesize one item, or payload['items'] with one engine load, reporting each via emit_item."""
     model_dir = Path(payload.get('model_path', ''))
     verify_model(model_dir, 'vieneu-v3')
-    text = payload.get('text', '')
-    if not isinstance(text, str) or not text.strip() or len(text) > 100000:
-        raise WorkerError('INVALID_TEXT', 'Supply non-empty text, at most 100,000 characters per segment.')
+    batch = 'items' in payload
+    items = payload['items'] if batch else [payload]
+    if not isinstance(items, list) or not 1 <= len(items) <= 1000 or (batch and emit_item is None):
+        raise WorkerError('INVALID_REQUEST', 'items must list 1..1000 segments.')
+    for item in items:
+        text = item.get('text', '') if isinstance(item, dict) else None
+        if not isinstance(text, str) or not text.strip() or len(text) > 100000:
+            raise WorkerError('INVALID_TEXT', 'Supply non-empty text, at most 100,000 characters per segment.')
     offline_mode()
     import numpy as np
     import soundfile as sf
@@ -233,7 +277,7 @@ def tts(payload, output_dir: Path, progress):
         if repo != 'OpenMOSS-Team/MOSS-Audio-Tokenizer-Nano-ONNX':
             raise WorkerError('UNPINNED_MODEL', 'Unexpected model request from engine.')
         return model_dir / 'codec'
-    progress(0.1, 'Loading local VieNeu CPU model')
+    progress(0.05, 'Loading local VieNeu CPU model')
     try:
         OnnxV3LiteEngine._fetch = staticmethod(local_fetch)
         engine = Vieneu(backend='onnx', device='cpu', precision='fp32',
@@ -241,32 +285,46 @@ def tts(payload, output_dir: Path, progress):
             max_batch_size=1, max_streams=1, threads=min(8, os.cpu_count() or 4))
     finally:
         OnnxV3LiteEngine._fetch = staticmethod(original_fetch)
-    kwargs = {'batch_size': 1}
-    if payload.get('reference_path'):
-        reference = Path(payload['reference_path'])
-        if not reference.is_file():
-            raise WorkerError('INPUT_MISSING', 'Reference voice file is missing.')
-        kwargs['ref_audio'] = str(reference)
-    elif payload.get('voice_id'):
-        kwargs['voice'] = payload['voice_id']
-    progress(0.3, 'Synthesizing speech')
-    audio = np.asarray(engine.infer(text, **kwargs), dtype=np.float32)
-    if audio.size == 0 or not np.isfinite(audio).all() or float(np.max(np.abs(audio))) < 1e-7:
-        raise WorkerError('INVALID_AUDIO', 'Engine returned empty, silent or non-finite audio.')
     output_dir.mkdir(parents=True, exist_ok=True)
-    name = payload.get('output_name') or f'{uuid.uuid4()}.wav'
-    if Path(name).suffix.lower() != '.wav':
-        raise WorkerError('INVALID_PATH', 'TTS output must be a WAV file.')
-    final = contained_path(output_dir, name)
-    if final.exists():
-        raise WorkerError('OUTPUT_EXISTS', 'A take already exists at that output name.')
-    partial = final.with_name(final.stem + '.partial.wav')
-    try:
-        sf.write(str(partial), audio, 48000, subtype='PCM_24')
-        os.replace(partial, final)
-    finally:
-        partial.unlink(missing_ok=True)
-    return {'path': str(final), 'duration_ms': round(len(audio) / 48), 'sample_rate': 48000}
+
+    def synth(item):
+        kwargs = {'batch_size': 1}
+        if item.get('reference_path'):
+            reference = Path(item['reference_path'])
+            if not reference.is_file():
+                raise WorkerError('INPUT_MISSING', 'Reference voice file is missing.')
+            kwargs['ref_audio'] = str(reference)
+        elif item.get('voice_id'):
+            kwargs['voice'] = item['voice_id']
+        name = item.get('output_name') or f'{uuid.uuid4()}.wav'
+        if Path(name).suffix.lower() != '.wav':
+            raise WorkerError('INVALID_PATH', 'TTS output must be a WAV file.')
+        final = contained_path(output_dir, name)
+        if final.exists():
+            raise WorkerError('OUTPUT_EXISTS', 'A take already exists at that output name.')
+        audio = np.asarray(engine.infer(item['text'], **kwargs), dtype=np.float32)
+        if audio.size == 0 or not np.isfinite(audio).all() or float(np.max(np.abs(audio))) < 1e-7:
+            raise WorkerError('INVALID_AUDIO', 'Engine returned empty, silent or non-finite audio.')
+        partial = final.with_name(final.stem + '.partial.wav')
+        try:
+            sf.write(str(partial), audio, 48000, subtype='PCM_24')
+            os.replace(partial, final)
+        finally:
+            partial.unlink(missing_ok=True)
+        return {'path': str(final), 'duration_ms': round(len(audio) / 48), 'sample_rate': 48000}
+
+    if not batch:
+        progress(0.3, 'Synthesizing speech')
+        return synth(items[0])
+    for i, item in enumerate(items):
+        progress(0.1 + 0.9 * i / len(items), f'Synthesizing {i+1}/{len(items)}')
+        try:
+            emit_item(i, result=synth(item))
+        except WorkerError as error:
+            emit_item(i, error={'code': error.code, 'message': str(error)})
+        except Exception as error:  # one bad segment must not lose the rest of the batch
+            emit_item(i, error={'code': 'WORKER_ERROR', 'message': f'{type(error).__name__}: {error}'})
+    return {'count': len(items)}
 
 
 def stt(payload, progress):
@@ -295,7 +353,14 @@ def stt(payload, progress):
 
 
 def health():
-    modules = {name: importlib.util.find_spec(name) is not None for name in ['numpy', 'soundfile', 'vieneu', 'faster_whisper', 'huggingface_hub']}
+    # Import for real: native extensions only fail at load time (e.g. a missing MSVC runtime DLL).
+    def loads(name):
+        try:
+            importlib.import_module(name)
+            return True
+        except Exception:
+            return False
+    modules = {name: loads(name) for name in ['numpy', 'soundfile', 'onnxruntime', 'ctranslate2', 'av', 'vieneu', 'faster_whisper', 'huggingface_hub']}
     return {'python': sys.version.split()[0], 'modules': modules,
         'ffmpeg': os.environ.get('THANHAM_FFMPEG') or shutil.which('ffmpeg'),
         'ready': all(modules.values())}
@@ -308,16 +373,18 @@ def main():
         sys.stderr.reconfigure(encoding='utf-8')
     wire = sys.stdout
     request_id = 'unknown'
+    lock = threading.Lock()
     def emit(event, **values):
-        wire.write(json.dumps({'protocol': 1, 'id': request_id, 'event': event, **values}, ensure_ascii=False, allow_nan=False) + '\n')
-        wire.flush()
+        with lock:
+            wire.write(json.dumps({'protocol': 1, 'id': request_id, 'event': event, **values}, ensure_ascii=False, allow_nan=False) + '\n')
+            wire.flush()
     def progress(value, message=''):
         emit('progress', progress=max(0, min(1, value)), message=message)
     try:
         raw = sys.stdin.readline(4 * 1024 * 1024 + 1)
         if len(raw) > 4 * 1024 * 1024:
             raise WorkerError('INVALID_REQUEST', 'Request exceeds 4 MiB.')
-        request = json.loads(raw)
+        request = json.loads(raw.lstrip('\ufeff'))  # Windows PowerShell 5 prefixes piped text with a BOM
         if isinstance(request, dict):
             request_id = request.get('id', 'unknown')
         validate_request(request)
@@ -331,7 +398,7 @@ def main():
             elif operation == 'probe': result = probe(payload['input_path'], payload.get('ffmpeg_path'))
             elif operation == 'render': result = render(payload, output_dir, progress)
             elif operation == 'download': result = download(payload, models_dir, progress)
-            elif operation == 'tts': result = tts(payload, output_dir, progress)
+            elif operation == 'tts': result = tts(payload, output_dir, progress, lambda index, **v: emit('item', index=index, **v))
             else: result = stt(payload, progress)
         emit('result', result=result)
         return 0

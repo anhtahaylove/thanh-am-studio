@@ -1,0 +1,39 @@
+name: release
+# Builds the Windows installer with the bundled runtime from the tagged revision and
+# attaches it, its SHA-256, the SBOM and third-party notices to a DRAFT release.
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: astral-sh/setup-uv@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm ci
+      - run: npm test
+      - run: cargo test --manifest-path src-tauri/Cargo.toml --tests --locked
+      - name: Build private runtime (Python + FFmpeg)
+        shell: pwsh
+        run: ./scripts/setup-runtime.ps1
+      - name: SBOM and notices
+        run: python scripts/third_party.py release
+      - run: npm run tauri build -- --ci
+      - name: Checksums
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe
+          Copy-Item $exe.FullName release/
+          Get-ChildItem release -File | Get-FileHash -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" } | Set-Content release/SHA256SUMS.txt
+      - name: Draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: gh release create $env:GITHUB_REF_NAME --draft --prerelease --title "Thanh Âm Studio $env:GITHUB_REF_NAME" --notes "Unsigned Windows x64 installer (CPU). Built from $env:GITHUB_SHA. See SHA256SUMS.txt, sbom.cdx.json and THIRD-PARTY-NOTICES.txt." (Get-ChildItem release -File).FullName

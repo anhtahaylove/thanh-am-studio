@@ -1,0 +1,35 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install chromium
+      - run: npm run test:e2e
+      - name: Placeholder bundle resources (tauri-build checks they exist)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force runtime/python, runtime/ffmpeg, release | Out-Null
+          New-Item -ItemType File -Force release/THIRD-PARTY-NOTICES.txt | Out-Null
+      - run: cargo test --manifest-path src-tauri/Cargo.toml --tests --locked
+      - run: python -m unittest discover -s worker/tests -v

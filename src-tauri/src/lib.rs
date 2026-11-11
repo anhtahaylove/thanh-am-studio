@@ -12,6 +12,8 @@ pub struct AppState {store:Arc<Store>,runtime:Arc<Runtime>}
 #[tauri::command] fn load_project(id:String,s:State<AppState>)->Result<Value>{s.store.load_project(&id)}
 #[tauri::command] fn save_project(project:Value,s:State<AppState>)->Result<Value>{s.store.save_project(project)}
 #[tauri::command] fn delete_project(id:String,s:State<AppState>)->Result<()>{s.store.delete_project(&id)}
+#[tauri::command] fn get_settings(s:State<AppState>)->Result<Value>{s.store.settings()}
+#[tauri::command] fn save_settings(settings:Value,s:State<AppState>)->Result<Value>{s.store.save_settings(settings)}
 #[tauri::command] fn list_jobs(s:State<AppState>)->Result<Vec<Value>>{s.store.list_jobs()}
 #[tauri::command] fn enqueue_job(kind:String,project_id:Option<String>,payload:Value,s:State<AppState>)->Result<Value>{
  if kind=="tts" {let pid=project_id.as_deref().ok_or("PROJECT_REQUIRED")?;let p=s.store.load_project(pid)?;if !p["segments"].as_array().ok_or("INVALID_SEGMENTS")?.iter().any(|seg|seg["id"]==payload["segment_id"]){return Err("SEGMENT_NOT_FOUND".into())}}
@@ -37,7 +39,12 @@ pub fn run() {
   let source=PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().to_owned();
   let store=Arc::new(Store::open(&root).map_err(std::io::Error::other)?);
   let runtime=Arc::new(Runtime::new(resource,source));
-  app.manage(AppState{store:store.clone(),runtime:runtime.clone()});runtime.start(store);Ok(())
- }).invoke_handler(tauri::generate_handler![list_projects,create_project,load_project,save_project,delete_project,list_jobs,enqueue_job,cancel_job,retry_job,runtime_status,read_text_file,import_asset,get_asset,list_models,download_model,export_text,export_asset,list_voices,save_voice]).build(tauri::generate_context!()).expect("Khởi tạo Thanh Âm Studio");
+  app.manage(AppState{store:store.clone(),runtime:runtime.clone()});runtime.start(store);
+  // Tauri's default WebView2 flags, plus an opt-in localhost DevTools port for the packaged acceptance harness
+  // (some WebView2 runtimes ignore WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS).
+  let mut args="--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection".to_string();
+  if let Some(port)=std::env::var("THANHAM_E2E_CDP_PORT").ok().and_then(|p|p.parse::<u16>().ok()){args+=&format!(" --remote-debugging-port={port}");}
+  tauri::WebviewWindowBuilder::from_config(app.handle(),&app.config().app.windows[0])?.additional_browser_args(&args).build()?;Ok(())
+ }).invoke_handler(tauri::generate_handler![list_projects,create_project,load_project,save_project,delete_project,get_settings,save_settings,list_jobs,enqueue_job,cancel_job,retry_job,runtime_status,read_text_file,import_asset,get_asset,list_models,download_model,export_text,export_asset,list_voices,save_voice]).build(tauri::generate_context!()).expect("Khởi tạo Thanh Âm Studio");
  app.run(|handle,event|if let tauri::RunEvent::Exit=event {handle.state::<AppState>().runtime.shutdown.store(true,Ordering::Relaxed);std::thread::sleep(std::time::Duration::from_millis(250));});
 }

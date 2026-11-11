@@ -1,0 +1,29 @@
+# Runs inside Windows Sandbox: clean Windows, no Python/FFmpeg, repo and installer mapped read-only.
+param([string]$Repo = 'C:\repo', [string]$Installer = 'C:\installer', [string]$Out = 'C:\out')
+$ErrorActionPreference = 'Continue'
+$log = Join-Path $Out 'sandbox.log'
+function Log($m) { "$(Get-Date -Format o) $m" | Tee-Object -FilePath $log -Append }
+Log "user=$env:USERNAME os=$([Environment]::OSVersion.VersionString) cpu=$((Get-CimInstance Win32_Processor).Name) ram=$([math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory/1GB,1))GB"
+foreach ($c in 'python', 'python3', 'py', 'ffmpeg', 'ffprobe', 'uv') { Log "PATH $c => $((Get-Command $c -ErrorAction SilentlyContinue).Source)" }
+$setup = Get-ChildItem -LiteralPath $Installer -Filter '*-setup.exe' | Select-Object -First 1
+$t = Get-Date
+$p = Start-Process -FilePath $setup.FullName -ArgumentList '/S' -Wait -PassThru
+Log "install exit=$($p.ExitCode) seconds=$([math]::Round(((Get-Date)-$t).TotalSeconds))"
+$exe = Get-ChildItem -LiteralPath $env:LOCALAPPDATA, "$env:LOCALAPPDATA\Programs" -Filter 'thanh-am-studio.exe' -Recurse -Depth 1 -ErrorAction SilentlyContinue | Select-Object -First 1
+$dir = $exe.Directory
+Log "installed $($exe.FullName) size=$([math]::Round((Get-ChildItem -LiteralPath $dir.FullName -Recurse -File | Measure-Object Length -Sum).Sum/1MB))MB"
+$env:Path = "C:\node;$env:Path"
+$health = '{"protocol":1,"id":"h","operation":"health","payload":{}}' | & (Join-Path $dir.FullName 'runtime\python\python.exe') -I -X utf8 (Join-Path $dir.FullName 'worker\main.py')
+Log "health $health"
+Get-Process thanh-am-studio -ErrorAction SilentlyContinue | Stop-Process -Force
+$harness = Join-Path $Repo 'e2e\desktop\packaged.mjs'
+foreach ($phase in 'full', 'reopen') {
+    & node $harness $exe.FullName $Out $phase *>> $log
+    Log "phase $phase exit=$LASTEXITCODE"
+}
+Get-NetAdapter | Disable-NetAdapter -Confirm:$false
+Log "network disabled: $((Test-NetConnection huggingface.co -Port 443 -WarningAction SilentlyContinue).TcpTestSucceeded)"
+& node $harness $exe.FullName $Out 'offline' *>> $log
+Log "phase offline exit=$LASTEXITCODE"
+Get-ChildItem "$env:LOCALAPPDATA\studio.thanham.desktop\jobs" -Recurse -Filter worker.log | Select-Object -Last 3 | ForEach-Object { Copy-Item $_.FullName (Join-Path $Out "worker-$($_.Directory.Name).log") }
+'done' | Set-Content (Join-Path $Out 'DONE')
