@@ -32,4 +32,6 @@ jobs:
           New-Item -ItemType Directory -Force runtime/python, runtime/ffmpeg, release | Out-Null
           New-Item -ItemType File -Force release/THIRD-PARTY-NOTICES.txt | Out-Null
       - run: cargo test --manifest-path src-tauri/Cargo.toml --tests --locked
+      # numpy pinned as in worker/requirements-cpu.lock (peak limiter test).
+      - run: python -m pip install numpy==2.4.6
       - run: python -m unittest discover -s worker/tests -v

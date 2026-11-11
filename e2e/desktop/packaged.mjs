@@ -1,9 +1,9 @@
 // Acceptance run against the packaged desktop app (UI -> Rust -> worker -> files).
-// usage: node packaged.mjs <app.exe> <outDir> <phase: full|reopen|offline>
+// usage: node packaged.mjs <app.exe> <outDir> <phase: full|reopen|turbo|offline|export>
 // Drives the real WebView2 over CDP; native file dialogs are filled by file-dialog.ps1.
 import {chromium} from 'playwright-core';
 import {spawn, execFileSync} from 'node:child_process';
-import {existsSync, mkdirSync, writeFileSync, appendFileSync, statSync, copyFileSync} from 'node:fs';
+import {existsSync, mkdirSync, writeFileSync, appendFileSync, statSync, copyFileSync, readdirSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join, dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -50,6 +50,10 @@ async function launch() {
 }
 async function quit() { app.kill(); await new Promise((r) => setTimeout(r, 3000)); }
 
+const saved = async (path) => {
+  for (let i = 0; i < 60 && !existsSync(path); i++) await page.waitForTimeout(500);
+  if (!existsSync(path)) throw Error(`not saved after 30 s; folder has: ${readdirSync(dirname(path)).join(' | ')}`);
+};
 const done = async (kind) => (await invoke('list_jobs')).filter((j) => j.kind === kind && j.status === 'succeeded').length;
 async function exportSteps() {
   const wav = join(saves, `xuất thử ổn định ${Date.now()}.wav`);
@@ -60,7 +64,7 @@ async function exportSteps() {
     await nav('Hàng đợi');
     await page.getByRole('button', {name: 'Lưu audio'}).first().click();
     dialog(wav);
-    for (let i = 0; i < 20 && !existsSync(wav); i++) await page.waitForTimeout(500);
+    await saved(wav);
     copyFileSync(wav, join(out, 'xuất thử ổn định.wav'));
     return `${statSync(wav).size} bytes at ${wav}`;
   });
@@ -134,6 +138,51 @@ try {
       await page.getByText('2 take').first().waitFor({timeout: 15000});
     });
     await exportSteps();
+  }
+  if (phase === 'turbo') {
+    await step('download whisper turbo via UI', async () => {
+      const before = await done('model_download');
+      await nav('Model & cài đặt');
+      await page.locator('article', {has: page.getByRole('heading', {name: 'Whisper Large v3 Turbo', exact: true})}).getByRole('button', {name: 'Tải model'}).click();
+      const t = Date.now();
+      await waitJobs('model_download', before + 1, 60 * 60000);
+      if (!(await invoke('list_models')).find((m) => m.id === 'whisper-turbo')?.installed) throw Error('whisper-turbo not installed');
+      return `${Math.round((Date.now() - t) / 1000)} s`;
+    });
+    const mp3 = join(saves, `xuất thử mp3 ${Date.now()}.mp3`);
+    await step('render and export mp3 via save dialog', async () => {
+      await nav('Dự án');
+      await page.getByRole('button', {name: 'Mở dự án'}).first().click();
+      await page.getByRole('textbox', {name: 'Nội dung đoạn 1'}).waitFor();
+      await page.getByRole('combobox', {name: 'Định dạng audio'}).selectOption('mp3');
+      const before = await done('render');
+      await page.getByRole('button', {name: 'Xuất audio'}).click();
+      const [job] = (await waitJobs('render', before + 1, 5 * 60000)).slice(-1);
+      await nav('Hàng đợi');
+      await page.getByRole('button', {name: 'Lưu audio'}).first().click();
+      dialog(mp3);
+      await saved(mp3);
+      copyFileSync(mp3, join(out, 'xuất thử.mp3'));
+      const ffprobe = join(dirname(exe), 'runtime', 'ffmpeg', 'ffprobe.exe');
+      const probe = execFileSync(ffprobe, ['-v', 'error', '-show_entries', 'stream=codec_name,sample_rate,bit_rate:format=duration', '-of', 'compact', mp3], {encoding: 'utf8'}).trim().replace(/\r?\n/g, ' ');
+      if (!probe.includes('codec_name=mp3')) throw Error(`not mp3: ${probe}`);
+      return `${statSync(mp3).size} bytes, render ${job.result.duration_ms} ms, ${probe}`;
+    });
+    await step('stt with whisper turbo on the mp3 and apply', async () => {
+      await nav('Chép lời');
+      await page.getByRole('combobox', {name: 'Model STT'}).selectOption('whisper-turbo');
+      const s0 = await done('stt');
+      const t = Date.now();
+      await page.getByRole('button', {name: 'Chọn tệp & chép lời'}).click();
+      dialog(mp3);
+      const jobs = await waitJobs('stt', s0 + 1, 30 * 60000);
+      const job = jobs.find((j) => j.payload?.model_id === 'whisper-turbo') ?? jobs.at(-1);
+      await nav('Hàng đợi');
+      await page.getByRole('button', {name: 'Áp dụng transcript'}).first().click();
+      const text = job.result.transcript.map((s) => s.text).join(' ');
+      writeFileSync(join(out, 'stt-turbo.txt'), text);
+      return `${Date.now() - t} ms (incl. model load): ${text}`;
+    });
   }
   if (phase === 'export') {
     await nav('Dự án');
