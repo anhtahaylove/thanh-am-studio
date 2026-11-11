@@ -60,6 +60,7 @@ for info in sorted(site.glob('*.dist-info')):
     files = [f for f in sorted(info.rglob('*')) if f.is_file() and LICENSE_FILE.match(f.name)]
     add('pypi', m['Name'], m['Version'], lic, f"pkg:pypi/{m['Name'].lower()}@{m['Version']}", files)
 add('runtime', 'CPython', '3.11.18', 'PSF-2.0', 'pkg:generic/cpython@3.11.18', [ROOT / 'runtime' / 'python' / 'LICENSE.txt'])
+add('runtime', 'Microsoft Visual C++ Redistributable CRT (app-local DLLs next to python.exe)', '14.x', 'LicenseRef-Microsoft-VC-Redist', 'pkg:generic/msvc-crt@14', [])
 ff = ROOT / 'runtime' / 'ffmpeg'
 add('runtime', 'FFmpeg (BtbN LGPL shared build)', '9.0.2', 'LGPL-2.1-or-later', 'pkg:generic/ffmpeg@9.0.2', [ff / 'LICENSE.txt', ff / 'SOURCE.txt'])
 

@@ -34,6 +34,13 @@ try {
     # application dependencies are not needed by the desktop worker.
     & uv pip install --python $python --no-deps --compile-bytecode -r (Join-Path $root 'worker\requirements-cpu.lock')
     if ($LASTEXITCODE -ne 0) { throw 'CPU runtime dependency installation failed.' }
+    # onnxruntime/ctranslate2 need the MSVC C++ runtime, which clean Windows lacks. Deploy the
+    # redistributable CRT app-locally next to python.exe (permitted by the Visual Studio redist terms).
+    $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+    $vs = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+    $crt = Get-ChildItem -Path "$vs\VC\Redist\MSVC" -Directory | ForEach-Object { Join-Path $_.FullName 'x64\Microsoft.VC143.CRT' } | Where-Object { Test-Path -LiteralPath $_ } | Sort-Object -Descending | Select-Object -First 1
+    if (-not $crt) { throw 'MSVC redistributable CRT (VC\Redist\MSVC\*\x64\Microsoft.VC143.CRT) not found.' }
+    Get-ChildItem -LiteralPath $crt -Filter '*.dll' | Copy-Item -Destination $pythonDir -Force
     # Unused by the worker; keeps the installer smaller.
     foreach ($rel in @('Lib\test', 'Lib\idlelib', 'Lib\tkinter', 'Lib\turtledemo', 'tcl', 'Lib\site-packages\pip')) {
         $p = Join-Path $pythonDir $rel

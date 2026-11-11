@@ -6,7 +6,7 @@ in **Model & cài đặt** (pinned revisions and digests in `worker/models.json`
 
 ## Reproducible build (Windows x64)
 
-Requirements: Node 22+, Rust stable (MSVC), uv, git. No administrator rights.
+Requirements: Node 22+, Rust stable (MSVC; Visual Studio Build Tools also provide the redistributable CRT the runtime ships app-locally), uv, git. No administrator rights.
 
 ```powershell
 npm ci

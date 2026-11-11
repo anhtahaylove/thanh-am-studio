@@ -13,6 +13,8 @@ $exe = Get-ChildItem -LiteralPath $env:LOCALAPPDATA, "$env:LOCALAPPDATA\Programs
 $dir = $exe.Directory
 Log "installed $($exe.FullName) size=$([math]::Round((Get-ChildItem -LiteralPath $dir.FullName -Recurse -File | Measure-Object Length -Sum).Sum/1MB))MB"
 $env:Path = "C:\node;$env:Path"
+$health = '{"protocol":1,"id":"h","operation":"health","payload":{}}' | & (Join-Path $dir.FullName 'runtime\python\python.exe') -I -X utf8 (Join-Path $dir.FullName 'worker\main.py')
+Log "health $health"
 Get-Process thanh-am-studio -ErrorAction SilentlyContinue | Stop-Process -Force
 $harness = Join-Path $Repo 'e2e\desktop\packaged.mjs'
 foreach ($phase in 'full', 'reopen') {

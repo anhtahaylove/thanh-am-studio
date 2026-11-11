@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
-import importlib.util
+import importlib
 import json
 import math
 import os
@@ -353,7 +353,14 @@ def stt(payload, progress):
 
 
 def health():
-    modules = {name: importlib.util.find_spec(name) is not None for name in ['numpy', 'soundfile', 'vieneu', 'faster_whisper', 'huggingface_hub']}
+    # Import for real: native extensions only fail at load time (e.g. a missing MSVC runtime DLL).
+    def loads(name):
+        try:
+            importlib.import_module(name)
+            return True
+        except Exception:
+            return False
+    modules = {name: loads(name) for name in ['numpy', 'soundfile', 'onnxruntime', 'ctranslate2', 'av', 'vieneu', 'faster_whisper', 'huggingface_hub']}
     return {'python': sys.version.split()[0], 'modules': modules,
         'ffmpeg': os.environ.get('THANHAM_FFMPEG') or shutil.which('ffmpeg'),
         'ready': all(modules.values())}
