@@ -54,15 +54,18 @@ const saved = async (path) => {
   for (let i = 0; i < 60 && !existsSync(path); i++) await page.waitForTimeout(500);
   if (!existsSync(path)) throw Error(`not saved after 30 s; folder has: ${readdirSync(dirname(path)).join(' | ')}`);
 };
+// The queue UI refreshes every 2.5 s, so pick the row by its text instead of the first button:
+// a stale list would offer an earlier render whose format the save dialog then rejects.
+const jobButton = (text, name) => page.locator('article', {hasText: text}).getByRole('button', {name});
 const done = async (kind) => (await invoke('list_jobs')).filter((j) => j.kind === kind && j.status === 'succeeded').length;
 async function exportSteps() {
   const wav = join(saves, `xuất thử ổn định ${Date.now()}.wav`);
   await step('render and export wav via save dialog', async () => {
     const before = await done('render');
     await page.getByRole('button', {name: 'Xuất audio'}).click();
-    await waitJobs('render', before + 1, 5 * 60000);
+    const [job] = await waitJobs('render', before + 1, 5 * 60000);
     await nav('Hàng đợi');
-    await page.getByRole('button', {name: 'Lưu audio'}).first().click();
+    await jobButton(job.id, 'Lưu audio').click();
     dialog(wav);
     await saved(wav);
     copyFileSync(wav, join(out, 'xuất thử ổn định.wav'));
@@ -157,9 +160,9 @@ try {
       await page.getByRole('combobox', {name: 'Định dạng audio'}).selectOption('mp3');
       const before = await done('render');
       await page.getByRole('button', {name: 'Xuất audio'}).click();
-      const [job] = (await waitJobs('render', before + 1, 5 * 60000)).slice(-1);
+      const [job] = await waitJobs('render', before + 1, 5 * 60000);
       await nav('Hàng đợi');
-      await page.getByRole('button', {name: 'Lưu audio'}).first().click();
+      await jobButton(job.id, 'Lưu audio').click();
       dialog(mp3);
       await saved(mp3);
       copyFileSync(mp3, join(out, 'xuất thử.mp3'));
@@ -176,9 +179,10 @@ try {
       await page.getByRole('button', {name: 'Chọn tệp & chép lời'}).click();
       dialog(mp3);
       const jobs = await waitJobs('stt', s0 + 1, 30 * 60000);
-      const job = jobs.find((j) => j.payload?.model_id === 'whisper-turbo') ?? jobs.at(-1);
+      const job = jobs.find((j) => j.payload?.model_id === 'whisper-turbo');
+      if (!job) throw Error('no succeeded whisper-turbo STT job');
       await nav('Hàng đợi');
-      await page.getByRole('button', {name: 'Áp dụng transcript'}).first().click();
+      await jobButton('whisper-turbo', 'Áp dụng transcript').click();
       const text = job.result.transcript.map((s) => s.text).join(' ');
       writeFileSync(join(out, 'stt-turbo.txt'), text);
       return `${Date.now() - t} ms (incl. model load): ${text}`;

@@ -27,11 +27,11 @@ Last updated 2026-11-11. Evidence below was observed, not inferred; anything not
 | `npm run test:e2e` (browser preview) | 6 passed |
 | `cargo test --tests` | 8 store + 3 runtime passed |
 | `python -m unittest` (worker) | 10 passed (incl. real FFmpeg render, disk-full refusal, take peak limiter) |
-| GitHub Actions CI (PRs #1–#7 and `main`) | pass |
+| GitHub Actions CI (PRs #1–#8 and `main`) | pass |
 | Real model download (whisper-small) | kill at 34 % then resume completed; 464 MB on disk (1×); proxy-blocked network → `NETWORK` error |
 | Packaged release exe on dev machine (`e2e/desktop/packaged.mjs full`, `reopen`) | all steps PASS |
 | **Clean Windows Sandbox** (Windows 11 26100, no Python/FFmpeg/uv on PATH, 8 GB) | installer 94–100 s; download both models via UI; TTS; preview playback; new take keeps old; restart and reopen project; **network adapters disabled**: TTS, render + save WAV via native dialog to a Unicode path, STT on it + apply, SRT export — all PASS (local builds and the CI-built v0.1.0 installer, see below) |
-| **Whisper Turbo + MP3** (clean Sandbox, CI-built v0.1.0 installer, `packaged.mjs turbo`, network on) | install 111 s; Whisper Large v3 Turbo downloaded via the models page in 47 s and listed as installed; project rendered as MP3 and saved via the native dialog: 161,900 bytes, ffprobe `codec_name=mp3`, 48 kHz, 192 kb/s, 6.68 s; Turbo STT on that MP3 49.6 s including model load, transcript identical to the fixture; applied — PASS |
+| **Whisper Turbo + MP3** (clean Sandbox, first CI-built v0.1.0 installer, `packaged.mjs turbo`, network on) | install 111 s; Whisper Large v3 Turbo downloaded via the models page in 47 s and listed as installed; project rendered as MP3 and saved via the native dialog: 161,900 bytes, ffprobe `codec_name=mp3`, 48 kHz, 192 kb/s, 6.68 s; Turbo STT on that MP3 49.6 s including model load, transcript identical to the fixture; applied — PASS |
 | 500-segment gate | see below |
 
 Clean-machine runs found and fixed two release blockers that the dev machine hid: the Python runtime
@@ -71,15 +71,17 @@ WER/CER compare the synthesized script with the STT transcript, so they mix TTS 
 Typical mismatches are tone/initial confusions ("mùa thu" → "mùa thương", "chăm chú" → "trăm chú");
 they are flagged for listening and are not proof of TTS mispronunciation.
 
-### v0.1.0 draft release (built by `.github/workflows/release.yml` from tag `v0.1.0` at `305ce75`)
+### v0.1.0 draft release (built by `.github/workflows/release.yml` from tag `v0.1.0` at `05a2135`)
+
+The tag was moved from `305ce75` to `05a2135` before publication so the draft includes the take peak
+limiter (PR #5) and the queue progress label (PR #6); the earlier draft was deleted unpublished.
 
 | Check | Result |
 |---|---|
 | Release workflow | npm test, private runtime build, SBOM/notices, `cargo test`, `tauri build`, checksums, draft pre-release: success |
-| Assets | `ThanhAmStudio_0.1.0_x64-setup.exe` (204,445,415 bytes), `SHA256SUMS.txt`, `sbom.cdx.json`, `THIRD-PARTY-NOTICES.txt` |
-| Installer SHA-256 | `37c68efc91027131b01b55e9015d146cddbd9f38f2229c5bd6515b7079501e55`; `sha256sum -c SHA256SUMS.txt` OK for all files after download |
-| Clean Windows Sandbox on that exact downloaded installer | install 94 s, 815 MB; phases `full` (model download via UI, TTS, preview, new take, render + WAV save to a Unicode path, STT + apply, SRT), `reopen`, `offline` (network adapters disabled: TTS) and `export` (still offline: render, WAV, STT, SRT): 21 PASS, 0 FAIL |
-
+| Assets | `ThanhAmStudio_0.1.0_x64-setup.exe` (204,425,976 bytes), `SHA256SUMS.txt`, `sbom.cdx.json`, `THIRD-PARTY-NOTICES.txt` |
+| Installer SHA-256 | `a8dd64b3f67f504904b947bd60714ed30edb320c82c2a7ae9ed740b8ad16eb2e`; `sha256sum -c SHA256SUMS.txt` OK for all files after download |
+| Clean Windows Sandbox on that exact downloaded installer | install 100 s, 815 MB; phases `full` (model download via UI, TTS, preview, new take, render + WAV save to a Unicode path, STT + apply, SRT), `reopen`, `turbo` (Whisper Turbo download 41 s, MP3 render + save, ffprobe mp3 48 kHz 192 kb/s, Turbo STT on it 27 s, transcript equal to the fixture except the case of one letter), `offline` (network adapters disabled: TTS) and `export` (still offline: render, WAV, STT, SRT): 26 PASS, 0 FAIL |
 The draft is not published. Publishing waits for the human listening pass below.
 
 ## Not verified / known gaps
@@ -88,11 +90,10 @@ The draft is not published. Publishing waits for the human listening pass below.
   The listening pack (first 20 sentences as separate files in script order, plus the full render) is
   produced by the gate for an A/B pass. STT round-trip shows audible-risk words (e.g. "giọng" heard
   as "dọng"); these are flagged for listening, not treated as proof of mispronunciation.
-- The v0.1.0 draft was built from `305ce75`, before the take peak limiter (PR #5); it still writes
-  takes that can clip. A new draft is needed before publishing.
-- In the Sandbox run that verified Turbo + MP3, the following offline `export` phase failed once: the
-  saved WAV was not found 10 s after the save dialog was filled (the same phase passed on the
-  previous run). The harness now waits 30 s and lists the folder on failure; not yet re-run.
+- Two Sandbox runs failed a save step in a later phase (`turbo` MP3 or `export` WAV). Cause: the
+  harness clicked the first "save audio" button while the queue list (refreshed every 2.5 s) still
+  showed an earlier render, whose format the app correctly refused to save under the other
+  extension. The harness now clicks the button of the exact render job; the next run passed all phases.
 - Peak Python worker memory rose to 3.4 GB in the 60-minute gate (996 MB with shorter segments); the
   gate does not record whether TTS or STT set it. The 8 GB Sandbox only ran short projects.
 - Reference-voice cloning quality and UI at high DPI were not exercised end-to-end.
