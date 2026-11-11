@@ -6,7 +6,8 @@ import {spawn, execSync} from 'node:child_process';
 import {mkdirSync, writeFileSync, appendFileSync, copyFileSync} from 'node:fs';
 import {join} from 'node:path';
 
-const [exe, out, n = '500'] = process.argv.slice(2);
+// usage: ... [segments] [from-render]: resume an existing gate project at the render step.
+const [exe, out, n = '500', resume] = process.argv.slice(2);
 const N = Number(n);
 mkdirSync(out, {recursive: true});
 const log = (m) => { const l = `${new Date().toISOString()} ${m}`; console.log(l); appendFileSync(join(out, 'gate.log'), l + '\n'); };
@@ -46,57 +47,69 @@ try {
   for (const id of ['vieneu-v3', 'whisper-small']) if (!models.find((m) => m.id === id)?.installed) await invoke('download_model', {id});
   while ((await invoke('list_models')).filter((m) => ['vieneu-v3', 'whisper-small'].includes(m.id) && m.installed).length < 2) await sleep(2000);
 
-  let p = await invoke('create_project', {name: `Gate ${N} đoạn`});
-  p.segments = script.map((text, i) => ({id: `g${i}`, text, normalized_text: text, voice_id: null, speaker: 'Người dẫn', gap_ms: 300, takes: [], selected_take_id: null, trim_start_ms: 0, trim_end_ms: null, fade_in_ms: 0, fade_out_ms: 0, gain_db: 0}));
-  p = await invoke('save_project', {project: p});
-  const pid = p.id;
+  let p, pid, pack = join(out, 'listening');
+  if (resume === 'from-render') {
+    p = await invoke('load_project', {id: (await invoke('list_projects')).find((x) => x.name === `Gate ${N} đoạn`).id});
+    pid = p.id;
+    report.audio_ms = p.segments.reduce((a, s) => a + (s.takes.find((t) => t.id === s.selected_take_id)?.duration_ms ?? 0), 0);
+    mkdirSync(pack, {recursive: true});
+  } else {
+    p = await invoke('create_project', {name: `Gate ${N} đoạn`});
+    p.segments = script.map((text, i) => ({id: `g${i}`, text, normalized_text: text, voice_id: null, speaker: 'Người dẫn', gap_ms: 300, takes: [], selected_take_id: null, trim_start_ms: 0, trim_end_ms: null, fade_in_ms: 0, fade_out_ms: 0, gain_db: 0}));
+    p = await invoke('save_project', {project: p});
+    pid = p.id;
+    await nav('Dự án');
+    await page.getByRole('button', {name: 'Mở dự án'}).first().click();
+    await page.getByRole('textbox', {name: `Nội dung đoạn ${N}`}).waitFor({timeout: 60000});
+    const t0 = Date.now();
+    await page.getByRole('button', {name: 'Tạo giọng tất cả'}).click();
+    log('generation started');
+
+    // Cancel three queued jobs, then crash the app mid-batch.
+    while ((await ttsJobs(pid)).filter((j) => j.status === 'succeeded').length < 40) { sample(); await sleep(5000); }
+    const queued = (await ttsJobs(pid)).filter((j) => j.status === 'queued').slice(-3);
+    for (const j of queued) await invoke('cancel_job', {id: j.id});
+    report.cancelled = queued.length;
+    sample();
+    const before = (await ttsJobs(pid)).filter((j) => j.status === 'succeeded').length;
+    execSync(`taskkill /F /T /PID ${app.pid}`); // hard crash, no graceful shutdown
+    await sleep(3000);
+    report.orphan_workers_after_crash = procs().filter((x) => x.ProcessName === 'python').length;
+    log(`crashed after ${before} takes; orphan python=${report.orphan_workers_after_crash}`);
+
+    report.restart_ms = await launch();
+    const after = await ttsJobs(pid);
+    report.after_restart = Object.fromEntries(['succeeded', 'interrupted', 'queued', 'cancelled', 'running', 'failed'].map((s) => [s, after.filter((j) => j.status === s).length]));
+    log(`after restart ${JSON.stringify(report.after_restart)}`);
+    await nav('Hàng đợi');
+    for (const j of after.filter((j) => ['interrupted', 'cancelled'].includes(j.status))) await invoke('retry_job', {id: j.id});
+
+    for (;;) {
+      sample();
+      const js = await ttsJobs(pid);
+      const failed = js.filter((j) => ['failed', 'interrupted'].includes(j.status));
+      if (failed.length) throw Error(`tts failed: ${failed[0].error}`);
+      if (js.filter((j) => j.status === 'succeeded').length >= N) break;
+      await sleep(10000);
+    }
+    report.tts_wall_s = Math.round((Date.now() - t0) / 1000);
+    p = await invoke('load_project', {id: pid});
+    const takes = p.segments.map((s) => s.takes.length);
+    report.segments_with_take = p.segments.filter((s) => s.selected_take_id && s.takes.length).length;
+    report.total_takes = takes.reduce((a, b) => a + b, 0);
+    report.audio_ms = p.segments.reduce((a, s) => a + (s.takes.find((t) => t.id === s.selected_take_id)?.duration_ms ?? 0), 0);
+    report.rtf = +(report.tts_wall_s * 1000 / report.audio_ms).toFixed(3);
+    // Listening pack: first 20 sentences as separate files (same order as the script) for a human A/B pass.
+    mkdirSync(pack, {recursive: true});
+    p.segments.slice(0, 20).forEach((s, i) => copyFileSync(s.takes.find((t) => t.id === s.selected_take_id).path, join(pack, `${String(i + 1).padStart(2, '0')}.wav`)));
+    writeFileSync(join(pack, 'script.txt'), script.slice(0, 20).map((t, i) => `${String(i + 1).padStart(2, '0')} ${t}`).join('\n'));
+    log(`tts done ${JSON.stringify(report)}`);
+
+  }
+  // Open the project in the UI (a restart leaves no project open), then render through the UI.
   await nav('Dự án');
   await page.getByRole('button', {name: 'Mở dự án'}).first().click();
   await page.getByRole('textbox', {name: `Nội dung đoạn ${N}`}).waitFor({timeout: 60000});
-  const t0 = Date.now();
-  await page.getByRole('button', {name: 'Tạo giọng tất cả'}).click();
-  log('generation started');
-
-  // Cancel three queued jobs, then crash the app mid-batch.
-  while ((await ttsJobs(pid)).filter((j) => j.status === 'succeeded').length < 40) { sample(); await sleep(5000); }
-  const queued = (await ttsJobs(pid)).filter((j) => j.status === 'queued').slice(-3);
-  for (const j of queued) await invoke('cancel_job', {id: j.id});
-  report.cancelled = queued.length;
-  sample();
-  const before = (await ttsJobs(pid)).filter((j) => j.status === 'succeeded').length;
-  execSync(`taskkill /F /T /PID ${app.pid}`); // hard crash, no graceful shutdown
-  await sleep(3000);
-  report.orphan_workers_after_crash = procs().filter((x) => x.ProcessName === 'python').length;
-  log(`crashed after ${before} takes; orphan python=${report.orphan_workers_after_crash}`);
-
-  report.restart_ms = await launch();
-  const after = await ttsJobs(pid);
-  report.after_restart = Object.fromEntries(['succeeded', 'interrupted', 'queued', 'cancelled', 'running', 'failed'].map((s) => [s, after.filter((j) => j.status === s).length]));
-  log(`after restart ${JSON.stringify(report.after_restart)}`);
-  await nav('Hàng đợi');
-  for (const j of after.filter((j) => ['interrupted', 'cancelled'].includes(j.status))) await invoke('retry_job', {id: j.id});
-
-  for (;;) {
-    sample();
-    const js = await ttsJobs(pid);
-    const failed = js.filter((j) => ['failed', 'interrupted'].includes(j.status));
-    if (failed.length) throw Error(`tts failed: ${failed[0].error}`);
-    if (js.filter((j) => j.status === 'succeeded').length >= N) break;
-    await sleep(10000);
-  }
-  report.tts_wall_s = Math.round((Date.now() - t0) / 1000);
-  p = await invoke('load_project', {id: pid});
-  const takes = p.segments.map((s) => s.takes.length);
-  report.segments_with_take = p.segments.filter((s) => s.selected_take_id && s.takes.length).length;
-  report.total_takes = takes.reduce((a, b) => a + b, 0);
-  report.audio_ms = p.segments.reduce((a, s) => a + (s.takes.find((t) => t.id === s.selected_take_id)?.duration_ms ?? 0), 0);
-  report.rtf = +(report.tts_wall_s * 1000 / report.audio_ms).toFixed(3);
-  // Listening pack: first 20 sentences as separate files (same order as the script) for a human A/B pass.
-  const pack = join(out, 'listening'); mkdirSync(pack, {recursive: true});
-  p.segments.slice(0, 20).forEach((s, i) => copyFileSync(s.takes.find((t) => t.id === s.selected_take_id).path, join(pack, `${String(i + 1).padStart(2, '0')}.wav`)));
-  writeFileSync(join(pack, 'script.txt'), script.slice(0, 20).map((t, i) => `${String(i + 1).padStart(2, '0')} ${t}`).join('\n'));
-  log(`tts done ${JSON.stringify(report)}`);
-
   // Full render through the UI.
   await page.getByRole('navigation', {name: 'Điều hướng chính'}).getByRole('button').first().click();
   const tr = Date.now();
