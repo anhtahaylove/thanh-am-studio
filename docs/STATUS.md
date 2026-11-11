@@ -28,7 +28,7 @@ Last updated 2026-11-11. Evidence below was observed, not inferred; anything not
 | `npm run test:e2e` (browser preview) | 6 passed |
 | `cargo test --tests` | 8 store + 3 runtime passed |
 | `python -m unittest` (worker) | 11 passed (incl. real FFmpeg render, disk-full refusal, take peak limiter, linear STT progress) |
-| GitHub Actions CI (PRs #1–#8 and `main`) | pass |
+| GitHub Actions CI (PRs #1–#10 and `main`) | pass |
 | Real model download (whisper-small) | kill at 34 % then resume completed; 464 MB on disk (1×); proxy-blocked network → `NETWORK` error |
 | Packaged release exe on dev machine (`e2e/desktop/packaged.mjs full`, `reopen`) | all steps PASS |
 | **Clean Windows Sandbox** (Windows 11 26100, no Python/FFmpeg/uv on PATH, 8 GB) | installer 94–100 s; download both models via UI; TTS; preview playback; new take keeps old; restart and reopen project; **network adapters disabled**: TTS, render + save WAV via native dialog to a Unicode path, STT on it + apply, SRT export — all PASS (local builds and the CI-built v0.1.0 installer, see below) |
@@ -83,17 +83,18 @@ WER/CER compare the synthesized script with the STT transcript, so they mix TTS 
 Typical mismatches are tone/initial confusions ("mùa thu" → "mùa thương", "chăm chú" → "trăm chú");
 they are flagged for listening and are not proof of TTS mispronunciation.
 
-### v0.1.0 draft release (built by `.github/workflows/release.yml` from tag `v0.1.0` at `05a2135`)
+### v0.1.0 draft release (built by `.github/workflows/release.yml` from tag `v0.1.0` at `a202153`)
 
-The tag was moved from `305ce75` to `05a2135` before publication so the draft includes the take peak
-limiter (PR #5) and the queue progress label (PR #6); the earlier draft was deleted unpublished.
+The tag was moved before publication, first from `305ce75` to `05a2135` (take peak limiter, PR #5;
+queue progress label, PR #6), then to `a202153` (visible progress bar, waiting-in-batch label, linear
+STT progress, PR #9); each earlier draft was deleted unpublished.
 
 | Check | Result |
 |---|---|
 | Release workflow | npm test, private runtime build, SBOM/notices, `cargo test`, `tauri build`, checksums, draft pre-release: success |
-| Assets | `ThanhAmStudio_0.1.0_x64-setup.exe` (204,425,976 bytes), `SHA256SUMS.txt`, `sbom.cdx.json`, `THIRD-PARTY-NOTICES.txt` |
-| Installer SHA-256 | `a8dd64b3f67f504904b947bd60714ed30edb320c82c2a7ae9ed740b8ad16eb2e`; `sha256sum -c SHA256SUMS.txt` OK for all files after download |
-| Clean Windows Sandbox on that exact downloaded installer | install 100 s, 815 MB; phases `full` (model download via UI, TTS, preview, new take, render + WAV save to a Unicode path, STT + apply, SRT), `reopen`, `turbo` (Whisper Turbo download 41 s, MP3 render + save, ffprobe mp3 48 kHz 192 kb/s, Turbo STT on it 27 s, transcript equal to the fixture except the case of one letter), `offline` (network adapters disabled: TTS) and `export` (still offline: render, WAV, STT, SRT): 26 PASS, 0 FAIL |
+| Assets | `ThanhAmStudio_0.1.0_x64-setup.exe` (204,424,574 bytes), `SHA256SUMS.txt`, `sbom.cdx.json`, `THIRD-PARTY-NOTICES.txt` |
+| Installer SHA-256 | `4db8b631d3fb24bda27cc2b760acbd95c24b373f0ceca42afd4df1595cc7067d`; `sha256sum -c SHA256SUMS.txt` OK for all files after download |
+| Clean Windows Sandbox on that exact downloaded installer | install 90 s, 815 MB; phases `full` (model download via UI, TTS, preview, new take, render + WAV save to a Unicode path, STT + apply, SRT), `reopen`, `turbo` (Whisper Turbo download 37 s, MP3 render + save, ffprobe mp3 48 kHz 192 kb/s, Turbo STT on it 28 s, transcript matches the fixture apart from letter case and one comma), `offline` (network adapters disabled: TTS) and `export` (still offline: render, WAV, STT, SRT): 26 PASS, 0 FAIL |
 The draft is not published. Publishing waits for the human listening pass below.
 
 ## Not verified / known gaps
