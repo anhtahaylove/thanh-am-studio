@@ -9,8 +9,8 @@ $setup = Get-ChildItem -LiteralPath $Installer -Filter '*-setup.exe' | Select-Ob
 $t = Get-Date
 $p = Start-Process -FilePath $setup.FullName -ArgumentList '/S' -Wait -PassThru
 Log "install exit=$($p.ExitCode) seconds=$([math]::Round(((Get-Date)-$t).TotalSeconds))"
-$dir = Get-ChildItem "$env:LOCALAPPDATA\Programs" -Directory | Where-Object Name -Like 'Thanh*' | Select-Object -First 1
-$exe = Get-ChildItem -LiteralPath $dir.FullName -Filter '*.exe' | Where-Object Name -NotLike 'uninstall*' | Select-Object -First 1
+$exe = Get-ChildItem -LiteralPath $env:LOCALAPPDATA, "$env:LOCALAPPDATA\Programs" -Filter 'thanh-am-studio.exe' -Recurse -Depth 1 -ErrorAction SilentlyContinue | Select-Object -First 1
+$dir = $exe.Directory
 Log "installed $($exe.FullName) size=$([math]::Round((Get-ChildItem -LiteralPath $dir.FullName -Recurse -File | Measure-Object Length -Sum).Sum/1MB))MB"
 $env:Path = "C:\node;$env:Path"
 $harness = Join-Path $Repo 'e2e\desktop\packaged.mjs'
