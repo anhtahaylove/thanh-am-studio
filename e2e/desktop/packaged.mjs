@@ -3,13 +3,16 @@
 // Drives the real WebView2 over CDP; native file dialogs are filled by file-dialog.ps1.
 import {chromium} from 'playwright-core';
 import {spawn, execFileSync} from 'node:child_process';
-import {existsSync, mkdirSync, writeFileSync, appendFileSync, statSync} from 'node:fs';
+import {existsSync, mkdirSync, writeFileSync, appendFileSync, statSync, copyFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
 import {join, dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const [exe, out, phase = 'full'] = process.argv.slice(2);
 const here = dirname(fileURLToPath(import.meta.url));
 mkdirSync(out, {recursive: true});
+// Native dialogs save to a local Unicode folder (sandbox mapped folders are not reliable dialog targets); copies go to out.
+const saves = join(tmpdir(), 'thanh âm e2e'); mkdirSync(saves, {recursive: true});
 const log = (m) => { const line = `${new Date().toISOString()} ${m}`; console.log(line); appendFileSync(join(out, 'run.log'), line + '\n'); };
 const results = [];
 const step = async (name, fn) => {
@@ -20,7 +23,7 @@ const step = async (name, fn) => {
 let page, app;
 const shot = async (name) => { try { await page?.screenshot({path: join(out, `${name.replace(/[^\w-]+/g, '_')}.png`)}); } catch {} };
 const invoke = (cmd, args = {}) => page.evaluate(([c, a]) => window.__TAURI_INTERNALS__.invoke(c, a), [cmd, args]);
-const dialog = (path) => execFileSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', join(here, 'file-dialog.ps1'), '-Path', path], {encoding: 'utf8'});
+const dialog = (path) => log('dialog ' + execFileSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', join(here, 'file-dialog.ps1'), '-Path', path], {encoding: 'utf8'}).trim());
 const nav = (name) => page.getByRole('navigation', {name: 'Điều hướng chính'}).getByRole('button', {name, exact: true}).click();
 const waitJobs = async (kind, count, timeoutMs) => {
   const end = Date.now() + timeoutMs;
@@ -46,6 +49,45 @@ async function launch() {
   return Date.now() - started;
 }
 async function quit() { app.kill(); await new Promise((r) => setTimeout(r, 3000)); }
+
+const done = async (kind) => (await invoke('list_jobs')).filter((j) => j.kind === kind && j.status === 'succeeded').length;
+async function exportSteps() {
+  const wav = join(saves, `xuất thử ổn định ${Date.now()}.wav`);
+  await step('render and export wav via save dialog', async () => {
+    const before = await done('render');
+    await page.getByRole('button', {name: 'Xuất audio'}).click();
+    await waitJobs('render', before + 1, 5 * 60000);
+    await nav('Hàng đợi');
+    await page.getByRole('button', {name: 'Lưu audio'}).first().click();
+    dialog(wav);
+    for (let i = 0; i < 20 && !existsSync(wav); i++) await page.waitForTimeout(500);
+    copyFileSync(wav, join(out, 'xuất thử ổn định.wav'));
+    return `${statSync(wav).size} bytes at ${wav}`;
+  });
+  await step('stt from exported audio and apply', async () => {
+    await nav('Chép lời');
+    await page.getByRole('combobox', {name: 'Model STT'}).selectOption('whisper-small');
+    const s0 = await done('stt');
+    const t = Date.now();
+    await page.getByRole('button', {name: 'Chọn tệp & chép lời'}).click();
+    dialog(wav);
+    const [job] = await waitJobs('stt', s0 + 1, 10 * 60000);
+    await nav('Hàng đợi');
+    await page.getByRole('button', {name: 'Áp dụng transcript'}).first().click();
+    await nav('Chép lời');
+    const text = job.result.transcript.map((s) => s.text).join(' ');
+    writeFileSync(join(out, 'stt.txt'), text);
+    return `${Date.now() - t} ms: ${text}`;
+  });
+  await step('export srt via save dialog', async () => {
+    const srt = join(saves, `phụ đề ${Date.now()}.srt`);
+    await page.getByRole('button', {name: 'SRT', exact: true}).first().click();
+    dialog(srt);
+    for (let i = 0; i < 20 && !existsSync(srt); i++) await page.waitForTimeout(500);
+    copyFileSync(srt, join(out, 'phụ đề.srt'));
+    return `${statSync(srt).size} bytes`;
+  });
+  }
 
 const fixture = 'Xin chào, đây là Thanh Âm Studio. Hôm nay trời Hà Nội trong xanh.\nChúng tôi kiểm tra giọng đọc tiếng Việt trên máy tính.';
 try {
@@ -91,37 +133,13 @@ try {
       await waitJobs('tts', 3, 5 * 60000);
       await page.getByText('2 take').first().waitFor({timeout: 15000});
     });
-    const wav = join(out, 'xuất thử ổn định.wav');
-    await step('render and export wav via save dialog', async () => {
-      await page.getByRole('button', {name: 'Xuất audio'}).click();
-      await waitJobs('render', 1, 5 * 60000);
-      await nav('Hàng đợi');
-      await page.getByRole('button', {name: 'Lưu audio'}).first().click();
-      dialog(wav);
-      for (let i = 0; i < 20 && !existsSync(wav); i++) await page.waitForTimeout(500);
-      return `${statSync(wav).size} bytes`;
-    });
-    await step('stt from exported audio and apply', async () => {
-      await nav('Chép lời');
-      await page.getByRole('combobox', {name: 'Model STT'}).selectOption('whisper-small');
-      const t = Date.now();
-      await page.getByRole('button', {name: 'Chọn tệp & chép lời'}).click();
-      dialog(wav);
-      const [job] = await waitJobs('stt', 1, 10 * 60000);
-      await nav('Hàng đợi');
-      await page.getByRole('button', {name: 'Áp dụng transcript'}).first().click();
-      await nav('Chép lời');
-      const text = job.result.transcript.map((s) => s.text).join(' ');
-      writeFileSync(join(out, 'stt.txt'), text);
-      return `${Date.now() - t} ms: ${text}`;
-    });
-    await step('export srt via save dialog', async () => {
-      const srt = join(out, 'phụ đề.srt');
-      await page.getByRole('button', {name: 'SRT', exact: true}).first().click();
-      dialog(srt);
-      for (let i = 0; i < 20 && !existsSync(srt); i++) await page.waitForTimeout(500);
-      return `${statSync(srt).size} bytes`;
-    });
+    await exportSteps();
+  }
+  if (phase === 'export') {
+    await nav('Dự án');
+    await page.getByRole('button', {name: 'Mở dự án'}).first().click();
+    await page.getByRole('textbox', {name: 'Nội dung đoạn 1'}).waitFor();
+    await exportSteps();
   }
   if (phase === 'reopen' || phase === 'offline') {
     await step('project persisted after restart', async () => {

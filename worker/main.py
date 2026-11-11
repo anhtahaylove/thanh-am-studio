@@ -384,7 +384,7 @@ def main():
         raw = sys.stdin.readline(4 * 1024 * 1024 + 1)
         if len(raw) > 4 * 1024 * 1024:
             raise WorkerError('INVALID_REQUEST', 'Request exceeds 4 MiB.')
-        request = json.loads(raw)
+        request = json.loads(raw.lstrip('\ufeff'))  # Windows PowerShell 5 prefixes piped text with a BOM
         if isinstance(request, dict):
             request_id = request.get('id', 'unknown')
         validate_request(request)

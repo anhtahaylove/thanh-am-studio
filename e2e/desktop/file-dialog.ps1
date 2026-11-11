@@ -14,6 +14,8 @@ public static class Dlg {
   [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern IntPtr SendMessage(IntPtr h, uint m, IntPtr w, string l);
   [DllImport("user32.dll")] static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern IntPtr SendMessage(IntPtr h, uint m, IntPtr w, StringBuilder l);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern IntPtr SendMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
   static string Cls(IntPtr h) { var s = new StringBuilder(256); GetClassName(h, s, 256); return s.ToString(); }
   public static string Fill(string path, uint excludePid) {
     var dialogs = new List<IntPtr>();
@@ -22,9 +24,24 @@ public static class Dlg {
       IntPtr edit = IntPtr.Zero;
       EnumChildWindows(d, (h, l) => { if (Cls(h) == "Edit" && Cls(GetParent(h)) == "ComboBox") { edit = h; return false; } return true; }, IntPtr.Zero);
       if (edit == IntPtr.Zero) continue;
-      SendMessage(edit, 0x000C /*WM_SETTEXT*/, IntPtr.Zero, path);
-      PostMessage(d, 0x0111 /*WM_COMMAND*/, (IntPtr)1 /*IDOK*/, IntPtr.Zero);
-      return "filled";
+      string last = "";
+      // Let the dialog finish initializing, then type the path as real character input (WM_CHAR)
+      // and press Enter in the box; WM_SETTEXT + IDOK is ignored by some Windows builds.
+      System.Threading.Thread.Sleep(1500);
+      for (int i = 0; i < 5; i++) {
+        SendMessage(edit, 0x000C /*WM_SETTEXT*/, IntPtr.Zero, "");
+        foreach (char c in path) SendMessage(edit, 0x0102 /*WM_CHAR*/, (IntPtr)c, IntPtr.Zero);
+        System.Threading.Thread.Sleep(300);
+        var got = new StringBuilder(1024); SendMessage(edit, 0x000D /*WM_GETTEXT*/, (IntPtr)1024, got);
+        last = got.ToString();
+        if (last == path) {
+          PostMessage(edit, 0x0100 /*WM_KEYDOWN*/, (IntPtr)0x0D, IntPtr.Zero);
+          PostMessage(edit, 0x0101 /*WM_KEYUP*/, (IntPtr)0x0D, IntPtr.Zero);
+          return "filled dialogs=" + dialogs.Count;
+        }
+        System.Threading.Thread.Sleep(500);
+      }
+      return "nomatch last=" + last;
     }
     return null;
   }
@@ -33,6 +50,6 @@ public static class Dlg {
 $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
 while ((Get-Date) -lt $deadline) {
     Start-Sleep -Milliseconds 700
-    if ([Dlg]::Fill($Path, [uint32]$PID)) { Write-Output "filled $Path"; exit 0 }
+    $r = [Dlg]::Fill($Path, [uint32]$PID); if ($r) { Write-Output $r; if ($r -like 'filled*') { exit 0 } }
 }
 throw "File dialog not found within $TimeoutSeconds s"
