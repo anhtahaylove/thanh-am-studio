@@ -13,6 +13,11 @@ $exe = Get-ChildItem -LiteralPath $env:LOCALAPPDATA, "$env:LOCALAPPDATA\Programs
 $dir = $exe.Directory
 Log "installed $($exe.FullName) size=$([math]::Round((Get-ChildItem -LiteralPath $dir.FullName -Recurse -File | Measure-Object Length -Sum).Sum/1MB))MB"
 $env:Path = "C:\node;$env:Path"
+# The sandbox WebView2 ignores WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS; use the per-exe policy (sandbox only).
+$policy = 'HKCU:\Software\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments'
+New-Item -Path $policy -Force | Out-Null
+New-ItemProperty -Path $policy -Name $exe.Name -Value '--remote-debugging-port=9222' -Force | Out-Null
+Get-Process thanh-am-studio -ErrorAction SilentlyContinue | Stop-Process -Force
 $harness = Join-Path $Repo 'e2e\desktop\packaged.mjs'
 foreach ($phase in 'full', 'reopen') {
     & node $harness $exe.FullName $Out $phase *>> $log
