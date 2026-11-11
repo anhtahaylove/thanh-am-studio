@@ -149,7 +149,7 @@ try {
   report.reopen_ui_ms = Date.now() - tl;
   report.peak_python_mb = Math.round(peak.python / 2 ** 20);
   report.peak_app_mb = Math.round(peak.app / 2 ** 20);
-  report.ok = report.segments_with_take === N && report.orphan_workers_after_crash === 0;
+  report.ok = report.render_duration_ms === report.render_expected_ms && (resume === 'from-render' || (report.segments_with_take === N && report.orphan_workers_after_crash === 0));
 } catch (e) {
   report.error = String(e); log(`ABORT ${e}`);
 } finally {

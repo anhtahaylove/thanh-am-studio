@@ -38,14 +38,28 @@ needed the MSVC C++ runtime (`onnxruntime` import failed), and the dev-machine-o
 flag. Measured on the dev CPU (i5-13400F, CPU only): model load ≈7 s per batch, ≈2.2 s per short
 sentence, STT of 6 s audio ≈8 s including model load.
 
-### 500-segment gate
+### 500-segment gate (packaged release exe on the dev machine, i5-13400F, CPU only)
 
-Pending — results of `e2e/desktop/gate.mjs` (500 segments, cancel, hard crash mid-batch, restart and
-retry, full render, STT round trip WER/CER, RAM) will be recorded here.
+`e2e/desktop/gate.mjs`, synthetic original Vietnamese script, 500 segments of ~25 syllables:
+
+| Check | Result |
+|---|---|
+| Generation via UI "Tạo giọng tất cả" | 500/500 segments with a selected take, 0 failed jobs |
+| Cancel 3 queued jobs, then hard-kill the app mid-batch (`taskkill /F /T`) | 0 orphan Python workers; on restart 40 done, 24 `interrupted`, 401 queued, 3 cancelled, no data lost; retries completed |
+| Audio length | 43.9 min synthesized (segments average 5.3 s, so this run is **below the 60-minute target**); render with gaps 46.4 min |
+| TTS throughput | 45.4 min wall for 43.9 min of audio (RTF 1.03 including the crash/restart) |
+| Full render + normalize | 93 s; duration exactly equals takes + gaps |
+| STT round trip (whisper-small, CPU INT8) on the full render | 30.7 min (RTF 0.66); WER 10.2 %, CER 5.1 % against the script |
+| Peak RAM | Python worker 996 MB; app process 42 MB (WebView2 processes not counted) |
+| Reopen the 500-segment project after restart | 0.68 s |
+
+WER/CER compare the synthesized script with the STT transcript, so they mix TTS and STT errors.
+Typical mismatches are tone/initial confusions ("mùa thu" → "mùa thương", "chăm chú" → "trăm chú");
+they are flagged for listening and are not proof of TTS mispronunciation.
 
 ## Not verified / known gaps
 
-- Listening quality has not been judged by a human. The listening pack (first 20 sentences as
+- Listening quality has not been judged by a human; one listening-pack sentence peaks at full scale (possible clipping). The listening pack (first 20 sentences as
   separate files in script order, plus the full render) is produced by the gate for an A/B pass.
   STT round-trip shows audible-risk words (e.g. "giọng" heard as "dọng"); these are flagged for
   listening, not treated as proof of mispronunciation.
