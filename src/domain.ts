@@ -48,4 +48,6 @@ export const validRange=(start:number,end:number)=>Number.isFinite(start)&&Numbe
 export function addTranscriptRow(rows:TranscriptSegment[],afterId:string|null):TranscriptSegment[]{const found=rows.findIndex(r=>r.id===afterId),i=found<0?rows.length-1:found,start_ms=rows[i]?.end_ms??0;return [...rows.slice(0,i+1),{id:uid(),start_ms,end_ms:start_ms+1000,text:''},...rows.slice(i+1)];}
 // A running job's updated_at is when it started: progress writes do not touch it.
 export function progressLabel(progress:number,startedAt:string,now=Date.now()):string{const pct=`${Math.floor(progress*100)} %`;const elapsed=now-Date.parse(startedAt);if(!(progress>=0.15&&progress<1&&elapsed>0))return pct;return `${pct} · còn ~${Math.max(1,Math.round(elapsed*(1-progress)/progress/60000))} phút`;}
+// A TTS batch marks all its jobs running but reports progress only for the one being synthesized.
+export const jobProgressLabel=(kind:string,progress:number,startedAt:string,now=Date.now())=>kind==='tts'&&progress<=0?'Chờ trong lô':progressLabel(progress,startedAt,now);
 export function ttsTranscript(clips:(Recipe&{text:string})[]):TranscriptSegment[]{let time=0;return clips.map(c=>{const start_ms=time;time+=clipDuration(c);return {id:uid(),start_ms,end_ms:time-c.gap_ms,text:c.text};});}

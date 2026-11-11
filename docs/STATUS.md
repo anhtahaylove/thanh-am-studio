@@ -15,7 +15,8 @@ Last updated 2026-11-11. Evidence below was observed, not inferred; anything not
   trim/fade/gain/gap recipe (export additionally normalizes when enabled).
 - Queue: batched TTS (one worker process loads the model once for up to 32 segments; a failing
   segment does not stop the batch), cancel, retry, `interrupted` after restart, workers killed with
-  the app through a Windows job object; running jobs show percent and an estimated time left.
+  the app through a Windows job object; running jobs show a filled progress bar, percent and an estimated time left (batched TTS jobs not yet
+  started show as waiting).
 - STT: faster-whisper CPU INT8, explicit apply of results, transcript edit/add/delete rows, timestamp
   validation, TXT/SRT/VTT export.
 
@@ -23,10 +24,10 @@ Last updated 2026-11-11. Evidence below was observed, not inferred; anything not
 
 | Gate | Result |
 |---|---|
-| `npm test` | 25 passed |
+| `npm test` | 26 passed |
 | `npm run test:e2e` (browser preview) | 6 passed |
 | `cargo test --tests` | 8 store + 3 runtime passed |
-| `python -m unittest` (worker) | 10 passed (incl. real FFmpeg render, disk-full refusal, take peak limiter) |
+| `python -m unittest` (worker) | 11 passed (incl. real FFmpeg render, disk-full refusal, take peak limiter, linear STT progress) |
 | GitHub Actions CI (PRs #1–#8 and `main`) | pass |
 | Real model download (whisper-small) | kill at 34 % then resume completed; 464 MB on disk (1×); proxy-blocked network → `NETWORK` error |
 | Packaged release exe on dev machine (`e2e/desktop/packaged.mjs full`, `reopen`) | all steps PASS |
@@ -52,9 +53,20 @@ script, 500 segments of ~35-45 syllables:
 | TTS throughput | 58.7 min wall for 67.9 min of audio (RTF 0.86 including the crash/restart) |
 | Full render + normalize | 192 s; duration exactly equals takes + gaps (4,227,040 ms) |
 | STT round trip (whisper-small, CPU INT8) on the full render | 84.6 min (RTF 1.20; other CPU-heavy checks ran on the same machine during this step); WER 9.2 %, CER 4.5 % against the script |
-| Peak RAM (largest single process) | Python worker 3,433 MB; app process 82 MB (WebView2 processes not counted) |
+| Peak RAM (largest single process) | 3,433 MB recorded, most likely not the app: the sampler counted every `python.exe` under the repo path, and a clipping analysis that loaded the 70-minute render as float64 (~3.3 GB) ran with the repo's bundled Python during this step. See the repeat run below |
 | Reopen the 500-segment project after restart | 0.67 s |
 | Clipping (signal analysis) | all 500 takes and the 20-file listening pack: 0 samples at or above 0.999 of full scale, highest peak -0.18 dBFS (the limiter ceiling), highest 4x-oversampled true peak -0.08 dBTP; full render peak -1.48 dBFS |
+
+Repeat run on an idle machine (release build with the progress bar fix, per-phase memory sampled
+every 5-10 s into `ram.csv`): 500/500 segments, 68.1 min synthesized, TTS RTF 0.86, render 132 s
+(duration exact), STT 40.2 min (RTF 0.57), WER 9.2 %, CER 4.6 %, reopen 0.60 s, `ok`.
+
+| Phase | Largest Python worker | Notes |
+|---|---|---|
+| TTS | 2,179 MB | 17 worker processes (one per batch of up to 32 segments), each peaking at 1,985-2,179 MB: ~1.8 GB after model load, then slow growth within the batch, released when the worker exits; one worker at a time |
+| Render | 20 MB | FFmpeg does the work |
+| STT (whisper-small) | 1,327 MB | at model load, then 650-750 MB while transcribing |
+| App process | 42 MB | WebView2 processes not counted |
 
 An earlier run (before the limiter, ~25-syllable segments) reached only 43.9 min of audio: TTS RTF
 1.03, STT RTF 0.66, WER 10.2 %, CER 5.1 %, peak Python worker 996 MB.
@@ -94,8 +106,8 @@ The draft is not published. Publishing waits for the human listening pass below.
   harness clicked the first "save audio" button while the queue list (refreshed every 2.5 s) still
   showed an earlier render, whose format the app correctly refused to save under the other
   extension. The harness now clicks the button of the exact render job; the next run passed all phases.
-- Peak Python worker memory rose to 3.4 GB in the 60-minute gate (996 MB with shorter segments); the
-  gate does not record whether TTS or STT set it. The 8 GB Sandbox only ran short projects.
+- TTS needs ~2.2 GB for its worker process on top of the app and WebView2; long projects were run on
+  the dev machine only (the 8 GB Sandbox ran short projects).
 - Reference-voice cloning quality and UI at high DPI were not exercised end-to-end.
 - Installers are unsigned (SmartScreen warning). CUDA is not enabled.
 - Preview does not apply loudness normalization; export does when "Chuẩn hóa" is on.
