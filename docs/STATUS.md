@@ -41,7 +41,7 @@ sentence, STT of 6 s audio ≈8 s including model load.
 
 ### 500-segment gate (packaged release exe on the dev machine, i5-13400F, CPU only)
 
-`e2e/desktop/gate.mjs` at `2d51875` (includes the take peak limiter), synthetic original Vietnamese
+`e2e/desktop/gate.mjs` on a release build with the take peak limiter (PR #5), synthetic original Vietnamese
 script, 500 segments of ~35-45 syllables:
 
 | Check | Result |
