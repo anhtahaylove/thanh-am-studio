@@ -31,8 +31,11 @@ jobs:
         shell: pwsh
         run: |
           $exe = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe
-          Copy-Item $exe.FullName release/
-          Get-ChildItem release -File | Get-FileHash -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" } | Set-Content release/SHA256SUMS.txt
+          # GitHub renames assets with spaces/diacritics, so ship an ASCII name that SHA256SUMS can match.
+          Copy-Item $exe.FullName (Join-Path release ('ThanhAmStudio_' + ($exe.Name -replace '^.*?_', '')))
+          # LF line endings so `sha256sum -c SHA256SUMS.txt` works as published.
+          $sums = Get-ChildItem release -File | Get-FileHash -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" }
+          [IO.File]::WriteAllText((Join-Path $PWD 'release/SHA256SUMS.txt'), (($sums -join "`n") + "`n"))
       - name: Draft release
         env:
           GH_TOKEN: ${{ github.token }}

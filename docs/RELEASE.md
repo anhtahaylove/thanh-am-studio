@@ -21,7 +21,8 @@ Do not run `src-tauri/target/release/thanh-am-studio.exe` while bundling (the bu
 
 `.github/workflows/release.yml` does the same on a `v*` tag, attaches the installer,
 `SHA256SUMS.txt`, the SBOM and notices to a **draft pre-release**. Publishing the draft is a
-manual decision after the acceptance gates below pass on that exact tag.
+manual decision after the acceptance gates below pass on that exact tag. Users verify a download
+with `sha256sum -c SHA256SUMS.txt` (or compare `Get-FileHash <file>` with the listed hash).
 
 ## Acceptance gates (on the installer built from the tagged revision)
 
@@ -31,8 +32,8 @@ manual decision after the acceptance gates below pass on that exact tag.
    to a folder, adjust and open a `.wsb` that maps the repo, `C:\Program Files\nodejs`, the installer folder and
    a writable output folder, with `e2e/desktop/sandbox-run.ps1` as the logon command. It installs
    silently, then runs `e2e/desktop/packaged.mjs` phases `full` (model download via UI, TTS,
-   preview, new take, render + save dialog, STT + apply, SRT export), `reopen` and `offline`
-   (network adapters disabled).
+   preview, new take, render + save dialog, STT + apply, SRT export), `reopen`, `offline`
+   (network adapters disabled) and `export` (render, save dialog to a Unicode path, STT, SRT, still offline).
 3. Long project: `node e2e/desktop/gate.mjs <installed exe> <out> 500` (500 segments, cancel,
    hard crash mid-batch, restart/retry, full render, STT round trip WER/CER, RAM).
 4. Human listening pass on the fixed corpus (A/B: same sentences, same order, keep per-sentence

@@ -23,7 +23,9 @@ foreach ($phase in 'full', 'reopen') {
 }
 Get-NetAdapter | Disable-NetAdapter -Confirm:$false
 Log "network disabled: $((Test-NetConnection huggingface.co -Port 443 -WarningAction SilentlyContinue).TcpTestSucceeded)"
-& node $harness $exe.FullName $Out 'offline' *>> $log
-Log "phase offline exit=$LASTEXITCODE"
+foreach ($phase in 'offline', 'export') {
+    & node $harness $exe.FullName $Out $phase *>> $log
+    Log "phase $phase exit=$LASTEXITCODE"
+}
 Get-ChildItem "$env:LOCALAPPDATA\studio.thanham.desktop\jobs" -Recurse -Filter worker.log | Select-Object -Last 3 | ForEach-Object { Copy-Item $_.FullName (Join-Path $Out "worker-$($_.Directory.Name).log") }
 'done' | Set-Content (Join-Path $Out 'DONE')
