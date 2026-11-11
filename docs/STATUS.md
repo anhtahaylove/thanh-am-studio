@@ -27,10 +27,10 @@ Last updated 2026-11-11. Evidence below was observed, not inferred; anything not
 | `npm run test:e2e` (browser preview) | 6 passed |
 | `cargo test --tests` | 8 store + 3 runtime passed |
 | `python -m unittest` (worker) | 9 passed (incl. real FFmpeg render, disk-full refusal) |
-| GitHub Actions CI (PR #1) | pass |
+| GitHub Actions CI (PRs #1–#3 and `main`) | pass |
 | Real model download (whisper-small) | kill at 34 % then resume completed; 464 MB on disk (1×); proxy-blocked network → `NETWORK` error |
 | Packaged release exe on dev machine (`e2e/desktop/packaged.mjs full`, `reopen`) | all steps PASS |
-| **Clean Windows Sandbox** (Windows 11 26100, no Python/FFmpeg/uv on PATH, 8 GB) | installer 94–100 s; download both models via UI; TTS; preview playback; new take keeps old; restart and reopen project; **network adapters disabled**: TTS, render + save WAV via native dialog to a Unicode path, STT on it + apply, SRT export — all PASS |
+| **Clean Windows Sandbox** (Windows 11 26100, no Python/FFmpeg/uv on PATH, 8 GB) | installer 94–100 s; download both models via UI; TTS; preview playback; new take keeps old; restart and reopen project; **network adapters disabled**: TTS, render + save WAV via native dialog to a Unicode path, STT on it + apply, SRT export — all PASS (local builds and the CI-built v0.1.0 installer, see below) |
 | 500-segment gate | see below |
 
 Clean-machine runs found and fixed two release blockers that the dev machine hid: the Python runtime
@@ -56,6 +56,17 @@ sentence, STT of 6 s audio ≈8 s including model load.
 WER/CER compare the synthesized script with the STT transcript, so they mix TTS and STT errors.
 Typical mismatches are tone/initial confusions ("mùa thu" → "mùa thương", "chăm chú" → "trăm chú");
 they are flagged for listening and are not proof of TTS mispronunciation.
+
+### v0.1.0 draft release (built by `.github/workflows/release.yml` from tag `v0.1.0` at `305ce75`)
+
+| Check | Result |
+|---|---|
+| Release workflow | npm test, private runtime build, SBOM/notices, `cargo test`, `tauri build`, checksums, draft pre-release: success |
+| Assets | `ThanhAmStudio_0.1.0_x64-setup.exe` (204,445,415 bytes), `SHA256SUMS.txt`, `sbom.cdx.json`, `THIRD-PARTY-NOTICES.txt` |
+| Installer SHA-256 | `37c68efc91027131b01b55e9015d146cddbd9f38f2229c5bd6515b7079501e55`; `sha256sum -c SHA256SUMS.txt` OK for all files after download |
+| Clean Windows Sandbox on that exact downloaded installer | install 94 s, 815 MB; phases `full` (model download via UI, TTS, preview, new take, render + WAV save to a Unicode path, STT + apply, SRT), `reopen`, `offline` (network adapters disabled: TTS) and `export` (still offline: render, WAV, STT, SRT): 21 PASS, 0 FAIL |
+
+The draft is not published. Publishing waits for the human listening pass below.
 
 ## Not verified / known gaps
 
