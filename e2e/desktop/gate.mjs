@@ -17,7 +17,30 @@ const invoke = (c, a = {}) => page.evaluate(([c, a]) => window.__TAURI_INTERNALS
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const procs = () => { try { return JSON.parse(execSync(`powershell -NoProfile -Command "Get-Process python,thanh-am-studio -EA SilentlyContinue | Where-Object { $_.Path -like '*thanh*' -or $_.ProcessName -like 'thanh*' } | Select-Object Id,ProcessName,WorkingSet64 | ConvertTo-Json -Compress"`, {encoding: 'utf8'}) || '[]'); } catch { return []; } };
 const peak = {python: 0, app: 0};
-const sample = () => { for (const p of [procs()].flat()) { const k = p.ProcessName === 'python' ? 'python' : 'app'; peak[k] = Math.max(peak[k], p.WorkingSet64); } };
+// Per-phase peaks plus a raw per-process timeline (ram.csv) to attribute worker memory to TTS, render or STT.
+let phase = 'tts';
+const byPhase = {};
+const mb = (b) => Math.round(b / 2 ** 20);
+const sample = () => {
+  const ps = [procs()].flat(), ph = (byPhase[phase] ??= {python_max_mb: 0, python_sum_max_mb: 0, python_procs_max: 0, app_max_mb: 0});
+  const py = ps.filter((p) => p.ProcessName === 'python');
+  for (const p of ps) { const k = p.ProcessName === 'python' ? 'python' : 'app'; peak[k] = Math.max(peak[k], p.WorkingSet64); ph[`${k}_max_mb`] = Math.max(ph[`${k}_max_mb`], mb(p.WorkingSet64)); }
+  ph.python_sum_max_mb = Math.max(ph.python_sum_max_mb, mb(py.reduce((a, p) => a + p.WorkingSet64, 0)));
+  ph.python_procs_max = Math.max(ph.python_procs_max, py.length);
+  appendFileSync(join(out, 'ram.csv'), ps.map((p) => `${new Date().toISOString()},${phase},${p.ProcessName},${p.Id},${mb(p.WorkingSet64)}\n`).join(''));
+};
+// Screenshot the queue with a running job in view and log its progress label against the stored job.
+const queueShot = async (name, job) => { try {
+  await nav('Hàng đợi');
+  // A TTS batch shows one row with progress and the rest as waiting; STT rows are found by model id.
+  const rows = page.locator('article').filter({has: page.locator('.job-progress')}).filter({hasNotText: 'Chờ trong lô'});
+  const row = (job.kind === 'stt' ? rows.filter({hasText: job.payload.model_id}) : rows).first();
+  await row.scrollIntoViewIfNeeded();
+  const label = await row.locator('.job-progress').textContent();
+  await page.screenshot({path: join(out, `queue-${name}.png`)});
+  log(`queue ${name}: label "${label}" job progress=${job.progress.toFixed(3)} started=${job.updated_at}`);
+  (report.queue_labels ??= []).push({name, label, progress: job.progress});
+} catch (e) { log(`queue ${name}: screenshot skipped (${String(e).split('\n')[0]})`); } }; // evidence only, never fails the gate
 
 async function launch() {
   const t = Date.now();
@@ -40,6 +63,8 @@ const script = Array.from({length: N}, (_, i) => `${who[i % who.length]} ${where
 
 const norm = (s) => s.toLowerCase().normalize('NFC').replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
 const dist = (a, b) => { let prev = Array.from({length: b.length + 1}, (_, j) => j); for (let i = 1; i <= a.length; i++) { const cur = [i]; for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = cur; } return prev[b.length]; };
+// Open this gate's project by name: an earlier gate's project may be listed first.
+const openGate = () => page.locator('article', {has: page.getByRole('heading', {name: `Gate ${N} đoạn`, exact: true})}).getByRole('button', {name: 'Mở dự án'}).click();
 const ttsJobs = async (pid) => (await invoke('list_jobs')).filter((j) => j.kind === 'tts' && j.project_id === pid);
 
 try {
@@ -60,7 +85,7 @@ try {
     p = await invoke('save_project', {project: p});
     pid = p.id;
     await nav('Dự án');
-    await page.getByRole('button', {name: 'Mở dự án'}).first().click();
+    await openGate();
     await page.getByRole('textbox', {name: `Nội dung đoạn ${N}`}).waitFor({timeout: 60000});
     const t0 = Date.now();
     await page.getByRole('button', {name: 'Tạo giọng tất cả'}).click();
@@ -85,9 +110,11 @@ try {
     await nav('Hàng đợi');
     for (const j of after.filter((j) => ['interrupted', 'cancelled'].includes(j.status))) await invoke('retry_job', {id: j.id});
 
-    for (;;) {
+    for (let shot = false; ;) {
       sample();
       const js = await ttsJobs(pid);
+      const live = js.find((j) => j.status === 'running' && j.progress >= 0.15 && j.progress < 0.95);
+      if (!shot && live) { await queueShot('tts', live); shot = true; }
       const failed = js.filter((j) => ['failed', 'interrupted'].includes(j.status));
       if (failed.length) throw Error(`tts failed: ${failed[0].error}`);
       if (js.filter((j) => j.status === 'succeeded').length >= N) break;
@@ -109,9 +136,10 @@ try {
   }
   // Open the project in the UI (a restart leaves no project open), then render through the UI.
   await nav('Dự án');
-  await page.getByRole('button', {name: 'Mở dự án'}).first().click();
+  await openGate();
   await page.getByRole('textbox', {name: `Nội dung đoạn ${N}`}).waitFor({timeout: 60000});
   // Full render through the UI.
+  phase = 'render';
   await page.getByRole('navigation', {name: 'Điều hướng chính'}).getByRole('button').first().click();
   const tr = Date.now();
   await page.getByRole('button', {name: 'Xuất audio'}).click();
@@ -127,10 +155,17 @@ try {
   copyFileSync(render.result.path, join(pack, 'full-render.wav'));
 
   // STT round trip on the full render; reference = the script that was synthesized.
+  phase = 'stt';
   const ts = Date.now();
   const stt = await invoke('enqueue_job', {kind: 'stt', projectId: pid, payload: {asset_id: render.result.asset_id, model_id: 'whisper-small', language: 'vi'}});
   let done;
-  while (!(done = (await invoke('list_jobs')).find((j) => j.id === stt.id && ['succeeded', 'failed'].includes(j.status)))) { sample(); await sleep(10000); }
+  for (let shots = [0.2, 0.6]; ;) {
+    const j = (await invoke('list_jobs')).find((x) => x.id === stt.id);
+    if (['succeeded', 'failed'].includes(j.status)) { done = j; break; }
+    sample();
+    if (shots.length && j.status === 'running' && j.progress >= shots[0]) await queueShot(`stt-${shots.shift()}`, j);
+    await sleep(10000);
+  }
   if (done.status !== 'succeeded') throw Error(`stt failed: ${done.error}`);
   report.stt_s = Math.round((Date.now() - ts) / 1000);
   report.stt_rtf = +(report.stt_s * 1000 / report.render_duration_ms).toFixed(3);
@@ -141,11 +176,12 @@ try {
   writeFileSync(join(out, 'reference.txt'), ref);
 
   // Reopen the large project after a clean restart.
+  phase = 'reopen';
   app.kill(); await sleep(3000);
   await launch();
   const tl = Date.now();
   await nav('Dự án');
-  await page.getByRole('button', {name: 'Mở dự án'}).first().click();
+  await openGate();
   await page.getByRole('textbox', {name: `Nội dung đoạn ${N}`}).waitFor({timeout: 60000});
   report.reopen_ui_ms = Date.now() - tl;
   report.peak_python_mb = Math.round(peak.python / 2 ** 20);
@@ -154,6 +190,7 @@ try {
 } catch (e) {
   report.error = String(e); log(`ABORT ${e}`);
 } finally {
+  report.ram_by_phase = byPhase;
   writeFileSync(join(out, 'gate.json'), JSON.stringify(report, null, 1));
   log(JSON.stringify(report));
   try { app?.kill(); } catch {}

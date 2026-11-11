@@ -357,7 +357,8 @@ def stt(payload, progress):
     result = []
     for segment in segments:
         result.append({'start': segment.start, 'end': segment.end, 'text': segment.text.strip()})
-        progress(min(0.99, 0.1 + 0.89 * segment.end / max(info.duration, 0.01)), 'Transcribing')
+        # Linear in audio time, so the queue's remaining-time estimate is not skewed early on.
+        progress(max(0.05, min(0.99, segment.end / max(info.duration, 0.01))), 'Transcribing')
     return {'segments': result, 'language': info.language}
 
 

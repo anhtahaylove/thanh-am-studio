@@ -84,6 +84,19 @@ class WorkerTests(unittest.TestCase):
         quiet = np.array([0.1, -0.9], dtype=np.float32)
         self.assertIs(worker.limit_peak(quiet), quiet)
 
+    def test_stt_progress_is_linear_in_audio_time(self):
+        from types import SimpleNamespace
+        from unittest import mock
+        seg = lambda start, end: SimpleNamespace(start=start, end=end, text=' xin chào ')
+        model = mock.Mock()
+        model.transcribe.return_value = ([seg(0, 10), seg(10, 50), seg(50, 100)], SimpleNamespace(duration=100, language='vi'))
+        seen = []
+        with tempfile.TemporaryDirectory() as td,                 mock.patch.object(worker, 'verify_model', return_value={'engine': 'faster-whisper'}),                 mock.patch.object(worker, 'offline_mode'),                 mock.patch.dict(sys.modules, {'faster_whisper': SimpleNamespace(WhisperModel=lambda *a, **k: model)}):
+            source = Path(td) / 'a.wav'; source.write_bytes(b'x')
+            result = worker.stt({'model_path': td, 'input_path': str(source)}, lambda v, m='': seen.append(v))
+        self.assertEqual(seen, [0.05, 0.1, 0.5, 0.99])
+        self.assertEqual(result['segments'][0]['text'], 'xin chào')
+
     @unittest.skipUnless(shutil.which('ffmpeg'), 'FFmpeg required for actual render test')
     def test_actual_render_trim_gap_fade_atomic_output(self):
         with tempfile.TemporaryDirectory() as td:
