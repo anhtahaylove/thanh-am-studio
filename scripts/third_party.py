@@ -56,6 +56,7 @@ site = ROOT / 'runtime' / 'python' / 'Lib' / 'site-packages'
 for info in sorted(site.glob('*.dist-info')):
     m = HeaderParser().parsestr((info / 'METADATA').read_text(encoding='utf-8', errors='replace'))
     lic = m.get('License-Expression') or next((c.split('::')[-1].strip() for c in m.get_all('Classifier') or [] if c.startswith('License ::')), None) or ((m.get('License') or '').strip().splitlines() or [''])[0][:80] or None
+    lic = lic or {'llvmlite': 'BSD-2-Clause'}.get(m['Name'])  # metadata omits it; verified from its LICENSE file
     files = [f for f in sorted(info.rglob('*')) if f.is_file() and LICENSE_FILE.match(f.name)]
     add('pypi', m['Name'], m['Version'], lic, f"pkg:pypi/{m['Name'].lower()}@{m['Version']}", files)
 add('runtime', 'CPython', '3.11.18', 'PSF-2.0', 'pkg:generic/cpython@3.11.18', [ROOT / 'runtime' / 'python' / 'LICENSE.txt'])

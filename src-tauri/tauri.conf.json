@@ -11,5 +11,5 @@
       "assetProtocol": {"enable": true, "scope": ["$APPLOCALDATA/assets/**"]}
     }
   },
-  "bundle": {"active": true, "targets": ["nsis"], "resources": {"../worker/main.py": "worker/main.py", "../worker/models.json": "worker/models.json", "../worker/voices.json": "worker/voices.json", "../runtime/python/": "runtime/python/", "../runtime/ffmpeg/": "runtime/ffmpeg/"}, "windows": {"nsis": {"installMode": "currentUser"}}}
+  "bundle": {"active": true, "targets": ["nsis"], "resources": {"../worker/main.py": "worker/main.py", "../worker/models.json": "worker/models.json", "../worker/voices.json": "worker/voices.json", "../runtime/python/": "runtime/python/", "../runtime/ffmpeg/": "runtime/ffmpeg/", "../release/THIRD-PARTY-NOTICES.txt": "THIRD-PARTY-NOTICES.txt"}, "windows": {"nsis": {"installMode": "currentUser"}}}
 }

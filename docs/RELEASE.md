@@ -11,7 +11,7 @@ Requirements: Node 22+, Rust stable (MSVC), uv, git. No administrator rights.
 ```powershell
 npm ci
 ./scripts/setup-runtime.ps1          # runtime/python + runtime/ffmpeg (FFmpeg SHA-256 pinned)
-python scripts/third_party.py release # release/sbom.cdx.json + release/THIRD-PARTY-NOTICES.txt
+python scripts/third_party.py release # release/sbom.cdx.json + release/THIRD-PARTY-NOTICES.txt (bundled into the installer)
 npm run tauri build -- --ci
 ```
 
