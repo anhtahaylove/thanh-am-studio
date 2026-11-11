@@ -30,12 +30,13 @@ async function launch() {
 }
 const nav = (name) => page.getByRole('navigation', {name: 'Điều hướng chính'}).getByRole('button', {name: new RegExp(`^${name}`)}).click(); // the queue button also carries a count badge
 
-// Original synthetic Vietnamese script, ~25-30 words per segment.
+// Original synthetic Vietnamese script, ~35-45 words (~8 s) per segment so 500 segments exceed 60 minutes.
 const who = ['Người dẫn chuyện', 'Cô giáo trẻ', 'Bác nông dân', 'Anh kỹ sư', 'Chị bán hàng', 'Cậu học trò', 'Ông cụ', 'Bà ngoại'];
 const where = ['ở Hà Nội', 'bên bờ sông Hồng', 'trên cao nguyên', 'giữa chợ Bến Thành', 'trong làng nhỏ', 'ở Đà Nẵng', 'gần bến xe', 'trên con đường quê'];
 const what = ['kể lại một kỷ niệm đẹp về mùa thu năm ấy', 'giải thích cách trồng lúa cho thật tốt', 'chia sẻ bí quyết nấu bát phở thơm ngon', 'nói về những chuyến đi xa đầy thú vị', 'hướng dẫn mọi người tiết kiệm điện mỗi ngày', 'đọc một bài thơ về quê hương yêu dấu'];
 const tail = ['Mọi người lắng nghe rất chăm chú và mỉm cười.', 'Sau đó trời bắt đầu đổ mưa nhẹ.', 'Câu chuyện khiến ai cũng nhớ về tuổi thơ.', 'Buổi chiều trôi qua thật nhẹ nhàng và bình yên.', 'Cuối cùng cả nhóm cùng nhau ra về.'];
-const script = Array.from({length: N}, (_, i) => `${who[i % who.length]} ${where[(i * 3) % where.length]} ${what[(i * 5) % what.length]}. ${tail[(i * 7) % tail.length]}`);
+const more = ['Ai cũng mong sẽ có dịp quay lại nơi này thêm nhiều lần nữa.', 'Những người bạn cũ hẹn nhau cuối tuần sau sẽ gặp lại ở quán quen.', 'Tiếng chim hót vang khắp con đường nhỏ dẫn vào làng.', 'Câu chuyện được kể lại cho cả gia đình nghe trong bữa cơm tối.', 'Mọi việc diễn ra đúng như kế hoạch đã đặt ra từ tuần trước.', 'Ánh nắng chiều chiếu xuống mặt hồ làm nước lấp lánh như bạc.', 'Đứa trẻ ngồi bên cạnh hỏi thêm rất nhiều câu hỏi ngây thơ.'];
+const script = Array.from({length: N}, (_, i) => `${who[i % who.length]} ${where[(i * 3) % where.length]} ${what[(i * 5) % what.length]}. ${tail[(i * 7) % tail.length]} ${more[(i * 3) % more.length]}`);
 
 const norm = (s) => s.toLowerCase().normalize('NFC').replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
 const dist = (a, b) => { let prev = Array.from({length: b.length + 1}, (_, j) => j); for (let i = 1; i <= a.length; i++) { const cur = [i]; for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = cur; } return prev[b.length]; };

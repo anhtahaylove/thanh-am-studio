@@ -75,6 +75,15 @@ class WorkerTests(unittest.TestCase):
             self.assertEqual(ctx.exception.code, 'DISK_FULL')
             self.assertFalse((Path(td) / 'whisper-small' / 'installed.json').exists())
 
+    def test_take_peak_is_limited_below_full_scale(self):
+        import numpy as np
+        loud = np.array([0.2, 1.003, -1.2, 0.5], dtype=np.float32)
+        out = worker.limit_peak(loud)
+        self.assertAlmostEqual(float(np.abs(out).max()), worker.PEAK_CEILING, places=6)
+        self.assertAlmostEqual(float(out[0] / out[3]), 0.4, places=6)  # whole take scaled, shape kept
+        quiet = np.array([0.1, -0.9], dtype=np.float32)
+        self.assertIs(worker.limit_peak(quiet), quiet)
+
     @unittest.skipUnless(shutil.which('ffmpeg'), 'FFmpeg required for actual render test')
     def test_actual_render_trim_gap_fade_atomic_output(self):
         with tempfile.TemporaryDirectory() as td:

@@ -17,7 +17,7 @@ $health = '{"protocol":1,"id":"h","operation":"health","payload":{}}' | & (Join-
 Log "health $health"
 Get-Process thanh-am-studio -ErrorAction SilentlyContinue | Stop-Process -Force
 $harness = Join-Path $Repo 'e2e\desktop\packaged.mjs'
-foreach ($phase in 'full', 'reopen') {
+foreach ($phase in 'full', 'reopen', 'turbo') {
     & node $harness $exe.FullName $Out $phase *>> $log
     Log "phase $phase exit=$LASTEXITCODE"
 }

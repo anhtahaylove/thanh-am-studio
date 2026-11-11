@@ -49,6 +49,15 @@ def number(value, name, low=0, high=86_400_000):
     return float(value)
 
 
+# Engines can overshoot full scale; PCM conversion would hard-clip those samples.
+PEAK_CEILING = 0.98
+
+
+def limit_peak(audio):
+    peak = float(abs(audio).max())
+    return audio * (PEAK_CEILING / peak) if peak > PEAK_CEILING else audio
+
+
 def clip_recipe(clip, source_duration):
     duration = number(source_duration, 'duration', 0.001)
     start = number(clip.get('trim_start_ms', 0), 'trim_start_ms')
@@ -307,7 +316,7 @@ def tts(payload, output_dir: Path, progress, emit_item=None):
             raise WorkerError('INVALID_AUDIO', 'Engine returned empty, silent or non-finite audio.')
         partial = final.with_name(final.stem + '.partial.wav')
         try:
-            sf.write(str(partial), audio, 48000, subtype='PCM_24')
+            sf.write(str(partial), limit_peak(audio), 48000, subtype='PCM_24')
             os.replace(partial, final)
         finally:
             partial.unlink(missing_ok=True)
