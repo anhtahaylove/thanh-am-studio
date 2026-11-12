@@ -230,6 +230,40 @@
           "git_blob_sha1": "0adcd01e7c237205d593b707e66dd5d7bc785d2d"
         }
       ]
+    },
+    {
+      "id": "diarization",
+      "name": "Speaker separation (pyannote segmentation 3.0 + 3D-Speaker CAM++)",
+      "engine": "sherpa-onnx",
+      "revision": "9403a6902bb58e3d5ae8c7e77c3422de279db2e0",
+      "license": "MIT AND Apache-2.0",
+      "description": "Local CPU model. pyannote segmentation-3.0 (MIT, ONNX export by k2-fsa) and 3D-Speaker CAM++ zh-en speaker embedding (Apache-2.0). Download verified artifacts before offline use.",
+      "artifacts": [
+        {
+          "path": "segmentation/LICENSE",
+          "repo": "csukuangfj/sherpa-onnx-pyannote-segmentation-3-0",
+          "revision": "9403a6902bb58e3d5ae8c7e77c3422de279db2e0",
+          "filename": "LICENSE",
+          "size": 1061,
+          "git_blob_sha1": "e5e0c2daded4524693e062d3e4fd016bbfb9a308"
+        },
+        {
+          "path": "segmentation/model.onnx",
+          "repo": "csukuangfj/sherpa-onnx-pyannote-segmentation-3-0",
+          "revision": "9403a6902bb58e3d5ae8c7e77c3422de279db2e0",
+          "filename": "model.onnx",
+          "size": 5992913,
+          "sha256": "220ad67ca923bef2fa91f2390c786097bf305bceb5e261d4af67b38e938e1079"
+        },
+        {
+          "path": "embedding/model.onnx",
+          "repo": "csukuangfj/speaker-embedding-models",
+          "revision": "0743f301363dec56491a490f6d6cbc9d67f9a3bf",
+          "filename": "3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx",
+          "size": 28281164,
+          "sha256": "aa3cfc16963a10586a9393f5035d6d6b57e98d358b347f80c2a30bf4f00ceba2"
+        }
+      ]
     }
   ]
 }
