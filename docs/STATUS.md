@@ -281,6 +281,18 @@ the same bug was hurting three speakers. A retry runs the model again, so those 
 three times longer. Evidence: `work\diarization-natural` (`results\report2_fix.txt`,
 `results\oracle_fix.json`) and `work\diarization-vivos\results\oracle_fix.json`.
 
+### v0.1.3 release (built by `.github/workflows/release.yml` from tag `v0.1.3` at `2eab5f3`)
+
+| Check | Result |
+|---|---|
+| Tests | `npm test` 33, `cargo test --tests` 8 + 7, worker 33 (2 skipped; 15/15 in `test_diarize.py` with the real model); CI green on PR #30 head `ef0a4eb` |
+| Installer SHA-256 | `9961a4787ee78c14875d87053c1dfe4646be9e24102f0aa138d7f1b9ee7911cb`; `sha256sum -c` OK after download and after an anonymous download once published |
+| Clean Sandbox run 1 on that exact installer | `full`, `reopen`, `turbo`, `offline` (network adapters disabled; huggingface.co unreachable), `export`: 26 PASS, 0 FAIL |
+| Clean Sandbox run 2 on that exact installer | `full`, `features` (2 speakers asked and found in a 60 s dialogue, a row relabelled and found saved through `load_project`, script built), `ux`, `clone` (WER 4.9 %), `dpi` (4/4 sizes clean): 30 PASS, 0 FAIL |
+
+Published as a pre-release on 2026-11-12 (20:36 UTC). The v0.1.2 release notes now point to 0.1.3
+for the speaker count fix. Evidence: `work\release-v0.1.3-sandbox`.
+
 ## Not verified / known gaps
 
 - Listening quality has not been judged by a human; the clipping checks above are signal analysis.
