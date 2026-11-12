@@ -109,6 +109,18 @@ def run_process(args):
     return result.stdout
 
 
+def stretch(audio, speed, ffmpeg):
+    """Time-stretch mono 48 kHz float audio without changing pitch (FFmpeg atempo)."""
+    import numpy as np
+    flags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+    result = subprocess.run([ffmpeg, '-nostdin', '-hide_banner', '-loglevel', 'error', '-f', 'f32le', '-ar', '48000',
+        '-ac', '1', '-i', 'pipe:0', '-af', f'atempo={speed}', '-f', 'f32le', 'pipe:1'],
+        input=np.ascontiguousarray(audio, dtype=np.float32).tobytes(), capture_output=True, creationflags=flags)
+    if result.returncode:
+        raise WorkerError('AUDIO_PROCESS_FAILED', result.stderr.decode('utf-8', 'replace')[-2500:] or 'Speed change failed.')
+    return np.frombuffer(result.stdout, dtype=np.float32).copy()
+
+
 def probe(path, ffmpeg_path=None):
     path = Path(path).resolve()
     if not path.is_file():
@@ -333,9 +345,13 @@ def tts(payload, output_dir: Path, progress, emit_item=None):
         if final.exists():
             raise WorkerError('OUTPUT_EXISTS', 'A take already exists at that output name.')
         parts, trailing = split_pauses(item['text'])
+        speed = number(item.get('speed', 1), 'speed', 0.5, 2)
+        ffmpeg = executable('ffmpeg', item.get('ffmpeg_path')) if speed != 1 else None
+        spoken = lambda chunk: (lambda a: stretch(a, speed, ffmpeg) if ffmpeg else a)(
+            np.asarray(engine.infer(chunk, **kwargs), dtype=np.float32))
         silence = lambda s: np.zeros(round(s * 48000), dtype=np.float32)
-        audio = np.concatenate([piece for chunk, before in parts for piece in (silence(before),
-            np.asarray(engine.infer(chunk, **kwargs), dtype=np.float32))] + [silence(trailing)])
+        audio = np.concatenate([piece for chunk, before in parts for piece in (silence(before), spoken(chunk))]
+            + [silence(trailing)])
         if audio.size == 0 or not np.isfinite(audio).all() or float(np.max(np.abs(audio))) < 1e-7:
             raise WorkerError('INVALID_AUDIO', 'Engine returned empty, silent or non-finite audio.')
         partial = final.with_name(final.stem + '.partial.wav')

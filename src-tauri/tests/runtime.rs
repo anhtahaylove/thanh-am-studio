@@ -20,3 +20,12 @@ fn worker_result_outside_job_dir_is_rejected(){
  assert!(validate_output(&out,&file).unwrap_err().starts_with("INVALID_OUTPUT"));
  let good=out.join("audio.wav");std::fs::write(&good,b"audio").unwrap();assert!(validate_output(&out,&good).is_ok());
 }
+#[test]
+fn tts_speed_is_bounded_and_forwarded(){
+ let t=tempfile::tempdir().unwrap();let s=Store::open(t.path()).unwrap();
+ let ok=s.enqueue("tts",None,json!({"text":"Xin chào","speed":1.1})).unwrap();
+ assert_eq!(prepare_request(&s,&ok,None).unwrap()["payload"]["speed"],json!(1.1));
+ let plain=s.enqueue("tts",None,json!({"text":"Xin chào"})).unwrap();
+ assert_eq!(prepare_request(&s,&plain,None).unwrap()["payload"]["speed"],json!(1.0));
+ for bad in [json!(0.1),json!(3.0)]{let j=s.enqueue("tts",None,json!({"text":"Xin chào","speed":bad})).unwrap();assert_eq!(prepare_request(&s,&j,None).unwrap_err(),"INVALID_SPEED");}
+}

@@ -125,6 +125,15 @@ class WorkerTests(unittest.TestCase):
         self.assertTrue(all(b - a <= worker.STT_WINDOW_S * rate for a, b in zip(cuts, cuts[1:])))
         self.assertEqual(worker.stt_windows(audio[:rate]), [0, rate])  # short input: one window
 
+    @unittest.skipUnless(shutil.which('ffmpeg'), 'FFmpeg required for actual speed test')
+    def test_speed_change_keeps_pitch(self):
+        import numpy as np
+        tone = np.sin(2 * np.pi * 220 * np.arange(48000) / 48000).astype(np.float32) * 0.5
+        fast = worker.stretch(tone, 1.25, shutil.which('ffmpeg'))
+        self.assertAlmostEqual(len(fast) / 48000, 0.8, delta=0.02)
+        spectrum = np.abs(np.fft.rfft(fast[4800:-4800]))
+        self.assertAlmostEqual(np.argmax(spectrum) * 48000 / len(fast[4800:-4800]), 220, delta=3)
+
     @unittest.skipUnless(shutil.which('ffmpeg'), 'FFmpeg required for actual render test')
     def test_actual_render_trim_gap_fade_atomic_output(self):
         with tempfile.TemporaryDirectory() as td:
