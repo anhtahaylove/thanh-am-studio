@@ -31,13 +31,36 @@ def diarize(audio_16k: np.ndarray, model_dir: Path, num_speakers: int | None = N
     for name in (SEGMENTATION_FILE, EMBEDDING_FILE):
         if not (model_dir / name).is_file():
             raise FileNotFoundError(f'Diarization model file missing: {model_dir / name}')
+    if num_speakers is None:
+        return _turns(audio, model_dir, None)
+    # Complete-linkage clustering cut at k clusters can spend a cluster on an outlier embedding that ends
+    # up with no speech of its own, leaving k-1 speakers (17 of 97 real two-speaker dialogues).
+    # Ask for up to two more clusters until k real speakers appear, then keep the k who speak most.
+    for extra in range(3):
+        turns = _turns(audio, model_dir, num_speakers + extra)
+        if len({t['speaker'] for t in turns}) >= num_speakers:
+            break
+    return keep_speakers(turns, num_speakers)
+
+
+def keep_speakers(turns: list[dict], count: int) -> list[dict]:
+    """Keep the turns of the `count` speakers with the most speech, renumbered by first appearance."""
+    total = {}
+    for turn in turns:
+        total[turn['speaker']] = total.get(turn['speaker'], 0.0) + turn['end'] - turn['start']
+    kept = set(sorted(total, key=lambda s: (-total[s], s))[:count])
+    order = {}
+    return [{**turn, 'speaker': order.setdefault(turn['speaker'], len(order))} for turn in turns if turn['speaker'] in kept]
+
+
+def _turns(audio: np.ndarray, model_dir: Path, num_clusters: int | None) -> list[dict]:
     import sherpa_onnx
     config = sherpa_onnx.OfflineSpeakerDiarizationConfig(
         segmentation=sherpa_onnx.OfflineSpeakerSegmentationModelConfig(
             pyannote=sherpa_onnx.OfflineSpeakerSegmentationPyannoteModelConfig(model=str(model_dir / SEGMENTATION_FILE)),
             num_threads=2, provider='cpu'),
         embedding=sherpa_onnx.SpeakerEmbeddingExtractorConfig(model=str(model_dir / EMBEDDING_FILE), num_threads=2, provider='cpu'),
-        clustering=sherpa_onnx.FastClusteringConfig(num_clusters=num_speakers or -1, threshold=CLUSTER_THRESHOLD),
+        clustering=sherpa_onnx.FastClusteringConfig(num_clusters=num_clusters or -1, threshold=CLUSTER_THRESHOLD),
         min_duration_on=0.3, min_duration_off=0.5)
     engine = sherpa_onnx.OfflineSpeakerDiarization(config)
     if engine.sample_rate != SAMPLE_RATE:
