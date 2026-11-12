@@ -244,6 +244,43 @@ Published as a pre-release on 2026-11-12 (17:25 UTC). The known-count benefit co
 measurement above (with the count given, two-speaker DER 15.8 % clean and no over-splitting by
 construction); three speakers stay hard (32.5 % with the count given).
 
+### v0.1.3 candidate: natural conversation and the known speaker count (2026-11-13)
+
+Diarization on natural conversation: ViYT-Diar test split
+([dataset](https://huggingface.co/datasets/tuanduy1612/ViYT-Diar); its card says Apache-2.0, the
+audio comes from public YouTube vlogs, podcasts and interviews, so it is used for local evaluation
+only and kept outside the repo). 100 hand-labelled clips of 53-86 s (1.74 h); 97 have two speakers,
+3 have one speaker but labels for only 4-20 s of 62 s, so they are left out. Only 0.7 % of speech
+overlaps, so overlapped speech is still barely tested. Frame DER (10 ms), pooled over the 97 clips
+(sum of errors / sum of reference speech), overlap scored, without collar / with the standard 0.25 s
+collar; median per clip in brackets:
+
+| Setting | Right speaker count | DER, no collar | DER, 0.25 s collar |
+|---|---|---|---|
+| auto, 0.5 | 44 % | 21.3 % | 9.8 % (4.0) |
+| auto, 0.6 | 45 % | 19.7 % | 8.5 % (3.9) |
+| **auto, 0.65 (shipped)** | 48 % | 19.1 % | 8.0 % (3.0) |
+| auto, 0.7 | 47 % | 19.3 % | 8.4 % (3.5) |
+| auto, 0.8 | 52 % | 19.8 % | 8.8 % (2.9) |
+| count given, v0.1.2 | 82 % | 22.3 % | 11.5 % (3.6) |
+| count given, fixed | 99 % | 18.9 % | 8.0 % (2.1) |
+
+0.65 stays the best automatic setting; automatic counting mostly adds a speaker (43 of 97 clips
+got three or more). Most no-collar error is false alarm (11.4 %) where hand labels split pauses
+finer than the 0.5 s gap the app merges. Runtime 0.1-0.4x real time depending on machine load.
+
+Bug found and fixed: with the count given, v0.1.2 returned **one** speaker for 17 of the 97 clips
+(deterministic). Complete-linkage clustering cut at k clusters gave one cluster to an outlier
+embedding that ended with no speech of its own (checked on clip 022: with 2 clusters the second
+cluster has 0 s even with the duration filters off). `diarize()` now asks for up to two more
+clusters until k speakers appear and keeps the k with the most speech. One clip still gives one
+speaker; two clips dominated by one voice got worse (DER 6.5 to 28.1 % and 32.4 to 45.6 %), 15 got
+better. On the VIVOS mixes above, with the count given, mean DER changed from 15.8 to 14.8 % (2
+speakers clean), 16.6 to 17.2 % (2 noisy), 32.5 to 25.1 % (3 clean) and 34.2 to 28.3 % (3 noisy):
+the same bug was hurting three speakers. A retry runs the model again, so those files take up to
+three times longer. Evidence: `work\diarization-natural` (`results\report2_fix.txt`,
+`results\oracle_fix.json`) and `work\diarization-vivos\results\oracle_fix.json`.
+
 ## Not verified / known gaps
 
 - Listening quality has not been judged by a human; the clipping checks above are signal analysis.
@@ -257,6 +294,13 @@ construction); three speakers stay hard (32.5 % with the count given).
   miss was one unlucky take), but "chợ Bến Thành" was right in only 2/5 takes for every judge.
   Dictionary respellings did not fix it reliably ("Bến-Thành" 1-3/5; lowercase "bến thành" 3-4/5 but
   sometimes heard as "đến"). The engine varies per take, so regenerating the take is the workaround.
+  Repeated for v0.1.2 behaviour (2026-11-13; preset voice at temperature 0.5; a fresh 20-sentence
+  pack plus 3 new takes of each of 17 doubtful sentences): word error rate on the pack 0.66 % / 0.79 % /
+  3.43 % (large-v3 / turbo / wav2vec2) against 2.51 % / 0.92 % / 5.15 % for the v0.1.0 pack (11 of the 19
+  large-v3 errors there are a hallucinated sign-off). "chợ" and "tiết kiệm" no longer miss; still
+  misheard by both Whisper judges in 2-5 of 7 takes: "chiếu" as "chiều" (three sentences), "Bến" as
+  "biến", "kỹ" as "ký". wav2vec2 alone keeps hearing ch/tr and s/x swaps, which sound alike in
+  northern speech. Evidence and a listening order: `work\listening-v0.1.2\REPORT.md`.
   Naturalness and prosody are not covered by these judges. A local UTMOS22 naturalness estimate was
   tried and is not usable for Vietnamese here: 20 human read-speech clips (InfoRe corpus) scored 1.70
   on average against 3.02 for the 20 pack takes and 2.93 for the 45 regenerated takes; the human
@@ -270,9 +314,10 @@ construction); three speakers stay hard (32.5 % with the count given).
 - High DPI was checked by viewport and scale emulation, not by changing Windows display scaling.
 - Voice cloning was checked against a reference made from an app preset; similarity to a real voice
   needs a human listener.
-- Diarization has not been measured on natural conversation (overlaps, spontaneous speech);
-  overlapping speech gets one speaker per row. See the real read-speech measurement above.
+- Diarization was measured on natural two-speaker conversation (ViYT-Diar above) but not on natural
+  conversation with three or more speakers or heavy overlap; overlapping speech gets one speaker per row.
 - The 0.5 temperature was measured on a preset voice only; cloned voices keep the engine's default.
   Reading speed was checked for length and pitch on a test tone and end to end on one take, not by listening.
-- Installers are unsigned (SmartScreen warning). CUDA is not enabled.
+- Installers are unsigned (SmartScreen warning); the SignPath Foundation application is prepared in
+  [SIGNING.md](SIGNING.md) and waits on the owner. CUDA is not enabled.
 - Preview does not apply loudness normalization; export does when "Chuẩn hóa" is on.
