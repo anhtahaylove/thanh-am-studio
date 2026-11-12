@@ -74,6 +74,49 @@ def split_pauses(text):
     return parts, pause
 
 
+def words(text):
+    return re.findall(r'\w+', PAUSE_MARK.sub(' ', text).lower())
+
+
+def compare_words(expected, heard):
+    """Word error rate of `heard` against `expected` and the differing word spans."""
+    import difflib
+    ref, hyp = words(expected), words(heard)
+    spans = []
+    for op, a, b, c, d in difflib.SequenceMatcher(None, ref, hyp, autojunk=False).get_opcodes():
+        if op != 'equal':
+            # Whisper often confuses initials/finals that merge in southern speech; such spans are reported as soft.
+            soft = b - a == d - c and all(merged(x) == merged(y) for x, y in zip(ref[a:b], hyp[c:d]))
+            spans.append({'expected': ' '.join(ref[a:b]), 'heard': ' '.join(hyp[c:d]), 'soft': soft})
+    errors = sum(max(len(s['expected'].split()), len(s['heard'].split())) for s in spans if not s['soft'])
+    return round(errors / max(len(ref), 1), 3), spans
+
+
+def merged(word):
+    word = re.sub(r'^(tr|ch)', 'ch', re.sub(r'^(gi|d|r)', 'd', re.sub(r'^(x|s)', 's', word)))
+    return re.sub(r'(ng|n)$', 'n', re.sub(r'(c|t)$', 't', word))
+
+
+_CHECKERS = {}
+
+
+def check_take(path, text, model_dir):
+    """Listen back to a take with the installed Whisper model; a failed check never fails the take."""
+    try:
+        if model_dir not in _CHECKERS:
+            verify_model(model_dir, 'whisper-small')
+            from faster_whisper import WhisperModel
+            _CHECKERS[model_dir] = WhisperModel(str(model_dir), device='cpu', compute_type='int8',
+                cpu_threads=min(8, os.cpu_count() or 4), local_files_only=True)
+        segments, _ = _CHECKERS[model_dir].transcribe(str(path), language='vi', beam_size=5,
+            condition_on_previous_text=False)
+        heard = ' '.join(s.text.strip() for s in segments)
+        wer, mismatches = compare_words(text, heard)
+        return {'model': 'whisper-small', 'wer': wer, 'heard': heard, 'mismatches': mismatches}
+    except Exception as error:  # noqa: BLE001 - the take is still valid without a check
+        return {'model': 'whisper-small', 'error': str(error)[:300]}
+
+
 def limit_peak(audio):
     peak = float(abs(audio).max())
     return audio * (PEAK_CEILING / peak) if peak > PEAK_CEILING else audio
@@ -360,7 +403,10 @@ def tts(payload, output_dir: Path, progress, emit_item=None):
             os.replace(partial, final)
         finally:
             partial.unlink(missing_ok=True)
-        return {'path': str(final), 'duration_ms': round(len(audio) / 48), 'sample_rate': 48000}
+        result = {'path': str(final), 'duration_ms': round(len(audio) / 48), 'sample_rate': 48000}
+        if item.get('check_model_path'):
+            result['check'] = check_take(final, item['text'], Path(item['check_model_path']))
+        return result
 
     if not batch:
         progress(0.3, 'Synthesizing speech')

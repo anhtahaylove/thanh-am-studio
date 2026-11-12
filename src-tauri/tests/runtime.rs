@@ -29,3 +29,11 @@ fn tts_speed_is_bounded_and_forwarded(){
  assert_eq!(prepare_request(&s,&plain,None).unwrap()["payload"]["speed"],json!(1.0));
  for bad in [json!(0.1),json!(3.0)]{let j=s.enqueue("tts",None,json!({"text":"Xin chào","speed":bad})).unwrap();assert_eq!(prepare_request(&s,&j,None).unwrap_err(),"INVALID_SPEED");}
 }
+#[test]
+fn tts_take_check_uses_the_app_whisper_model_only_when_asked(){
+ let t=tempfile::tempdir().unwrap();let s=Store::open(t.path()).unwrap();
+ let on=s.enqueue("tts",None,json!({"text":"Xin chào","check":true,"check_model_path":"C:/elsewhere"})).unwrap();
+ let r=prepare_request(&s,&on,None).unwrap();assert_eq!(r["payload"]["check_model_path"],json!(t.path().join("models").join("whisper-small")));
+ let off=s.enqueue("tts",None,json!({"text":"Xin chào","check_model_path":"C:/elsewhere"})).unwrap();
+ assert!(prepare_request(&s,&off,None).unwrap()["payload"]["check_model_path"].is_null());
+}
