@@ -52,6 +52,10 @@ def number(value, name, low=0, high=86_400_000):
 
 # Engines can overshoot full scale; PCM conversion would hard-clip those samples.
 PEAK_CEILING = 0.98
+# Preset voices sample at 0.5 instead of the engine's 0.8: on 20 sentences x 3 takes, word errors fell from
+# 1.01 % to 0.75 % (Whisper large-v3), 1.41 % to 1.01 % (turbo) and 4.40 % to 3.92 % (wav2vec2) with the same
+# pitch range. Reference-voice cloning keeps the engine default (not measured).
+PRESET_TEMPERATURE = 0.5
 
 
 PAUSE_MARK = re.compile(r'\[\s*nghỉ\s+(\d+(?:[.,]\d+)?)\s*(ms|s|giây)?\s*\]', re.IGNORECASE)
@@ -115,6 +119,20 @@ def check_take(path, text, model_dir):
         return {'model': 'whisper-small', 'wer': wer, 'heard': heard, 'mismatches': mismatches}
     except Exception as error:  # noqa: BLE001 - the take is still valid without a check
         return {'model': 'whisper-small', 'error': str(error)[:300]}
+
+
+def voice_kwargs(item):
+    kwargs = {'batch_size': 1}
+    if item.get('reference_path'):
+        reference = Path(item['reference_path'])
+        if not reference.is_file():
+            raise WorkerError('INPUT_MISSING', 'Reference voice file is missing.')
+        kwargs['ref_audio'] = str(reference)
+        return kwargs
+    if item.get('voice_id'):
+        kwargs['voice'] = item['voice_id']
+    kwargs['temperature'] = PRESET_TEMPERATURE
+    return kwargs
 
 
 def limit_peak(audio):
@@ -373,14 +391,7 @@ def tts(payload, output_dir: Path, progress, emit_item=None):
     output_dir.mkdir(parents=True, exist_ok=True)
 
     def synth(item):
-        kwargs = {'batch_size': 1}
-        if item.get('reference_path'):
-            reference = Path(item['reference_path'])
-            if not reference.is_file():
-                raise WorkerError('INPUT_MISSING', 'Reference voice file is missing.')
-            kwargs['ref_audio'] = str(reference)
-        elif item.get('voice_id'):
-            kwargs['voice'] = item['voice_id']
+        kwargs = voice_kwargs(item)
         name = item.get('output_name') or f'{uuid.uuid4()}.wav'
         if Path(name).suffix.lower() != '.wav':
             raise WorkerError('INVALID_PATH', 'TTS output must be a WAV file.')

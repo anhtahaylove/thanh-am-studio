@@ -84,6 +84,15 @@ class WorkerTests(unittest.TestCase):
         quiet = np.array([0.1, -0.9], dtype=np.float32)
         self.assertIs(worker.limit_peak(quiet), quiet)
 
+    def test_preset_voices_sample_cooler_than_cloned_voices(self):
+        self.assertEqual(worker.voice_kwargs({'voice_id': 'Ngoc'}), {'batch_size': 1, 'voice': 'Ngoc', 'temperature': 0.5})
+        self.assertEqual(worker.voice_kwargs({}), {'batch_size': 1, 'temperature': 0.5})
+        with tempfile.TemporaryDirectory() as td:
+            ref = Path(td) / 'ref.wav'; ref.write_bytes(b'x')
+            self.assertEqual(worker.voice_kwargs({'reference_path': str(ref), 'voice_id': 'Ngoc'}), {'batch_size': 1, 'ref_audio': str(ref)})
+            with self.assertRaises(worker.WorkerError):
+                worker.voice_kwargs({'reference_path': str(Path(td) / 'missing.wav')})
+
     def test_pause_marks_split_text_and_carry_silence(self):
         parts, trailing = worker.split_pauses('Xin chào. [nghỉ 0,5s] Tạm biệt [NGHỈ 250ms][nghỉ 1 giây]')
         self.assertEqual(parts, [('Xin chào.', 0.0), ('Tạm biệt', 0.5)])
