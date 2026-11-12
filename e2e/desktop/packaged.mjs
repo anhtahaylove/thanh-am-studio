@@ -1,5 +1,5 @@
 // Acceptance run against the packaged desktop app (UI -> Rust -> worker -> files).
-// usage: node packaged.mjs <app.exe> <outDir> <phase: full|reopen|turbo|offline|export|clone|dpi|longstt|ux>
+// usage: node packaged.mjs <app.exe> <outDir> <phase: full|reopen|turbo|offline|export|clone|dpi|longstt|ux|features>
 // Drives the real WebView2 over CDP; native file dialogs are filled by file-dialog.ps1.
 import {chromium} from 'playwright-core';
 import {spawn, execFileSync} from 'node:child_process';
@@ -371,6 +371,76 @@ try {
       if (first === last) throw Error(`highlight did not move (${first})`);
       await shot('ux-follow-along');
       return `${rows.length} rows; highlight moved from row 1 to row ${rows.length}`;
+    });
+  }
+  if (phase === 'features') {
+    // v0.1.1 editing features end to end. Needs `full` first (models + a project with takes) and THANHAM_UX_AUDIO
+    // (ideally two speakers; diarization labels are checked, not their correctness).
+    await step('download diarization model via UI', async () => {
+      if ((await invoke('list_models')).find((m) => m.id === 'diarization')?.installed) return 'already installed';
+      await nav('Model & cài đặt');
+      await page.locator('article', {has: page.getByRole('heading', {name: /^Phân biệt người nói/})}).getByRole('button', {name: 'Tải model'}).click();
+      await waitJobs('model_download', 1 + (await invoke('list_jobs')).filter((j) => j.kind === 'model_download' && j.status === 'succeeded').length, 10 * 60000);
+      if (!(await invoke('list_models')).find((m) => m.id === 'diarization')?.installed) throw Error('diarization not installed');
+    });
+    await step('pause mark, speed and self-check reach a new take', async () => {
+      await nav('Dự án');
+      await page.getByRole('button', {name: 'Mở dự án'}).first().click();
+      const box = page.getByRole('textbox', {name: 'Nội dung đoạn 1'});
+      await box.waitFor();
+      await box.click(); await page.keyboard.press('Control+End');
+      await page.getByRole('button', {name: 'Chèn khoảng nghỉ 0,5 giây tại con trỏ'}).first().click();
+      if (!/\[nghỉ 0\.5s\]$/.test(await box.inputValue())) throw Error(`pause mark missing: ${await box.inputValue()}`);
+      await page.getByRole('combobox', {name: 'Tốc độ đọc đoạn 1'}).selectOption('1.1');
+      const check = page.getByRole('checkbox', {name: 'Tự kiểm bằng Whisper'});
+      if (!(await check.isChecked())) await check.check();
+      await page.waitForTimeout(1500); // autosave
+      const before = await done('tts');
+      await page.getByRole('button', {name: 'Tạo take mới'}).first().click();
+      const [job] = await waitJobs('tts', before + 1, 5 * 60000); // newest first
+      if (job.payload.speed !== 1.1) throw Error(`speed not sent: ${JSON.stringify(job.payload)}`);
+      const takes = page.getByRole('combobox', {name: 'Take đang sử dụng'}); // a new take does not replace the chosen one
+      await page.waitForTimeout(3000); // the take reaches the project on the next refresh
+      await takes.selectOption({index: (await takes.locator('option').count()) - 1});
+      const badge = page.locator('.take-check').first();
+      await badge.waitFor({timeout: 15000});
+      return `${job.result.duration_ms} ms take; check "${await badge.innerText()}" (${JSON.stringify(job.result.check).slice(0, 200)})`;
+    });
+    await step('waveform shows playback progress', async () => {
+      await page.getByRole('button', {name: 'Nghe thử đoạn'}).first().click();
+      await page.waitForTimeout(1500);
+      const played = await page.locator('.waveform i.played').count(), bars = await page.locator('.waveform i').count();
+      await shot('features-waveform');
+      await page.getByRole('button', {name: 'Dừng nghe thử'}).click().catch(() => {}); // may already have ended
+      if (!played) throw Error(`no played bars of ${bars}`);
+      return `${played}/${bars} bars played after 1.5 s`;
+    });
+    await step('stt with speakers becomes a multi-voice script', async () => {
+      const src = process.env.THANHAM_UX_AUDIO;
+      if (!src || !existsSync(src)) throw Error(`THANHAM_UX_AUDIO missing: ${src}`);
+      const audio = join(saves, `người nói ${Date.now()}${src.slice(src.lastIndexOf('.'))}`);
+      copyFileSync(src, audio);
+      await nav('Chép lời');
+      await page.getByRole('combobox', {name: 'Model STT'}).selectOption('whisper-small');
+      await page.getByRole('checkbox', {name: 'Phân biệt người nói'}).check();
+      const s0 = await done('stt');
+      await invoke('plugin:event|emit', {event: 'tauri://drag-drop', payload: {paths: [audio], position: {x: 400, y: 300}}});
+      const [job] = await waitJobs('stt', s0 + 1, 20 * 60000);
+      const speakers = job.result.transcript.map((r) => r.speaker);
+      if (job.result.diarize_error || speakers.some((s) => typeof s !== 'number')) throw Error(`no speakers: ${job.result.diarize_error ?? JSON.stringify(speakers)}`);
+      await nav('Hàng đợi');
+      const apply = page.getByRole('button', {name: 'Áp dụng transcript'}); // newest first, but STT rows do not name their file
+      const total = await done('stt');
+      for (let i = 0; i < 20 && (await apply.count()) < total; i++) await page.waitForTimeout(500); // the list refreshes every 2.5 s
+      await apply.first().click();
+      await nav('Chép lời');
+      const chips = await page.locator('.speaker-chip').count();
+      if (chips !== speakers.length) throw Error(`${chips} speaker chips for ${speakers.length} rows`);
+      await shot('features-speakers');
+      await page.getByRole('button', {name: 'Thành kịch bản'}).click();
+      await page.getByRole('textbox', {name: /^Nội dung đoạn/}).first().waitFor();
+      const segs = await page.getByRole('textbox', {name: /^Nội dung đoạn/}).count();
+      return `${speakers.length} rows, ${new Set(speakers).size} speakers [${speakers.join('')}], ${chips} chips; script now ${segs} segments`;
     });
   }
   if (phase === 'export') {
