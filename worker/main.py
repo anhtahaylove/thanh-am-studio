@@ -454,6 +454,9 @@ def load_audio(path):
 
 
 def stt(payload, progress):
+    speakers = payload.get('num_speakers')
+    if speakers is not None and (isinstance(speakers, bool) or not isinstance(speakers, int) or not 1 <= speakers <= 8):
+        raise WorkerError('INVALID_RECIPE', 'num_speakers must be a whole number from 1 to 8.')
     model_dir = Path(payload.get('model_path', ''))
     spec = verify_model(model_dir)
     if spec['engine'] != 'faster-whisper':
@@ -490,7 +493,7 @@ def stt(payload, progress):
             verify_model(model, 'diarization')
             spec = importlib.util.spec_from_file_location('diarize', ROOT / 'diarize.py')  # -I drops the script dir from sys.path
             diarize = importlib.util.module_from_spec(spec); spec.loader.exec_module(diarize)
-            for row, speaker in zip(result, diarize.assign_speakers(result, diarize.diarize(audio, model))):
+            for row, speaker in zip(result, diarize.assign_speakers(result, diarize.diarize(audio, model, speakers))):
                 row['speaker'] = speaker
         except Exception as error:  # noqa: BLE001 - the transcript is still valid without speakers
             response['diarize_error'] = str(error)[:300]

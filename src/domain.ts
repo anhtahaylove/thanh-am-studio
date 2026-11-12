@@ -27,6 +27,8 @@ export function checkSummary(check:TakeCheck|undefined):{tone:'ok'|'warn';label:
  if(!hard.length)return {tone:'ok',label:'Khớp kịch bản',detail};
  return {tone:'warn',label:`Có thể đọc sai: ${hard.slice(0,2).map(m=>`“${m.expected||'…'}” → “${m.heard||'…'}”`).join(', ')}${hard.length>2?` +${hard.length-2}`:''}`,detail};
 }
+/** Speaker choices for a row: every speaker in the transcript plus one new one. */
+export function speakerSlots(rows:TranscriptSegment[]):number{return Math.max(-1,...rows.map(r=>r.speaker??-1))+2;}
 /** Script lines from a transcript: consecutive rows of one speaker are joined (up to `max` characters). */
 export function transcriptToScript(rows:TranscriptSegment[],max=500):{speaker:string;text:string}[]{
  const out:{speaker:string;text:string}[]=[];
