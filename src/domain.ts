@@ -35,6 +35,12 @@ export function transcriptToScript(rows:TranscriptSegment[],max=500):{speaker:st
  return out;
 }
 /** The transcript row being heard at `ms` of the source audio, if any. */
+/** Class of waveform bar `i` of `n`: outside the trim window, already played, or neither. */
+export function barState(i:number,n:number,durationMs:number,trim:{trim_start_ms:number;trim_end_ms:number|null},playMs:number|null):''|'trimmed'|'played'{
+ const t=(i+0.5)/n*durationMs;
+ if(t<trim.trim_start_ms||t>(trim.trim_end_ms??durationMs))return 'trimmed';
+ return playMs!==null&&t<=playMs?'played':'';
+}
 export const rowAt=(rows:TranscriptSegment[],ms:number)=>rows.find(r=>r.start_ms<=ms&&ms<r.end_ms)?.id??null;
 /** Pause mark the worker turns into silence, e.g. "[nghỉ 0.5s]" or "[nghỉ 300ms]". */
 export const PAUSE_MARK=/\[\s*nghỉ\s+\d+(?:[.,]\d+)?\s*(?:ms|s|giây)?\s*\]/giu;
