@@ -32,10 +32,14 @@ with `sha256sum -c SHA256SUMS.txt` (or compare `Get-FileHash <file>` with the li
    to a folder, adjust and open a `.wsb` that maps the repo, `C:\Program Files\nodejs`, the installer folder and
    a writable output folder, with `e2e/desktop/sandbox-run.ps1` as the logon command. It installs
    silently, then runs `e2e/desktop/packaged.mjs` phases `full` (model download via UI, TTS,
-   preview, new take, render + save dialog, STT + apply, SRT export), `reopen`, `offline`
-   (network adapters disabled) and `export` (render, save dialog to a Unicode path, STT, SRT, still offline).
+   preview, new take, render + save dialog, STT + apply, SRT export), `reopen`, `turbo` (Whisper
+   Turbo download, MP3 export, Turbo STT), `offline` (network adapters disabled) and `export`
+   (render, save dialog to a Unicode path, STT, SRT, still offline). `-Only full,clone,dpi` runs chosen
+   phases instead (`clone`: reference voice with consent and cloned takes; `dpi`: layout at high-DPI
+   viewports), and `-Gate 500` runs the long-project gate inside the Sandbox.
 3. Long project: `node e2e/desktop/gate.mjs <installed exe> <out> 500` (500 segments, cancel,
-   hard crash mid-batch, restart/retry, full render, STT round trip WER/CER, RAM).
+   hard crash mid-batch, restart/retry, full render, STT round trip WER/CER, per-phase RAM in
+   `ram.csv`, queue screenshots).
 4. Human listening pass on the fixed corpus (A/B: same sentences, same order, keep per-sentence
    files and the joined render). Metrics never replace listening.
 

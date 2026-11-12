@@ -17,7 +17,7 @@ Last updated 2026-11-11. Evidence below was observed, not inferred; anything not
   segment does not stop the batch), cancel, retry, `interrupted` after restart, workers killed with
   the app through a Windows job object; running jobs show a filled progress bar, percent and an estimated time left (batched TTS jobs not yet
   started show as waiting).
-- STT: faster-whisper CPU INT8, explicit apply of results, transcript edit/add/delete rows, timestamp
+- STT: faster-whisper CPU INT8 (long files in 10-minute windows, so memory stays ~1.2 GB), explicit apply of results, transcript edit/add/delete rows, timestamp
   validation, TXT/SRT/VTT export.
 
 ## Verification (2026-11-11)
@@ -27,8 +27,8 @@ Last updated 2026-11-11. Evidence below was observed, not inferred; anything not
 | `npm test` | 26 passed |
 | `npm run test:e2e` (browser preview) | 6 passed |
 | `cargo test --tests` | 8 store + 3 runtime passed |
-| `python -m unittest` (worker) | 11 passed (incl. real FFmpeg render, disk-full refusal, take peak limiter, linear STT progress) |
-| GitHub Actions CI (PRs #1–#10 and `main`) | pass |
+| `python -m unittest` (worker) | 12 passed (incl. real FFmpeg render, disk-full refusal, take peak limiter, linear STT progress, STT windowing) |
+| GitHub Actions CI (PRs #1–#11 and `main`) | pass |
 | Real model download (whisper-small) | kill at 34 % then resume completed; 464 MB on disk (1×); proxy-blocked network → `NETWORK` error |
 | Packaged release exe on dev machine (`e2e/desktop/packaged.mjs full`, `reopen`) | all steps PASS |
 | **Clean Windows Sandbox** (Windows 11 26100, no Python/FFmpeg/uv on PATH, 8 GB) | installer 94–100 s; download both models via UI; TTS; preview playback; new take keeps old; restart and reopen project; **network adapters disabled**: TTS, render + save WAV via native dialog to a Unicode path, STT on it + apply, SRT export — all PASS (local builds and the CI-built v0.1.0 installer, see below) |
@@ -53,7 +53,7 @@ script, 500 segments of ~35-45 syllables:
 | TTS throughput | 58.7 min wall for 67.9 min of audio (RTF 0.86 including the crash/restart) |
 | Full render + normalize | 192 s; duration exactly equals takes + gaps (4,227,040 ms) |
 | STT round trip (whisper-small, CPU INT8) on the full render | 84.6 min (RTF 1.20; other CPU-heavy checks ran on the same machine during this step); WER 9.2 %, CER 4.5 % against the script |
-| Peak RAM (largest single process) | 3,433 MB recorded, most likely not the app: the sampler counted every `python.exe` under the repo path, and a clipping analysis that loaded the 70-minute render as float64 (~3.3 GB) ran with the repo's bundled Python during this step. See the repeat run below |
+| Peak RAM (largest single process) | 3,433 MB: the STT worker (whisper-small builds the log-mel spectrogram of the whole file at once, see "STT memory on long files" below) |
 | Reopen the 500-segment project after restart | 0.67 s |
 | Clipping (signal analysis) | all 500 takes and the 20-file listening pack: 0 samples at or above 0.999 of full scale, highest peak -0.18 dBFS (the limiter ceiling), highest 4x-oversampled true peak -0.08 dBTP; full render peak -1.48 dBFS |
 
@@ -65,7 +65,7 @@ every 5-10 s into `ram.csv`): 500/500 segments, 68.1 min synthesized, TTS RTF 0.
 |---|---|---|
 | TTS | 2,179 MB | 17 worker processes (one per batch of up to 32 segments), each peaking at 1,985-2,179 MB: ~1.8 GB after model load, then slow growth within the batch, released when the worker exits; one worker at a time |
 | Render | 20 MB | FFmpeg does the work |
-| STT (whisper-small) | 1,327 MB | at model load, then 650-750 MB while transcribing |
+| STT (whisper-small) | 1,327 MB sampled | 650-750 MB while transcribing; the 10 s sampling missed a short spike to ~3.7-4.4 GB at the start (see below) |
 | App process | 42 MB | WebView2 processes not counted |
 
 An earlier run (before the limiter, ~25-syllable segments) reached only 43.9 min of audio: TTS RTF
@@ -82,6 +82,51 @@ shape is kept); export normalization is unchanged.
 WER/CER compare the synthesized script with the STT transcript, so they mix TTS and STT errors.
 Typical mismatches are tone/initial confusions ("mùa thu" → "mùa thương", "chăm chú" → "trăm chú");
 they are flagged for listening and are not proof of TTS mispronunciation.
+
+Clean 8 GB Windows Sandbox, same 500-segment gate on the downloaded v0.1.0 installer built at `a202153`
+(`sandbox-run.ps1 -Gate 500`): `ok`, 68.1 min synthesized, TTS RTF 1.02 (including crash/restart, 0
+orphan workers), render 162 s (duration exact), STT 32.8 min (RTF 0.46), WER 9.7 %, CER 4.8 %, reopen
+0.76 s. Largest Python worker: TTS 2,221 MB, render 20 MB, STT 3,662 MB (one sample ~50 s after the
+STT job started, 725 MB 14 s later); app 41 MB. Queue screenshots: 31 batched TTS rows shown as
+"Chờ trong lô" with an empty bar, the running row at 18 %, STT at 20 % and 60 % with filled bars.
+
+#### STT memory on long files
+
+Measured on the 70.6-minute render from that run with the bundled runtime (faster-whisper 1.2.1,
+whisper-small, CPU INT8): decoding to 16 kHz peaks at 698 MB, Silero VAD at 1,037 MB, and the log-mel
+spectrogram of the whole file at 3,832 MB, so sequential transcription needs memory proportional to
+the file length. Same file, same scoring script, same model:
+
+| Mode | Peak working set | Time | WER |
+|---|---|---|---|
+| Sequential, whole file (before) | 4,399 MB | 2,133 s | 9.69 % |
+| faster-whisper `BatchedInferencePipeline` (rejected) | 2,109 MB | 996 s | 22.6 % |
+| 10-minute windows cut at the quietest 100 ms of the last 30 s (now) | 1,231 MB | 2,185 s | 9.81 % |
+
+#### High-DPI layout (clean Sandbox, v0.1.0 installer at `a202153`, `packaged.mjs dpi`)
+
+Each of the six main pages was opened with the WebView emulating the CSS viewport and device scale
+that Windows scaling produces (CDP `Emulation.setDeviceMetricsOverride`, not a real display-scaling
+change): 1080p at 150 % (1280x680, x1.5), the 1024x720 minimum window at 125 %, 4K at 200 %
+(1920x1040, x2) and a 1366x768 laptop at 125 % (1093x574, below the minimum height). 24/24 page views:
+no horizontal page scroll, no control outside the window, no clipped text; only the sidebar tagline
+wraps to two lines at the narrow sizes.
+
+#### Reference-voice cloning (clean Sandbox, v0.1.0 installer at `a202153`, `packaged.mjs clone`)
+
+The reference clip is the app's own output with the female preset "Trúc Ly" (7.3 s), so no
+third-party voice rights are involved; the engine default voice is male. Registering it in the voice
+library works through the UI (the save button stays disabled until the consent box is ticked), and
+five new sentences were generated with it and with the default voice:
+
+| Check | Result |
+|---|---|
+| Jobs | all 5 carried the reference asset |
+| Intelligibility (whisper-small) | WER 8.5 % over the 5 cloned sentences |
+| Median F0 | reference 264.5 Hz, cloned 271.2 Hz (267-296), default voice 158.4 Hz |
+| Clipping | 0 samples at or above 0.999; highest peak -0.73 dBFS |
+
+Similarity to a real person's voice was not judged; that needs a consented recording and a listener.
 
 ### v0.1.0 draft release (built by `.github/workflows/release.yml` from tag `v0.1.0` at `a202153`)
 
@@ -107,8 +152,10 @@ The draft is not published. Publishing waits for the human listening pass below.
   harness clicked the first "save audio" button while the queue list (refreshed every 2.5 s) still
   showed an earlier render, whose format the app correctly refused to save under the other
   extension. The harness now clicks the button of the exact render job; the next run passed all phases.
-- TTS needs ~2.2 GB for its worker process on top of the app and WebView2; long projects were run on
-  the dev machine only (the 8 GB Sandbox ran short projects).
-- Reference-voice cloning quality and UI at high DPI were not exercised end-to-end.
+- TTS needs ~2.2 GB for its worker process on top of the app and WebView2 (measured on the dev
+  machine and on the clean 8 GB Sandbox).
+- High DPI was checked by viewport and scale emulation, not by changing Windows display scaling.
+- Voice cloning was checked against a reference made from an app preset; similarity to a real voice
+  needs a human listener.
 - Installers are unsigned (SmartScreen warning). CUDA is not enabled.
 - Preview does not apply loudness normalization; export does when "Chuẩn hóa" is on.
