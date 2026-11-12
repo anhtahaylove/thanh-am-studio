@@ -1,9 +1,9 @@
 // Acceptance run against the packaged desktop app (UI -> Rust -> worker -> files).
-// usage: node packaged.mjs <app.exe> <outDir> <phase: full|reopen|turbo|offline|export|clone|dpi>
+// usage: node packaged.mjs <app.exe> <outDir> <phase: full|reopen|turbo|offline|export|clone|dpi|longstt>
 // Drives the real WebView2 over CDP; native file dialogs are filled by file-dialog.ps1.
 import {chromium} from 'playwright-core';
 import {spawn, execFileSync} from 'node:child_process';
-import {existsSync, mkdirSync, writeFileSync, appendFileSync, statSync, copyFileSync, readdirSync} from 'node:fs';
+import {existsSync, mkdirSync, writeFileSync, appendFileSync, statSync, copyFileSync, readdirSync, readFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join, dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -257,6 +257,39 @@ try {
       writeFileSync(join(clip, 'stt-clone.txt'), rows.join('\n'));
       writeFileSync(join(clip, 'script.txt'), lines.map((l, i) => `${i + 1}\t${l}`).join('\n'));
       return `5 cloned + 5 default takes; clone WER ${(100 * errs / words).toFixed(1)} %`;
+    });
+  }
+  if (phase === 'longstt') {
+    // Long-file STT through the UI: THANHAM_LONG_AUDIO (e.g. a 70-minute gate render) and a .txt
+    // reference next to it; checks memory stays bounded and timestamps cover the whole file.
+    await step('long file stt through the UI', async () => {
+      const src = process.env.THANHAM_LONG_AUDIO;
+      if (!src || !existsSync(src)) throw Error(`THANHAM_LONG_AUDIO missing: ${src}`);
+      const audio = join(saves, `bản dài ${Date.now()}${src.slice(src.lastIndexOf('.'))}`);
+      copyFileSync(src, audio); // mapped Sandbox folders are not reliable dialog targets
+      await nav('Chép lời');
+      await page.getByRole('combobox', {name: 'Model STT'}).selectOption('whisper-small');
+      const finished = async () => (await invoke('list_jobs')).filter((j) => j.kind === 'stt' && ['succeeded', 'failed'].includes(j.status));
+      const n0 = (await finished()).length, t = Date.now();
+      await page.getByRole('button', {name: 'Chọn tệp & chép lời'}).click();
+      dialog(audio);
+      let peak = 0, job;
+      for (;;) {
+        const fin = await finished();
+        if (fin.length > n0) { job = fin[0]; break; } // list_jobs is newest first
+        const ps = JSON.parse(execFileSync('powershell', ['-NoProfile', '-Command', "@(Get-Process python -EA SilentlyContinue | Where-Object { $_.Path -like '*thanh*' } | Select-Object WorkingSet64) | ConvertTo-Json -Compress"], {encoding: 'utf8'}) || '[]');
+        peak = Math.max(peak, ...[ps].flat().map((p) => p?.WorkingSet64 ?? 0));
+        if (Date.now() - t > 90 * 60000) throw Error('timeout');
+        await page.waitForTimeout(5000);
+      }
+      if (job.status !== 'succeeded') throw Error(`stt failed: ${job.error}`);
+      const rows = job.result.transcript;
+      if (rows.some((r, i) => i && r.start_ms < rows[i - 1].start_ms)) throw Error('timestamps go backwards');
+      const norm = (s) => s.toLowerCase().normalize('NFC').replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim().split(' ');
+      const ref = readFileSync(src.replace(/\.[^.]+$/, '.txt'), 'utf8').trim().split(' '), hyp = norm(rows.map((r) => r.text).join(' '));
+      let prev = Array.from({length: hyp.length + 1}, (_, k) => k);
+      for (let a = 1; a <= ref.length; a++) { const cur = [a]; for (let b = 1; b <= hyp.length; b++) cur[b] = Math.min(prev[b] + 1, cur[b - 1] + 1, prev[b - 1] + (ref[a - 1] === hyp[b - 1] ? 0 : 1)); prev = cur; }
+      return `${Math.round((Date.now() - t) / 1000)} s, worker peak ${Math.round(peak / 2 ** 20)} MB (sampled every 5 s), ${rows.length} rows, last end ${(rows.at(-1).end_ms / 60000).toFixed(1)} min, WER ${(100 * prev[hyp.length] / ref.length).toFixed(2)} %`;
     });
   }
   if (phase === 'dpi') {

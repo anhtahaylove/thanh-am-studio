@@ -18,6 +18,7 @@ $health = '{"protocol":1,"id":"h","operation":"health","payload":{}}' | & (Join-
 Log "health $health"
 Get-Process thanh-am-studio -ErrorAction SilentlyContinue | Stop-Process -Force
 $harness = Join-Path $Repo 'e2e\desktop\packaged.mjs'
+$env:THANHAM_LONG_AUDIO = Join-Path $Installer 'long.mp3' # optional input of the longstt phase (long.txt = reference)
 if ($Gate) {
     & node (Join-Path $Repo 'e2e\desktop\gate.mjs') $exe.FullName $Out $Gate *>> $log
     Log "gate exit=$LASTEXITCODE"
