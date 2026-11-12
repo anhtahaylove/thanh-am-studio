@@ -163,7 +163,10 @@ downloaded anonymously after publication still passes `sha256sum -c`.
   miss was one unlucky take), but "chợ Bến Thành" was right in only 2/5 takes for every judge.
   Dictionary respellings did not fix it reliably ("Bến-Thành" 1-3/5; lowercase "bến thành" 3-4/5 but
   sometimes heard as "đến"). The engine varies per take, so regenerating the take is the workaround.
-  Naturalness and prosody are not covered by these judges.
+  Naturalness and prosody are not covered by these judges. A local UTMOS22 naturalness estimate was
+  tried and is not usable for Vietnamese here: 20 human read-speech clips (InfoRe corpus) scored 1.70
+  on average against 3.02 for the 20 pack takes and 2.93 for the 45 regenerated takes; the human
+  clips have a higher noise floor (-56 vs -69 dB), which the English-trained predictor penalizes.
 - Two Sandbox runs failed a save step in a later phase (`turbo` MP3 or `export` WAV). Cause: the
   harness clicked the first "save audio" button while the queue list (refreshed every 2.5 s) still
   showed an earlier render, whose format the app correctly refused to save under the other
