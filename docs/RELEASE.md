@@ -36,7 +36,8 @@ with `sha256sum -c SHA256SUMS.txt` (or compare `Get-FileHash <file>` with the li
    Turbo download, MP3 export, Turbo STT), `offline` (network adapters disabled) and `export`
    (render, save dialog to a Unicode path, STT, SRT, still offline). `-Only full,clone,dpi` runs chosen
    phases instead (`clone`: reference voice with consent and cloned takes; `dpi`: layout at high-DPI
-   viewports), and `-Gate 500` runs the long-project gate inside the Sandbox.
+   viewports; `longstt`: STT of `long.mp3` next to the installer, scored against `long.txt`), and
+   `-Gate 500` runs the long-project gate inside the Sandbox.
 3. Long project: `node e2e/desktop/gate.mjs <installed exe> <out> 500` (500 segments, cancel,
    hard crash mid-batch, restart/retry, full render, STT round trip WER/CER, per-phase RAM in
    `ram.csv`, queue screenshots).
