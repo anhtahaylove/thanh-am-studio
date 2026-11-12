@@ -12,9 +12,19 @@ export function exportSubtitles(rows:TranscriptSegment[],format:'srt'|'vtt'|'txt
  for(const r of rows)if(!Number.isFinite(r.start_ms)||!Number.isFinite(r.end_ms)||r.start_ms<0||r.end_ms<=r.start_ms)throw Error('Khoảng thời gian phải tăng');
  return (format==='vtt'?'WEBVTT\n\n':'')+rows.map((r,i)=>`${format==='srt'?`${i+1}\n`:''}${timestamp(r.start_ms,format==='vtt'?'.':',')} --> ${timestamp(r.end_ms,format==='vtt'?'.':',')}\n${r.text}`).join('\n\n')+'\n';
 }
+const escapeRegExp=(s:string)=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+/** Replaces every case-insensitive literal match of `find` in transcript text; untouched rows keep their identity. */
+export function replaceInTranscript(rows:TranscriptSegment[],find:string,replacement:string):{rows:TranscriptSegment[];count:number}{
+ if(!find)return {rows,count:0};
+ const pattern=new RegExp(escapeRegExp(find.normalize('NFC')),'giu');let count=0;
+ const next=rows.map(r=>{const text=r.text.normalize('NFC').replace(pattern,()=>{count++;return replacement;});return text===r.text.normalize('NFC')?r:{...r,text};});
+ return {rows:next,count};
+}
+/** The transcript row being heard at `ms` of the source audio, if any. */
+export const rowAt=(rows:TranscriptSegment[],ms:number)=>rows.find(r=>r.start_ms<=ms&&ms<r.end_ms)?.id??null;
 export function normalizeText(text:string,dictionary:Record<string,string>):string {
  const keys=Object.keys(dictionary).filter(Boolean).sort((a,b)=>b.length-a.length);let out=text.normalize('NFC');
- if(keys.length){const escaped=keys.map(k=>k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));out=out.replace(new RegExp(escaped.join('|'),'gu'),m=>dictionary[m]);}
+ if(keys.length){const escaped=keys.map(escapeRegExp);out=out.replace(new RegExp(escaped.join('|'),'gu'),m=>dictionary[m]);}
  return out.replace(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/g,(_,d,m,y)=>`${Number(d)} tháng ${Number(m)} năm ${y}`).replace(/(\d[\d.,]*)\s*(₫|đ)(?=\s|[.,;!?]|$)/g,(_,n)=>`${n.replace(/\./g,'')} đồng`).replace(/\b(\d+(?:[.,]\d+)?)\s*kg\b/gi,'$1 ki lô gam').replace(/\b(\d+(?:[.,]\d+)?)\s*km\b/gi,'$1 ki lô mét');
 }
 const SENTENCE_END=/(?<=[.!?…]["'”’)\]]*)\s+/gu;
