@@ -37,3 +37,12 @@ fn tts_take_check_uses_the_app_whisper_model_only_when_asked(){
  let off=s.enqueue("tts",None,json!({"text":"Xin chào","check_model_path":"C:/elsewhere"})).unwrap();
  assert!(prepare_request(&s,&off,None).unwrap()["payload"]["check_model_path"].is_null());
 }
+#[test]
+fn stt_diarization_uses_the_app_model_only_when_asked(){
+ let t=tempfile::tempdir().unwrap();let s=Store::open(t.path()).unwrap();
+ let p=t.path().join("input.wav");std::fs::write(&p,b"RIFF0000WAVE").unwrap();let a=s.import_asset(&p).unwrap();
+ let on=s.enqueue("stt",None,json!({"asset_id":a["id"],"model_id":"whisper-small","diarize":true,"diarize_model_path":"C:/x"})).unwrap();
+ assert_eq!(prepare_request(&s,&on,None).unwrap()["payload"]["diarize_model_path"],json!(t.path().join("models").join("diarization")));
+ let off=s.enqueue("stt",None,json!({"asset_id":a["id"],"model_id":"whisper-small","diarize_model_path":"C:/x"})).unwrap();
+ assert!(prepare_request(&s,&off,None).unwrap()["payload"]["diarize_model_path"].is_null());
+}

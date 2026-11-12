@@ -471,7 +471,19 @@ def stt(payload, progress):
             result.append({'start': offset + segment.start, 'end': offset + segment.end, 'text': segment.text.strip()})
             # Linear in audio time, so the queue's remaining-time estimate is not skewed early on.
             progress(max(0.05, min(0.99, (offset + segment.end) / duration)), 'Transcribing')
-    return {'segments': result, 'language': lang}
+    response = {'segments': result, 'language': lang}
+    if payload.get('diarize_model_path'):
+        progress(0.99, 'Separating speakers')
+        try:
+            model = Path(payload['diarize_model_path'])
+            verify_model(model, 'diarization')
+            spec = importlib.util.spec_from_file_location('diarize', ROOT / 'diarize.py')  # -I drops the script dir from sys.path
+            diarize = importlib.util.module_from_spec(spec); spec.loader.exec_module(diarize)
+            for row, speaker in zip(result, diarize.assign_speakers(result, diarize.diarize(audio, model))):
+                row['speaker'] = speaker
+        except Exception as error:  # noqa: BLE001 - the transcript is still valid without speakers
+            response['diarize_error'] = str(error)[:300]
+    return response
 
 
 def health():

@@ -39,6 +39,8 @@ requests==2.34.2
 scikit-learn==1.9.1
 scipy==1.17.1
 sea-g2p==0.10.0
+sherpa-onnx==2.0.1
+sherpa-onnx-core==2.0.1
 soundfile==0.14.0
 soxr==1.1.0
 threadpoolctl==3.8.0
