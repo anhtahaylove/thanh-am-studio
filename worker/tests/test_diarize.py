@@ -68,6 +68,48 @@ class DiarizeInputTests(unittest.TestCase):
             diarize.diarize(np.zeros(16000, np.float32), Path(tmp))
 
 
+class KnownSpeakerCountTests(unittest.TestCase):
+    def run_with(self, results, count):
+        """Run diarize() with the engine replaced: `results` maps a requested cluster count to its turns."""
+        asked = []
+
+        def fake(audio, model_dir, clusters):
+            asked.append(clusters)
+            return results[clusters]
+        original = diarize._turns
+        diarize._turns = fake
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                for name in (diarize.SEGMENTATION_FILE, diarize.EMBEDDING_FILE):
+                    (Path(tmp) / name).parent.mkdir(parents=True, exist_ok=True)
+                    (Path(tmp) / name).write_bytes(b'')
+                return diarize.diarize(np.zeros(16000, np.float32), Path(tmp), count), asked
+        finally:
+            diarize._turns = original
+
+    def test_asks_for_more_clusters_when_one_is_lost(self):
+        # Two clusters gave one speaker (the other cluster was an outlier with no surviving turn).
+        lost = [turn(0, 5, 0), turn(6, 9, 0)]
+        three = [turn(0, 5, 0), turn(5, 5.2, 1), turn(6, 9, 2)]
+        turns, asked = self.run_with({2: lost, 3: three}, 2)
+        self.assertEqual(asked, [2, 3])
+        self.assertEqual(turns, [turn(0, 5, 0), turn(6, 9, 1)])
+
+    def test_stops_at_the_first_count_that_is_enough(self):
+        turns, asked = self.run_with({2: [turn(0, 1, 0), turn(1, 2, 1)]}, 2)
+        self.assertEqual((asked, len({t['speaker'] for t in turns})), ([2], 2))
+
+    def test_gives_up_after_two_extra_clusters(self):
+        one = [turn(0, 9, 0)]
+        turns, asked = self.run_with({2: one, 3: one, 4: one}, 2)
+        self.assertEqual((asked, turns), ([2, 3, 4], one))
+
+    def test_keep_speakers_keeps_the_longest_and_renumbers(self):
+        turns = [turn(0, 1, 0), turn(1, 4, 1), turn(4, 4.5, 2), turn(5, 9, 2)]
+        self.assertEqual(diarize.keep_speakers(turns, 2), [turn(1, 4, 0), turn(4, 4.5, 1), turn(5, 9, 1)])
+        self.assertEqual(diarize.keep_speakers(turns, 5), turns)
+
+
 @unittest.skipUnless(MODELS_READY, 'set THANHAM_DIARIZATION_MODELS to an installed models/diarization folder')
 class RealModelTests(unittest.TestCase):
     def test_silence_gives_no_turns(self):
