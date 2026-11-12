@@ -189,6 +189,33 @@ The first build of the tag (at `41b642d`) passed run 1 but failed `dpi` at 1024x
 unpublished draft was deleted and the tag moved to `9ce785f` before both runs above. Published as a
 pre-release on 2026-11-12.
 
+Upgrade from 0.1.0 (clean Sandbox, both published installers, checksums verified): v0.1.0
+installed, `full` phase run (2 models, a project with takes, 225 app-data files, 1,090 MB); v0.1.1
+installed over it into the same folder (exe version 0.1.1); all 225 files still present; `reopen`
+(the 0.1.0 project with its takes) and `features` (on that project, with the models downloaded by
+0.1.0) passed: 16 PASS, 0 FAIL.
+
+Diarization on real read speech (VIVOS test split, 19 speakers, CC BY-NC-SA 4.0, evaluation only and
+kept outside the repo): 24 dialogues of 61-101 s (12 two-speaker, 12 three-speaker; 4 of each
+same-gender), each also with 20 dB white or babble noise, 1-3 utterances per turn, gaps 0.2-0.8 s.
+Frame DER (10 ms, no collar; the reference pads trimmed utterances, so about 10 % of DER is a floor of
+the method) / files with the right speaker count / transcript rows with the right speaker:
+
+| Threshold | 2 speakers clean | 2 speakers noisy | 3 speakers clean | 3 speakers noisy |
+|---|---|---|---|---|
+| 0.6 | 18.1 % / 58 % / 89.3 % | 24.6 % / 33 % / 83.1 % | 24.8 % / 58 % / 83.8 % | 29.7 % / 42 % / 81.3 % |
+| **0.65 (shipped)** | 17.5 % / 67 % / 90.2 % | 24.0 % / 50 % / 84.5 % | 27.1 % / 58 % / 81.6 % | 27.9 % / 67 % / 82.9 % |
+| 0.7 | 16.2 % / 75 % / 92.6 % | 22.2 % / 67 % / 86.5 % | 29.4 % / 50 % / 79.0 % | 30.1 % / 67 % / 81.2 % |
+| 0.8 | 15.8 % / 92 % / 93.2 % | 19.2 % / 75 % / 89.8 % | 31.1 % / 50 % / 77.6 % | 33.4 % / 42 % / 77.3 % |
+
+0.65 stays: pooled DER is flat from 0.6 to 0.8 (24.1-24.9 %), higher values merge three speakers
+and same-gender pairs, lower values over-split (0.5: 37 of 48 files). Real speech is much harder
+than the synthetic TTS mixes (DER 0-10.5 %): at 0.65, 16 of 48 files had an extra speaker and 3 a
+missing one. Giving the true speaker count helps two speakers (DER 15.8 % clean) but not three
+(32.5 %, mostly confusion), so the three-speaker limit is the embedding/segmentation, not the
+threshold. Two male voices are the hardest case. Runtime about 0.1x real time on the dev CPU.
+Evidence: `work\diarization-vivos`.
+
 Temperature for preset voices (20 sentences x 3 takes per setting, same text and voice, word error rate):
 
 | Setting | Whisper large-v3 | Whisper large-v3 turbo | wav2vec2 CTC | Mean take | F0 spread |
@@ -226,8 +253,8 @@ both ways. Flags are hints to listen, not proof of a misreading.
 - High DPI was checked by viewport and scale emulation, not by changing Windows display scaling.
 - Voice cloning was checked against a reference made from an app preset; similarity to a real voice
   needs a human listener.
-- Diarization was tuned and measured on synthetic two- and three-speaker mixes of TTS voices
-  (DER 0-10.5 %), not on real recordings; overlapping speech gets one speaker per row.
+- Diarization has not been measured on natural conversation (overlaps, spontaneous speech);
+  overlapping speech gets one speaker per row. See the real read-speech measurement above.
 - The 0.5 temperature was measured on a preset voice only; cloned voices keep the engine's default.
   Reading speed was checked for length and pitch on a test tone and end to end on one take, not by listening.
 - Installers are unsigned (SmartScreen warning). CUDA is not enabled.
