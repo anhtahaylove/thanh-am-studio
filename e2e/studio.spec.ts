@@ -53,3 +53,8 @@ test('transcript find and replace changes every match in one undo step',async({p
  await expect(page.getByRole('status')).toContainText('Đã thay 2 chỗ');await expect(texts.nth(0)).toHaveValue('chợ Bến Thành');await expect(texts.nth(1)).toHaveValue('Chợ Bến Thành đông vui');
  await page.getByLabel('Tìm trong transcript').fill('');await page.keyboard.press('Control+z');await expect(texts.nth(0)).toHaveValue('chợ biến thành');
 });
+test('a pause mark is inserted at the cursor',async({page})=>{
+ await page.goto('/');await page.getByRole('button',{name:'Thêm nội dung',exact:true}).click();await page.getByRole('textbox',{name:'Nội dung cần thêm'}).fill('Câu một. Câu hai.');await page.getByRole('button',{name:'Thêm vào kịch bản'}).click();
+ const box=page.getByRole('textbox',{name:'Nội dung đoạn 1'});await box.click();await page.keyboard.press('Control+Home');for(let i=0;i<8;i++)await page.keyboard.press('ArrowRight');
+ await page.getByRole('button',{name:'Chèn khoảng nghỉ 0,5 giây tại con trỏ'}).click();await expect(box).toHaveValue('Câu một. [nghỉ 0.5s] Câu hai.');
+});

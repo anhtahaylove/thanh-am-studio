@@ -7,6 +7,7 @@ import importlib
 import json
 import math
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -51,6 +52,26 @@ def number(value, name, low=0, high=86_400_000):
 
 # Engines can overshoot full scale; PCM conversion would hard-clip those samples.
 PEAK_CEILING = 0.98
+
+
+PAUSE_MARK = re.compile(r'\[\s*nghỉ\s+(\d+(?:[.,]\d+)?)\s*(ms|s|giây)?\s*\]', re.IGNORECASE)
+
+
+def split_pauses(text):
+    """'A [nghỉ 0.5s] B' -> ([('A', 0.0), ('B', 0.5)], trailing): each spoken part with the silence before it."""
+    parts, pause, pos = [], 0.0, 0
+    for m in PAUSE_MARK.finditer(text):
+        if chunk := text[pos:m.start()].strip():
+            parts.append((chunk, pause)); pause = 0.0
+        seconds = float(m.group(1).replace(',', '.')) / (1000 if (m.group(2) or 's').lower() == 'ms' else 1)
+        if not 0.05 <= seconds <= 10:
+            raise WorkerError('INVALID_TEXT', 'Khoảng nghỉ phải từ 0,05 đến 10 giây.')
+        pause += seconds; pos = m.end()
+    if chunk := text[pos:].strip():
+        parts.append((chunk, pause)); pause = 0.0
+    if not parts:
+        raise WorkerError('INVALID_TEXT', 'Đoạn chỉ có khoảng nghỉ, chưa có lời để đọc.')
+    return parts, pause
 
 
 def limit_peak(audio):
@@ -311,7 +332,10 @@ def tts(payload, output_dir: Path, progress, emit_item=None):
         final = contained_path(output_dir, name)
         if final.exists():
             raise WorkerError('OUTPUT_EXISTS', 'A take already exists at that output name.')
-        audio = np.asarray(engine.infer(item['text'], **kwargs), dtype=np.float32)
+        parts, trailing = split_pauses(item['text'])
+        silence = lambda s: np.zeros(round(s * 48000), dtype=np.float32)
+        audio = np.concatenate([piece for chunk, before in parts for piece in (silence(before),
+            np.asarray(engine.infer(chunk, **kwargs), dtype=np.float32))] + [silence(trailing)])
         if audio.size == 0 or not np.isfinite(audio).all() or float(np.max(np.abs(audio))) < 1e-7:
             raise WorkerError('INVALID_AUDIO', 'Engine returned empty, silent or non-finite audio.')
         partial = final.with_name(final.stem + '.partial.wav')
