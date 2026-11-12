@@ -1,4 +1,4 @@
-import type {Project,Segment,TranscriptSegment} from './types';
+import type {Project,Segment,TakeCheck,TranscriptSegment} from './types';
 export const uid=()=>crypto.randomUUID();
 export function timestamp(ms:number,separator=','):string {ms=Math.round(ms);return `${String(Math.floor(ms/3600000)).padStart(2,'0')}:${String(Math.floor(ms/60000)%60).padStart(2,'0')}:${String(Math.floor(ms/1000)%60).padStart(2,'0')}${separator}${String(ms%1000).padStart(3,'0')}`;}
 export function parseTime(value:string):number {const parts=value.trim().replace(',','.').split(':').map(Number);if(parts.length<2||parts.length>3||parts.some(x=>!Number.isFinite(x)||x<0)||parts.at(-1)!>=60||parts.at(-2)!>=60)throw Error('Mốc thời gian không hợp lệ');return Math.round(parts.reduce((a,n)=>a*60+n,0)*1000);}
@@ -19,6 +19,13 @@ export function replaceInTranscript(rows:TranscriptSegment[],find:string,replace
  const pattern=new RegExp(escapeRegExp(find.normalize('NFC')),'giu');let count=0;
  const next=rows.map(r=>{const text=r.text.normalize('NFC').replace(pattern,()=>{count++;return replacement;});return text===r.text.normalize('NFC')?r:{...r,text};});
  return {rows:next,count};
+}
+/** Badge for a take that Whisper listened back to; soft mismatches (merged initials/finals) do not warn. */
+export function checkSummary(check:TakeCheck|undefined):{tone:'ok'|'warn';label:string;detail:string}|null{
+ if(!check||check.error||!check.mismatches)return null;
+ const hard=check.mismatches.filter(m=>!m.soft);const detail=`Whisper nghe: “${check.heard??''}”`;
+ if(!hard.length)return {tone:'ok',label:'Khớp kịch bản',detail};
+ return {tone:'warn',label:`Có thể đọc sai: ${hard.slice(0,2).map(m=>`“${m.expected||'…'}” → “${m.heard||'…'}”`).join(', ')}${hard.length>2?` +${hard.length-2}`:''}`,detail};
 }
 /** The transcript row being heard at `ms` of the source audio, if any. */
 export const rowAt=(rows:TranscriptSegment[],ms:number)=>rows.find(r=>r.start_ms<=ms&&ms<r.end_ms)?.id??null;

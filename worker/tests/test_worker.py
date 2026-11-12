@@ -94,6 +94,17 @@ class WorkerTests(unittest.TestCase):
             with self.subTest(bad=bad), self.assertRaises(worker.WorkerError):
                 worker.split_pauses(bad)
 
+    def test_take_check_reports_word_errors_and_ignores_pause_marks(self):
+        wer, spans = worker.compare_words('Chợ Bến Thành [nghỉ 1s] đông vui.', 'chợ biến thành, đông vui')
+        self.assertEqual(spans, [{'expected': 'bến', 'heard': 'biến', 'soft': False}])
+        self.assertAlmostEqual(wer, 0.2)
+        self.assertEqual(worker.compare_words('Xin chào', 'xin chào.'), (0.0, []))
+        wer, spans = worker.compare_words('giữa chợ trời xanh', 'giữa trợ chời sanh')  # merged initials only
+        self.assertEqual((wer, [s['soft'] for s in spans]), (0.0, [True]))
+        self.assertFalse(worker.compare_words('trời', 'chơi')[1][0]['soft'])  # tone differs: a real mismatch
+        broken = worker.check_take(Path('missing.wav'), 'Xin chào', Path(tempfile.gettempdir()) / 'no-model')
+        self.assertIn('error', broken)  # a check failure is reported, never raised
+
     def test_stt_progress_is_linear_in_audio_time(self):
         from types import SimpleNamespace
         from unittest import mock
