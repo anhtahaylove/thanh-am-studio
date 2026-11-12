@@ -336,6 +336,26 @@ def tts(payload, output_dir: Path, progress, emit_item=None):
     return {'count': len(items)}
 
 
+STT_RATE = 16000
+STT_WINDOW_S = 600  # faster-whisper builds the log-mel spectrogram of its whole input at once (~3.8 GB for 70 min)
+
+
+def stt_windows(audio, rate=STT_RATE, window_s=STT_WINDOW_S, search_s=30):
+    """Sample offsets that split long audio into <= window_s pieces, each cut at the quietest 100 ms
+    frame of the last search_s seconds so words are not split."""
+    frame, cuts = rate // 10, [0]
+    while len(audio) - cuts[-1] > window_s * rate:
+        lo = cuts[-1] + (window_s - search_s) * rate
+        energy = (audio[lo:lo + search_s * rate].reshape(-1, frame) ** 2).mean(axis=1)
+        cuts.append(lo + int(energy.argmin()) * frame + frame // 2)
+    return cuts + [len(audio)]
+
+
+def load_audio(path):
+    from faster_whisper.audio import decode_audio
+    return decode_audio(str(path), sampling_rate=STT_RATE)
+
+
 def stt(payload, progress):
     model_dir = Path(payload.get('model_path', ''))
     spec = verify_model(model_dir)
@@ -352,14 +372,20 @@ def stt(payload, progress):
     progress(0.05, 'Loading local Whisper CPU model')
     model = WhisperModel(str(model_dir), device='cpu', compute_type='int8',
         cpu_threads=min(8, os.cpu_count() or 4), local_files_only=True)
-    segments, info = model.transcribe(str(source), language=None if language == 'auto' else language,
-        beam_size=5, vad_filter=True, condition_on_previous_text=False)
-    result = []
-    for segment in segments:
-        result.append({'start': segment.start, 'end': segment.end, 'text': segment.text.strip()})
-        # Linear in audio time, so the queue's remaining-time estimate is not skewed early on.
-        progress(max(0.05, min(0.99, segment.end / max(info.duration, 0.01))), 'Transcribing')
-    return {'segments': result, 'language': info.language}
+    audio = load_audio(source)
+    duration = max(len(audio) / STT_RATE, 0.01)
+    lang, result = None if language == 'auto' else language, []
+    cuts = stt_windows(audio)
+    for start, end in zip(cuts, cuts[1:]):
+        offset = start / STT_RATE
+        segments, info = model.transcribe(audio[start:end], language=lang,
+            beam_size=5, vad_filter=True, condition_on_previous_text=False)
+        lang = info.language  # an 'auto' detection from the first window applies to the rest
+        for segment in segments:
+            result.append({'start': offset + segment.start, 'end': offset + segment.end, 'text': segment.text.strip()})
+            # Linear in audio time, so the queue's remaining-time estimate is not skewed early on.
+            progress(max(0.05, min(0.99, (offset + segment.end) / duration)), 'Transcribing')
+    return {'segments': result, 'language': lang}
 
 
 def health():

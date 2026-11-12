@@ -91,11 +91,29 @@ class WorkerTests(unittest.TestCase):
         model = mock.Mock()
         model.transcribe.return_value = ([seg(0, 10), seg(10, 50), seg(50, 100)], SimpleNamespace(duration=100, language='vi'))
         seen = []
-        with tempfile.TemporaryDirectory() as td,                 mock.patch.object(worker, 'verify_model', return_value={'engine': 'faster-whisper'}),                 mock.patch.object(worker, 'offline_mode'),                 mock.patch.dict(sys.modules, {'faster_whisper': SimpleNamespace(WhisperModel=lambda *a, **k: model)}):
+        import numpy as np
+        with tempfile.TemporaryDirectory() as td, \
+                mock.patch.object(worker, 'verify_model', return_value={'engine': 'faster-whisper'}), \
+                mock.patch.object(worker, 'offline_mode'), \
+                mock.patch.object(worker, 'load_audio', return_value=np.zeros(100 * worker.STT_RATE, dtype=np.float32)), \
+                mock.patch.dict(sys.modules, {'faster_whisper': SimpleNamespace(WhisperModel=lambda *a, **k: model)}):
             source = Path(td) / 'a.wav'; source.write_bytes(b'x')
             result = worker.stt({'model_path': td, 'input_path': str(source)}, lambda v, m='': seen.append(v))
         self.assertEqual(seen, [0.05, 0.1, 0.5, 0.99])
         self.assertEqual(result['segments'][0]['text'], 'xin chào')
+
+    def test_long_stt_input_is_cut_into_windows_at_quiet_points(self):
+        import numpy as np
+        rate = worker.STT_RATE
+        audio = np.full(25 * 60 * rate, 0.5, dtype=np.float32)  # 25 min of loud signal
+        quiet = (9 * 60 + 45) * rate  # one quiet 100 ms frame 15 s before the 10-minute mark
+        audio[quiet:quiet + rate // 10] = 0
+        cuts = worker.stt_windows(audio)
+        self.assertEqual(cuts[0], 0)
+        self.assertEqual(cuts[-1], len(audio))
+        self.assertEqual(cuts[1], quiet + rate // 20)  # cut in the middle of the quiet frame
+        self.assertTrue(all(b - a <= worker.STT_WINDOW_S * rate for a, b in zip(cuts, cuts[1:])))
+        self.assertEqual(worker.stt_windows(audio[:rate]), [0, rate])  # short input: one window
 
     @unittest.skipUnless(shutil.which('ffmpeg'), 'FFmpeg required for actual render test')
     def test_actual_render_trim_gap_fade_atomic_output(self):
