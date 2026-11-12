@@ -19,6 +19,16 @@ Last updated 2026-11-12. Evidence below was observed, not inferred; anything not
   started show as waiting).
 - STT: faster-whisper CPU INT8 (long files in 10-minute windows, so memory stays ~1.2 GB), explicit apply of results, transcript edit/add/delete rows, timestamp
   validation, TXT/SRT/VTT export.
+- Added for v0.1.1: drag and drop of scripts and audio onto the window; transcript find and replace
+  (one undo step) and a row highlight that follows playback; system dark theme by default; pause
+  marks inside a segment (the Vietnamese word for pause plus a duration, 0.05-10 s, inserted at the cursor
+  by a button); a per-segment reading speed (0.85-1.2x, FFmpeg `atempo`, pitch kept, pauses keep
+  their length); an optional Whisper Small self-check of each new take that flags likely misreadings
+  (differences that are only a merged initial or final, e.g. ch/tr, s/x, -n/-ng, are not flagged);
+  playback progress and the trimmed range on the take waveform; optional speaker diarization for STT
+  (pyannote segmentation-3.0 + 3D-Speaker CAM++ through sherpa-onnx, pinned like the other models)
+  with a one-click conversion of a speaker-labelled transcript into a multi-voice script; preset
+  voices sample at temperature 0.5 (below).
 
 ## Verification (2026-11-11)
 
@@ -150,6 +160,31 @@ deleted unpublished.
 Published as a pre-release on 2026-11-12 at the owner's decision, assets unchanged; the installer
 downloaded anonymously after publication still passes `sha256sum -c`.
 
+### v0.1.1 candidate (dev machine, local release build of `release/v0.1.1`)
+
+| Check | Result |
+|---|---|
+| `npm test` / `npm run test:e2e` | 32 passed / 8 passed |
+| `cargo test --tests` | 8 store + 6 runtime passed |
+| `python -m unittest` (worker) | 28 passed, 2 skipped (FFmpeg on PATH) |
+| Packaged exe, empty app data, phases `full`, `features`, `ux` | 21 PASS, 0 FAIL: models downloaded via UI; pause mark + 1.1x speed + self-check on a new take (badge shown, Whisper heard the take); 39/100 waveform bars marked played after 1.5 s; diarization model downloaded via UI; 60 s two-speaker dialogue transcribed into 21 rows labelled with 2 speakers, 21 speaker chips, turned into script segments; script and audio drag and drop; follow-along moved from row 1 to row 21 |
+
+The `features` phase found a release blocker the unit tests missed: `worker/diarize.py` was not in
+the installer's resources, so diarization failed in the packaged app (the transcript was still
+applied, with the error shown). It is now bundled, and a worker test fails if any worker module is
+left out of the resources.
+
+Temperature for preset voices (20 sentences x 3 takes per setting, same text and voice, word error rate):
+
+| Setting | Whisper large-v3 | Whisper large-v3 turbo | wav2vec2 CTC | Mean take | F0 spread |
+|---|---|---|---|---|---|
+| 0.8 (engine default) | 1.01 % | 1.41 % | 4.40 % | 8.20 s | 3.70 semitones |
+| 0.5 (v0.1.1) | 0.75 % | 1.01 % | 3.92 % | 8.20 s | 3.74 semitones |
+
+The self-check uses Whisper Small, which itself mishears some words: in these runs it flagged the
+brand name ("Âm" heard as "Ngâm") on some takes, and the STT round trip of the same project heard it
+both ways. Flags are hints to listen, not proof of a misreading.
+
 ## Not verified / known gaps
 
 - Listening quality has not been judged by a human; the clipping checks above are signal analysis.
@@ -176,5 +211,9 @@ downloaded anonymously after publication still passes `sha256sum -c`.
 - High DPI was checked by viewport and scale emulation, not by changing Windows display scaling.
 - Voice cloning was checked against a reference made from an app preset; similarity to a real voice
   needs a human listener.
+- Diarization was tuned and measured on synthetic two- and three-speaker mixes of TTS voices
+  (DER 0-10.5 %), not on real recordings; overlapping speech gets one speaker per row.
+- The 0.5 temperature was measured on a preset voice only; cloned voices keep the engine's default.
+  Reading speed was checked for length and pitch on a test tone and end to end on one take, not by listening.
 - Installers are unsigned (SmartScreen warning). CUDA is not enabled.
 - Preview does not apply loudness normalization; export does when "Chuẩn hóa" is on.

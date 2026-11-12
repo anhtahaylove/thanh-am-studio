@@ -1,6 +1,6 @@
 [package]
 name = "thanh-am-studio"
-version = "0.1.0"
+version = "0.1.1"
 description = "Local-first Vietnamese speech studio"
 edition = "2021"
 license = "Apache-2.0"

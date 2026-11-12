@@ -93,6 +93,12 @@ class WorkerTests(unittest.TestCase):
             with self.assertRaises(worker.WorkerError):
                 worker.voice_kwargs({'reference_path': str(Path(td) / 'missing.wav')})
 
+    def test_every_worker_module_ships_in_the_installer(self):
+        resources = json.loads((ROOT.parent / 'src-tauri' / 'tauri.conf.json').read_text(encoding='utf-8'))['bundle']['resources']
+        for module in ROOT.glob('*.py'):
+            with self.subTest(module=module.name):
+                self.assertEqual(resources.get(f'../worker/{module.name}'), f'worker/{module.name}')
+
     def test_pause_marks_split_text_and_carry_silence(self):
         parts, trailing = worker.split_pauses('Xin chào. [nghỉ 0,5s] Tạm biệt [NGHỈ 250ms][nghỉ 1 giây]')
         self.assertEqual(parts, [('Xin chào.', 0.0), ('Tạm biệt', 0.5)])
