@@ -22,7 +22,14 @@ export function replaceInTranscript(rows:TranscriptSegment[],find:string,replace
 }
 /** The transcript row being heard at `ms` of the source audio, if any. */
 export const rowAt=(rows:TranscriptSegment[],ms:number)=>rows.find(r=>r.start_ms<=ms&&ms<r.end_ms)?.id??null;
+/** Pause mark the worker turns into silence, e.g. "[nghỉ 0.5s]" or "[nghỉ 300ms]". */
+export const PAUSE_MARK=/\[\s*nghỉ\s+\d+(?:[.,]\d+)?\s*(?:ms|s|giây)?\s*\]/giu;
+export const spokenText=(text:string)=>text.replace(PAUSE_MARK,' ').replace(/\s+/g,' ').trim();
+/** Dictionary and number rules apply to spoken text only; pause marks pass through untouched. */
 export function normalizeText(text:string,dictionary:Record<string,string>):string {
+ return text.normalize('NFC').split(new RegExp(`(${PAUSE_MARK.source})`,'iu')).map((part,i)=>i%2?part:normalizeSpoken(part,dictionary)).join('');
+}
+function normalizeSpoken(text:string,dictionary:Record<string,string>):string {
  const keys=Object.keys(dictionary).filter(Boolean).sort((a,b)=>b.length-a.length);let out=text.normalize('NFC');
  if(keys.length){const escaped=keys.map(escapeRegExp);out=out.replace(new RegExp(escaped.join('|'),'gu'),m=>dictionary[m]);}
  return out.replace(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/g,(_,d,m,y)=>`${Number(d)} tháng ${Number(m)} năm ${y}`).replace(/(\d[\d.,]*)\s*(₫|đ)(?=\s|[.,;!?]|$)/g,(_,n)=>`${n.replace(/\./g,'')} đồng`).replace(/\b(\d+(?:[.,]\d+)?)\s*kg\b/gi,'$1 ki lô gam').replace(/\b(\d+(?:[.,]\d+)?)\s*km\b/gi,'$1 ki lô mét');
@@ -60,4 +67,4 @@ export function addTranscriptRow(rows:TranscriptSegment[],afterId:string|null):T
 export function progressLabel(progress:number,startedAt:string,now=Date.now()):string{const pct=`${Math.floor(progress*100)} %`;const elapsed=now-Date.parse(startedAt);if(!(progress>=0.15&&progress<1&&elapsed>0))return pct;return `${pct} · còn ~${Math.max(1,Math.round(elapsed*(1-progress)/progress/60000))} phút`;}
 // A TTS batch marks all its jobs running but reports progress only for the one being synthesized.
 export const jobProgressLabel=(kind:string,progress:number,startedAt:string,now=Date.now())=>kind==='tts'&&progress<=0?'Chờ trong lô':progressLabel(progress,startedAt,now);
-export function ttsTranscript(clips:(Recipe&{text:string})[]):TranscriptSegment[]{let time=0;return clips.map(c=>{const start_ms=time;time+=clipDuration(c);return {id:uid(),start_ms,end_ms:time-c.gap_ms,text:c.text};});}
+export function ttsTranscript(clips:(Recipe&{text:string})[]):TranscriptSegment[]{let time=0;return clips.map(c=>{const start_ms=time;time+=clipDuration(c);return {id:uid(),start_ms,end_ms:time-c.gap_ms,text:spokenText(c.text)};});}

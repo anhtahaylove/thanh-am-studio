@@ -84,6 +84,16 @@ class WorkerTests(unittest.TestCase):
         quiet = np.array([0.1, -0.9], dtype=np.float32)
         self.assertIs(worker.limit_peak(quiet), quiet)
 
+    def test_pause_marks_split_text_and_carry_silence(self):
+        parts, trailing = worker.split_pauses('Xin chào. [nghỉ 0,5s] Tạm biệt [NGHỈ 250ms][nghỉ 1 giây]')
+        self.assertEqual(parts, [('Xin chào.', 0.0), ('Tạm biệt', 0.5)])
+        self.assertAlmostEqual(trailing, 1.25)
+        self.assertEqual(worker.split_pauses('[nghỉ 2] Một câu.'), ([('Một câu.', 2.0)], 0.0))
+        self.assertEqual(worker.split_pauses('Không có nghỉ [ghi chú]'), ([('Không có nghỉ [ghi chú]', 0.0)], 0.0))
+        for bad in ['[nghỉ 0.01s] A', 'A [nghỉ 11s]', '[nghỉ 1s]']:
+            with self.subTest(bad=bad), self.assertRaises(worker.WorkerError):
+                worker.split_pauses(bad)
+
     def test_stt_progress_is_linear_in_audio_time(self):
         from types import SimpleNamespace
         from unittest import mock
