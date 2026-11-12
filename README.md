@@ -11,7 +11,8 @@ Download the installer from the GitHub release page and run it (per-user install
 administrator rights). It includes its own Python runtime and FFmpeg, so nothing else is
 needed. On first start open **Model & cài đặt** and download the models you need (VieNeu v3
 Turbo for TTS ≈ 640 MB, Whisper Small ≈ 490 MB or Whisper Large v3 Turbo ≈ 1.6 GB for STT).
-After that the app works offline. Installers are not code-signed yet, so SmartScreen may warn.
+After that the app works offline. Installers are not code-signed yet, so SmartScreen may warn
+(see [Code signing policy](#code-signing-policy)).
 
 ## Development
 
@@ -27,6 +28,28 @@ npm run tauri dev
 
 Building and verifying a release: [docs/RELEASE.md](docs/RELEASE.md). Cross-layer contract:
 [docs/CONTRACT.md](docs/CONTRACT.md). Current verification status: [docs/STATUS.md](docs/STATUS.md).
+
+## Code signing policy
+
+Installers are not signed yet. The project is applying for free code signing for open source
+projects; once accepted, releases will carry:
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+
+- Only the project's own binaries are signed (the app executable and the installer), built by
+  [the release workflow](.github/workflows/release.yml) from this repository. Bundled third-party
+  files (Python runtime, FFmpeg, libraries) keep their upstream signatures or none.
+- Committers and reviewers: [@anhtahaylove](https://github.com/anhtahaylove) (maintainer). Changes
+  from anyone else are reviewed before merge.
+- Approvers: [@anhtahaylove](https://github.com/anhtahaylove). Every release is approved for
+  signing by hand after the checks in [docs/RELEASE.md](docs/RELEASE.md) pass on the exact build.
+
+## Privacy
+
+This program will not transfer any information to other networked systems unless specifically
+requested by the user or the person installing or operating it. The only network access is the
+model download you start on the models page: the app then fetches pinned model files from
+Hugging Face ([privacy policy](https://huggingface.co/privacy)). Text, audio, projects and voice
+references stay on your machine.
 
 ## Scope
 
