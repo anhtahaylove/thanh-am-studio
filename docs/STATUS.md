@@ -28,7 +28,7 @@ Last updated 2026-11-11. Evidence below was observed, not inferred; anything not
 | `npm run test:e2e` (browser preview) | 6 passed |
 | `cargo test --tests` | 8 store + 3 runtime passed |
 | `python -m unittest` (worker) | 12 passed (incl. real FFmpeg render, disk-full refusal, take peak limiter, linear STT progress, STT windowing) |
-| GitHub Actions CI (PRs #1–#11 and `main`) | pass |
+| GitHub Actions CI (PRs #1–#12 and `main`) | pass |
 | Real model download (whisper-small) | kill at 34 % then resume completed; 464 MB on disk (1×); proxy-blocked network → `NETWORK` error |
 | Packaged release exe on dev machine (`e2e/desktop/packaged.mjs full`, `reopen`) | all steps PASS |
 | **Clean Windows Sandbox** (Windows 11 26100, no Python/FFmpeg/uv on PATH, 8 GB) | installer 94–100 s; download both models via UI; TTS; preview playback; new take keeps old; restart and reopen project; **network adapters disabled**: TTS, render + save WAV via native dialog to a Unicode path, STT on it + apply, SRT export — all PASS (local builds and the CI-built v0.1.0 installer, see below) |
@@ -103,16 +103,20 @@ the file length. Same file, same scoring script, same model:
 | faster-whisper `BatchedInferencePipeline` (rejected) | 2,109 MB | 996 s | 22.6 % |
 | 10-minute windows cut at the quietest 100 ms of the last 30 s (now) | 1,231 MB | 2,185 s | 9.81 % |
 
-#### High-DPI layout (clean Sandbox, v0.1.0 installer at `a202153`, `packaged.mjs dpi`)
+Through the UI of the installed app (clean Sandbox, installer built at `c276e6e`, `packaged.mjs longstt`,
+same file as a 64 kb/s MP3): 1,820 s, largest worker sample 898 MB (every 5 s), 1,140 transcript rows,
+timestamps in order up to 70.6 min, WER 9.72 %.
+
+#### High-DPI layout (clean Sandbox, v0.1.0 installers at `a202153` and `c276e6e`, `packaged.mjs dpi`)
 
 Each of the six main pages was opened with the WebView emulating the CSS viewport and device scale
 that Windows scaling produces (CDP `Emulation.setDeviceMetricsOverride`, not a real display-scaling
 change): 1080p at 150 % (1280x680, x1.5), the 1024x720 minimum window at 125 %, 4K at 200 %
-(1920x1040, x2) and a 1366x768 laptop at 125 % (1093x574, below the minimum height). 24/24 page views:
+(1920x1040, x2) and a 1366x768 laptop at 125 % (1093x574, below the minimum height). 24/24 page views on each installer:
 no horizontal page scroll, no control outside the window, no clipped text; only the sidebar tagline
 wraps to two lines at the narrow sizes.
 
-#### Reference-voice cloning (clean Sandbox, v0.1.0 installer at `a202153`, `packaged.mjs clone`)
+#### Reference-voice cloning (clean Sandbox, v0.1.0 installer at `a202153`, `packaged.mjs clone`; repeated at `c276e6e`: WER 7.3 %)
 
 The reference clip is the app's own output with the female preset "Trúc Ly" (7.3 s), so no
 third-party voice rights are involved; the engine default voice is male. Registering it in the voice
@@ -128,18 +132,20 @@ five new sentences were generated with it and with the default voice:
 
 Similarity to a real person's voice was not judged; that needs a consented recording and a listener.
 
-### v0.1.0 draft release (built by `.github/workflows/release.yml` from tag `v0.1.0` at `a202153`)
+### v0.1.0 draft release (built by `.github/workflows/release.yml` from tag `v0.1.0` at `c276e6e`)
 
 The tag was moved before publication, first from `305ce75` to `05a2135` (take peak limiter, PR #5;
 queue progress label, PR #6), then to `a202153` (visible progress bar, waiting-in-batch label, linear
-STT progress, PR #9); each earlier draft was deleted unpublished.
+STT progress, PR #9), then to `c276e6e` (STT in 10-minute windows, PR #11); each earlier draft was
+deleted unpublished.
 
 | Check | Result |
 |---|---|
 | Release workflow | npm test, private runtime build, SBOM/notices, `cargo test`, `tauri build`, checksums, draft pre-release: success |
-| Assets | `ThanhAmStudio_0.1.0_x64-setup.exe` (204,424,574 bytes), `SHA256SUMS.txt`, `sbom.cdx.json`, `THIRD-PARTY-NOTICES.txt` |
-| Installer SHA-256 | `4db8b631d3fb24bda27cc2b760acbd95c24b373f0ceca42afd4df1595cc7067d`; `sha256sum -c SHA256SUMS.txt` OK for all files after download |
-| Clean Windows Sandbox on that exact downloaded installer | install 90 s, 815 MB; phases `full` (model download via UI, TTS, preview, new take, render + WAV save to a Unicode path, STT + apply, SRT), `reopen`, `turbo` (Whisper Turbo download 37 s, MP3 render + save, ffprobe mp3 48 kHz 192 kb/s, Turbo STT on it 28 s, transcript matches the fixture apart from letter case and one comma), `offline` (network adapters disabled: TTS) and `export` (still offline: render, WAV, STT, SRT): 26 PASS, 0 FAIL |
+| Assets | `ThanhAmStudio_0.1.0_x64-setup.exe` (204,411,158 bytes), `SHA256SUMS.txt`, `sbom.cdx.json`, `THIRD-PARTY-NOTICES.txt` |
+| Installer SHA-256 | `5f6b2939c84f73b7b954e86e081b2b28e67b6d9dbd9337b16872d38dd2fca0d2`; `sha256sum -c SHA256SUMS.txt` OK for all files after download |
+| Clean Windows Sandbox on that exact downloaded installer | install 102 s, 815 MB; phases `full` (model download via UI, TTS, preview, new take, render + WAV save to a Unicode path, STT + apply, SRT), `reopen`, `turbo` (Whisper Turbo download, MP3 render + save, ffprobe mp3 48 kHz 192 kb/s, Turbo STT on it, transcript matches the fixture apart from letter case), `offline` (network adapters disabled: TTS) and `export` (still offline: render, WAV, STT, SRT): 26 PASS, 0 FAIL |
+| Extra phases on the same installer | `full`, `clone`, `dpi`, `longstt` (see above): 23 PASS, 0 FAIL |
 The draft is not published. Publishing waits for the human listening pass below.
 
 ## Not verified / known gaps
