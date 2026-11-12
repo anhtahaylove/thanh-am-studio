@@ -315,7 +315,7 @@ try {
               const r = el.getBoundingClientRect(), cs = getComputedStyle(el);
               if (!r.width || cs.visibility === 'hidden') continue;
               if (r.right > w + 1) out.push(`${el.tagName.toLowerCase()} "${(el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 30)}" overflows the window by ${Math.round(r.right - w)} px`);
-              else if (el.scrollWidth > el.clientWidth + 1 && cs.overflow !== 'visible' && el.tagName !== 'TEXTAREA' && el.tagName !== 'SELECT') out.push(`${el.tagName.toLowerCase()} "${(el.textContent || '').trim().slice(0, 30)}" text is clipped`);
+              else if (el.scrollWidth > el.clientWidth + 1 && cs.overflow !== 'visible' && el.tagName !== 'TEXTAREA' && el.tagName !== 'SELECT') out.push(`${el.tagName.toLowerCase()}${el.type ? `[${el.type}]` : ''} "${(el.textContent || el.getAttribute('aria-label') || el.closest('label')?.textContent || '').trim().slice(0, 30)}" text is clipped (${el.scrollWidth}>${el.clientWidth})`);
             }
             return [...new Set(out)].slice(0, 8);
           });
