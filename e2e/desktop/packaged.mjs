@@ -1,5 +1,5 @@
 // Acceptance run against the packaged desktop app (UI -> Rust -> worker -> files).
-// usage: node packaged.mjs <app.exe> <outDir> <phase: full|reopen|turbo|offline|export|clone|dpi|longstt>
+// usage: node packaged.mjs <app.exe> <outDir> <phase: full|reopen|turbo|offline|export|clone|dpi|longstt|ux>
 // Drives the real WebView2 over CDP; native file dialogs are filled by file-dialog.ps1.
 import {chromium} from 'playwright-core';
 import {spawn, execFileSync} from 'node:child_process';
@@ -327,6 +327,51 @@ try {
       }).catch(() => {}); // recorded as FAIL; keep checking the other sizes
     }
     await cdp.send('Emulation.clearDeviceMetricsOverride');
+  }
+  if (phase === 'ux') {
+    // Drag and drop plus transcript follow-along. The OS drag cannot be driven over CDP, so the page emits
+    // Tauri's own drag events; the dropped paths then take the app's real route (read/import, STT job).
+    // Needs whisper-small installed (run `full` first) and THANHAM_UX_AUDIO, a short Vietnamese speech file.
+    const emit = (event, paths) => invoke('plugin:event|emit', {event, payload: {paths, position: {x: 400, y: 300}}});
+    await step('drop a script file adds segments', async () => {
+      await nav('Tạo giọng đọc');
+      const txt = join(saves, `kéo thả ${Date.now()}.txt`);
+      writeFileSync(txt, ['Đoạn thứ nhất được kéo vào cửa sổ.', 'Đoạn thứ hai cũng được thêm như vậy.'].join('\n')); // one segment per line
+      const before = await page.getByRole('textbox', {name: /^Nội dung đoạn/}).count();
+      await emit('tauri://drag-enter', [txt]);
+      await page.locator('.drop-overlay').waitFor({timeout: 5000});
+      await emit('tauri://drag-drop', [txt]);
+      await page.locator('.drop-overlay').waitFor({state: 'detached', timeout: 5000});
+      await page.getByRole('textbox', {name: `Nội dung đoạn ${before + 2}`}).waitFor({timeout: 10000});
+      return `${before} -> ${await page.getByRole('textbox', {name: /^Nội dung đoạn/}).count()} segments`;
+    });
+    await step('drop an audio file, transcribe, and rows follow playback', async () => {
+      const src = process.env.THANHAM_UX_AUDIO;
+      if (!src || !existsSync(src)) throw Error(`THANHAM_UX_AUDIO missing: ${src}`);
+      const audio = join(saves, `kéo thả ${Date.now()}${src.slice(src.lastIndexOf('.'))}`);
+      copyFileSync(src, audio);
+      await nav('Chép lời');
+      await page.getByRole('combobox', {name: 'Model STT'}).selectOption('whisper-small');
+      const s0 = await done('stt');
+      await emit('tauri://drag-drop', [audio]);
+      const [job] = await waitJobs('stt', s0 + 1, 10 * 60000);
+      await nav('Hàng đợi');
+      await page.getByRole('button', {name: 'Áp dụng transcript'}).first().click(); // newest first; STT rows do not show the job id
+      await nav('Chép lời');
+      const rows = job.result.transcript;
+      if (rows.length < 2) throw Error(`need at least 2 transcript rows, got ${rows.length}`);
+      const playing = () => page.locator('.transcript-row[aria-current="true"]').getAttribute('data-row', {timeout: 5000});
+      const seek = (s) => page.locator('.source-player audio').evaluate((a, t) => { a.muted = true; a.currentTime = t; return a.play(); }, s);
+      await seek(rows[0].start_ms / 1000 + 0.05);
+      const first = await playing();
+      await seek(rows.at(-1).start_ms / 1000 + 0.05);
+      await page.waitForTimeout(600);
+      const last = await playing();
+      await page.locator('.source-player audio').evaluate((a) => a.pause());
+      if (first === last) throw Error(`highlight did not move (${first})`);
+      await shot('ux-follow-along');
+      return `${rows.length} rows; highlight moved from row 1 to row ${rows.length}`;
+    });
   }
   if (phase === 'export') {
     await nav('Dự án');
