@@ -1,6 +1,6 @@
 # Thanh Âm Studio status
 
-Last updated 2026-11-11. Evidence below was observed, not inferred; anything not listed is unverified.
+Last updated 2026-11-12. Evidence below was observed, not inferred; anything not listed is unverified.
 
 ## Implemented
 
@@ -132,7 +132,7 @@ five new sentences were generated with it and with the default voice:
 
 Similarity to a real person's voice was not judged; that needs a consented recording and a listener.
 
-### v0.1.0 draft release (built by `.github/workflows/release.yml` from tag `v0.1.0` at `c276e6e`)
+### v0.1.0 release (built by `.github/workflows/release.yml` from tag `v0.1.0` at `c276e6e`)
 
 The tag was moved before publication, first from `305ce75` to `05a2135` (take peak limiter, PR #5;
 queue progress label, PR #6), then to `a202153` (visible progress bar, waiting-in-batch label, linear
@@ -146,7 +146,9 @@ deleted unpublished.
 | Installer SHA-256 | `5f6b2939c84f73b7b954e86e081b2b28e67b6d9dbd9337b16872d38dd2fca0d2`; `sha256sum -c SHA256SUMS.txt` OK for all files after download |
 | Clean Windows Sandbox on that exact downloaded installer | install 102 s, 815 MB; phases `full` (model download via UI, TTS, preview, new take, render + WAV save to a Unicode path, STT + apply, SRT), `reopen`, `turbo` (Whisper Turbo download, MP3 render + save, ffprobe mp3 48 kHz 192 kb/s, Turbo STT on it, transcript matches the fixture apart from letter case), `offline` (network adapters disabled: TTS) and `export` (still offline: render, WAV, STT, SRT): 26 PASS, 0 FAIL |
 | Extra phases on the same installer | `full`, `clone`, `dpi`, `longstt` (see above): 23 PASS, 0 FAIL |
-The draft is not published. Publishing waits for the human listening pass below.
+
+Published as a pre-release on 2026-11-12 at the owner's decision, assets unchanged; the installer
+downloaded anonymously after publication still passes `sha256sum -c`.
 
 ## Not verified / known gaps
 
