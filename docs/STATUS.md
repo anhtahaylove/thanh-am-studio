@@ -29,6 +29,9 @@ Last updated 2026-11-12. Evidence below was observed, not inferred; anything not
   (pyannote segmentation-3.0 + 3D-Speaker CAM++ through sherpa-onnx, pinned like the other models)
   with a one-click conversion of a speaker-labelled transcript into a multi-voice script; preset
   voices sample at temperature 0.5 (below).
+- Added for v0.1.2: an optional known speaker count (2-5 in the UI, validated as a whole number 1-8 in
+  Rust and in the worker) passed to the diarization clustering, and a per-row speaker menu to relabel
+  transcript rows by hand (saved, undoable, used by the script conversion).
 
 ## Verification (2026-11-11)
 
@@ -226,6 +229,20 @@ Temperature for preset voices (20 sentences x 3 takes per setting, same text and
 The self-check uses Whisper Small, which itself mishears some words: in these runs it flagged the
 brand name ("Âm" heard as "Ngâm") on some takes, and the STT round trip of the same project heard it
 both ways. Flags are hints to listen, not proof of a misreading.
+
+### v0.1.2 release (built by `.github/workflows/release.yml` from tag `v0.1.2` at `a76bae2`)
+
+| Check | Result |
+|---|---|
+| Tests | `npm test` 33, `npm run test:e2e` 8, `cargo test --tests` 8 + 7, worker 29 (2 skipped); CI green on PR #27 head `2ebdde2` |
+| Packaged exe on the dev machine (empty app data) | `full`, `features`, `dpi`: all PASS |
+| Installer SHA-256 | `472944f9b779f1edfe137b53f1bfdda0c0e8be47774782d84c6c05c7084425e8`; `sha256sum -c` OK after download and after an anonymous download once published |
+| Clean Sandbox run 1 on that exact installer | `full`, `reopen`, `turbo`, `offline` (network adapters disabled), `export`: 26 PASS, 0 FAIL |
+| Clean Sandbox run 2 on that exact installer | `full`, `features` (2 speakers asked and found in a 60 s dialogue, a row relabelled and found saved through `load_project`, script built), `ux`, `clone` (WER 8.5 %), `dpi` (4/4 sizes clean): 30 PASS, 0 FAIL |
+
+Published as a pre-release on 2026-11-12 (17:25 UTC). The known-count benefit comes from the VIVOS
+measurement above (with the count given, two-speaker DER 15.8 % clean and no over-splitting by
+construction); three speakers stay hard (32.5 % with the count given).
 
 ## Not verified / known gaps
 
