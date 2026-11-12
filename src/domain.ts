@@ -27,6 +27,13 @@ export function checkSummary(check:TakeCheck|undefined):{tone:'ok'|'warn';label:
  if(!hard.length)return {tone:'ok',label:'Khớp kịch bản',detail};
  return {tone:'warn',label:`Có thể đọc sai: ${hard.slice(0,2).map(m=>`“${m.expected||'…'}” → “${m.heard||'…'}”`).join(', ')}${hard.length>2?` +${hard.length-2}`:''}`,detail};
 }
+/** Script lines from a transcript: consecutive rows of one speaker are joined (up to `max` characters). */
+export function transcriptToScript(rows:TranscriptSegment[],max=500):{speaker:string;text:string}[]{
+ const out:{speaker:string;text:string}[]=[];
+ for(const r of rows){const text=r.text.trim();if(!text)continue;const speaker=r.speaker===undefined?'Người dẫn':`Người ${r.speaker+1}`;const last=out.at(-1);
+  if(last&&last.speaker===speaker&&last.text.length+1+text.length<=max)last.text+=' '+text;else out.push({speaker,text});}
+ return out;
+}
 /** The transcript row being heard at `ms` of the source audio, if any. */
 export const rowAt=(rows:TranscriptSegment[],ms:number)=>rows.find(r=>r.start_ms<=ms&&ms<r.end_ms)?.id??null;
 /** Pause mark the worker turns into silence, e.g. "[nghỉ 0.5s]" or "[nghỉ 300ms]". */

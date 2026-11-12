@@ -3,7 +3,7 @@ use serde_json::{json,Value};
 use std::{fs,io::{BufRead,BufReader,Write},path::{Path,PathBuf},process::{Command,Stdio},sync::{Arc,atomic::{AtomicBool,Ordering}},thread,time::Duration};
 #[cfg(windows)] use std::os::windows::process::CommandExt;
 
-pub const MODELS:&[(&str,&str,&str,&str)] = &[("vieneu-v3","VieNeu v3 Turbo","tts","Apache-2.0"),("whisper-small","Whisper Small","stt","MIT"),("whisper-turbo","Whisper Large v3 Turbo","stt","MIT")];
+pub const MODELS:&[(&str,&str,&str,&str)] = &[("vieneu-v3","VieNeu v3 Turbo","tts","Apache-2.0"),("whisper-small","Whisper Small","stt","MIT"),("whisper-turbo","Whisper Large v3 Turbo","stt","MIT"),("diarization","Phân biệt người nói (pyannote + CAM++)","stt","MIT, Apache-2.0")];
 /// Queued TTS jobs share one worker process so the model loads once (~13 s on CPU).
 pub const TTS_BATCH:usize=32;
 /// Workers join a kill-on-close job object so a crashed or killed app never leaves Python running.
@@ -19,7 +19,7 @@ pub fn prepare_request(s:&Store,j:&Value,ffmpeg:Option<&Path>)->Result<Value>{
    let speed=p["speed"].as_f64().unwrap_or(1.0);if !(0.5..=2.0).contains(&speed){return Err("INVALID_SPEED".into())}
    let reference_path=reference.map(|id|s.asset(&id).map(|a|a["path"].clone())).transpose()?;
    ("tts",json!({"text":text,"voice_id":voice_id,"reference_path":reference_path,"model_path":model_path(s,"vieneu-v3")?,"check_model_path":if p["check"]==true{Some(model_path(s,"whisper-small")?)}else{None},"speed":speed,"ffmpeg_path":ffmpeg.map(|p|p.to_string_lossy()),"output_name":format!("{id}.wav")}))},
-  "stt"=>{let a=s.asset(&required(p,"asset_id")?)?;let mid=required(p,"model_id")?;if !["whisper-small","whisper-turbo"].contains(&mid.as_str()){return Err("INVALID_MODEL".into())}let lang=p["language"].as_str().unwrap_or("vi");if !["vi","auto"].contains(&lang){return Err("INVALID_LANGUAGE".into())}("stt",json!({"input_path":a["path"],"model_path":model_path(s,&mid)?,"language":lang}))},
+  "stt"=>{let a=s.asset(&required(p,"asset_id")?)?;let mid=required(p,"model_id")?;if !["whisper-small","whisper-turbo"].contains(&mid.as_str()){return Err("INVALID_MODEL".into())}let lang=p["language"].as_str().unwrap_or("vi");if !["vi","auto"].contains(&lang){return Err("INVALID_LANGUAGE".into())}("stt",json!({"input_path":a["path"],"model_path":model_path(s,&mid)?,"language":lang,"diarize_model_path":if p["diarize"]==true{Some(model_path(s,"diarization")?)}else{None}}))},
   "model_download"=>{let mid=required(p,"model_id")?;model_path(s,&mid)?;("download",json!({"model_id":mid}))},
   "render"=>{let segs=p["segments"].as_array().ok_or("INVALID_SEGMENTS")?;if segs.is_empty(){return Err("EMPTY_RENDER".into())}let mut clips=Vec::new();for seg in segs{let tid=required(seg,"selected_take_id")?;let take=seg["takes"].as_array().and_then(|ts|ts.iter().find(|t|t["id"]==tid)).ok_or("TAKE_NOT_FOUND")?;let asset=s.asset(&required(take,"asset_id")?)?;clips.push(json!({"path":asset["path"],"trim_start_ms":seg["trim_start_ms"].as_f64().unwrap_or(0.0),"trim_end_ms":seg["trim_end_ms"],"gap_ms":seg["gap_ms"].as_f64().unwrap_or(0.0),"fade_in_ms":seg["fade_in_ms"].as_f64().unwrap_or(0.0),"fade_out_ms":seg["fade_out_ms"].as_f64().unwrap_or(0.0),"gain_db":seg["gain_db"].as_f64().unwrap_or(0.0)}));}let format=p["format"].as_str().unwrap_or("wav");if !["wav","mp3"].contains(&format){return Err("INVALID_FORMAT".into())}("render",json!({"clips":clips,"normalize":p["normalize"].as_bool().unwrap_or(false),"format":format,"ffmpeg_path":ffmpeg.map(|p|p.to_string_lossy())}))},
   _=>return Err("INVALID_JOB_KIND".into())
@@ -59,7 +59,7 @@ impl Runtime{
   if is_tts{let reason=failure.unwrap_or_else(||"WORKER_PROTOCOL: No result for this segment".into());for i in pending{let _=s.fail(&ids[i],&reason);}return Ok(())}
   if let Some(e)=failure{return Err(e)}let mut result=result.ok_or("WORKER_PROTOCOL: No completed result")?;
   if ["tts","render"].contains(&j["kind"].as_str().unwrap_or("")){let path=validate_output(&out,Path::new(&required(&result,"path")?))?;let a=s.import_asset(&path)?;result["asset_id"]=a["id"].clone();result["path"]=a["path"].clone();}
-  if j["kind"]=="stt"{let segments=result["segments"].as_array().ok_or("INVALID_TRANSCRIPT_RESULT")?;let mut transcript=Vec::new();for seg in segments{let start=seg["start"].as_f64().ok_or("INVALID_TIMESTAMP")?;let end=seg["end"].as_f64().ok_or("INVALID_TIMESTAMP")?;if start<0.0||end<=start{return Err("INVALID_TIMESTAMP".into())}transcript.push(json!({"id":uuid::Uuid::new_v4().to_string(),"start_ms":(start*1000.0).round(),"end_ms":(end*1000.0).round(),"text":seg["text"]}));}result["transcript"]=json!(transcript);}
+  if j["kind"]=="stt"{let segments=result["segments"].as_array().ok_or("INVALID_TRANSCRIPT_RESULT")?;let mut transcript=Vec::new();for seg in segments{let start=seg["start"].as_f64().ok_or("INVALID_TIMESTAMP")?;let end=seg["end"].as_f64().ok_or("INVALID_TIMESTAMP")?;if start<0.0||end<=start{return Err("INVALID_TIMESTAMP".into())}transcript.push(json!({"id":uuid::Uuid::new_v4().to_string(),"start_ms":(start*1000.0).round(),"end_ms":(end*1000.0).round(),"text":seg["text"],"speaker":seg["speaker"].as_u64()}));}result["transcript"]=json!(transcript);}
   s.finish(&id,result)?;Ok(())
  }
  fn finish_item(&self,s:&Store,ids:&[String],pending:&mut std::collections::HashSet<usize>,e:&Value,request:&Value){
