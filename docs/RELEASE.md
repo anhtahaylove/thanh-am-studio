@@ -36,7 +36,7 @@ with `sha256sum -c SHA256SUMS.txt` (or compare `Get-FileHash <file>` with the li
    Turbo download, MP3 export, Turbo STT), `offline` (network adapters disabled) and `export`
    (render, save dialog to a Unicode path, STT, SRT, still offline). `-Only full,clone,dpi` runs chosen
    phases instead (`clone`: reference voice with consent and cloned takes; `dpi`: layout at high-DPI
-   viewports; `longstt`: STT of `long.mp3` next to the installer, scored against `long.txt`; `ux`: drag and drop of a script and of `THANHAM_UX_AUDIO` (in the Sandbox: `dialogue.wav` next to the installer), then transcript follow-along during playback; `features`: pause mark, per-segment speed and Whisper self-check on a new take, waveform playback progress, diarization model download and speaker-labelled STT turned into a script), and
+   viewports; `longstt`: STT of `long.mp3` next to the installer, scored against `long.txt`; `ux`: drag and drop of a script and of `THANHAM_UX_AUDIO` (in the Sandbox: `dialogue.wav` next to the installer), then transcript follow-along during playback; `features`: pause mark, per-segment speed and Whisper self-check on a new take, waveform playback progress, diarization model download, speaker-labelled STT with a known speaker count, a row relabelled by hand and saved, turned into a script), and
    `-Gate 500` runs the long-project gate inside the Sandbox.
 3. Long project: `node e2e/desktop/gate.mjs <installed exe> <out> 500` (500 segments, cancel,
    hard crash mid-batch, restart/retry, full render, STT round trip WER/CER, per-phase RAM in

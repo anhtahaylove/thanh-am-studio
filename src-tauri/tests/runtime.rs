@@ -46,3 +46,13 @@ fn stt_diarization_uses_the_app_model_only_when_asked(){
  let off=s.enqueue("stt",None,json!({"asset_id":a["id"],"model_id":"whisper-small","diarize_model_path":"C:/x"})).unwrap();
  assert!(prepare_request(&s,&off,None).unwrap()["payload"]["diarize_model_path"].is_null());
 }
+#[test]
+fn stt_speaker_count_is_bounded_and_needs_diarization(){
+ let t=tempfile::tempdir().unwrap();let s=Store::open(t.path()).unwrap();
+ let p=t.path().join("input.wav");std::fs::write(&p,b"RIFF0000WAVE").unwrap();let a=s.import_asset(&p).unwrap();
+ let job=|extra:serde_json::Value|{let mut v=json!({"asset_id":a["id"],"model_id":"whisper-small"});for(k,x) in extra.as_object().unwrap(){v[k]=x.clone();}s.enqueue("stt",None,v).unwrap()};
+ assert_eq!(prepare_request(&s,&job(json!({"diarize":true,"num_speakers":2})),None).unwrap()["payload"]["num_speakers"],json!(2));
+ assert!(prepare_request(&s,&job(json!({"diarize":true})),None).unwrap()["payload"]["num_speakers"].is_null());
+ assert!(prepare_request(&s,&job(json!({"num_speakers":2})),None).unwrap()["payload"]["num_speakers"].is_null());
+ for bad in [json!(0),json!(9),json!(2.5),json!("2")]{assert_eq!(prepare_request(&s,&job(json!({"diarize":true,"num_speakers":bad})),None).unwrap_err(),"INVALID_SPEAKERS");}
+}

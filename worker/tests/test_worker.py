@@ -138,6 +138,15 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual(seen, [0.05, 0.1, 0.5, 0.99])
         self.assertEqual(result['segments'][0]['text'], 'xin chào')
 
+    def test_stt_rejects_a_speaker_count_outside_1_to_8_before_transcribing(self):
+        for bad in [0, 9, 2.5, '2', True]:
+            with self.subTest(bad=bad), self.assertRaises(worker.WorkerError) as ctx:
+                worker.stt({'model_path': 'missing', 'input_path': 'missing.wav', 'num_speakers': bad}, lambda *a: None)
+            self.assertEqual(ctx.exception.code, 'INVALID_RECIPE')
+        with self.assertRaises(worker.WorkerError) as ctx:  # a valid count gets past the check
+            worker.stt({'model_path': 'missing', 'input_path': 'missing.wav', 'num_speakers': 2}, lambda *a: None)
+        self.assertNotEqual(ctx.exception.code, 'INVALID_RECIPE')
+
     def test_long_stt_input_is_cut_into_windows_at_quiet_points(self):
         import numpy as np
         rate = worker.STT_RATE
