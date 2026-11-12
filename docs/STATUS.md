@@ -174,6 +174,21 @@ the installer's resources, so diarization failed in the packaged app (the transc
 applied, with the error shown). It is now bundled, and a worker test fails if any worker module is
 left out of the resources.
 
+### v0.1.1 release (built by `.github/workflows/release.yml` from tag `v0.1.1` at `9ce785f`)
+
+| Check | Result |
+|---|---|
+| Release workflow | success; draft pre-release with installer, `SHA256SUMS.txt`, SBOM, notices |
+| Installer SHA-256 | `540d66916fde19adc0fe0a9a0a6ef0b30ee3a0332ee28911c79678c14b861679`; `sha256sum -c` OK after download, and again after an anonymous download once published |
+| Clean Sandbox run 1 on that exact installer | install 98 s, 864 MB; `full`, `reopen`, `turbo`, `offline` (network adapters disabled), `export`: 26 PASS, 0 FAIL |
+| Clean Sandbox run 2 on that exact installer | install 99 s; `full`, `features`, `ux`, `clone` (clone WER 6.1 %), `dpi` (4/4 sizes clean): 30 PASS, 0 FAIL |
+
+The first build of the tag (at `41b642d`) passed run 1 but failed `dpi` at 1024x720 @1.25,
+1093x574 @1.25 and 1280x680 @1.5: a long self-check badge squeezed the role-name input to 45 px
+("Người dẫn" needs 52 px). Fixed in PR #24 (input minimum 72 px, take count kept on one line); the
+unpublished draft was deleted and the tag moved to `9ce785f` before both runs above. Published as a
+pre-release on 2026-11-12.
+
 Temperature for preset voices (20 sentences x 3 takes per setting, same text and voice, word error rate):
 
 | Setting | Whisper large-v3 | Whisper large-v3 turbo | wav2vec2 CTC | Mean take | F0 spread |
