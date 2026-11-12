@@ -156,6 +156,14 @@ downloaded anonymously after publication still passes `sha256sum -c`.
   The listening pack (first 20 sentences as separate files in script order, plus the full render) is
   produced by the gate for an A/B pass. STT round-trip shows audible-risk words (e.g. "giọng" heard
   as "dọng"); these are flagged for listening, not treated as proof of mispronunciation.
+- Machine listening (2026-11-12) with three local judges that do not share a decoder: Whisper large-v3,
+  Whisper large-v3 turbo and a wav2vec2 CTC model without a language model. On the 20-file pack, all
+  three hear "chợ Bến Thành" as "chợ biến thành" in sentence 10. Regenerating sentences 09, 10 and 15
+  five times each through the worker: "tiết kiệm" was right in 9/10, 9/10 and 10/10 takes (the pack
+  miss was one unlucky take), but "chợ Bến Thành" was right in only 2/5 takes for every judge.
+  Dictionary respellings did not fix it reliably ("Bến-Thành" 1-3/5; lowercase "bến thành" 3-4/5 but
+  sometimes heard as "đến"). The engine varies per take, so regenerating the take is the workaround.
+  Naturalness and prosody are not covered by these judges.
 - Two Sandbox runs failed a save step in a later phase (`turbo` MP3 or `export` WAV). Cause: the
   harness clicked the first "save audio" button while the queue list (refreshed every 2.5 s) still
   showed an earlier render, whose format the app correctly refused to save under the other
