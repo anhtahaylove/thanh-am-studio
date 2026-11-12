@@ -423,6 +423,7 @@ try {
       await nav('Chép lời');
       await page.getByRole('combobox', {name: 'Model STT'}).selectOption('whisper-small');
       await page.getByRole('checkbox', {name: 'Phân biệt người nói'}).check();
+      await page.getByRole('combobox', {name: 'Số người nói'}).selectOption('2'); // a known count stops over-splitting
       const s0 = await done('stt');
       await invoke('plugin:event|emit', {event: 'tauri://drag-drop', payload: {paths: [audio], position: {x: 400, y: 300}}});
       const [job] = await waitJobs('stt', s0 + 1, 20 * 60000);
@@ -436,6 +437,13 @@ try {
       await nav('Chép lời');
       const chips = await page.locator('.speaker-chip').count();
       if (chips !== speakers.length) throw Error(`${chips} speaker chips for ${speakers.length} rows`);
+      if (job.payload.num_speakers !== 2 || new Set(speakers).size !== 2) throw Error(`asked for 2 speakers, got ${new Set(speakers).size} (payload ${job.payload.num_speakers})`);
+      const first = page.locator('select.speaker-chip').first(), relabel = String(1 - Number(await first.inputValue()));
+      await first.selectOption(relabel); // fix a label by hand
+      await page.waitForTimeout(1500); // autosave
+      const [recent] = await invoke('list_projects'); // newest first: the project just saved
+      const saved = (await invoke('load_project', {id: recent.id})).transcript[0].speaker;
+      if (saved !== Number(relabel)) throw Error(`relabel not saved: ${saved} (wanted ${relabel})`);
       await shot('features-speakers');
       await page.getByRole('button', {name: 'Thành kịch bản'}).click();
       await page.getByRole('textbox', {name: /^Nội dung đoạn/}).first().waitFor();
