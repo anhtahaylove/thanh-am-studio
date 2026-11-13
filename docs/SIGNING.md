@@ -54,6 +54,8 @@ in SignPath is a single `<pe-file>`; product name "Thanh Âm Studio", product ve
           github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
           wait-for-completion: true
           output-artifact-directory: src-tauri/target/release/bundle/nsis
+          # `archive: false` above: the signed file comes back as is, not as a ZIP.
+          skip-decompress: true
 ```
 
 Every release then waits for an approver in SignPath; approve only after the acceptance gates in
