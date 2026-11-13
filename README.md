@@ -14,6 +14,21 @@ Turbo for TTS ≈ 640 MB, Whisper Small ≈ 490 MB or Whisper Large v3 Turbo ≈
 After that the app works offline. Installers are not code-signed yet, so SmartScreen may warn
 (see [Code signing policy](#code-signing-policy)).
 
+## Troubleshooting
+
+- **"Windows protected your PC" (SmartScreen).** The installer is not code-signed yet. Check its
+  SHA-256 against `SHA256SUMS.txt` on the release page first, then choose **More info** and **Run anyway**.
+- **Smart App Control blocks the installer.** Smart App Control has no per-app exception for unsigned
+  programs, so the app cannot be installed while it is on. Signed releases are planned
+  (see [Code signing policy](#code-signing-policy)).
+- **A model download stops.** Start it again on the models page; it resumes where it stopped and
+  checks every file against its pinned digest. A `NETWORK` error means the download host was not
+  reachable (a proxy or firewall); `DISK_FULL` means the drive that holds the app's data is out of space.
+- **A job fails with `WORKER_EXIT`.** The job folder holds `worker.log`; attach it when you report
+  the problem. The message names the likely cause for common crash codes (for example a CPU without
+  an instruction set the engine needs, or running out of memory). TTS needs about 2.2 GB of RAM on
+  top of the app; 8 GB in total is the tested minimum.
+
 ## Development
 
 ```powershell
