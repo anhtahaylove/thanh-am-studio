@@ -137,6 +137,38 @@ class WorkerTests(unittest.TestCase):
             result = worker.stt({'model_path': td, 'input_path': str(source)}, lambda v, m='': seen.append(v))
         self.assertEqual(seen, [0.05, 0.1, 0.5, 0.99])
         self.assertEqual(result['segments'][0]['text'], 'xin chào')
+        self.assertFalse(model.transcribe.call_args.kwargs['word_timestamps'])  # no word-timing cost without speakers
+
+    def test_stt_with_speakers_splits_a_row_where_the_speaker_changes(self):
+        from types import SimpleNamespace
+        from unittest import mock
+        import numpy as np
+        w = lambda start, end, text: SimpleNamespace(start=start, end=end, word=text)
+        segment = SimpleNamespace(start=0, end=4, text=' Xin chào. Vâng.', words=[w(0, 1, ' Xin'), w(1, 2, ' chào.'), w(2, 4, ' Vâng.')])
+        model = mock.Mock()
+        model.transcribe.return_value = ([segment], SimpleNamespace(duration=4, language='vi'))
+        sherpa = mock.Mock()  # the diarization engine finds speaker 0 until 2 s, then speaker 1
+        sherpa.OfflineSpeakerDiarization.return_value.sample_rate = 16000
+        sherpa.OfflineSpeakerDiarization.return_value.process.return_value.sort_by_start_time.return_value = [
+            SimpleNamespace(start=0, end=2, speaker=0), SimpleNamespace(start=2, end=4, speaker=1)]
+        with tempfile.TemporaryDirectory() as td, \
+                mock.patch.object(worker, 'verify_model', return_value={'engine': 'faster-whisper'}), \
+                mock.patch.object(worker, 'offline_mode'), \
+                mock.patch.object(worker, 'load_audio', return_value=np.zeros(4 * worker.STT_RATE, dtype=np.float32)), \
+                mock.patch.dict(sys.modules, {'faster_whisper': SimpleNamespace(WhisperModel=lambda *a, **k: model), 'sherpa_onnx': sherpa}):
+            for name in ('segmentation/model.onnx', 'embedding/model.onnx'):
+                (Path(td) / name).parent.mkdir(parents=True, exist_ok=True); (Path(td) / name).write_bytes(b'')
+            source = Path(td) / 'a.wav'; source.write_bytes(b'x')
+            payload = {'model_path': td, 'input_path': str(source), 'diarize_model_path': td}
+            result = worker.stt(payload, lambda *a: None)
+            sherpa.OfflineSpeakerDiarization.side_effect = RuntimeError('engine failed')
+            fallback = worker.stt(payload, lambda *a: None)
+        self.assertTrue(model.transcribe.call_args.kwargs['word_timestamps'])
+        self.assertNotIn('diarize_error', result)
+        self.assertEqual(result['segments'], [{'start': 0, 'end': 2, 'text': 'Xin chào.', 'speaker': 0},
+                                              {'start': 2, 'end': 4, 'text': 'Vâng.', 'speaker': 1}])
+        # A diarization failure keeps the whole rows, without speakers.
+        self.assertEqual((fallback['segments'], fallback['diarize_error']), ([{'start': 0, 'end': 4, 'text': 'Xin chào. Vâng.'}], 'engine failed'))
 
     def test_stt_rejects_a_speaker_count_outside_1_to_8_before_transcribing(self):
         for bad in [0, 9, 2.5, '2', True]:
