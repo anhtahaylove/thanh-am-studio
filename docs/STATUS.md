@@ -430,6 +430,41 @@ download only the installer. Published on 2026-11-13 as the latest release, unsi
 download through `/releases/latest/download/` passed that check. The v1.0.0 notes now point to
 1.0.1. Evidence: `work\release-v1.0.1-sandbox`.
 
+### Vietnamese talk shows with three or more speakers, machine reference (2026-11-13)
+
+No human labels exist for this case (see above), so the reference is machine-made. Four five-minute
+stretches of two Vietnamese talk shows on YouTube marked CC-BY (a university careers talk show and a
+TV legal round table, two stretches each; a re-upload of a broadcaster's show was dropped for an
+unclear licence) were cut into the 295 rows the app shows (the app's STT path, Whisper large-v3
+turbo). Two public models that share no part with the app labelled who speaks: NVIDIA Streaming
+Sortformer v2 (end to end, at most 4 speakers) and DiariZen WavLM-large (BUT). A row counts only when
+both give it the same single speaker: 213 of 295 rows (the two agree on 73-98 % of the rows per clip).
+Agreement per row after the best one-to-one speaker match, the same in both modes (auto, and the
+count given as the number of speakers in the agreed rows):
+
+| Clip | Speakers (Sortformer / DiariZen) | v1.0.1 | After PR #44 |
+|---|---|---|---|
+| 1 | 4 (its maximum) / 6 | 88 % | 88 % |
+| 2 | 4 (its maximum) / 6 | 94 % | 94 % |
+| 3 | 3 / 4 | 44 % (every row on one speaker) | 100 % |
+| 4 | 4 (one with 2 s) / 4 | 79 % | 79 % |
+| All 213 rows | | 77.5 % | 90.6 % |
+
+Clip 3 exposed a bug in both modes. Every k-cluster cut (k, k+1, k+2) spent its spare clusters on
+1-3 s outliers (jingles, applause), so the three guests merged into one 292 s speaker, although the
+threshold cut had them apart (81 / 157 / 55 s against Sortformer's 93 / 144 / 57 s). PR #44 (main
+`eb74902`, not released yet) uses the threshold cut when the k..k+2 loop still ends with a single
+real speaker. Taking it whenever the loop fell short was tried first and rejected: AMI auto DER went
+21.8 -> 46.7 %, because there the threshold cut is fragmented. Replaying every cached AMI, ViYT-Diar
+and VIVOS run through the fix changes one item only (ViYT 019, better in both modes): ViYT auto
+18.31 / 7.50 -> 18.19 / 7.36 % DER (no collar / collar), right count 64 -> 65 of 97; count given
+18.18 / 7.29 -> 18.06 / 7.16 %. AMI and VIVOS are unchanged.
+
+Limits: this is agreement with two models, not accuracy. Rows they disagree on, often the hard
+ones, are left out, which flatters the app. The references also disagree on the number of speakers
+(4 against 6 on clips 1-2), so the count found in auto mode (3, 8, 3, 3) is not scored. Evidence:
+`work\diarization-vi-label` (`clips\SOURCES.md` with the licence quotes, `refs\*\RUN.md`, `scripts\`).
+
 ## Not verified / known gaps
 
 - Listening quality has not been judged by a human; the clipping checks above are signal analysis.
@@ -465,8 +500,9 @@ download through `/releases/latest/download/` passed that check. The v1.0.0 note
 - Voice cloning was checked against a reference made from an app preset; similarity to a real voice
   needs a human listener.
 - Diarization was measured on natural Vietnamese two-speaker conversation (ViYT-Diar) and on English
-  meetings with 3-4 speakers and 27 % overlap (AMI), not on Vietnamese conversation with three or more
-  speakers (no public labelled set found, see above). Overlapping speech gets one speaker per row (about 9-10 % of AMI speech is missed).
+  meetings with 3-4 speakers and 27 % overlap (AMI). Vietnamese conversation with three or more
+  speakers has only a machine reference (four talk-show clips, see above): no public set with human
+  labels was found. Overlapping speech gets one speaker per row (about 9-10 % of AMI speech is missed).
 - The 0.5 temperature was measured on a preset voice only; cloned voices keep the engine's default.
   Reading speed was checked for length and pitch on a test tone and end to end on one take, not by listening.
 - Installers are unsigned (SmartScreen warning); the SignPath Foundation application was submitted
