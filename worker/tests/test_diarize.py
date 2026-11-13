@@ -104,6 +104,24 @@ class KnownSpeakerCountTests(unittest.TestCase):
         turns, asked = self.run_with({2: one, 3: one, 4: one}, 2)
         self.assertEqual((asked, turns), ([2, 3, 4], one))
 
+    def test_a_tiny_cluster_does_not_count_as_a_speaker(self):
+        # Two clusters: one held almost everything, the other a 0.1 s outlier, so two people were merged.
+        merged = [turn(0, 9, 0), turn(9, 9.1, 1)]
+        three = [turn(0, 5, 0), turn(5, 9, 1), turn(9, 9.1, 2)]
+        turns, asked = self.run_with({2: merged, 3: three}, 2)
+        self.assertEqual((asked, turns), ([2, 3], [turn(0, 5, 0), turn(5, 9, 1)]))
+
+    def test_auto_count_ignores_tiny_clusters(self):
+        fragmented = [turn(0, 5, 0), turn(5, 5.1, 1), turn(6, 9, 2), turn(9, 9.1, 3)]
+        two = [turn(0, 5, 0), turn(5, 9, 1)]
+        turns, asked = self.run_with({None: fragmented, 2: two}, None)
+        self.assertEqual((asked, turns), ([None, 2], two))
+
+    def test_auto_count_keeps_a_result_without_tiny_clusters(self):
+        clean = [turn(0, 5, 0), turn(6, 9, 1)]
+        self.assertEqual(self.run_with({None: clean}, None), (clean, [None]))
+        self.assertEqual(self.run_with({None: []}, None), ([], [None]))
+
     def test_keep_speakers_keeps_the_longest_and_renumbers(self):
         turns = [turn(0, 1, 0), turn(1, 4, 1), turn(4, 4.5, 2), turn(5, 9, 2)]
         self.assertEqual(diarize.keep_speakers(turns, 2), [turn(1, 4, 0), turn(4, 4.5, 1), turn(5, 9, 1)])

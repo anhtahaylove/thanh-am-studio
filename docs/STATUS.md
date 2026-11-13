@@ -293,6 +293,41 @@ three times longer. Evidence: `work\diarization-natural` (`results\report2_fix.t
 Published as a pre-release on 2026-11-12 (20:36 UTC). The v0.1.2 release notes now point to 0.1.3
 for the speaker count fix. Evidence: `work\release-v0.1.3-sandbox`.
 
+### Long meetings and outlier clusters (2026-11-13)
+
+Diarization on natural meetings with three or four speakers and real overlap: the AMI Meeting
+Corpus test set (CC-BY 4.0; English; the 16 meetings of the pyannote "AMI-diarization-setup" split,
+`only_words` labels, Mix-Headset audio, 9.06 h, 15-50 min each; 15 meetings with 4 speakers, 1 with
+3). 27.0 % of reference speech is overlapped. Same scoring as above (10 ms frames, overlap scored,
+pooled over meetings).
+
+Bug found: on these long recordings the 0.65 threshold alone gave **41-138 speakers** per meeting
+(default "auto" setting), and with the count given 13 of 16 meetings spent a speaker on a cluster
+holding 0.3-6.4 % of the speech while two real people shared one label (ES2004a: one label held
+69 % of the speech, its busiest real speaker 42 %).
+Both come from complete-linkage clustering keeping outlier embeddings apart. Fix: a speaker now
+needs at least 3 % of the speech (`MIN_SPEAKER_SHARE`). In auto mode, when smaller clusters exist,
+the audio is clustered again into the speakers that are left; with the count given, the retry for
+more clusters now also runs when fewer than k speakers reach 3 %.
+
+| Set | Setting | 0.1.3 | Fixed |
+|---|---|---|---|
+| AMI, 16 meetings | auto: DER no collar / 0.25 s collar | 49.3 % / 41.1 %, 41-138 speakers | 22.2 % / 14.8 %, 4-9 speakers (right in 2) |
+| AMI | count given | 28.6 % / 22.8 % | 23.6 % / 17.2 % |
+| ViYT-Diar, 97 two-speaker clips | auto | 19.1 % / 8.0 %, right count 47 | 18.4 % / 7.6 %, right count 59 |
+| ViYT-Diar | count given | 18.9 % / 8.0 % | 18.2 % / 7.3 % |
+| VIVOS mixes, mean DER | count given, 2 clean / 2 noisy / 3 clean / 3 noisy | 14.8 / 17.2 / 25.1 / 28.3 % | 14.8 / 17.2 / 25.1 / 26.9 % |
+
+A 3 % minimum was the only value tried (3, 5, 8, 10 %) that improved every set: 5-10 % did slightly
+better on AMI with the count given (22.7-21.9 % no collar) but worse on ViYT (19.4 %), and 8-10 % in
+auto mode under-counted (1-3 speakers for some meetings). Auto mode still over-counts long meetings
+(4-9 found for 3-4 real speakers), so giving the count stays the better choice. Cost: each extra
+clustering runs the model again; on the AMI meetings auto mode ran it 4 times per meeting on
+average (3x the time) and the count-given mode 1.9 times. Real-time factor per run 0.17-0.23 under
+parallel load on the i5-13400F; peak 1.15 GB per process with the count given, 3.2 GB in auto mode
+before the fix. Evidence: `work\diarization-ami` (`results\report.txt`, `results\variants_report.txt`)
+and `work\diarization-share` (ViYT-Diar and VIVOS with the same cache of runs).
+
 ## Not verified / known gaps
 
 - Listening quality has not been judged by a human; the clipping checks above are signal analysis.
@@ -326,8 +361,9 @@ for the speaker count fix. Evidence: `work\release-v0.1.3-sandbox`.
 - High DPI was checked by viewport and scale emulation, not by changing Windows display scaling.
 - Voice cloning was checked against a reference made from an app preset; similarity to a real voice
   needs a human listener.
-- Diarization was measured on natural two-speaker conversation (ViYT-Diar above) but not on natural
-  conversation with three or more speakers or heavy overlap; overlapping speech gets one speaker per row.
+- Diarization was measured on natural Vietnamese two-speaker conversation (ViYT-Diar) and on English
+  meetings with 3-4 speakers and 27 % overlap (AMI), not on Vietnamese conversation with three or more
+  speakers. Overlapping speech gets one speaker per row (about 9-10 % of AMI speech is missed).
 - The 0.5 temperature was measured on a preset voice only; cloned voices keep the engine's default.
   Reading speed was checked for length and pitch on a test tone and end to end on one take, not by listening.
 - Installers are unsigned (SmartScreen warning); the SignPath Foundation application is prepared in

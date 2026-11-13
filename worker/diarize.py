@@ -14,6 +14,9 @@ EMBEDDING_FILE = 'embedding/model.onnx'
 # Cosine-distance cut when the speaker count is unknown. sherpa's default 0.5 split 2-3 TTS voices into 4 under
 # noise; 0.65 and 0.8 both found the right count on all four synthetic mixes. Tuned on little data: re-check on real recordings.
 CLUSTER_THRESHOLD = 0.65
+# A cluster with less of the speech than this is an outlier (laughter, crosstalk, noise), not a speaker. On 30-50 minute
+# four-person meetings (AMI) the threshold alone gave 41-138 clusters, most of them tiny.
+MIN_SPEAKER_SHARE = 0.03
 
 
 def diarize(audio_16k: np.ndarray, model_dir: Path, num_speakers: int | None = None) -> list[dict]:
@@ -32,22 +35,37 @@ def diarize(audio_16k: np.ndarray, model_dir: Path, num_speakers: int | None = N
         if not (model_dir / name).is_file():
             raise FileNotFoundError(f'Diarization model file missing: {model_dir / name}')
     if num_speakers is None:
-        return _turns(audio, model_dir, None)
-    # Complete-linkage clustering cut at k clusters can spend a cluster on an outlier embedding that ends
-    # up with no speech of its own, leaving k-1 speakers (17 of 97 real two-speaker dialogues).
+        turns = _turns(audio, model_dir, None)
+        num_speakers = max(1, real_speakers(turns))
+        if not turns or num_speakers == len({t['speaker'] for t in turns}):
+            return turns
+        # Outlier clusters found: cluster again into the speakers that are left.
+    # Complete-linkage clustering cut at k clusters can spend a cluster on an outlier embedding with little or
+    # no speech of its own, merging two real speakers (17 of 97 real two-speaker dialogues lost one).
     # Ask for up to two more clusters until k real speakers appear, then keep the k who speak most.
     for extra in range(3):
         turns = _turns(audio, model_dir, num_speakers + extra)
-        if len({t['speaker'] for t in turns}) >= num_speakers:
+        if real_speakers(turns) >= num_speakers:
             break
     return keep_speakers(turns, num_speakers)
 
 
-def keep_speakers(turns: list[dict], count: int) -> list[dict]:
-    """Keep the turns of the `count` speakers with the most speech, renumbered by first appearance."""
+def speech_seconds(turns: list[dict]) -> dict[int, float]:
     total = {}
     for turn in turns:
         total[turn['speaker']] = total.get(turn['speaker'], 0.0) + turn['end'] - turn['start']
+    return total
+
+
+def real_speakers(turns: list[dict]) -> int:
+    """Count the speakers with at least MIN_SPEAKER_SHARE of the speech."""
+    total = speech_seconds(turns)
+    return sum(seconds >= MIN_SPEAKER_SHARE * sum(total.values()) for seconds in total.values())
+
+
+def keep_speakers(turns: list[dict], count: int) -> list[dict]:
+    """Keep the turns of the `count` speakers with the most speech, renumbered by first appearance."""
+    total = speech_seconds(turns)
     kept = set(sorted(total, key=lambda s: (-total[s], s))[:count])
     order = {}
     return [{**turn, 'speaker': order.setdefault(turn['speaker'], len(order))} for turn in turns if turn['speaker'] in kept]
