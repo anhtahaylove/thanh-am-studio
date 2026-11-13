@@ -68,3 +68,16 @@ test('project dictionary imports a semicolon CSV in one undo step and exports it
  expect(readFileSync(await (await download).path(),'utf8')).toBe('\uFEFFTừ gốc,Cách đọc\r\nTP.HCM,Thành phố Hồ Chí Minh\r\n"AI; ML",trí tuệ nhân tạo\r\n');
  await page.keyboard.press('Control+z');await expect(page.getByText('TP.HCM → Thành phố Hồ Chí Minh')).toHaveCount(0);await expect(page.getByText('AI; ML → trí tuệ nhân tạo')).toHaveCount(0);
 });
+test('speaker panel summarizes diarized rows and merges one speaker into another in one undo step',async({page})=>{
+ const row=(i:number,speaker:number,start_ms:number,end_ms:number)=>({id:`r${i}`,start_ms,end_ms,text:`Câu ${i}`,speaker});
+ const project={id:'p1',name:'Phỏng vấn',updated_at:new Date().toISOString(),revision:1,segments:[],transcript:[row(1,0,0,4000),row(2,1,4000,6000),row(3,2,6000,9000),row(4,0,9000,10000),row(5,2,10000,11000)],dictionary:{},source_asset_id:null};
+ await page.goto('/');await page.evaluate(p=>localStorage.setItem('thanh-am-preview-projects-v1',JSON.stringify([p])),project);await page.reload();
+ await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();await page.getByRole('button',{name:'Chép lời',exact:true}).click();
+ const panel=page.getByRole('group',{name:'Người nói'});await expect(panel).toContainText('Người 1');await expect(panel).toContainText('2 đoạn · 5 giây');await expect(panel).toContainText('Người 3');
+ await expect(page.getByRole('button',{name:'Nghe mẫu Người 1 (cần audio gốc)'})).toBeDisabled();
+ await page.getByRole('combobox',{name:'Gộp Người 3 vào'}).selectOption('Người 1');await page.getByRole('button',{name:'Gộp Người 3 vào Người 1'}).click();
+ await expect(page.getByText('Đã gộp 2 đoạn của Người 3 vào Người 1.',{exact:false})).toBeVisible();await expect(page.getByRole('combobox',{name:'Gộp Người 3 vào'})).toHaveCount(0);
+ await expect(panel).toContainText('4 đoạn · 9 giây');
+ const chips=page.getByRole('combobox',{name:/^Người nói tại/});await expect(chips.nth(2)).toHaveValue('0');await expect(chips.nth(4)).toHaveValue('0');
+ await page.keyboard.press('Control+z');await expect(chips.nth(2)).toHaveValue('2');await expect(page.getByRole('combobox',{name:'Gộp Người 3 vào'})).toBeVisible();
+});
