@@ -114,6 +114,7 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual(spans, [{'expected': 'bến', 'heard': 'biến', 'soft': False}])
         self.assertAlmostEqual(wer, 0.2)
         self.assertEqual(worker.compare_words('Xin chào', 'xin chào.'), (0.0, []))
+        self.assertEqual(worker.compare_words('Cứ do <en>it</en> đi, <en>push code</en>.', 'cứ do it đi, push code'), (0.0, []))
         wer, spans = worker.compare_words('giữa chợ trời xanh', 'giữa trợ chời sanh')  # merged initials only
         self.assertEqual((wer, [s['soft'] for s in spans]), (0.0, [True]))
         self.assertFalse(worker.compare_words('trời', 'chơi')[1][0]['soft'])  # tone differs: a real mismatch

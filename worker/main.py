@@ -79,7 +79,8 @@ def split_pauses(text):
 
 
 def words(text):
-    return re.findall(r'\w+', PAUSE_MARK.sub(' ', text).lower())
+    # <en>…</en> marks English words for the engine (the app's "read English words" switch); the tags are not spoken.
+    return re.findall(r'\w+', re.sub(r'</?en>', ' ', PAUSE_MARK.sub(' ', text)).lower())
 
 
 def compare_words(expected, heard):
