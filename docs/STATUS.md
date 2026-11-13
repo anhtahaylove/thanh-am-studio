@@ -297,7 +297,7 @@ for the speaker count fix. Evidence: `work\release-v0.1.3-sandbox`.
 
 Diarization on natural meetings with three or four speakers and real overlap: the AMI Meeting
 Corpus test set (CC-BY 4.0; English; the 16 meetings of the pyannote "AMI-diarization-setup" split,
-`only_words` labels, Mix-Headset audio, 9.06 h, 15-50 min each; 15 meetings with 4 speakers, 1 with
+`only_words` labels, Mix-Headset audio, 9.06 h, 14-50 min each; 15 meetings with 4 speakers, 1 with
 3). 27.0 % of reference speech is overlapped. Same scoring as above (10 ms frames, overlap scored,
 pooled over meetings).
 
@@ -316,14 +316,14 @@ more clusters now also runs when fewer than k speakers reach 3 %.
 | AMI | count given | 28.6 % / 22.8 % | 23.6 % / 17.2 % |
 | ViYT-Diar, 97 two-speaker clips | auto | 19.1 % / 8.0 %, right count 47 | 18.4 % / 7.6 %, right count 59 |
 | ViYT-Diar | count given | 18.9 % / 8.0 % | 18.2 % / 7.3 % |
-| VIVOS mixes, mean DER | count given, 2 clean / 2 noisy / 3 clean / 3 noisy | 14.8 / 17.2 / 25.1 / 28.3 % | 14.8 / 17.2 / 25.1 / 26.9 % |
+| VIVOS mixes, mean DER no collar (0.25 s collar) | count given, 2 clean / 2 noisy / 3 clean / 3 noisy | 14.8 / 17.2 / 25.1 / 28.3 % (7.5 / 9.3 / 17.4 / 20.0 %) | 14.8 / 17.2 / 25.1 / 26.9 % (7.5 / 9.3 / 17.4 / 18.7 %) |
 
 A 3 % minimum was the only value tried (3, 5, 8, 10 %) that improved every set: 5-10 % did slightly
 better on AMI with the count given (22.7-21.9 % no collar) but worse on ViYT (19.4 %), and 8-10 % in
 auto mode under-counted (1-3 speakers for some meetings). Auto mode still over-counts long meetings
 (4-9 found for 3-4 real speakers), so giving the count stays the better choice. Cost: each extra
 clustering runs the model again; on the AMI meetings auto mode ran it 4 times per meeting on
-average (3x the time) and the count-given mode 1.9 times. Real-time factor per run 0.17-0.23 under
+average (3x the time) and the count-given mode 1.9 times (1.65x the time). Real-time factor per run 0.17-0.23 under
 parallel load on the i5-13400F; peak 1.15 GB per process with the count given, 3.2 GB in auto mode
 before the fix. Evidence: `work\diarization-ami` (`results\report.txt`, `results\variants_report.txt`)
 and `work\diarization-share` (ViYT-Diar and VIVOS with the same cache of runs).
@@ -340,6 +340,29 @@ and `work\diarization-share` (ViYT-Diar and VIVOS with the same cache of runs).
 The first start of run 2 wrote no log: the Sandbox from run 1 was still shutting down. It was
 started again after all Sandbox processes had exited. Published as a pre-release on 2026-11-13; the
 v0.1.3 release notes now point to 0.1.4. Evidence: `work\release-v0.1.4-sandbox`.
+
+A later check of the v0.1.4 notes against this page and the raw evidence found no wrong numbers
+but five wording or basis slips, corrected in the published notes on 2026-11-13: meetings are 14-50
+min (not 15-50); 0.1.3's retry never ran on AMI (the outlier took a slot without triggering it);
+picking the count took 1.65x the time (1.9x is the number of model runs); two of the three new
+tests fail on 0.1.3's code; the three-speaker VIVOS figure is 17-19 % with the 0.25 s collar used
+everywhere else in the notes (25-27 % without).
+
+### v1.0.0 release (built by `.github/workflows/release.yml` from tag `v1.0.0` at `65fccce`)
+
+The first stable release: the same code as v0.1.4 with the version set to 1.0.0. Human listening
+was replaced by the machine listening below at the owner's decision (see known gaps).
+
+| Check | Result |
+|---|---|
+| Tests | CI green on PR #35 head `68014fa` |
+| Installer SHA-256 | `58e963c6f0cc13811debfa78fb3f7e2cdae1ff928add54f5edc706e6b1f6648f`; `sha256sum -c` OK after download and after an anonymous download through `/releases/latest/download/` once published |
+| Clean Sandbox run 1 on that exact installer | `full`, `reopen`, `turbo`, `offline` (network adapters disabled), `export`: 26 PASS, 0 FAIL |
+| Clean Sandbox run 2 on that exact installer | `full`, `features` (2 speakers asked and found in a 60 s dialogue, a row relabelled and found saved, script built), `ux`, `clone` (WER 6.1 %), `dpi` (4/4 sizes clean): 30 PASS, 0 FAIL |
+
+As with v0.1.4, the first start of run 2 wrote no log within 2 minutes and was started again.
+Published on 2026-11-13 as the latest release, not a pre-release, unsigned. Evidence:
+`work\release-v1.0.0-sandbox`.
 
 ## Not verified / known gaps
 
