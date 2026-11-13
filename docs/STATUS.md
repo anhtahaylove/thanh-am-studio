@@ -288,7 +288,7 @@ three times longer. Evidence: `work\diarization-natural` (`results\report2_fix.t
 | Tests | `npm test` 33, `cargo test --tests` 8 + 7, worker 33 (2 skipped; 15/15 in `test_diarize.py` with the real model); CI green on PR #30 head `ef0a4eb` |
 | Installer SHA-256 | `9961a4787ee78c14875d87053c1dfe4646be9e24102f0aa138d7f1b9ee7911cb`; `sha256sum -c` OK after download and after an anonymous download once published |
 | Clean Sandbox run 1 on that exact installer | `full`, `reopen`, `turbo`, `offline` (network adapters disabled; huggingface.co unreachable), `export`: 26 PASS, 0 FAIL |
-| Clean Sandbox run 2 on that exact installer | `full`, `features` (2 speakers asked and found in a 60 s dialogue, a row relabelled and found saved through `load_project`, script built), `ux`, `clone` (WER 4.9 %), `dpi` (4/4 sizes clean): 30 PASS, 0 FAIL |
+| Clean Sandbox run 2 on that exact installer | `full`, `features` (2 speakers asked and found in a 102 s dialogue, a row relabelled and found saved through `load_project`, script built), `ux`, `clone` (WER 4.9 %), `dpi` (4/4 sizes clean): 30 PASS, 0 FAIL |
 
 Published as a pre-release on 2026-11-12 (20:36 UTC). The v0.1.2 release notes now point to 0.1.3
 for the speaker count fix. Evidence: `work\release-v0.1.3-sandbox`.
@@ -335,7 +335,7 @@ and `work\diarization-share` (ViYT-Diar and VIVOS with the same cache of runs).
 | Tests | worker 36 (2 skipped; 18/18 in `test_diarize.py` with the real model); CI green on PR #32 head `e30f908` and PR #33 head `64ad50f` |
 | Installer SHA-256 | `b757f42e90ef1f357dbcf3e650f8764157048a60503a726a1045d8998f8830b1`; `sha256sum -c` OK after download and after an anonymous download once published |
 | Clean Sandbox run 1 on that exact installer | `full`, `reopen`, `turbo`, `offline` (network adapters disabled), `export`: 26 PASS, 0 FAIL |
-| Clean Sandbox run 2 on that exact installer | `full`, `features` (2 speakers asked and found in a 60 s dialogue, a row relabelled and found saved, script built), `ux`, `clone` (WER 3.7 %), `dpi` (4/4 sizes clean): 30 PASS, 0 FAIL |
+| Clean Sandbox run 2 on that exact installer | `full`, `features` (2 speakers asked and found in a 102 s dialogue, a row relabelled and found saved, script built), `ux`, `clone` (WER 3.7 %), `dpi` (4/4 sizes clean): 30 PASS, 0 FAIL |
 
 The first start of run 2 wrote no log: the Sandbox from run 1 was still shutting down. It was
 started again after all Sandbox processes had exited. Published as a pre-release on 2026-11-13; the
@@ -358,7 +358,7 @@ was replaced by the machine listening below at the owner's decision (see known g
 | Tests | CI green on PR #35 head `68014fa` |
 | Installer SHA-256 | `58e963c6f0cc13811debfa78fb3f7e2cdae1ff928add54f5edc706e6b1f6648f`; `sha256sum -c` OK after download and after an anonymous download through `/releases/latest/download/` once published |
 | Clean Sandbox run 1 on that exact installer | `full`, `reopen`, `turbo`, `offline` (network adapters disabled), `export`: 26 PASS, 0 FAIL |
-| Clean Sandbox run 2 on that exact installer | `full`, `features` (2 speakers asked and found in a 60 s dialogue, a row relabelled and found saved, script built), `ux`, `clone` (WER 6.1 %), `dpi` (4/4 sizes clean): 30 PASS, 0 FAIL |
+| Clean Sandbox run 2 on that exact installer | `full`, `features` (2 speakers asked and found in a 102 s dialogue, a row relabelled and found saved, script built), `ux`, `clone` (WER 6.1 %), `dpi` (4/4 sizes clean): 30 PASS, 0 FAIL |
 
 As with v0.1.4, the first start of run 2 wrote no log within 2 minutes and was started again.
 Published on 2026-11-13 as the latest release, not a pre-release, unsigned. Evidence:
@@ -419,7 +419,7 @@ from their public pages only.
 | Automatic count | cached runs replayed through the merged `diarize()`: the table in "Automatic count: a final share" above |
 | Installer SHA-256 | `ddcfe0a7d687fe505c4d1631794155e87707dae75a21e3df5cabd34205acb004`; `sha256sum -c` OK after download |
 | Clean Sandbox run 1 on that exact installer | `full`, `reopen`, `turbo`, `offline` (network adapters disabled), `export`: 26 PASS, 0 FAIL |
-| Clean Sandbox run 2 on that exact installer | `full`, `features` (2 speakers asked and found in a 60 s dialogue, a row relabelled and found saved, script built), `ux`, `clone` (WER 7.3 %), `dpi` (4/4 sizes, 24/24 page views clean): 30 PASS, 0 FAIL |
+| Clean Sandbox run 2 on that exact installer | `full`, `features` (2 speakers asked and found in a 102 s dialogue, a row relabelled and found saved, script built), `ux`, `clone` (WER 7.3 %), `dpi` (4/4 sizes, 24/24 page views clean): 30 PASS, 0 FAIL |
 
 Clone WER across the last three installers was 3.7 %, 6.1 % and 7.3 % on the same 5 sentences; the
 voice engine has no fixed seed, so this is take-to-take variation, not a change in 1.0.1 (which only
@@ -453,7 +453,7 @@ count given as the number of speakers in the agreed rows):
 Clip 3 exposed a bug in both modes. Every k-cluster cut (k, k+1, k+2) spent its spare clusters on
 1-3 s outliers (jingles, applause), so the three guests merged into one 292 s speaker, although the
 threshold cut had them apart (81 / 157 / 55 s against Sortformer's 93 / 144 / 57 s). PR #44 (main
-`eb74902`, not released yet) uses the threshold cut when the k..k+2 loop still ends with a single
+`eb74902`, released in 1.0.2) uses the threshold cut when the k..k+2 loop still ends with a single
 real speaker. Taking it whenever the loop fell short was tried first and rejected: AMI auto DER went
 21.8 -> 46.7 %, because there the threshold cut is fragmented. Replaying every cached AMI, ViYT-Diar
 and VIVOS run through the fix changes one item only (ViYT 019, better in both modes): ViYT auto
@@ -464,6 +464,27 @@ Limits: this is agreement with two models, not accuracy. Rows they disagree on, 
 ones, are left out, which flatters the app. The references also disagree on the number of speakers
 (4 against 6 on clips 1-2), so the count found in auto mode (3, 8, 3, 3) is not scored. Evidence:
 `work\diarization-vi-label` (`clips\SOURCES.md` with the licence quotes, `refs\*\RUN.md`, `scripts\`).
+
+### v1.0.2 release (built by `.github/workflows/release.yml` from tag `v1.0.2` at `c9241bf`)
+
+| Check | Result |
+|---|---|
+| Tests | CI green on PR #44 head `8c3b208` and the version bump PR #46 head `4b642d4`: `npm test` 33, Playwright 8, `cargo test --tests` 8 + 7, worker 39 (4 skipped in CI, 2 locally; 21/21 in `test_diarize.py` with the real model); the new test fails on 1.0.1's code |
+| Speaker separation | the talk-show and replay tables in the section above |
+| Installer SHA-256 | `91a4c7c77fa6573298a4984d6c3bb0d9c76f281f951bf6f487d26bdf4355448b`; `sha256sum -c` OK after download |
+| Clean Sandbox run 1 on that exact installer | `full`, `reopen`, `turbo`, `offline` (network adapters disabled), `export`: 26 PASS, 0 FAIL |
+| Clean Sandbox run 2 on that exact installer | `full`, `features` (2 speakers asked and found in a 102 s dialogue, 21 rows, a row relabelled and found saved, script built), `ux`, `clone` (WER 6.1 %), `dpi` (4/4 sizes, 24/24 page views clean): 30 PASS, 0 FAIL |
+
+The Sandbox runs exercise speaker separation on a clean two-speaker dialogue only; the case fixed in
+1.0.2 was checked with the talk-show clips on the development machine. An independent check of the
+draft notes against the evidence found no wrong numbers in the new text; it led to stating the base
+of the clip-3 figure (50 scored lines), that the other three clips are unchanged, and that the 4 vs 6
+disagreement is on two clips. It also found that the Sandbox dialogue is 102 s, not 60 s: the same
+file (SHA-256 `eb1d55ed…`) was used from 0.1.3 on, so the 0.1.3 to 1.0.1 rows above and those
+releases' notes were corrected. The 0.1.1 and 0.1.2 runs could not be re-checked (their input is no
+longer kept). Published on 2026-11-13 as the latest release, unsigned; an anonymous download through
+`/releases/latest/download/` passed `sha256sum -c --ignore-missing`. The 1.0.1 notes now point to
+1.0.2. Evidence: `work\release-v1.0.2-sandbox`.
 
 ## Not verified / known gaps
 
