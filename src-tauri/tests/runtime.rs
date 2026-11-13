@@ -56,3 +56,21 @@ fn stt_speaker_count_is_bounded_and_needs_diarization(){
  assert!(prepare_request(&s,&job(json!({"num_speakers":2})),None).unwrap()["payload"]["num_speakers"].is_null());
  for bad in [json!(0),json!(9),json!(2.5),json!("2")]{assert_eq!(prepare_request(&s,&job(json!({"diarize":true,"num_speakers":bad})),None).unwrap_err(),"INVALID_SPEAKERS");}
 }
+#[test]
+fn worker_crash_codes_get_a_plain_cause(){
+ use thanh_am_studio::runtime::exit_hint;
+ assert!(exit_hint(Some(0xC000001Du32 as i32)).contains("AVX"));
+ assert!(exit_hint(Some(0xC0000017u32 as i32)).contains("hết bộ nhớ"));
+ assert!(exit_hint(Some(0xC0000005u32 as i32)).contains("worker.log"));
+ assert_eq!(exit_hint(Some(1)),"");assert_eq!(exit_hint(None),"");
+}
+#[cfg(windows)]
+#[test]
+fn worker_keeps_the_machine_awake_until_it_ends(){
+ use windows_sys::Win32::System::Power::*;
+ let awake=thanh_am_studio::runtime::Awake::hold();
+ // SetThreadExecutionState returns the state it replaces.
+ assert_ne!(unsafe{SetThreadExecutionState(ES_CONTINUOUS|ES_SYSTEM_REQUIRED)}&ES_SYSTEM_REQUIRED,0);
+ drop(awake);
+ assert_eq!(unsafe{SetThreadExecutionState(ES_CONTINUOUS)}&ES_SYSTEM_REQUIRED,0);
+}

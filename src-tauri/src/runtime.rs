@@ -8,6 +8,17 @@ pub const MODELS:&[(&str,&str,&str,&str)] = &[("vieneu-v3","VieNeu v3 Turbo","tt
 pub const TTS_BATCH:usize=32;
 /// Workers join a kill-on-close job object so a crashed or killed app never leaves Python running.
 #[cfg(windows)] fn worker_job()->usize{static JOB:std::sync::OnceLock<usize>=std::sync::OnceLock::new();*JOB.get_or_init(||unsafe{use windows_sys::Win32::System::JobObjects::*;let h=CreateJobObjectW(std::ptr::null(),std::ptr::null());let mut info:JOBOBJECT_EXTENDED_LIMIT_INFORMATION=std::mem::zeroed();info.BasicLimitInformation.LimitFlags=JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;SetInformationJobObject(h,JobObjectExtendedLimitInformation,&info as *const _ as *const _,std::mem::size_of_val(&info) as u32);h as usize})}
+/// Keeps Windows from sleeping (the screen may still turn off) while a worker runs. The request belongs to the
+/// calling thread, and the queue runs every worker on its one thread.
+pub struct Awake;
+impl Awake{pub fn hold()->Self{#[cfg(windows)] unsafe{use windows_sys::Win32::System::Power::*;SetThreadExecutionState(ES_CONTINUOUS|ES_SYSTEM_REQUIRED);}Awake}}
+impl Drop for Awake{fn drop(&mut self){#[cfg(windows)] unsafe{use windows_sys::Win32::System::Power::*;SetThreadExecutionState(ES_CONTINUOUS);}}}
+/// A plain-language cause for the Windows crash codes a worker most often dies with.
+pub fn exit_hint(code:Option<i32>)->&'static str{match code.map(|c|c as u32){
+ Some(0xC000001D)=>"CPU của máy có thể thiếu tập lệnh mà engine cần (ví dụ AVX); hay gặp trên CPU đời cũ. ",
+ Some(0xC0000017)|Some(0xC00000FD)=>"Máy hết bộ nhớ. Đóng bớt ứng dụng rồi thử lại. ",
+ Some(0xC0000005)|Some(0xC0000409)=>"Engine dừng đột ngột. Thử lại; nếu lặp lại, hãy gửi kèm worker.log khi báo lỗi. ",
+ _=>""}}
 pub struct Runtime {pub resource:PathBuf,pub source:PathBuf,pub shutdown:AtomicBool}
 fn required(v:&Value,k:&str)->Result<String>{v[k].as_str().filter(|x|!x.is_empty()).map(str::to_string).ok_or_else(||format!("INVALID_PAYLOAD: {k}"))}
 fn model_path(s:&Store,id:&str)->Result<PathBuf>{if !MODELS.iter().any(|m|m.0==id){return Err("INVALID_MODEL".into())}Ok(s.root.join("models").join(id))}
@@ -37,7 +48,7 @@ impl Runtime{
  pub fn status(&self)->Value{let p=self.python();let f=self.ffmpeg();let w=self.worker().is_file();json!({"python_ready":p.is_some(),"ffmpeg_ready":f.is_some(),"worker_ready":w,"python_path":p,"ffmpeg_path":f,"message":if !w{"Thiếu worker. Kiểm tra bộ cài."}else if p.is_none(){"Chưa có runtime Python riêng. Chạy scripts/setup-runtime.ps1 khi phát triển, hoặc cài gói runtime đầy đủ."}else if f.is_none(){"Thiếu FFmpeg riêng để xuất audio. TTS/STT có thể dùng sau khi tải model."}else{"Runtime đã tìm thấy. Cần tải model trước lần sử dụng đầu tiên."}})}
  pub fn start(self:Arc<Self>,store:Arc<Store>){thread::spawn(move||while !self.shutdown.load(Ordering::Relaxed){match store.claim_next(){Ok(Some(j))=>{let mut jobs=vec![j];if jobs[0]["kind"]=="tts"{jobs.extend(store.claim_queued("tts",TTS_BATCH-1).unwrap_or_default());}if let Err(e)=self.execute(&store,&jobs){if !self.shutdown.load(Ordering::Relaxed){for j in &jobs{let _=store.fail(j["id"].as_str().unwrap_or(""),&e);}}}},Ok(None)=>thread::sleep(Duration::from_millis(300)),Err(_)=>thread::sleep(Duration::from_secs(1))}});}
  fn execute(&self,s:&Store,jobs:&[Value])->Result<()> {
-  let j=&jobs[0];let id=required(j,"id")?;let python=self.python().ok_or("RUNTIME_MISSING: Cài runtime Python riêng trước.")?;let mut request=prepare_request(s,j,self.ffmpeg().as_deref())?;
+  let _awake=Awake::hold();let j=&jobs[0];let id=required(j,"id")?;let python=self.python().ok_or("RUNTIME_MISSING: Cài runtime Python riêng trước.")?;let mut request=prepare_request(s,j,self.ffmpeg().as_deref())?;
   let is_tts=j["kind"]=="tts";let mut ids:Vec<String>=Vec::new();
   if is_tts{let mut items=Vec::new();for job in jobs{let jid=required(job,"id")?;match prepare_request(s,job,self.ffmpeg().as_deref()){Ok(r)=>{let mut item=r["payload"].clone();item["output_name"]=json!(format!("{jid}.wav"));items.push(item);ids.push(jid);},Err(e)=>{let _=s.fail(&jid,&e);}}}if items.is_empty(){return Ok(())}request["payload"]=json!({"model_path":items[0]["model_path"].clone(),"items":items});}
   let mut pending:std::collections::HashSet<usize>=(0..ids.len()).collect();let out=PathBuf::from(request["output_dir"].as_str().ok_or("INVALID_OUTPUT")?);let _=fs::remove_dir_all(&out);fs::create_dir_all(&out).map_err(|e|e.to_string())?;
@@ -53,7 +64,7 @@ impl Runtime{
    let all_cancelled=if is_tts{pending.iter().all(|&i|s.job(&ids[i]).map(|x|x["status"]=="cancelled").unwrap_or(true))}else{s.job(&id)?["status"]=="cancelled"};
    if self.shutdown.load(Ordering::Relaxed)||all_cancelled{let _=child.kill();let _=child.wait();return Err("CANCELLED".into())}
    while let Ok(line)=rx.try_recv(){if line.len()>8_000_000{failure=Some("WORKER_PROTOCOL: oversized event".into());continue}if let Ok(e)=serde_json::from_str::<Value>(&line){if e["id"]!=id||e["protocol"]!=1{continue}match e["event"].as_str(){Some("item")=>self.finish_item(s,&ids,&mut pending,&e,&request),Some("progress")=>{let target=if is_tts{pending.iter().min().map(|&i|ids[i].clone())}else{Some(id.clone())};if let Some(t)=target{let _=s.progress(&t,e["progress"].as_f64().unwrap_or(0.0));}},Some("result")=>result=Some(e["result"].clone()),Some("error")=>failure=Some(format!("{}: {}",e["code"].as_str().unwrap_or("WORKER_ERROR"),e["message"].as_str().unwrap_or("Lỗi worker"))),_=>{}}}}
-   if let Some(exit)=child.try_wait().map_err(|e|e.to_string())?{for line in rx.iter(){if let Ok(e)=serde_json::from_str::<Value>(&line){if e["id"]==id&&e["protocol"]==1{match e["event"].as_str(){Some("item")=>self.finish_item(s,&ids,&mut pending,&e,&request),Some("result")=>result=Some(e["result"].clone()),Some("error")=>failure=Some(format!("{}: {}",e["code"].as_str().unwrap_or("WORKER_ERROR"),e["message"].as_str().unwrap_or("Lỗi worker"))),_=>{}}}}}if !exit.success()&&failure.is_none(){failure=Some(format!("WORKER_EXIT: {exit}. Xem worker.log trong thư mục job."))}break;}
+   if let Some(exit)=child.try_wait().map_err(|e|e.to_string())?{for line in rx.iter(){if let Ok(e)=serde_json::from_str::<Value>(&line){if e["id"]==id&&e["protocol"]==1{match e["event"].as_str(){Some("item")=>self.finish_item(s,&ids,&mut pending,&e,&request),Some("result")=>result=Some(e["result"].clone()),Some("error")=>failure=Some(format!("{}: {}",e["code"].as_str().unwrap_or("WORKER_ERROR"),e["message"].as_str().unwrap_or("Lỗi worker"))),_=>{}}}}}if !exit.success()&&failure.is_none(){failure=Some(format!("WORKER_EXIT: {exit}. {}Xem worker.log trong thư mục job.",exit_hint(exit.code())))}break;}
    thread::sleep(Duration::from_millis(100));
   }
   if is_tts{let reason=failure.unwrap_or_else(||"WORKER_PROTOCOL: No result for this segment".into());for i in pending{let _=s.fail(&ids[i],&reason);}return Ok(())}
