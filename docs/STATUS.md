@@ -364,6 +364,35 @@ As with v0.1.4, the first start of run 2 wrote no log within 2 minutes and was s
 Published on 2026-11-13 as the latest release, not a pre-release, unsigned. Evidence:
 `work\release-v1.0.0-sandbox`.
 
+### Automatic count: a final share for the finished result (2026-11-13)
+
+The 3 % rule picks the count on the first clustering, which on long meetings is split into dozens of
+small clusters, so the share of each leftover cluster is measured against a fragmented total. After
+re-clustering, real AMI speakers hold 10-40 % of the speech and the extra clusters 0.3-5 %. Auto mode
+now also drops speakers under 4 % (`MIN_AUTO_SHARE`) from its finished result, keeping at least one.
+The count-given mode is unchanged. Measured by replaying the cached model runs of the studies above
+through the repository's `diarize()` (same scoring; ViYT-Diar two-speaker clips):
+
+| Set, auto mode | Before: DER no collar / 0.25 s collar, right count, mean count error | After |
+|---|---|---|
+| AMI, 16 meetings, 3-4 speakers | 22.2 / 14.8 %, 2/16, 2.38 (4-9 found) | 21.8 / 14.5 %, 11/16, 0.44 (2-6 found) |
+| ViYT-Diar, 97 clips | 18.4 / 7.6 %, 59/97, 0.45 | 18.3 / 7.5 %, 64/97, 0.34 |
+| VIVOS mixes, 48 | 23.6 / 16.1 %, 30/48, 0.40 | 23.5 / 16.1 %, 34/48, 0.31 |
+
+No extra model runs. A per-file bootstrap puts the AMI DER gain at -0.68 to -0.19 points (95 %); on
+ViYT and VIVOS the interval includes 0, so those show "not worse" only. 3.5-4.5 % all pass the same bar;
+5 % makes VIVOS and ViYT slightly worse. Cost of the cut: a speaker who really holds under 4 % is
+dropped (3 ViYT clips lose one; AMI ES2004a and TS3003a get worse, 42.0 -> 43.6 % and 19.5 -> 20.5 %
+without collar), and two AMI meetings are now under-counted (2 and 3 found for 4). In the app their
+transcript rows go to the nearest kept speaker. Tried and rejected: a speech coverage rule, a share
+relative to the largest speaker, a gap rule on sorted shares, a minimum number of turns. Evidence:
+`work\diarization-autocount` (`results\REPORT.md`, `scripts\verify_repo.py`).
+
+A search on 2026-11-13 for natural Vietnamese conversation with three or more speakers and human
+time labels found no usable public set: MSDWild has no Vietnamese in its source languages, M3SD has
+pseudo-labels and no files, `tnd-ai/speaker-diarization-raw` is gated without a license, the other
+Vietnamese speaker sets are two-speaker or speaker-verification data, and VLSP has no diarization task.
+
 ## Not verified / known gaps
 
 - Listening quality has not been judged by a human; the clipping checks above are signal analysis.
@@ -400,7 +429,7 @@ Published on 2026-11-13 as the latest release, not a pre-release, unsigned. Evid
   needs a human listener.
 - Diarization was measured on natural Vietnamese two-speaker conversation (ViYT-Diar) and on English
   meetings with 3-4 speakers and 27 % overlap (AMI), not on Vietnamese conversation with three or more
-  speakers. Overlapping speech gets one speaker per row (about 9-10 % of AMI speech is missed).
+  speakers (no public labelled set found, see above). Overlapping speech gets one speaker per row (about 9-10 % of AMI speech is missed).
 - The 0.5 temperature was measured on a preset voice only; cloned voices keep the engine's default.
   Reading speed was checked for length and pitch on a test tone and end to end on one take, not by listening.
 - Installers are unsigned (SmartScreen warning); the SignPath Foundation application is prepared in
