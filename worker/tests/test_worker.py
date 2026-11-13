@@ -171,6 +171,37 @@ class WorkerTests(unittest.TestCase):
         # A diarization failure keeps the whole rows, without speakers.
         self.assertEqual((fallback['segments'], fallback['diarize_error']), ([{'start': 0, 'end': 4, 'text': 'Xin chào. Vâng.'}], 'engine failed'))
 
+    def test_stt_with_speakers_survives_an_empty_word_alignment(self):
+        from types import SimpleNamespace
+        from unittest import mock
+        import numpy as np
+        segment = SimpleNamespace(start=0, end=4, text=' Xin chào. Vâng.', words=None)
+        def segments(with_words):  # faster-whisper 1.2.1 raises mid-generator on CTranslate2's empty alignment
+            yield segment
+            if with_words:
+                raise IndexError('index 0 is out of bounds for axis 0 with size 0')
+        model = mock.Mock()
+        model.transcribe.side_effect = lambda *a, **k: (segments(k['word_timestamps']), SimpleNamespace(duration=4, language='vi'))
+        sherpa = mock.Mock()
+        sherpa.OfflineSpeakerDiarization.return_value.sample_rate = 16000
+        sherpa.OfflineSpeakerDiarization.return_value.process.return_value.sort_by_start_time.return_value = [
+            SimpleNamespace(start=0, end=1, speaker=0), SimpleNamespace(start=1, end=4, speaker=1)]
+        with tempfile.TemporaryDirectory() as td, \
+                mock.patch.object(worker, 'verify_model', return_value={'engine': 'faster-whisper'}), \
+                mock.patch.object(worker, 'offline_mode'), \
+                mock.patch.object(worker, 'load_audio', return_value=np.zeros(4 * worker.STT_RATE, dtype=np.float32)), \
+                mock.patch.dict(sys.modules, {'faster_whisper': SimpleNamespace(WhisperModel=lambda *a, **k: model), 'sherpa_onnx': sherpa}):
+            for name in ('segmentation/model.onnx', 'embedding/model.onnx'):
+                (Path(td) / name).parent.mkdir(parents=True, exist_ok=True); (Path(td) / name).write_bytes(b'')
+            source = Path(td) / 'a.wav'; source.write_bytes(b'x')
+            result = worker.stt({'model_path': td, 'input_path': str(source), 'diarize_model_path': td}, lambda *a: None)
+            with self.assertRaises(IndexError):  # without speakers nothing asks for word times, so a real error stays one
+                model.transcribe.side_effect = lambda *a, **k: (segments(True), SimpleNamespace(duration=4, language='vi'))
+                worker.stt({'model_path': td, 'input_path': str(source)}, lambda *a: None)
+        self.assertEqual([c.kwargs['word_timestamps'] for c in model.transcribe.call_args_list[:2]], [True, False])
+        self.assertNotIn('diarize_error', result)
+        self.assertEqual(result['segments'], [{'start': 0, 'end': 4, 'text': 'Xin chào. Vâng.', 'speaker': 1}])  # whole row kept
+
     def test_stt_rejects_a_speaker_count_outside_1_to_8_before_transcribing(self):
         for bad in [0, 9, 2.5, '2', True]:
             with self.subTest(bad=bad), self.assertRaises(worker.WorkerError) as ctx:
