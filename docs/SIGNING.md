@@ -22,9 +22,11 @@ Installers are unsigned today. This page is the checklist for the free open sour
 1. Make sure GitHub two-factor authentication is on for `anhtahaylove`. Done 2026-11-13.
 2. Apply at <https://signpath.org/apply> with the repository URL, the release page, and the
    README policy section. Accepting SignPath's terms is the owner's decision. Submitted by the
-   owner on 2026-11-13 (category Audio, individual maintainer, GitHub Actions). No confirmation
-   email arrived, so the owner submitted it a second time the same day; the page then showed
-   "Form submitted. Thank you, we'll be in touch soon." Waiting for SignPath's reply by email.
+   owner on 2026-11-13 (category Audio, individual maintainer, GitHub Actions), twice: the first
+   confirmation email went unnoticed, so the form was sent again (the page showed "Form submitted.
+   Thank you, we'll be in touch soon."). SignPath's OSS support answered each submission by email
+   the same day: the application was received and they will reply "within the next few business
+   days with next steps or any follow-up questions".
 3. After approval: install the [SignPath GitHub App](https://github.com/apps/signpath) on this
    repository, enable MFA on the SignPath account, and create an API token for a submitter user.
 4. Store it as the repository secret `SIGNPATH_API_TOKEN`, and the organization id, project slug

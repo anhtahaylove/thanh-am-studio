@@ -383,15 +383,52 @@ No extra model runs. A per-file bootstrap puts the AMI DER gain at -0.68 to -0.1
 ViYT and VIVOS the interval includes 0, so those show "not worse" only. 3.5-4.5 % all pass the same bar;
 5 % makes VIVOS and ViYT slightly worse. Cost of the cut: a speaker who really holds under 4 % is
 dropped (3 ViYT clips lose one; AMI ES2004a and TS3003a get worse, 42.0 -> 43.6 % and 19.5 -> 20.5 %
-without collar), and two AMI meetings are now under-counted (2 and 3 found for 4). In the app their
+without collar), and two AMI meetings are now under-counted (2 and 3 found for 4) while three stay over-counted (4
+found for 3, 5 and 6 for 4). In the app their
 transcript rows go to the nearest kept speaker. Tried and rejected: a speech coverage rule, a share
 relative to the largest speaker, a gap rule on sorted shares, a minimum number of turns. Evidence:
 `work\diarization-autocount` (`results\REPORT.md`, `scripts\verify_repo.py`).
 
-A search on 2026-11-13 for natural Vietnamese conversation with three or more speakers and human
-time labels found no usable public set: MSDWild has no Vietnamese in its source languages, M3SD has
-pseudo-labels and no files, `tnd-ai/speaker-diarization-raw` is gated without a license, the other
-Vietnamese speaker sets are two-speaker or speaker-verification data, and VLSP has no diarization task.
+### No public Vietnamese multi-speaker set (searched 2026-11-13)
+
+No public dataset was found with natural Vietnamese conversation, three or more speakers, human
+time-stamped speaker labels, a free download and a license that allows evaluation, so diarization
+on such conversation is still unmeasured. Checked (Hugging Face, GitHub, OpenSLR, Zenodo, papers,
+VLSP tasks):
+
+| Dataset | Why it does not fit |
+|---|---|
+| MSDWild (multilingual in-the-wild diarization, RTTM) | Source videos were searched in Chinese, Thai, Korean, Japanese, German, Portuguese and Arabic; no Vietnamese, and no language labels to filter by |
+| M3SD (Hugging Face `OldDragon/M3SD`) | Automatic pseudo-labels; the repository holds only a README, no data |
+| `tnd-ai/speaker-diarization-raw` (Hugging Face) | Vietnamese podcasts, talk shows and calls, but gated behind a manual account request and without a license; labels could not be confirmed |
+| DataHive Vietnamese Conversations (Hugging Face, CC-BY-4.0) | Sample of under 1,000 two-speaker clips with "silver" labels from per-channel VAD |
+| ViYT-Diar (Hugging Face, Apache-2.0) | Already used above: two-speaker clips plus three single-speaker ones |
+| VieSpeaker, VoxVietnam, VietPrism, VLSP 2021 speaker verification, Vietnam-Celeb | Speaker recognition or verification data without time-stamped diarization labels |
+| VLSP shared tasks | No diarization task (closest: speaker verification 2021, voice conversion 2025) |
+| SpeechDataAI, Shaip, DataoceanAI | Paid or commercial licenses, two-speaker conversation |
+| Meeting corpora | None in Vietnamese; AliMeeting (OpenSLR) is Mandarin |
+
+The licence agreement of MSDWild was not read and the gated set was not opened, so both are listed
+from their public pages only.
+
+### v1.0.1 release (built by `.github/workflows/release.yml` from tag `v1.0.1` at `82d0903`)
+
+| Check | Result |
+|---|---|
+| Tests | CI green on PR #41 head `69a2260`: `npm test` 33, Playwright 8, `cargo test --tests` 8 + 7, worker 38 (4 skipped in CI, 2 locally; 20/20 in `test_diarize.py` with the real model); the new auto-mode test fails on 1.0.0's code |
+| Automatic count | cached runs replayed through the merged `diarize()`: the table in "Automatic count: a final share" above |
+| Installer SHA-256 | `ddcfe0a7d687fe505c4d1631794155e87707dae75a21e3df5cabd34205acb004`; `sha256sum -c` OK after download |
+| Clean Sandbox run 1 on that exact installer | `full`, `reopen`, `turbo`, `offline` (network adapters disabled), `export`: 26 PASS, 0 FAIL |
+| Clean Sandbox run 2 on that exact installer | `full`, `features` (2 speakers asked and found in a 60 s dialogue, a row relabelled and found saved, script built), `ux`, `clone` (WER 7.3 %), `dpi` (4/4 sizes, 24/24 page views clean): 30 PASS, 0 FAIL |
+
+Clone WER across the last three installers was 3.7 %, 6.1 % and 7.3 % on the same 5 sentences; the
+voice engine has no fixed seed, so this is take-to-take variation, not a change in 1.0.1 (which only
+touches speaker separation). An independent check of the draft notes against this page found no
+wrong numbers; it led to calling the ViYT-Diar change "not worse" (its bootstrap interval includes 0),
+naming the three meetings still over-counted, and `sha256sum -c --ignore-missing` for readers who
+download only the installer. Published on 2026-11-13 as the latest release, unsigned; an anonymous
+download through `/releases/latest/download/` passed that check. The v1.0.0 notes now point to
+1.0.1. Evidence: `work\release-v1.0.1-sandbox`.
 
 ## Not verified / known gaps
 
@@ -432,6 +469,6 @@ Vietnamese speaker sets are two-speaker or speaker-verification data, and VLSP h
   speakers (no public labelled set found, see above). Overlapping speech gets one speaker per row (about 9-10 % of AMI speech is missed).
 - The 0.5 temperature was measured on a preset voice only; cloned voices keep the engine's default.
   Reading speed was checked for length and pitch on a test tone and end to end on one take, not by listening.
-- Installers are unsigned (SmartScreen warning); the SignPath Foundation application is prepared in
-  [SIGNING.md](SIGNING.md) and waits on the owner. CUDA is not enabled.
+- Installers are unsigned (SmartScreen warning); the SignPath Foundation application was submitted
+  on 2026-11-13 and awaits their reply ([SIGNING.md](SIGNING.md)). CUDA is not enabled.
 - Preview does not apply loudness normalization; export does when "Chuẩn hóa" is on.
