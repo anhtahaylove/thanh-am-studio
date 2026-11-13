@@ -331,6 +331,7 @@ and `work\diarization-share` (ViYT-Diar and VIVOS with the same cache of runs).
 ## Not verified / known gaps
 
 - Listening quality has not been judged by a human; the clipping checks above are signal analysis.
+  On 2026-11-13 the owner accepted the machine listening below in place of a human listening pass.
   The listening pack (first 20 sentences as separate files in script order, plus the full render) is
   produced by the gate for an A/B pass. STT round-trip shows audible-risk words (e.g. "giọng" heard
   as "dọng"); these are flagged for listening, not treated as proof of mispronunciation.
