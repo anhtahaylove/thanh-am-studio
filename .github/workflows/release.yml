@@ -1,6 +1,6 @@
 name: release
-# Builds the Windows installer with the bundled runtime from the tagged revision and
-# attaches it, its SHA-256, the SBOM and third-party notices to a DRAFT release.
+# Builds the Windows installer with the bundled runtime from the tagged revision, has it signed
+# through SignPath, and attaches it, its SHA-256, the SBOM and third-party notices to a DRAFT release.
 on:
   push:
     tags: ['v*']
@@ -27,12 +27,43 @@ jobs:
       # tauri-build needs the bundled resources to exist, so test after the runtime is built.
       - run: cargo test --manifest-path src-tauri/Cargo.toml --tests --locked
       - run: npm run tauri build -- --ci
-      - name: Checksums
+      - name: Installer with an ASCII name
         shell: pwsh
         run: |
           $exe = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe
           # GitHub renames assets with spaces/diacritics, so ship an ASCII name that SHA256SUMS can match.
           Copy-Item $exe.FullName (Join-Path release ('ThanhAmStudio_' + ($exe.Name -replace '^.*?_', '')))
+      # SignPath signs only files that a GitHub-hosted workflow stored as an artifact.
+      - name: Upload unsigned installer
+        id: unsigned
+        uses: actions/upload-artifact@v7
+        with:
+          path: release/ThanhAmStudio_*-setup.exe
+          archive: false
+      - name: Sign installer (an approver confirms the request in SignPath)
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          # Leaves the approver an hour; re-run the job if the request was approved later.
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: release
+          skip-decompress: true
+      - name: Check the signature
+        shell: pwsh
+        run: |
+          $sig = Get-AuthenticodeSignature (Get-ChildItem release/ThanhAmStudio_*-setup.exe).FullName
+          if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'SignPath Foundation') {
+            throw "Installer signature: $($sig.Status) $($sig.SignerCertificate.Subject)"
+          }
+          "Signed by $($sig.SignerCertificate.Subject)"
+      - name: Checksums
+        shell: pwsh
+        run: |
           # LF line endings so `sha256sum -c SHA256SUMS.txt` works as published.
           $sums = Get-ChildItem release -File | Get-FileHash -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" }
           [IO.File]::WriteAllText((Join-Path $PWD 'release/SHA256SUMS.txt'), (($sums -join "`n") + "`n"))
@@ -40,4 +71,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
-        run: gh release create $env:GITHUB_REF_NAME --draft --prerelease --title "Thanh Âm Studio $env:GITHUB_REF_NAME" --notes "Unsigned Windows x64 installer (CPU). Built from $env:GITHUB_SHA. See SHA256SUMS.txt, sbom.cdx.json and THIRD-PARTY-NOTICES.txt." (Get-ChildItem release -File).FullName
+        run: gh release create $env:GITHUB_REF_NAME --draft --prerelease --title "Thanh Âm Studio $env:GITHUB_REF_NAME" --notes "Windows x64 installer (CPU), code signed through SignPath Foundation. Built from $env:GITHUB_SHA. See SHA256SUMS.txt, sbom.cdx.json and THIRD-PARTY-NOTICES.txt." (Get-ChildItem release -File).FullName
