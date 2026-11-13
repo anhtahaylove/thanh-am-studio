@@ -38,11 +38,12 @@ def diarize(audio_16k: np.ndarray, model_dir: Path, num_speakers: int | None = N
         if not (model_dir / name).is_file():
             raise FileNotFoundError(f'Diarization model file missing: {model_dir / name}')
     auto = num_speakers is None
+    threshold_cut = None
     if auto:
-        turns = _turns(audio, model_dir, None)
-        num_speakers = max(1, real_speakers(turns))
-        if not turns or num_speakers == len({t['speaker'] for t in turns}):
-            return drop_small_speakers(turns)
+        threshold_cut = _turns(audio, model_dir, None)
+        num_speakers = max(1, real_speakers(threshold_cut))
+        if not threshold_cut or num_speakers == len({t['speaker'] for t in threshold_cut}):
+            return drop_small_speakers(threshold_cut)
         # Outlier clusters found: cluster again into the speakers that are left.
     # Complete-linkage clustering cut at k clusters can spend a cluster on an outlier embedding with little or
     # no speech of its own, merging two real speakers (17 of 97 real two-speaker dialogues lost one).
@@ -51,6 +52,15 @@ def diarize(audio_16k: np.ndarray, model_dir: Path, num_speakers: int | None = N
         turns = _turns(audio, model_dir, num_speakers + extra)
         if real_speakers(turns) >= num_speakers:
             break
+    else:
+        if real_speakers(turns) == 1:
+            # Outliers took every spare cluster and everyone merged into one speaker (a TV talk show with jingles:
+            # 3 guests -> 1). The threshold cut keeps outliers apart, so take it if it holds more real speakers.
+            # Only on this collapse: when 2+ speakers are left, the threshold cut was the worse one on AMI/ViYT/VIVOS.
+            if threshold_cut is None:
+                threshold_cut = _turns(audio, model_dir, None)
+            if real_speakers(threshold_cut) > 1:
+                turns = threshold_cut
     turns = keep_speakers(turns, num_speakers)
     return drop_small_speakers(turns) if auto else turns
 

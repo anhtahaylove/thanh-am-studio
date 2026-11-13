@@ -101,8 +101,18 @@ class KnownSpeakerCountTests(unittest.TestCase):
 
     def test_gives_up_after_two_extra_clusters(self):
         one = [turn(0, 9, 0)]
-        turns, asked = self.run_with({2: one, 3: one, 4: one}, 2)
-        self.assertEqual((asked, turns), ([2, 3, 4], one))
+        turns, asked = self.run_with({2: one, 3: one, 4: one, None: one}, 2)
+        self.assertEqual((asked, turns), ([2, 3, 4, None], one))
+
+    def test_falls_back_to_the_threshold_cut_when_outliers_merge_everyone(self):
+        # Every k-cluster cut spends its spare clusters on 1 s outliers; the threshold cut keeps the three speakers.
+        merged = [turn(0, 90, 0), turn(90, 91, 1), turn(91, 92, 2)]
+        threshold_cut = [turn(0, 30, 0), turn(30, 31, 1), turn(31, 60, 2), turn(60, 90, 3)]
+        three = [turn(0, 30, 0), turn(31, 60, 1), turn(60, 90, 2)]
+        cuts = {3: merged, 4: merged, 5: merged, None: threshold_cut}
+        self.assertEqual(self.run_with(cuts, 3), (three, [3, 4, 5, None]))
+        # Auto mode already has the threshold cut, so it costs no extra run.
+        self.assertEqual(self.run_with(cuts, None), (three, [None, 3, 4, 5]))
 
     def test_a_tiny_cluster_does_not_count_as_a_speaker(self):
         # Two clusters: one held almost everything, the other a 0.1 s outlier, so two people were merged.
