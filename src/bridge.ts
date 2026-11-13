@@ -1,6 +1,7 @@
 import {invoke,convertFileSrc,isTauri} from '@tauri-apps/api/core';
 import {open,save} from '@tauri-apps/plugin-dialog';
 import {uid} from './domain';
+import {UTF8_HINT} from './csv';
 import type {AppSettings,Project,ProjectSummary,Voice} from './types';
 export const desktop=isTauri();
 const KEY='thanh-am-preview-projects-v1',SETTINGS_KEY='thanh-am-preview-settings-v1';
@@ -24,9 +25,14 @@ export async function call<T>(command:string,args:Record<string,unknown>={}):Pro
  }return result as T;
 }
 export const mediaUrl=(path:string)=>desktop?convertFileSrc(path):path;
-export async function pickFiles(kind:'text'|'audio',multiple=false):Promise<string[]>{
+export async function pickFiles(kind:'text'|'audio'|'csv',multiple=false):Promise<string[]>{
  if(!desktop)throw Error('Mở bản desktop để chọn tệp từ máy tính.');
- const result=await open({multiple,filters:kind==='text'?[{name:'Văn bản & phụ đề',extensions:['txt','srt','vtt']}]:[{name:'Audio & video',extensions:['wav','mp3','m4a','flac','ogg','opus','mp4','mkv','webm','mov']}]});return result?Array.isArray(result)?result:[result]:[];
+ const result=await open({multiple,filters:kind==='text'?[{name:'Văn bản & phụ đề',extensions:['txt','srt','vtt']}]:kind==='csv'?[{name:'Bảng CSV',extensions:['csv']}]:[{name:'Audio & video',extensions:['wav','mp3','m4a','flac','ogg','opus','mp4','mkv','webm','mov']}]});return result?Array.isArray(result)?result:[result]:[];
+}
+/** Content of one CSV the user picks, or null when cancelled. The browser preview has no file paths, so it reads through a file input. */
+export async function openCsv():Promise<string|null>{
+ if(desktop){const [path]=await pickFiles('csv');return path?call<string>('read_text_file',{path}).catch(e=>{throw String(e).includes('UTF8_REQUIRED')?Error(UTF8_HINT):e;}):null;}
+ return new Promise((resolve,reject)=>{const input=Object.assign(document.createElement('input'),{type:'file',accept:'.csv,text/csv'});input.addEventListener('change',()=>{const file=input.files?.[0];if(file)file.text().then(resolve,reject);else resolve(null);});input.addEventListener('cancel',()=>resolve(null));input.click();});
 }
 export async function saveText(name:string,content:string):Promise<void>{
  if(!desktop){const url=URL.createObjectURL(new Blob([content],{type:'text/plain;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);return;}
