@@ -117,6 +117,18 @@ class KnownSpeakerCountTests(unittest.TestCase):
         turns, asked = self.run_with({None: fragmented, 2: two}, None)
         self.assertEqual((asked, turns), ([None, 2], two))
 
+    def test_auto_count_drops_a_speaker_under_the_final_share(self):
+        # 3.5 % of the speech: above the 3 % used to pick the count, below the 4 % an auto result must reach.
+        three = [turn(0, 50, 0), turn(50, 96.5, 1), turn(96.5, 100, 2)]
+        two = [turn(0, 50, 0), turn(50, 96.5, 1)]
+        self.assertEqual(self.run_with({None: three}, None), (two, [None]))
+        fragmented = [turn(0, 40, 0), turn(40, 80, 1), turn(80, 100, 2), turn(100, 100.1, 3)]
+        self.assertEqual(self.run_with({None: fragmented, 3: three}, None), (two, [None, 3]))
+
+    def test_known_count_keeps_a_small_speaker(self):
+        turns = [turn(0, 96.5, 0), turn(96.5, 100, 1)]
+        self.assertEqual(self.run_with({2: turns}, 2), (turns, [2]))
+
     def test_auto_count_keeps_a_result_without_tiny_clusters(self):
         clean = [turn(0, 5, 0), turn(6, 9, 1)]
         self.assertEqual(self.run_with({None: clean}, None), (clean, [None]))

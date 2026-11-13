@@ -17,6 +17,9 @@ CLUSTER_THRESHOLD = 0.65
 # A cluster with less of the speech than this is an outlier (laughter, crosstalk, noise), not a speaker. On 30-50 minute
 # four-person meetings (AMI) the threshold alone gave 41-138 clusters, most of them tiny.
 MIN_SPEAKER_SHARE = 0.03
+# Auto mode only: the finished result keeps speakers with at least this share. The count above is taken on the first,
+# often fragmented clustering; once re-clustered, real AMI speakers hold 10-40 % and leftover clusters 0.3-5 %.
+MIN_AUTO_SHARE = 0.04
 
 
 def diarize(audio_16k: np.ndarray, model_dir: Path, num_speakers: int | None = None) -> list[dict]:
@@ -34,11 +37,12 @@ def diarize(audio_16k: np.ndarray, model_dir: Path, num_speakers: int | None = N
     for name in (SEGMENTATION_FILE, EMBEDDING_FILE):
         if not (model_dir / name).is_file():
             raise FileNotFoundError(f'Diarization model file missing: {model_dir / name}')
-    if num_speakers is None:
+    auto = num_speakers is None
+    if auto:
         turns = _turns(audio, model_dir, None)
         num_speakers = max(1, real_speakers(turns))
         if not turns or num_speakers == len({t['speaker'] for t in turns}):
-            return turns
+            return drop_small_speakers(turns)
         # Outlier clusters found: cluster again into the speakers that are left.
     # Complete-linkage clustering cut at k clusters can spend a cluster on an outlier embedding with little or
     # no speech of its own, merging two real speakers (17 of 97 real two-speaker dialogues lost one).
@@ -47,7 +51,8 @@ def diarize(audio_16k: np.ndarray, model_dir: Path, num_speakers: int | None = N
         turns = _turns(audio, model_dir, num_speakers + extra)
         if real_speakers(turns) >= num_speakers:
             break
-    return keep_speakers(turns, num_speakers)
+    turns = keep_speakers(turns, num_speakers)
+    return drop_small_speakers(turns) if auto else turns
 
 
 def speech_seconds(turns: list[dict]) -> dict[int, float]:
@@ -57,10 +62,15 @@ def speech_seconds(turns: list[dict]) -> dict[int, float]:
     return total
 
 
-def real_speakers(turns: list[dict]) -> int:
-    """Count the speakers with at least MIN_SPEAKER_SHARE of the speech."""
+def real_speakers(turns: list[dict], share: float = MIN_SPEAKER_SHARE) -> int:
+    """Count the speakers with at least `share` of the speech."""
     total = speech_seconds(turns)
-    return sum(seconds >= MIN_SPEAKER_SHARE * sum(total.values()) for seconds in total.values())
+    return sum(seconds >= share * sum(total.values()) for seconds in total.values())
+
+
+def drop_small_speakers(turns: list[dict]) -> list[dict]:
+    """Keep the speakers with at least MIN_AUTO_SHARE of the speech, and always at least one."""
+    return keep_speakers(turns, max(1, real_speakers(turns, MIN_AUTO_SHARE)))
 
 
 def keep_speakers(turns: list[dict], count: int) -> list[dict]:
