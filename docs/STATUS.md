@@ -328,6 +328,19 @@ parallel load on the i5-13400F; peak 1.15 GB per process with the count given, 3
 before the fix. Evidence: `work\diarization-ami` (`results\report.txt`, `results\variants_report.txt`)
 and `work\diarization-share` (ViYT-Diar and VIVOS with the same cache of runs).
 
+### v0.1.4 release (built by `.github/workflows/release.yml` from tag `v0.1.4` at `b2511ad`)
+
+| Check | Result |
+|---|---|
+| Tests | worker 36 (2 skipped; 18/18 in `test_diarize.py` with the real model); CI green on PR #32 head `e30f908` and PR #33 head `64ad50f` |
+| Installer SHA-256 | `b757f42e90ef1f357dbcf3e650f8764157048a60503a726a1045d8998f8830b1`; `sha256sum -c` OK after download and after an anonymous download once published |
+| Clean Sandbox run 1 on that exact installer | `full`, `reopen`, `turbo`, `offline` (network adapters disabled), `export`: 26 PASS, 0 FAIL |
+| Clean Sandbox run 2 on that exact installer | `full`, `features` (2 speakers asked and found in a 60 s dialogue, a row relabelled and found saved, script built), `ux`, `clone` (WER 3.7 %), `dpi` (4/4 sizes clean): 30 PASS, 0 FAIL |
+
+The first start of run 2 wrote no log: the Sandbox from run 1 was still shutting down. It was
+started again after all Sandbox processes had exited. Published as a pre-release on 2026-11-13; the
+v0.1.3 release notes now point to 0.1.4. Evidence: `work\release-v0.1.4-sandbox`.
+
 ## Not verified / known gaps
 
 - Listening quality has not been judged by a human; the clipping checks above are signal analysis.
