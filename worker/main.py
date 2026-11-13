@@ -474,27 +474,29 @@ def stt(payload, progress):
         cpu_threads=min(8, os.cpu_count() or 4), local_files_only=True)
     audio = load_audio(source)
     duration = max(len(audio) / STT_RATE, 0.01)
-    lang, result = None if language == 'auto' else language, []
+    lang, result, words = None if language == 'auto' else language, [], []
+    diarizing = bool(payload.get('diarize_model_path'))  # word times let rows split where the speaker changes
     cuts = stt_windows(audio)
     for start, end in zip(cuts, cuts[1:]):
         offset = start / STT_RATE
         segments, info = model.transcribe(audio[start:end], language=lang,
-            beam_size=5, vad_filter=True, condition_on_previous_text=False)
+            beam_size=5, vad_filter=True, condition_on_previous_text=False, word_timestamps=diarizing)
         lang = info.language  # an 'auto' detection from the first window applies to the rest
         for segment in segments:
             result.append({'start': offset + segment.start, 'end': offset + segment.end, 'text': segment.text.strip()})
+            if diarizing:
+                words.append([{'start': offset + w.start, 'end': offset + w.end, 'text': w.word} for w in segment.words or []])
             # Linear in audio time, so the queue's remaining-time estimate is not skewed early on.
             progress(max(0.05, min(0.99, (offset + segment.end) / duration)), 'Transcribing')
     response = {'segments': result, 'language': lang}
-    if payload.get('diarize_model_path'):
+    if diarizing:
         progress(0.99, 'Separating speakers')
         try:
             model = Path(payload['diarize_model_path'])
             verify_model(model, 'diarization')
             spec = importlib.util.spec_from_file_location('diarize', ROOT / 'diarize.py')  # -I drops the script dir from sys.path
             diarize = importlib.util.module_from_spec(spec); spec.loader.exec_module(diarize)
-            for row, speaker in zip(result, diarize.assign_speakers(result, diarize.diarize(audio, model, speakers))):
-                row['speaker'] = speaker
+            response['segments'] = diarize.split_rows(result, words, diarize.diarize(audio, model, speakers))
         except Exception as error:  # noqa: BLE001 - the transcript is still valid without speakers
             response['diarize_error'] = str(error)[:300]
     return response

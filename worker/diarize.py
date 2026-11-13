@@ -20,6 +20,10 @@ MIN_SPEAKER_SHARE = 0.03
 # Auto mode only: the finished result keeps speakers with at least this share. The count above is taken on the first,
 # often fragmented clustering; once re-clustered, real AMI speakers hold 10-40 % and leftover clusters 0.3-5 %.
 MIN_AUTO_SHARE = 0.04
+# A row splits where its words change speaker, but a run of words shorter than this joins a neighbour: word times and
+# turn edges are only accurate to a few hundred ms. On four Vietnamese talk shows 0.6 s agreed best with two reference
+# diarizers (0, 0.3, 1, 1.5 and 2 s tried); 0 and 0.3 s split off 3-5x as many rows for less agreement.
+MIN_RUN_S = 0.6
 
 
 def diarize(audio_16k: np.ndarray, model_dir: Path, num_speakers: int | None = None) -> list[dict]:
@@ -131,3 +135,43 @@ def assign_speakers(transcript_rows: list[dict], turns: list[dict]) -> list[int]
         else:
             labels.append(0)
     return labels
+
+
+def split_rows(rows: list[dict], words: list[list[dict]], turns: list[dict]) -> list[dict]:
+    """Give each row a speaker, splitting a row into several where its words change speaker.
+
+    words[i] lists row i's words [{'start', 'end', 'text'}], each text with its own leading space. Every word takes a
+    speaker as assign_speakers() does; a run of words shorter than MIN_RUN_S joins its longer neighbour run.
+    A row with a single run, or without words, keeps its start, end and text.
+    """
+    out = []
+    for row, row_words in zip(rows, words):
+        if not row_words:
+            out.append({**row, 'speaker': assign_speakers([row], turns)[0]})
+            continue
+        runs = _join_runs(zip(assign_speakers(row_words, turns), ([word] for word in row_words)))
+        while len(runs) > 1:
+            span = [run[1][-1]['end'] - run[1][0]['start'] for run in runs]
+            i = min(range(len(runs)), key=span.__getitem__)
+            if span[i] >= MIN_RUN_S:
+                break
+            j = i - 1 if i == len(runs) - 1 or (i > 0 and span[i - 1] >= span[i + 1]) else i + 1
+            runs[i][0] = runs[j][0]
+            runs = _join_runs(runs)
+        if len(runs) == 1:
+            out.append({**row, 'speaker': runs[0][0]})
+        else:
+            out += [{'start': run[0]['start'], 'end': run[-1]['end'], 'text': ''.join(w['text'] for w in run).strip(),
+                     'speaker': speaker} for speaker, run in runs]
+    return out
+
+
+def _join_runs(pairs) -> list[list]:
+    """Join consecutive (speaker, words) pairs of the same speaker into [speaker, words] runs."""
+    runs = []
+    for speaker, words in pairs:
+        if runs and runs[-1][0] == speaker:
+            runs[-1][1] += words
+        else:
+            runs.append([speaker, list(words)])
+    return runs

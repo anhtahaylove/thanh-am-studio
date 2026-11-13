@@ -54,6 +54,44 @@ class AssignSpeakersTests(unittest.TestCase):
         self.assertEqual(diarize.assign_speakers([], [turn(0, 1, 0)]), [])
 
 
+def word(start, end, text):
+    return {'start': start, 'end': end, 'text': ' ' + text}
+
+
+class SplitRowsTests(unittest.TestCase):
+    def test_splits_a_row_where_the_speaker_changes(self):
+        words = [word(0, 1, 'xin'), word(1, 2, 'chào.'), word(2, 2.5, 'Vâng,'), word(2.5, 3.5, 'cảm'), word(3.5, 4, 'ơn')]
+        rows = diarize.split_rows([{'start': 0, 'end': 4, 'text': 'xin chào. Vâng, cảm ơn'}], [words],
+                                  [turn(0, 2.1, 0), turn(2.1, 5, 1)])
+        self.assertEqual(rows, [{'start': 0, 'end': 2, 'text': 'xin chào.', 'speaker': 0},
+                                {'start': 2, 'end': 4, 'text': 'Vâng, cảm ơn', 'speaker': 1}])
+
+    def test_a_single_speaker_row_is_kept_as_it_is(self):
+        row = {'start': 0, 'end': 2, 'text': 'xin chào'}
+        self.assertEqual(diarize.split_rows([row], [[word(0, 1, 'xin'), word(1, 2, 'chào')]], [turn(0, 9, 1)]),
+                         [{**row, 'speaker': 1}])
+
+    def test_a_short_run_joins_its_neighbours(self):
+        # One word of speaker 1 between two runs of speaker 0: turn-edge jitter, not a new row.
+        words = [word(0, 1, 'a'), word(1, 2, 'b'), word(2, 2.3, 'c'), word(2.3, 3, 'd')]
+        row = {'start': 0, 'end': 3, 'text': 'a b c d'}
+        self.assertEqual(diarize.split_rows([row], [words], [turn(0, 2, 0), turn(2, 2.3, 1), turn(2.3, 3, 0)]),
+                         [{**row, 'speaker': 0}])
+
+    def test_a_short_run_between_two_speakers_joins_the_longer_side(self):
+        words = [word(0, 1, 'a'), word(1, 1.2, 'b'), word(1.2, 4, 'c')]
+        turns = [turn(0, 1, 0), turn(1, 1.2, 1), turn(1.2, 4, 2)]
+        self.assertEqual([(r['text'], r['speaker']) for r in diarize.split_rows([row(0, 4)], [words], turns)],
+                         [('a', 0), ('b c', 2)])
+
+    def test_a_row_without_words_takes_the_speaker_of_most_overlap(self):
+        self.assertEqual(diarize.split_rows([row(0, 4)], [[]], [turn(0, 1, 0), turn(1, 4, 1)]), [{**row(0, 4), 'speaker': 1}])
+
+    def test_rows_are_never_joined(self):
+        rows = diarize.split_rows([row(0, 1), row(1, 2)], [[word(0, 1, 'a')], [word(1, 2, 'b')]], [turn(0, 2, 0)])
+        self.assertEqual([(r['start'], r['speaker']) for r in rows], [(0, 0), (1, 0)])
+
+
 class DiarizeInputTests(unittest.TestCase):
     def test_rejects_bad_audio_and_speaker_count(self):
         with tempfile.TemporaryDirectory() as tmp:
