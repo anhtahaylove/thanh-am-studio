@@ -15,13 +15,15 @@ Installers are unsigned today. This page is the checklist for the free open sour
 | Code signing policy and privacy statement on the home page | README sections "Code signing policy" and "Privacy" |
 | Uninstallation | NSIS uninstaller (Windows "Installed apps") |
 | No data sent without the user asking | Only user-started model downloads from Hugging Face |
-| MFA for every team member on GitHub and SignPath | Owner must confirm |
+| MFA for every team member on GitHub and SignPath | GitHub two-factor authentication on (owner, 2026-11-13); SignPath account MFA follows approval |
 
 ## Owner steps (cannot be delegated)
 
-1. Make sure GitHub two-factor authentication is on for `anhtahaylove`.
+1. Make sure GitHub two-factor authentication is on for `anhtahaylove`. Done 2026-11-13.
 2. Apply at <https://signpath.org/apply> with the repository URL, the release page, and the
-   README policy section. Accepting SignPath's terms is the owner's decision.
+   README policy section. Accepting SignPath's terms is the owner's decision. Submitted by the
+   owner on 2026-11-13 (category Audio, individual maintainer, GitHub Actions); waiting for
+   SignPath's reply by email.
 3. After approval: install the [SignPath GitHub App](https://github.com/apps/signpath) on this
    repository, enable MFA on the SignPath account, and create an API token for a submitter user.
 4. Store it as the repository secret `SIGNPATH_API_TOKEN`, and the organization id, project slug
