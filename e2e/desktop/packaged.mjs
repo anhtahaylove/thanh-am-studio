@@ -389,6 +389,9 @@ try {
       const box = page.getByRole('textbox', {name: 'Nội dung đoạn 1'});
       await box.waitFor();
       await box.click(); await page.keyboard.press('Control+End');
+      await page.keyboard.type(' Cứ do it đi.'); // English words go through sea-g2p's English engine in the bundled runtime
+      const english = page.getByRole('checkbox', {name: 'Đọc từ tiếng Anh'});
+      await english.check();
       await page.getByRole('button', {name: 'Chèn khoảng nghỉ 0,5 giây tại con trỏ'}).first().click();
       if (!/\[nghỉ 0\.5s\]$/.test(await box.inputValue())) throw Error(`pause mark missing: ${await box.inputValue()}`);
       await page.getByRole('combobox', {name: 'Tốc độ đọc đoạn 1'}).selectOption('1.1');
@@ -399,12 +402,21 @@ try {
       await page.getByRole('button', {name: 'Tạo take mới'}).first().click();
       const [job] = await waitJobs('tts', before + 1, 5 * 60000); // newest first
       if (job.payload.speed !== 1.1) throw Error(`speed not sent: ${JSON.stringify(job.payload)}`);
+      if (!job.payload.text.includes('<en>it</en>')) throw Error(`English word not tagged: ${job.payload.text}`);
+      await english.uncheck(); // later phases measure takes without it
       const takes = page.getByRole('combobox', {name: 'Take đang sử dụng'}); // a new take does not replace the chosen one
       await page.waitForTimeout(3000); // the take reaches the project on the next refresh
       await takes.selectOption({index: (await takes.locator('option').count()) - 1});
       const badge = page.locator('.take-check').first();
       await badge.waitFor({timeout: 15000});
       return `${job.result.duration_ms} ms take; check "${await badge.innerText()}" (${JSON.stringify(job.result.check).slice(0, 200)})`;
+    });
+    await step('a CSV dictionary file can be read', async () => {
+      const csv = join(saves, `từ điển ${Date.now()}.csv`);
+      writeFileSync(csv, '﻿từ,cách đọc\r\nAI,ây ai\r\n');
+      const text = await invoke('read_text_file', {path: csv});
+      if (!text.startsWith('từ,cách đọc') || !text.includes('AI,ây ai')) throw Error(`unexpected CSV text: ${JSON.stringify(text)}`);
+      return `${text.length} characters, BOM removed`;
     });
     await step('waveform shows playback progress', async () => {
       await page.getByRole('button', {name: 'Nghe thử đoạn'}).first().click();
@@ -435,7 +447,7 @@ try {
       for (let i = 0; i < 20 && (await apply.count()) < total; i++) await page.waitForTimeout(500); // the list refreshes every 2.5 s
       await apply.first().click();
       await nav('Chép lời');
-      const chips = await page.locator('.speaker-chip').count();
+      const chips = await page.locator('select.speaker-chip').count(); // one menu per row; the speaker panel's cards reuse the class
       if (chips !== speakers.length) throw Error(`${chips} speaker chips for ${speakers.length} rows`);
       if (job.payload.num_speakers !== 2 || new Set(speakers).size !== 2) throw Error(`asked for 2 speakers, got ${new Set(speakers).size} (payload ${job.payload.num_speakers})`);
       const first = page.locator('select.speaker-chip').first(), relabel = String(1 - Number(await first.inputValue()));
