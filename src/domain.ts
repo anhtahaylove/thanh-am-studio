@@ -51,10 +51,14 @@ export const spokenText=(text:string)=>text.replace(PAUSE_MARK,' ').replace(/\s+
 export function normalizeText(text:string,dictionary:Record<string,string>):string {
  return text.normalize('NFC').split(new RegExp(`(${PAUSE_MARK.source})`,'iu')).map((part,i)=>i%2?part:normalizeSpoken(part,dictionary)).join('');
 }
+const CURRENCY:Record<string,string>={'₿':'bitcoin','₹':'rupi','₽':'rúp','¢':'xu'};
 function normalizeSpoken(text:string,dictionary:Record<string,string>):string {
  const keys=Object.keys(dictionary).filter(Boolean).sort((a,b)=>b.length-a.length);let out=text.normalize('NFC');
  if(keys.length){const escaped=keys.map(escapeRegExp);out=out.replace(new RegExp(escaped.join('|'),'gu'),m=>dictionary[m]);}
- return out.replace(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/g,(_,d,m,y)=>`${Number(d)} tháng ${Number(m)} năm ${y}`).replace(/(\d[\d.,]*)\s*(₫|đ)(?=\s|[.,;!?]|$)/g,(_,n)=>`${n.replace(/\./g,'')} đồng`).replace(/\b(\d+(?:[.,]\d+)?)\s*kg\b/gi,'$1 ki lô gam').replace(/\b(\d+(?:[.,]\d+)?)\s*km\b/gi,'$1 ki lô mét');
+ return out.replace(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/g,(_,d,m,y)=>`${Number(d)} tháng ${Number(m)} năm ${y}`).replace(/(\d[\d.,]*)\s*(₫|đ)(?=\s|[.,;!?]|$)/g,(_,n)=>`${n.replace(/\./g,'')} đồng`).replace(/\b(\d+(?:[.,]\d+)?)\s*kg\b/gi,'$1 ki lô gam').replace(/\b(\d+(?:[.,]\d+)?)\s*km\b/gi,'$1 ki lô mét')
+  // Readings pinned sea-g2p 0.10.0 gets wrong (its issues #20, #21, #22, #25): đ/cp → "địa chỉp", -2,5 loses the sign, 50k → "năm mươi ca", 1.2B → "bê", rate 1.1200 → a date, ₿₹₽¢ dropped.
+  .replace(/(?<!\p{L})(\d?)\s*đ\/(c\p{L}+)/gu,(_,d,u)=>`${d&&d+' '}đồng trên ${u==='cp'?'cổ phiếu':u}`).replace(/(?<![\p{L}\d])[-\u2212](?=\d+,\d)/gu,'âm ').replace(/(?<![\p{L}\d.,])(\d[\d.,]*)k(?![\p{L}\d])/gu,'$1 nghìn').replace(/(?<![\p{L}\d.,])(\d+)[.,](\d+)B(?![\p{L}\d])/gu,'$1,$2 tỷ')
+  .replace(/(?<![\d.,])(\d{1,2})\.(\d{4})(?!\d|[.,]\d)/g,(m,a,b)=>+a>=1&&+a<=12&&(+b<1900||+b>2100)?`${a} chấm ${[...b].join(' ')}`:m).replace(/([₿₹₽¢])\s*(\d(?:[\d.,]*\d)?)|(\d(?:[\d.,]*\d)?)\s*([₿₹₽¢])/gu,(_,s,a,b,t)=>`${a??b} ${CURRENCY[s??t]}`);
 }
 const SENTENCE_END=/(?<=[.!?…]["'”’)\]]*)\s+/gu;
 function splitWords(text:string,max:number):string[]{const out:string[]=[];let current='';for(const word of text.split(/\s+/)){if(!word)continue;if(current.length+word.length+1>max&&current){out.push(current);current='';}if(word.length>max){if(current)out.push(current);for(let i=0;i<word.length;i+=max)out.push(word.slice(i,i+max));current='';}else current+=(current?' ':'')+word;}if(current)out.push(current);return out;}
