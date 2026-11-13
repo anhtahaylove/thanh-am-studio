@@ -38,6 +38,9 @@ Installers are unsigned today. This page is the checklist for the free open sour
 Sign the installer (the file users download and SmartScreen checks) before the checksums are
 computed, in `release.yml` right after `npm run tauri build -- --ci`. The artifact configuration
 in SignPath is a single `<pe-file>`; product name "Thanh Âm Studio", product version equal to the tag.
+Scope, decided by the owner on 2026-11-13: only the installer is signed, so each release needs one
+approval. Signing the app executable too would need a second request before NSIS bundling. The
+change is ready in draft PR #40.
 
 ```yaml
       - name: Upload unsigned installer

@@ -35,9 +35,10 @@ Installers are not signed yet. The project is applying for free code signing for
 projects; once accepted, releases will carry:
 Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
 
-- Only the project's own binaries are signed (the app executable and the installer), built by
-  [the release workflow](.github/workflows/release.yml) from this repository. Bundled third-party
-  files (Python runtime, FFmpeg, libraries) keep their upstream signatures or none.
+- Only the installer is signed: the file users download and Windows checks, built by
+  [the release workflow](.github/workflows/release.yml) from this repository. The files it installs
+  (the app executable and bundled third-party files such as the Python runtime, FFmpeg and
+  libraries) are not signed again and keep their upstream signatures or none.
 - Committers and reviewers: [@anhtahaylove](https://github.com/anhtahaylove) (maintainer). Changes
   from anyone else are reviewed before merge.
 - Approvers: [@anhtahaylove](https://github.com/anhtahaylove). Every release is approved for
