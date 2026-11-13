@@ -47,14 +47,26 @@ export const rowAt=(rows:TranscriptSegment[],ms:number)=>rows.find(r=>r.start_ms
 /** Pause mark the worker turns into silence, e.g. "[nghỉ 0.5s]" or "[nghỉ 300ms]". */
 export const PAUSE_MARK=/\[\s*nghỉ\s+\d+(?:[.,]\d+)?\s*(?:ms|s|giây)?\s*\]/giu;
 export const spokenText=(text:string)=>text.replace(PAUSE_MARK,' ').replace(/\s+/g,' ').trim();
-/** Dictionary and number rules apply to spoken text only; pause marks pass through untouched. */
-export function normalizeText(text:string,dictionary:Record<string,string>):string {
- return text.normalize('NFC').split(new RegExp(`(${PAUSE_MARK.source})`,'iu')).map((part,i)=>i%2?part:normalizeSpoken(part,dictionary)).join('');
+/** Dictionary and number rules apply to spoken text only; pause marks pass through untouched. `codeSwitch` wraps English-only words in <en>…</en>. */
+export function normalizeText(text:string,dictionary:Record<string,string>,options:{codeSwitch?:boolean}={}):string {
+ return text.normalize('NFC').split(new RegExp(`(${PAUSE_MARK.source})`,'iu')).map((part,i)=>i%2?part:normalizeSpoken(part,dictionary,options.codeSwitch)).join('');
 }
-function normalizeSpoken(text:string,dictionary:Record<string,string>):string {
+const CURRENCY:Record<string,string>={'₿':'bitcoin','₹':'rupi','₽':'rúp','¢':'xu'};
+// Code-switching idea ported from nguyenan97/VieNeu-TTS commit c836e480 (src/vieneu_utils/codeswitch.py, Apache-2.0): pinned sea-g2p reads <en>…</en> with its English engine.
+// Its ALL-CAPS rule is left out: it needs sea-g2p's English word list, and without it UBND/THPT would be read as English.
+const EN_TOKEN=/(<en>[\s\S]*?<\/en>|\[[^\]]*\]|<\|[^|]*\|>|\S*(?::\/\/|@|www\.|[\\/])\S*|\S*[A-Za-z0-9]\.[A-Za-z]\S*)|(?<![\p{L}\p{N}])[A-Za-z]{2,}(?:['’][A-Za-z]+)*(?![\p{L}\p{N}])/gu;
+// Unaccented Vietnamese syllables end in a vowel, m, n, ng or nh (p/t/c/ch codas need a tone mark) and never contain f/j/w/z; all-caps and vowel-less words are acronyms or units.
+const onlyEnglish=(w:string)=>w!==w.toUpperCase()&&/[aeiouy]/i.test(w)&&(/[fjwz]/i.test(w)||!/(?:[aeiouymn]|ng|nh)$/i.test(w));
+// Only sentences typed with diacritics, so Vietnamese written without them ("hoc", "dep") is left alone.
+const tagEnglish=(text:string)=>text.split(/(?<=[.!?…])(\s+)/u).map((s,i)=>i%2||!/\p{M}|đ/iu.test(s.normalize('NFD'))?s:s.replace(EN_TOKEN,(m,kept)=>kept||!onlyEnglish(m)?m:`<en>${m}</en>`)).join('').replace(/<\/en>(\s+)<en>/g,'$1');
+function normalizeSpoken(text:string,dictionary:Record<string,string>,codeSwitch=false):string {
  const keys=Object.keys(dictionary).filter(Boolean).sort((a,b)=>b.length-a.length);let out=text.normalize('NFC');
  if(keys.length){const escaped=keys.map(escapeRegExp);out=out.replace(new RegExp(escaped.join('|'),'gu'),m=>dictionary[m]);}
- return out.replace(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/g,(_,d,m,y)=>`${Number(d)} tháng ${Number(m)} năm ${y}`).replace(/(\d[\d.,]*)\s*(₫|đ)(?=\s|[.,;!?]|$)/g,(_,n)=>`${n.replace(/\./g,'')} đồng`).replace(/\b(\d+(?:[.,]\d+)?)\s*kg\b/gi,'$1 ki lô gam').replace(/\b(\d+(?:[.,]\d+)?)\s*km\b/gi,'$1 ki lô mét');
+ out=out.replace(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/g,(_,d,m,y)=>`${Number(d)} tháng ${Number(m)} năm ${y}`).replace(/(\d[\d.,]*)\s*(₫|đ)(?=\s|[.,;!?]|$)/g,(_,n)=>`${n.replace(/\./g,'')} đồng`).replace(/\b(\d+(?:[.,]\d+)?)\s*kg\b/gi,'$1 ki lô gam').replace(/\b(\d+(?:[.,]\d+)?)\s*km\b/gi,'$1 ki lô mét')
+  // Readings pinned sea-g2p 0.10.0 gets wrong (its issues #20, #21, #22, #25): đ/cp → "địa chỉp", -2,5 loses the sign, 50k → "năm mươi ca", 1.2B → "bê", rate 1.1200 → a date, ₿₹₽¢ dropped.
+  .replace(/(?<!\p{L})(\d?)\s*đ\/(c\p{L}+)/gu,(_,d,u)=>`${d&&d+' '}đồng trên ${u==='cp'?'cổ phiếu':u}`).replace(/(?<![\p{L}\d])[-\u2212](?=\d+,\d)/gu,'âm ').replace(/(?<![\p{L}\d.,])(\d[\d.,]*)k(?![\p{L}\d])/gu,'$1 nghìn').replace(/(?<![\p{L}\d.,])(\d+)[.,](\d+)B(?![\p{L}\d])/gu,'$1,$2 tỷ')
+  .replace(/(?<![\d.,])(\d{1,2})\.(\d{4})(?!\d|[.,]\d)/g,(m,a,b)=>+a>=1&&+a<=12&&(+b<1900||+b>2100)?`${a} chấm ${[...b].join(' ')}`:m).replace(/([₿₹₽¢])\s*(\d(?:[\d.,]*\d)?)|(\d(?:[\d.,]*\d)?)\s*([₿₹₽¢])/gu,(_,s,a,b,t)=>`${a??b} ${CURRENCY[s??t]}`);
+ return codeSwitch?tagEnglish(out):out;
 }
 const SENTENCE_END=/(?<=[.!?…]["'”’)\]]*)\s+/gu;
 function splitWords(text:string,max:number):string[]{const out:string[]=[];let current='';for(const word of text.split(/\s+/)){if(!word)continue;if(current.length+word.length+1>max&&current){out.push(current);current='';}if(word.length>max){if(current)out.push(current);for(let i=0;i<word.length;i+=max)out.push(word.slice(i,i+max));current='';}else current+=(current?' ':'')+word;}if(current)out.push(current);return out;}
