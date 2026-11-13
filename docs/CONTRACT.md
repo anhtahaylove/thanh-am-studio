@@ -14,12 +14,12 @@ All JSON fields are snake_case. Times are milliseconds except worker STT segment
 - `enqueue_job({kind,projectId,payload})` -> Job
 - `cancel_job({id})`, `retry_job({id})` -> Job
 - `runtime_status` -> RuntimeStatus
-- `read_text_file({path})` -> string (TXT/SRT/VTT only)
+- `read_text_file({path})` -> string (TXT/SRT/VTT/CSV only, UTF-8, BOM removed)
 - `import_asset({path})` -> Asset (copies to app data by hash, original untouched)
 - `get_asset({id})` -> Asset (restore imported source playback)
 - `list_models` -> ModelInfo[]
 - `download_model({id})` -> Job
-- `export_text({path,content})` -> void
+- `export_text({path,content})` -> void (TXT/SRT/VTT/CSV only)
 - `export_asset({assetId,path})` -> void (explicit native save dialog output)
 - `list_voices` -> Voice[]
 - `save_voice({voice})` -> Voice (reference asset + consent boolean)
