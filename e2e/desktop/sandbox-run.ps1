@@ -20,6 +20,7 @@ Get-Process thanh-am-studio -ErrorAction SilentlyContinue | Stop-Process -Force
 $harness = Join-Path $Repo 'e2e\desktop\packaged.mjs'
 $env:THANHAM_LONG_AUDIO = Join-Path $Installer 'long.mp3' # optional input of the longstt phase (long.txt = reference)
 $env:THANHAM_UX_AUDIO = Join-Path $Installer 'dialogue.wav' # optional input of the ux and features phases (two speakers for features)
+$env:THANHAM_DOCX = Join-Path $Installer 'script.docx' # optional input of the scripts phase (a Word file saved by Word)
 if ($Gate) {
     & node (Join-Path $Repo 'e2e\desktop\gate.mjs') $exe.FullName $Out $Gate *>> $log
     Log "gate exit=$LASTEXITCODE"
