@@ -32,16 +32,18 @@ Last updated 2026-11-14. Evidence below was observed, not inferred; anything not
 - Added for v0.1.2: an optional known speaker count (2-5 in the UI, validated as a whole number 1-8 in
   Rust and in the worker) passed to the diarization clustering, and a per-row speaker menu to relabel
   transcript rows by hand (saved, undoable, used by the script conversion).
-- Added for v1.0.3: Windows is kept awake (the screen may still turn off) while a worker runs, and a
+- Added for v1.0.4 (1.0.3 was built but not published, see below): Windows is kept awake (the screen may still turn off) while a worker runs, and a
   worker that dies with a common Windows crash code gets a plain cause in its error (missing CPU
   instructions, out of memory, sudden stop); the app version in the sidebar; text rules for readings
   the pinned engine gets wrong (`đ/cp`, negative decimals, `50k`, `1.2B`, exchange rates such as
-  `1.1200`, the ₿ ₹ ₽ ¢ signs, see below); an opt-in switch that has English words inside Vietnamese
-  sentences read in English; CSV import and export of the app and project pronunciation dictionaries
+  `1.1200`, the ₿ ₹ ₽ ¢ signs, see below); an opt-in, experimental switch that asks the engine to use English
+  pronunciation for English words inside Vietnamese sentences (the audible effect is small, see below); CSV import and export of the app and project pronunciation dictionaries
   (UTF-8 with or without BOM, comma or semicolon; a project import is one undo step); a speaker panel on
   the transcript with each speaker's talk time, a short sample to listen to and a one-step merge of one
   speaker into another; with speaker separation on, a transcript row is split where its words change
-  speaker (Whisper word timestamps, requested only in that case); a Troubleshooting section in the README.
+  speaker (Whisper word timestamps, requested only in that case; a window whose words cannot be aligned is
+  transcribed again without them, so its rows keep one speaker each instead of the job failing); a
+  Troubleshooting section and a note on the preset voices' unconfirmed commercial-use status in the README.
 
 ## Verification (2026-11-11)
 
@@ -513,27 +515,36 @@ All runs below use the pinned engine (vieneu 3.8.4, sea-g2p 0.10.0) through its 
 - English words: the pinned sea-g2p reads text between `<en>` and `</en>` with its English engine. The
   opt-in switch wraps words that cannot be unaccented Vietnamese (idea ported from the
   nguyenan97/VieNeu-TTS fork, commit c836e480, Apache-2.0): "Cứ do it đi" was phonemized as the
-  Vietnamese "dò ít" and is now read "do it"; "Let it go" and "Can not" likewise. Words the engine already
-  read right (Facebook, email, framework React) do not change. Vietnamese typed without diacritics,
+  Vietnamese "dò ít" and gets English phonemes with the switch; "Let it go" and "Can not" likewise. Words
+  whose phonemes were already English (Facebook, email, framework React) do not change. The audio barely
+  follows: in 48 takes (6 sentences, 2 voices, 2 takes, with and without tags) heard back by Whisper Large v3
+  Turbo, tagged words came back in English 40/60 times with the switch and 43/60 without; only "Can not"
+  changed clearly ("Canot" 4/4 without, "Cannot" 3/4 with), and "do it" was still heard as "do ít". The
+  switch stays opt-in (`work\codeswitch-audio\RESULTS.md`). Vietnamese typed without diacritics,
   acronyms such as UBND, links and file names are left alone, because only sentences typed with
-  diacritics are tagged and all-caps words are skipped. Upper-case brand names (MICROSOFT, NVIDIA) are
-  still spelled as Vietnamese letter names.
+  diacritics are tagged and all-caps words are skipped. Words that could be an unaccented Vietnamese
+  syllable (game, online, team, plan) are not tagged either. MICROSOFT is still spelled with Vietnamese
+  letter names and NVIDIA with English letter names.
 - Repeats and silences: 162 takes through the worker's own `tts()` (6 preset voices at temperature 0.5;
   inputs from 1 word to 480 characters with numbers, dates, money and names) were scanned with a -50 dBFS
   energy envelope and two Whisper models. No silence hole above 1.5 s (the trigger of the "gap guard" in the
   dinhtona fork), so that guard was not ported; the longest internal silence was a 1.43 s pause after
   "Vâng," with no word lost; no trailing silence above 1.0 s. Words were repeated in 3 takes (1.9 %), all
   by the Ngọc Huyền voice on 1-2 word inputs ("Lục Minh" as "Lục Minh Lục Minh", "Vâng." as "Vâng,
-  vâng."): 3 of its 18 tiny takes, 0 of 90 tiny takes in the other voices and 0 of 54 sentence-length takes.
-  The engine's own retry for short inputs ran and repeated in all three attempts. Evidence:
+  vâng."): 3 of its 15 takes of 1-2 word inputs, 0 of 75 such takes in the other voices and 0 of 54
+  sentence-length takes. The engine's own retry for short inputs most likely ran and repeated in all three
+  attempts (inferred from synthesis times of 2.5-4.4 s against 0.3-1.0 s in other voices, and the takes
+  ending exactly at the engine's frame cap). Evidence:
   `work\text-rules`, `work\tts-gap-guard\MEASURE.md`.
 
 ### Rows split where the speaker changes (2026-11-14)
 
-Same four talk-show clips and the same two-model consensus as above, Whisper Large v3 Turbo, every variant
-scored on the same frames. A word takes a speaker as whole rows did before; a run of words shorter than
-0.6 s joins its longer neighbour (0, 0.3, 1, 1.5 and 2 s all agreed less; 0 and 0.3 s split off 3-5 times
-as many rows).
+Same four talk-show clips and the same two reference models as above, Whisper Large v3 Turbo. Scored by
+speech time (10 ms frames) on the stretches where each reference hears exactly one speaker and the two agree
+(about 730 s of 1,200 s), every variant on the same frames. The section above scores per line (213 of 295
+lines), so its 90.6 % and the 85 % here cannot be compared. A word takes a speaker as whole rows did before;
+a run of words shorter than 0.6 s joins its longer neighbour (0, 0.3, 1, 1.5 and 2 s all agreed less; 0 and
+0.3 s added 41 and 25 rows against 13 at 0.6 s).
 
 | | Before | After |
 |---|---|---|
@@ -545,11 +556,33 @@ as many rows).
 
 The gain is small and comes mostly from one clip (90.48 % to 91.31 %); no clip dropped by more than
 0.03 points. The extra CPU time for word timestamps was within the noise of a shared machine (-6 % to +7 %
-per clip). Where the clustering flips between two speakers inside a sentence, the sentence is now cut there.
+per clip). Where the clustering wrongly flips between two speakers inside one person's sentence, the row is
+cut there too (seen in the end-to-end check on one clip), and a change of speaker shorter than 0.6 s is not split.
 A second idea, sherpa-onnx cluster confidence to curb over-counting, was measured and not adopted: dropping
 low-confidence clusters before counting made AMI worse at every threshold tried (11/16 to 8/16 right counts at
 0.1), and the variant that helped ViYT-Diar (65 to 76 of 97 right) asked for 2 speakers in all 16 AMI
 meetings. Evidence: `work\stt-speaker-split\RESULTS.md`.
+
+### v1.0.3 draft, not published (built by `.github/workflows/release.yml` from tag `v1.0.3` at `9be2e12`)
+
+The draft passed every check below, but before publishing, the upstream survey found that faster-whisper
+1.2.1 with CTranslate2 >= 4.8.1 raises `IndexError` when a window yields an empty word alignment (a tiny last
+VAD chunk; fixed upstream in SYSTRAN/faster-whisper#1460, unreleased). 1.0.3 is the first version that asks
+for word timestamps (when separating speakers), and the error escaped the diarization `try`, so the job and
+its transcript would be lost on such a file. Not reproduced on a real file; fixed in #56 by transcribing
+that window again without word timestamps. The draft and the `v1.0.3` tag were deleted unpublished; the
+fix ships as 1.0.4.
+
+| Check | Result |
+|---|---|
+| Tests | CI green on every merged PR (#48 to #55); on the last head `7901409`: `npm test` 55, Playwright 10, `cargo test --tests` 9 + 8, worker 46 (4 skipped in CI; 46/46 locally with the real diarization model) |
+| Installer SHA-256 | `7ba480941f183eac1c65319a8307bef7ec96a5165b6958105b20b1b68eca2148`; `sha256sum -c` OK after download |
+| Clean Sandbox run 1 on that exact installer | `full`, `reopen`, `turbo`, `offline` (network adapters disabled), `export`: 26 PASS, 0 FAIL |
+| Clean Sandbox run 2 on that exact installer | `full`, `features` (a take with a pause mark, 1.1x speed, the self-check and the English-word switch, whose tag reached the worker; a CSV file with a BOM read through `read_text_file`; 2 speakers asked and found in the 102 s dialogue, 22 rows, a row relabelled and found saved, script built), `ux`, `clone` (WER 7.3 %), `dpi` (4/4 sizes, 24/24 page views clean): 31 PASS, 0 FAIL |
+
+The Sandbox harness now counts only the per-row speaker menus: the speaker panel reuses the chip class on
+its cards, so the 1.0.2 harness would have failed on 1.0.3 for a harness reason. Evidence:
+`work\release-v1.0.3-sandbox`.
 
 ## Not verified / known gaps
 
@@ -589,7 +622,7 @@ meetings. Evidence: `work\stt-speaker-split\RESULTS.md`.
   meetings with 3-4 speakers and 27 % overlap (AMI). Vietnamese conversation with three or more
   speakers has only a machine reference (four talk-show clips, see above): no public set with human
   labels was found. Overlapping speech gets one speaker per row (about 9-10 % of AMI speech is missed).
-- One- and two-word inputs read by the Ngọc Huyền voice are sometimes repeated (3 of 18 takes); the
+- One- and two-word inputs read by the Ngọc Huyền voice are sometimes repeated (3 of 15 takes); the
   engine's own retry does not always help, so regenerate or use another voice. Each text and voice was
   generated once, so silence holes or long tails rarer than about 2 % cannot be ruled out; cloned voices
   and reading speeds other than 1 were not part of that run.
