@@ -76,8 +76,8 @@ const SENTENCE_END=/(?<=[.!?…]["'”’)\]]*)\s+/gu;
 function splitWords(text:string,max:number):string[]{const out:string[]=[];let current='';for(const word of text.split(/\s+/)){if(!word)continue;if(current.length+word.length+1>max&&current){out.push(current);current='';}if(word.length>max){if(current)out.push(current);for(let i=0;i<word.length;i+=max)out.push(word.slice(i,i+max));current='';}else current+=(current?' ':'')+word;}if(current)out.push(current);return out;}
 // Each line is its own paragraph; sentences are packed up to max chars and only a single over-long sentence is cut (at word boundaries).
 export function splitText(input:string,max=500):string[]{const out:string[]=[];for(const para of input.trim().split(/\n+/)){let current='';for(const sentence of para.trim().replace(/\s+/g,' ').split(SENTENCE_END)){if(!sentence)continue;if(current&&current.length+1+sentence.length<=max){current+=' '+sentence;continue;}if(current)out.push(current);if(sentence.length<=max)current=sentence;else{const parts=splitWords(sentence,max);current=parts.pop()!;out.push(...parts);}}if(current)out.push(current);}return out;}
-/** Trim for a take: its speech edges as the worker found them (older takes have none and play whole). */
-export const takeTrim=(take?:Take)=>({trim_start_ms:take?.speech_start_ms??0,trim_end_ms:take?.speech_end_ms??null});
+/** Trim for a take: its speech edges as the worker found them; the whole take when it has none (older takes) or when the segment's fades (`fade_ms`, in + out) would not fit inside them. */
+export function takeTrim(take?:Take,fade_ms=0){const start=take?.speech_start_ms??0,end=take?.speech_end_ms??null;return take&&(end??take.duration_ms)-start>=fade_ms?{trim_start_ms:start,trim_end_ms:end}:{trim_start_ms:0,trim_end_ms:null};}
 export function makeSegment(text=''):Segment{return {id:uid(),text,normalized_text:text,voice_id:null,speaker:'Người dẫn',gap_ms:300,takes:[],selected_take_id:null,trim_start_ms:0,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0,gain_db:0};}
 // A line "Tên: lời" or "[Tên]: lời" names its speaker. The name is at most 30 characters with no digits or URL (so "8:30" and "http://…" are not labels).
 const LABEL=/^\s*(?:\[([^\][:\n]+)\]|([^:[\]\n]+?))\s*[:：](?!\/\/)\s*(.*)$/u;
@@ -106,7 +106,7 @@ export function mergeSegments(a:Segment,b:Segment,dictionary:Record<string,strin
 // Takes are append-only and server-owned: restoring an older snapshot must keep every take of the current project, plus new segments that already own takes.
 export function restoreSnapshot(snap:Project,cur:Project):Project{
  const byId=new Map(cur.segments.map(s=>[s.id,s]));
- const segments=snap.segments.map(s=>{const c=byId.get(s.id);if(!c)return s;const known=new Set(s.takes.map(t=>t.id));return {...s,takes:[...s.takes,...c.takes.filter(t=>!known.has(t.id))],selected_take_id:s.selected_take_id??c.selected_take_id};});
+ const segments=snap.segments.map(s=>{const c=byId.get(s.id);if(!c)return s;const known=new Set(s.takes.map(t=>t.id));return {...s,takes:[...s.takes,...c.takes.filter(t=>!known.has(t.id))],...(s.selected_take_id==null&&c.selected_take_id!=null&&{selected_take_id:c.selected_take_id,trim_start_ms:c.trim_start_ms,trim_end_ms:c.trim_end_ms})};});
  const ids=new Set(segments.map(s=>s.id));cur.segments.forEach((s,i)=>{if(!ids.has(s.id)&&s.takes.length)segments.splice(Math.min(i,segments.length),0,s);});
  return {...snap,segments,id:cur.id,name:cur.name,revision:cur.revision,updated_at:cur.updated_at};
 }
