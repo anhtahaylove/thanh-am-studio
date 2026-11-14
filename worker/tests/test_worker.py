@@ -132,6 +132,39 @@ class WorkerTests(unittest.TestCase):
         broken = worker.check_take(Path('missing.wav'), 'Xin chào', Path(tempfile.gettempdir()) / 'no-model')
         self.assertIn('error', broken)  # a check failure is reported, never raised
 
+    def test_chunks_of_words_that_are_also_english_keep_the_vietnamese_reading(self):
+        def g2p(text):  # stands in for sea-g2p: English unless a Vietnamese-only word ('ơi') is present
+            vi = 'ơi' in text
+            return ' '.join({'y': 'ˈi' if vi else 'wˈaɪ', 'ơi': 'ˈəːj', 'ok': 'ˌoʊkˈeɪ'}.get(w.strip('.!?,'), w) for w in text.split()) + ('.' if text[-1] in '.!?' else '')
+        read = worker.vietnamese_reading(g2p)
+        self.assertEqual((read('y.'), read('y!'), read('y')), ('ˈi.', 'ˈi.', 'ˈi'))
+        self.assertEqual(read('ok.'), 'ˌoʊkˈeɪ.')  # a real English word stays English
+        for kept in ['Vâng.', '<en>y</en>.', '[sigh]', '.', 'y a b c.']:  # accents, tags, cues, no words, long chunks: untouched
+            self.assertEqual(read(kept), g2p(kept))
+
+    def test_tts_reads_single_english_looking_words_in_vietnamese(self):
+        import numpy as np
+        from types import SimpleNamespace
+        from unittest import mock
+        v3turbo = SimpleNamespace(phonemize_text_with_emotions=lambda text: 'ˈi ˈəːj.' if 'ơi' in text else 'wˈaɪ.')
+        engine = SimpleNamespace(infer=lambda text, **kw: np.full(4800, 0.1, dtype=np.float32))
+        fakes = {'vieneu': SimpleNamespace(Vieneu=lambda **k: engine), 'vieneu.v3turbo': v3turbo,
+                 'vieneu._v3_turbo_engine': mock.Mock(),
+                 'vieneu._v3_turbo_engine.onnx_runtime_lite': SimpleNamespace(OnnxV3LiteEngine=mock.Mock()),
+                 'soundfile': SimpleNamespace(write=lambda path, *a, **k: Path(path).write_bytes(b'RIFF'))}  # CI has no soundfile
+        with tempfile.TemporaryDirectory() as td, mock.patch.object(worker, 'verify_model'),                 mock.patch.object(worker, 'offline_mode'), mock.patch.dict(sys.modules, fakes):
+            worker.tts({'model_path': td, 'text': 'y.'}, Path(td) / 'out', lambda *a: None)
+        self.assertEqual(v3turbo.phonemize_text_with_emotions('y.'), 'ˈi.')
+
+    def test_real_g2p_reads_a_lone_y_as_the_vietnamese_letter(self):
+        try:
+            from vieneu_utils.phonemize_text import phonemize_text_with_emotions as g2p
+        except ImportError:
+            self.skipTest('the engine is not installed')
+        read = worker.vietnamese_reading(g2p)
+        self.assertEqual([read(t) for t in ['y.', 'in.', 'u.', 'im.']], ['ˈi.', 'ˈin.', 'ˈu.', 'ˈim.'])
+        self.assertEqual(read('Xin chào.'), g2p('Xin chào.'))
+
     def test_stt_progress_is_linear_in_audio_time(self):
         from types import SimpleNamespace
         from unittest import mock
