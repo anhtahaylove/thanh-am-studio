@@ -63,16 +63,26 @@ PRESET_TEMPERATURE = 0.5
 EDGE_MARGIN_S = 0.08
 
 
-PAUSE_MARK = re.compile(r'\[\s*nghỉ\s+(\d+(?:[.,]\d+)?)\s*(ms|s|giây)?\s*\]', re.IGNORECASE)
+# Any bracket that opens with nghỉ or pause, or with unaccented nghi when bare or followed by a digit, is a pause mark (src/domain.ts PAUSE_MARK); PAUSE_VALUE reads the valid ones, the rest are dropped.
+PAUSE_MARK = re.compile(r'\[\s*(?:(?:nghỉ|pause)(?!\w)[^\]]*|nghi\s*(?:\d[^\]]*)?)\]', re.IGNORECASE)
+PAUSE_VALUE = re.compile(r'\[\s*(?:nghỉ|nghi|pause)\s*(?:(\d+(?:[.,]\d+)?)\s*(ms|seconds?|sec|s|giây|giay)?\s*)?\]', re.IGNORECASE)
+
+
+def pause_seconds(mark):
+    """Seconds of a pause mark (bare = 1 s, no unit = seconds), or None when it does not parse."""
+    if not (m := PAUSE_VALUE.fullmatch(mark)):
+        return None
+    return 1.0 if m.group(1) is None else float(m.group(1).replace(',', '.')) / (1000 if (m.group(2) or 's').lower() == 'ms' else 1)
 
 
 def split_pauses(text):
-    """'A [nghỉ 0.5s] B' -> ([('A', 0.0), ('B', 0.5)], trailing): each spoken part with the silence before it."""
+    """'A [nghỉ 0.5s] B' -> ([('A', 0.0), ('B', 0.5)], trailing): each spoken part with the silence before it. Unparsable marks are dropped."""
+    text = PAUSE_MARK.sub(lambda m: m.group(0) if pause_seconds(m.group(0)) is not None else ' ', text)
     parts, pause, pos = [], 0.0, 0
     for m in PAUSE_MARK.finditer(text):
         if chunk := text[pos:m.start()].strip():
             parts.append((chunk, pause)); pause = 0.0
-        seconds = float(m.group(1).replace(',', '.')) / (1000 if (m.group(2) or 's').lower() == 'ms' else 1)
+        seconds = pause_seconds(m.group(0))
         if not 0.05 <= seconds <= 10:
             raise WorkerError('INVALID_TEXT', 'Khoảng nghỉ phải từ 0,05 đến 10 giây.')
         pause += seconds; pos = m.end()
