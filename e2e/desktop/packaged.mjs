@@ -522,8 +522,8 @@ try {
     });
   }
   if (phase === 'scripts') {
-    // 1.0.7 script features in the installed app: a Word file made by Word imported through the open dialog, then a take
-    // whose text has a pause alias and an emotion cue inserted with its button. Needs THANHAM_DOCX (sandbox-run.ps1).
+    // 1.0.7 script features in the installed app: a Word file made by Word imported through the open dialog, a take whose
+    // text has a pause alias and an emotion cue inserted with its button, and a per-chapter export. Needs THANHAM_DOCX.
     let project;
     await step('voice model ready', voiceModel);
     await step('a Word script imports with its speakers', async () => {
@@ -560,6 +560,46 @@ try {
       for (let f = on.indexOf(true); f <= on.lastIndexOf(true); f++) { run = on[f] ? 0 : run + 1; longest = Math.max(longest, run); }
       if (longest * 10 < 350) throw Error(`longest pause inside the take is ${longest * 10} ms`);
       return `sent "${job.payload.text}", ${job.result.duration_ms} ms take, longest pause inside ${longest * 10} ms`;
+    });
+    let chapters;
+    await step('one file per chapter from [P1] markers', async () => {
+      await newProject('Chương');
+      await page.getByRole('button', {name: 'Thêm nội dung', exact: true}).click();
+      await page.getByRole('textbox', {name: 'Nội dung cần thêm'}).fill('[P1]\nMột hai ba bốn năm.\nSáu bảy tám chín mười.\n[P2] Hết chương một, sang chương hai.');
+      await page.getByRole('button', {name: 'Thêm vào kịch bản'}).click();
+      await page.getByRole('textbox', {name: 'Nội dung đoạn 3'}).waitFor();
+      await page.waitForTimeout(1500); // autosave
+      const tts = await done('tts');
+      await page.getByRole('button', {name: 'Tạo giọng tất cả'}).click();
+      await waitJobs('tts', tts + 3, 10 * 60000);
+      await nav('Tạo giọng đọc');
+      await page.getByRole('checkbox', {name: 'Mỗi chương một file'}).check();
+      const before = await done('render');
+      await page.getByRole('button', {name: 'Xuất audio'}).click();
+      const jobs = (await waitJobs('render', before + 2, 5 * 60000)).slice(0, 2).sort((a, b) => a.payload.name.localeCompare(b.payload.name));
+      const id = jobs[0].project_id, project = await invoke('load_project', {id});
+      // Each file holds its chapter's segments: their trimmed takes, each followed by its gap.
+      const len = (s) => (s.trim_end_ms ?? s.takes.find((t) => t.id === s.selected_take_id).duration_ms) - s.trim_start_ms + s.gap_ms;
+      const want = [['001-P1', project.segments.slice(0, 2)], ['002-P2', project.segments.slice(2)]];
+      chapters = jobs.map((job, i) => {
+        const [name, segments] = want[i], expected = segments.reduce((sum, s) => sum + len(s), 0);
+        if (job.payload.name !== name || job.payload.batch !== jobs[0].payload.batch || JSON.stringify(job.payload.segments.map((s) => s.id)) !== JSON.stringify(segments.map((s) => s.id)))
+          throw Error(`job ${i}: ${JSON.stringify({name: job.payload.name, batch: job.payload.batch, segments: job.payload.segments.map((s) => s.text)})}`);
+        if (Math.abs(job.result.duration_ms - expected) > 30) throw Error(`${name}: ${job.result.duration_ms} ms, expected ${expected} ms`);
+        return {name, job, expected};
+      });
+      return chapters.map(({name, job, expected}) => `${name} ${job.result.duration_ms} ms (expected ${expected})`).join(', ');
+    });
+    await step('chapter files save into a folder without overwriting', async () => {
+      // The folder picker itself is covered by the browser tests; this runs the installed app's copy command.
+      const dir = join(saves, `chương ${Date.now()}`); mkdirSync(dir, {recursive: true});
+      const save = ({name, job}) => invoke('export_asset_new', {assetId: job.result.asset_id, path: join(dir, `${name}.wav`)});
+      const first = [], again = [];
+      for (const c of chapters) first.push(await save(c));
+      for (const c of chapters) again.push(await save(c));
+      const sizes = chapters.map(({name, job}) => [statSync(join(dir, `${name}.wav`)).size, statSync(job.result.path).size]);
+      if (first.some((v) => v !== true) || again.some((v) => v !== false) || sizes.some(([a, b]) => a !== b)) throw Error(JSON.stringify({first, again, sizes}));
+      return `saved ${first.length}, second pass skipped ${again.length}, sizes ${sizes.map(([a]) => a).join(', ')} bytes`;
     });
   }
   if (phase === 'dub') {

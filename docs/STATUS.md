@@ -61,6 +61,15 @@ Last updated 2026-11-14. Evidence below was observed, not inferred; anything not
   stay); dubbing on the subtitle timeline: segments keep their SRT/VTT or transcript cue times, and with
   "Theo mốc phụ đề" the export places each take at its cue, speeds it up to fit (at most 1.5x), pushes the
   next take back when it still runs over (50 ms apart) and exports the SRT at the same places.
+- Added for v1.0.7 (#69-#73): pause marks also as `[nghỉ]` (1 s), `[nghi 2s]` (unaccented only when bare or
+  followed by a digit, so `[nghi ngờ]` stays text), `[pause 2 sec]`, units ms/s/giây/giay/sec/second(s), and
+  a malformed pause mark is dropped instead of read aloud; experimental emotion cues `[cười]`, `[thở dài]`,
+  `[hắng giọng]` with buttons that insert them at the cursor (the engine's own tags, kept away from text
+  rules and the self-check); Word (.docx) scripts import like TXT (a std zip reader with a 64 MiB inflate
+  cap and the 10 MB text limit, deleted text, field codes and text boxes skipped, table rows as one line);
+  `[P1]`, `[P2]` lines start chapters and "Mỗi chương một file" exports one numbered file per chapter, with
+  a button that saves them all into a folder without overwriting; the export bar keeps its controls at
+  full size and puts the dub summary on its own row.
 
 ## Verification (2026-11-11)
 
@@ -745,3 +754,7 @@ Evidence: `work\release-v1.0.6-sandbox` (`dub\` for the dub phase; a first `dub`
   a few hundred ms; the segment boundaries are exact. The overlap chip is a hint (recall 0.46 on AMI) and
   names the right second speaker for only about a third of the marked rows.
 - A take synthesized at a speed other than 1 is stretched a second time when it has to fit its subtitle cue.
+- Emotion cues are experimental in the model and nobody has listened to them; an unaccented chunk that also
+  carries a cue (for example "Cam on ban [cuoi]") is still read with English phonemes. Word import reads only
+  `word/document.xml` with the `w:` prefix and reads hidden (`w:vanish`) text. Per-chapter export cannot be
+  combined with the subtitle timing, and the save-all button offers only the newest batch.
