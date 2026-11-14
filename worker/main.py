@@ -242,6 +242,11 @@ def render(payload, output_dir: Path, progress):
     if fmt not in {'wav', 'mp3'}:
         raise WorkerError('INVALID_RECIPE', 'Supported export formats: wav, mp3.')
     ffmpeg = executable('ffmpeg', payload.get('ffmpeg_path'))
+    # Subtitle timeline: each clip starts at its at_ms (silence fills the wait), sped up by its rate, and the output runs at least
+    # to pad_to_ms; the gaps are not used. The places come from the app's dub plan; this only applies them.
+    timeline = payload.get('timeline') is True
+    pad_to = round(number(payload.get('pad_to_ms', 0), 'pad_to_ms', 0, 86400000) * 48) if timeline else 0
+    written = 0  # samples of the clips rendered so far, at 48 kHz
     output_dir.mkdir(parents=True, exist_ok=True)
     final = output_dir / f'{uuid.uuid4()}.{fmt}'
     partial = final.with_name(final.stem + '.partial.' + fmt)
@@ -259,10 +264,19 @@ def render(payload, output_dir: Path, progress):
                 if recipe['fade_out_ms']:
                     fade = recipe['fade_out_ms'] / 1000
                     filters.append(f'afade=t=out:st={max(0,length-fade)}:d={fade}')
-                if recipe['gap_ms']:
+                if timeline:
+                    rate = number(clip.get('rate', 1), 'rate', 1, 2)
+                    wait = max(0, round(number(clip.get('at_ms'), 'at_ms', 0, 86400000) * 48) - written)
+                    filters += [f'atempo={rate}'] * (rate != 1) + [f'adelay=delays={wait}S:all=1'] * (wait > 0)
+                    if i == len(clips) - 1 and pad_to > written:
+                        filters.append(f'apad=whole_len={pad_to - written}')
+                elif recipe['gap_ms']:
                     filters.append(f"apad=pad_dur={recipe['gap_ms']/1000}")
                 run_process([ffmpeg, '-nostdin', '-hide_banner', '-loglevel', 'error', '-y', '-i', clip['path'],
                     '-vn', '-af', ','.join(filters), '-c:a', 'pcm_f32le', str(temp / f'{i:06d}.wav')])
+                if timeline:
+                    import soundfile as sf
+                    written += sf.info(str(temp / f'{i:06d}.wav')).frames
                 progress((i + 1) / (len(clips) + 1), f'Rendered {i+1}/{len(clips)} segments')
             listing = temp / 'concat.txt'
             listing.write_text(''.join(f"file '{i:06d}.wav'\n" for i in range(len(clips))), encoding='utf-8')

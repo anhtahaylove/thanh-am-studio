@@ -100,3 +100,17 @@ fn worker_keeps_the_machine_awake_until_it_ends(){
  drop(awake);
  assert_eq!(unsafe{SetThreadExecutionState(ES_CONTINUOUS)}&ES_SYSTEM_REQUIRED,0);
 }
+#[test]
+fn render_timeline_places_are_bounded_and_forwarded_only_when_asked(){
+ let t=tempfile::tempdir().unwrap();let s=Store::open(t.path()).unwrap();
+ let p=t.path().join("take.wav");std::fs::write(&p,b"RIFF0000WAVE").unwrap();let a=s.import_asset(&p).unwrap();
+ let seg=|at:serde_json::Value,rate:serde_json::Value|json!({"selected_take_id":"t1","takes":[{"id":"t1","asset_id":a["id"]}],"gap_ms":300,"dub_at_ms":at,"dub_rate":rate});
+ let job=|v:serde_json::Value|s.enqueue("render",None,v).unwrap();
+ let r=prepare_request(&s,&job(json!({"segments":[seg(json!(2500),json!(1.25))],"timeline":true,"pad_to_ms":4000})),None).unwrap();
+ assert_eq!((&r["payload"]["clips"][0]["at_ms"],&r["payload"]["clips"][0]["rate"],&r["payload"]["pad_to_ms"],&r["payload"]["timeline"]),(&json!(2500.0),&json!(1.25),&json!(4000.0),&json!(true)));
+ let plain=prepare_request(&s,&job(json!({"segments":[seg(json!(2500),json!(1.25))]})),None).unwrap();
+ assert!(plain["payload"]["clips"][0].get("at_ms").is_none()&&plain["payload"]["pad_to_ms"].is_null());
+ for (at,rate,pad) in [(json!(-1),json!(1.0),json!(0)),(json!(0),json!(0.5),json!(0)),(json!(0),json!(3.0),json!(0)),(json!(null),json!(1.0),json!(0)),(json!(0),json!(1.0),json!(null))]{
+  assert_eq!(prepare_request(&s,&job(json!({"segments":[seg(at,rate)],"timeline":true,"pad_to_ms":pad})),None).unwrap_err(),"INVALID_TIMELINE");
+ }
+}
