@@ -551,7 +551,8 @@ try {
       const text = await box.inputValue();
       if (!/^Hôm nay \[pause 0\.4s\] trời đẹp quá\. ?\[cười\] ?$/.test(text)) throw Error(`text after the cue button: "${text}"`);
       const before = await done('tts');
-      await page.locator('article.segment').nth(1).getByRole('button', {name: 'Tạo take mới'}).click();
+      // A segment without a take labels this button "Tạo giọng"; it reads "Tạo take mới" once a take exists.
+      await page.locator('article.segment').nth(1).getByRole('button', {name: /^(Tạo giọng|Tạo take mới)$/}).click();
       const [job] = await waitJobs('tts', before + 1, 10 * 60000);
       if (!job.payload.text.includes('[pause 0.4s]') || !job.payload.text.includes('[cười]')) throw Error(`sent "${job.payload.text}"`);
       // The longest quiet stretch (frames under 5 % of the take's peak) between the first and the last speech frame.
