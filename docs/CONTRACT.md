@@ -21,7 +21,7 @@ All JSON fields are snake_case. Times are milliseconds except worker STT segment
 - `download_model({id})` -> Job
 - `export_text({path,content})` -> void (TXT/SRT/VTT/CSV only)
 - `export_asset({assetId,path})` -> void (explicit native save dialog output)
-- `export_asset_new({assetId,path})` -> boolean (copies like `export_asset` but never overwrites: `false` when `path` already exists; used by "save all chapters")
+- `export_asset_new({assetId,path})` -> boolean (copies like `export_asset` but never overwrites: `false` when `path` already exists; a failed copy removes the partial file; used by "save all chapters", which reports saved, skipped and failed files)
 - `list_voices` -> Voice[]
 - `save_voice({voice})` -> Voice (reference asset + consent boolean)
 
@@ -50,7 +50,7 @@ ModelInfo: {id,name,engine,installed:boolean,revision:string,license:string,desc
 ## Job kinds and payloads
 - tts: {segment_id,text,voice_id:string|null,reference_asset_id:string|null}; backend resolves voice/reference and model paths; result adds a new take without replacing existing selection (first take auto-selected only when none, with the segment trim set to its speech edges). Takes are append-only: adding one does not change the project revision, and save_project keeps stored takes the client has not seen (and, when the client has no selection yet, the stored selection with its trim).
 - stt: {asset_id,model_id:'whisper-small'|'whisper-turbo',language:'vi'|'auto',diarize?:boolean,num_speakers?:1..8|null,min_speakers?:1..8|null,max_speakers?:1..8|null}; the speaker counts are whole numbers 1..8 and only used with `diarize`; `num_speakers` (exact count) excludes `min_speakers`/`max_speakers` (an allowed range for the automatic count, min <= max); a bad value or a mix is rejected with INVALID_SPEAKERS; result transcript must not silently overwrite edited transcript: retain result on job, UI applies explicitly.
-- render: {segments:Segment[],normalize:boolean,format:'wav'|'mp3',timeline?:boolean,pad_to_ms?:number,name?:string,batch?:string} (`name`/`batch` are only carried in the job payload: a per-chapter export enqueues one render job per chapter, named like `001-P1`, all sharing one `batch` id; the backend ignores both); with `timeline` every segment also carries `dub_at_ms` (0..86,400,000) and `dub_rate` (1..2) from the app's dub plan (`dubPlan` in src/domain.ts) and `pad_to_ms` is required, else INVALID_TIMELINE; backend resolves selected takes by asset IDs, ignores untrusted payload paths. Output is a new asset.
+- render: {segments:Segment[],normalize:boolean,format:'wav'|'mp3',timeline?:boolean,pad_to_ms?:number,name?:string,batch?:string,batch_size?:number} (`name`/`batch`/`batch_size` are only carried in the job payload: a per-chapter export enqueues one render job per chapter, named like `001-P1`, all sharing one `batch` id, and each carries `batch_size`, the number of jobs the export meant to enqueue, so a batch cut short by a failed enqueue is never offered as complete; the backend ignores all three); with `timeline` every segment also carries `dub_at_ms` (0..86,400,000) and `dub_rate` (1..2) from the app's dub plan (`dubPlan` in src/domain.ts) and `pad_to_ms` is required, else INVALID_TIMELINE; backend resolves selected takes by asset IDs, ignores untrusted payload paths. Output is a new asset.
 - model_download: {model_id}; download pins manifest revision and verifies cached content.
 
 ## Worker JSON-lines protocol

@@ -41,11 +41,11 @@ export async function saveText(name:string,content:string):Promise<void>{
  const path=await save({defaultPath:name,filters:[{name:'Văn bản',extensions:[name.split('.').pop()!]}]});if(path)await call('export_text',{path,content});
 }
 export async function saveAudio(assetId:string,format:string,name='thanh-am'):Promise<void>{const path=await save({defaultPath:`${name}.${format}`,filters:[{name:'Audio',extensions:[format]}]});if(path)await call('export_asset',{assetId,path});}
-/** Asks for a folder and copies each audio asset there as `file`, leaving a file that already exists alone. Null when cancelled. */
-export async function saveAudioFiles(items:{assetId:string;file:string}[]):Promise<{saved:number;skipped:string[]}|null>{
+/** Asks for a folder and copies each audio asset there as `file`, leaving a file that already exists alone; a file that fails is reported and the rest still go on. Null when cancelled. */
+export async function saveAudioFiles(items:{assetId:string;file:string}[]):Promise<{saved:number;skipped:string[];failed:{file:string;error:string}[]}|null>{
  if(!desktop)throw Error('Mở bản desktop để lưu tệp.');
  const dir=await open({directory:true});if(typeof dir!=='string')return null;
- const base=dir.replace(/[\\/]$/,'')+(dir.includes('\\')?'\\':'/'),skipped:string[]=[];let saved=0;
- for(const {assetId,file} of items){if(await call<boolean>('export_asset_new',{assetId,path:base+file}))saved++;else skipped.push(file);}
- return {saved,skipped};
+ const base=dir.replace(/[\\/]$/,'')+(dir.includes('\\')?'\\':'/'),skipped:string[]=[],failed:{file:string;error:string}[]=[];let saved=0;
+ for(const {assetId,file} of items){try{if(await call<boolean>('export_asset_new',{assetId,path:base+file}))saved++;else skipped.push(file);}catch(e){failed.push({file,error:String(e instanceof Error?e.message:e)});}}
+ return {saved,skipped,failed};
 }

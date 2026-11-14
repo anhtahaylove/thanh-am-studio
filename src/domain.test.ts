@@ -113,6 +113,20 @@ describe('chapters',()=>{
  it('names chapter files with a 3-digit order and a sanitized label',()=>{
   expect([chapterFileName(1,'P1'),chapterFileName(12,'Chương 3: Mở/đầu?'),chapterFileName(2,'***'),chapterFileName(3,'a_b-c')]).toEqual(['001-P1','012-Chương_3_Mởđầu','002','003-a_b-c']);
  });
+ it('file names compose decomposed labels and cap the label part',()=>{
+  const nfd='Chương Mở đầu'.normalize('NFD');expect(nfd).not.toBe(nfd.normalize('NFC'));
+  expect(chapterFileName(1,nfd)).toBe('001-Chương_Mở_đầu');
+  expect(chapterFileName(1,'x'.repeat(300))).toBe('001-'+'x'.repeat(80));
+ });
+ it('a marker right after a speaker label, or followed by a colon, is stripped and never spoken',()=>{
+  expect(scriptChunks('Lan: [P1] Xin chào.\nMai: Chào.')).toEqual([{speaker:'Lan',text:'Xin chào.',chapter:'P1'},{speaker:'Mai',text:'Chào.'}]);
+  expect(scriptChunks('[P1]: Xin chào.')).toEqual([{speaker:'Người dẫn',text:'Xin chào.',chapter:'P1'}]);
+  expect(scriptChunks('[P2]：Hai.')).toEqual([{speaker:'Người dẫn',text:'Hai.',chapter:'P2'}]);
+  // a lone label stays text (needs two labels), but the marker still goes
+  expect(scriptChunks('Lan: [P3] Xin chào.')).toEqual([{speaker:'Người dẫn',text:'Lan: Xin chào.',chapter:'P3'}]);
+  // a marker later in the text is still just text
+  expect(scriptChunks('Lan: Xem [P1] ở trên.\nMai: Vâng.')).toEqual([{speaker:'Lan',text:'Xem [P1] ở trên.'},{speaker:'Mai',text:'Vâng.'}]);
+ });
  it('split gives the chapter to the first half only; merge keeps the first chapter',()=>{
   const s={...makeSegment('Xin chào bạn. Tôi là Mai.'),chapter:'P2'};const [a,b]=splitSegment(s,'Xin chào bạn.'.length);
   expect(a.chapter).toBe('P2');expect(b.chapter).toBeUndefined();

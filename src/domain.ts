@@ -94,7 +94,13 @@ const CHAPTER=/^\s*\[\s*P(\d+)\s*\](.*)$/i;
 const labelOf=(line:string)=>{const m=line.match(LABEL),name=(m?.[1]??m?.[2])?.trim();return m&&name&&name.length<=30&&!/\d|www\.|@/i.test(name)?{name,rest:m[3]}:null;};
 /** Script chunks of pasted text. With at least two labelled lines each label starts a block (continuing until the next label) spoken by that name; otherwise one speaker reads everything, so a lone "Lưu ý:" stays text. */
 export function scriptChunks(text:string):{speaker:string;text:string;chapter?:string}[]{
- const lines=text.split(/\r?\n/).map(raw=>{const m=raw.match(CHAPTER),line=m?m[2].trim():raw;return {line,label:labelOf(line),chapter:m?`P${m[1]}`:undefined};}),labelled=lines.filter(l=>l.label).length>=2,blocks=[{speaker:'Người dẫn',lines:[] as string[],chapter:undefined as string|undefined}];
+ const lines=text.split(/\r?\n/).map(raw=>{
+  // "[P1] text" or "[P1]: text", or the marker right after a speaker label: "Lan: [P1] text"
+  const m=raw.match(CHAPTER);let line=m?m[2].replace(/^\s*[:：]/,'').trim():raw,label=labelOf(line),chapter=m?`P${m[1]}`:undefined;
+  const after=!chapter&&label?label.rest.match(CHAPTER):null;
+  if(after&&label){chapter=`P${after[1]}`;label={...label,rest:after[2].trim()};line=raw.replace(/\[\s*P\d+\s*\]\s*/i,'');}
+  return {line,label,chapter};
+ }),labelled=lines.filter(l=>l.label).length>=2,blocks=[{speaker:'Người dẫn',lines:[] as string[],chapter:undefined as string|undefined}];
  for(const {line,label,chapter} of lines){if(labelled&&label)blocks.push({speaker:label.name,lines:[label.rest],chapter});else if(chapter)blocks.push({speaker:blocks.at(-1)!.speaker,lines:[line],chapter});else blocks.at(-1)!.lines.push(line);}
  let pending:string|undefined;// a marker with no text yet waits for the next chunk
  return blocks.flatMap(b=>{pending=b.chapter??pending;const texts=splitText(b.lines.join('\n'));if(!texts.length)return [];const chapter=pending;pending=undefined;return texts.map((text,i)=>({speaker:b.speaker,text,...(i===0&&chapter&&{chapter})}));});
@@ -108,8 +114,8 @@ export function chapterGroups(segments:Segment[]):{label:string;segments:Segment
  for(const s of segments){if(chapterOf(s)||!groups.length)groups.push({label:chapterOf(s)||'P0',segments:[s]});else groups.at(-1)!.segments.push(s);}
  return groups;
 }
-/** Job and file name of the n-th chapter (1-based): `001-P1`. The label keeps letters, digits, `-` and `_` (spaces become `_`). */
-export function chapterFileName(order:number,label:string):string{const clean=label.trim().replace(/\s+/g,'_').replace(/[^\p{L}\p{N}_-]/gu,'');return String(order).padStart(3,'0')+(clean?`-${clean}`:'');}
+/** Job and file name of the n-th chapter (1-based): `001-P1`. The label is NFC-normalized and keeps letters, digits, `-` and `_` (spaces become `_`), at most 80 characters. */
+export function chapterFileName(order:number,label:string):string{const clean=[...label.normalize('NFC').trim().replace(/\s+/g,'_').replace(/[^\p{L}\p{N}_-]/gu,'')].slice(0,80).join('');return String(order).padStart(3,'0')+(clean?`-${clean}`:'');}
 export function splitTranscript(row:TranscriptSegment):[TranscriptSegment,TranscriptSegment]{const words=row.text.split(/\s+/);if(words.length<2||row.end_ms-row.start_ms<2)throw Error('Cần ít nhất hai từ để chia đoạn');const n=Math.ceil(words.length/2);const mid=Math.round(row.start_ms+(row.end_ms-row.start_ms)*n/words.length);return [{...row,text:words.slice(0,n).join(' '),end_ms:mid},{id:uid(),start_ms:mid,end_ms:row.end_ms,text:words.slice(n).join(' ')}];}
 export function mergeTranscript(a:TranscriptSegment,b:TranscriptSegment):TranscriptSegment{return {...a,start_ms:Math.min(a.start_ms,b.start_ms),end_ms:Math.max(a.end_ms,b.end_ms),text:a.text+' '+b.text};}
 export interface Recipe {duration_ms:number;trim_start_ms:number;trim_end_ms:number|null;gap_ms:number;fade_in_ms:number;fade_out_ms:number;gain_db:number}
