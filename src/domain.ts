@@ -44,8 +44,8 @@ export function barState(i:number,n:number,durationMs:number,trim:{trim_start_ms
  return playMs!==null&&t<=playMs?'played':'';
 }
 export const rowAt=(rows:TranscriptSegment[],ms:number)=>rows.find(r=>r.start_ms<=ms&&ms<r.end_ms)?.id??null;
-/** Pause mark the worker turns into silence: "[nghỉ 0.5s]", "[nghỉ 300ms]", "[pause 2 sec]", bare "[nghỉ]" = 1 s. Any bracket opening with nghỉ/nghi/pause matches; one that does not parse is dropped by the worker (worker/main.py PAUSE_MARK). */
-export const PAUSE_MARK=/\[\s*(?:nghỉ|nghi|pause)(?![\p{L}\p{N}_])[^\]]*\]/giu;
+/** Pause mark the worker turns into silence: "[nghỉ 0.5s]", "[nghỉ 300ms]", "[pause 2 sec]", bare "[nghỉ]" = 1 s. Any bracket opening with nghỉ or pause matches, and nghi only when bare or followed by a digit (so "[nghi ngờ]" stays text); one that does not parse is dropped by the worker (worker/main.py PAUSE_MARK). */
+export const PAUSE_MARK=/\[\s*(?:(?:nghỉ|pause)(?![\p{L}\p{N}_])[^\]]*|nghi\s*(?:\d[^\]]*)?)\]/giu;
 export const spokenText=(text:string)=>text.replace(PAUSE_MARK,' ').replace(/\s+/g,' ').trim();
 /** Dictionary and number rules apply to spoken text only; pause marks pass through untouched. `codeSwitch` wraps English-only words in <en>…</en>. */
 export function normalizeText(text:string,dictionary:Record<string,string>,options:{codeSwitch?:boolean}={}):string {

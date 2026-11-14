@@ -125,12 +125,15 @@ class WorkerTests(unittest.TestCase):
                               ('[nghỉ 2 giay]', 2.0), ('[nghỉ 2 second]', 2.0), ('[ nghỉ 300 ms ]', 0.3)]:
             with self.subTest(mark=mark):
                 self.assertEqual(worker.split_pauses(f'A {mark} B'), ([('A', 0.0), ('B', seconds)], 0.0))
-        for bad in ['[nghỉ abc]', '[pause 2 phút]', '[nghỉ giây]', '[nghỉ: 2s]', '[pause .5]']:
+        for bad in ['[nghỉ abc]', '[pause 2 phút]', '[nghỉ giây]', '[nghỉ: 2s]', '[pause .5]', '[nghi 2 phút]']:
             with self.subTest(bad=bad):
                 (chunk, pause), = worker.split_pauses(f'A {bad} B')[0]
                 self.assertEqual((' '.join(chunk.split()), pause), ('A B', 0.0))
                 with self.assertRaises(worker.WorkerError):
                     worker.split_pauses(bad)
+        for text in ['[nghi ngờ]', '[Nghi vấn]', '[nghi lễ]']:
+            self.assertEqual(worker.split_pauses(f'A {text} B'), ([(f'A {text} B', 0.0)], 0.0))
+            self.assertEqual(worker.words(f'A {text} B'), worker.words(f'A {text[1:-1]} B'))
         self.assertEqual(worker.split_pauses('Nghỉ ngơi [pausex] nhé'), ([('Nghỉ ngơi [pausex] nhé', 0.0)], 0.0))
         with self.assertRaises(worker.WorkerError):
             worker.split_pauses('A [nghỉ 0] B')

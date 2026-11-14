@@ -63,8 +63,8 @@ PRESET_TEMPERATURE = 0.5
 EDGE_MARGIN_S = 0.08
 
 
-# Any bracket that opens with a pause word is a pause mark (src/domain.ts PAUSE_MARK); PAUSE_VALUE reads the valid ones, the rest are dropped.
-PAUSE_MARK = re.compile(r'\[\s*(?:nghỉ|nghi|pause)(?!\w)[^\]]*\]', re.IGNORECASE)
+# Any bracket that opens with nghỉ or pause, or with unaccented nghi when bare or followed by a digit, is a pause mark (src/domain.ts PAUSE_MARK); PAUSE_VALUE reads the valid ones, the rest are dropped.
+PAUSE_MARK = re.compile(r'\[\s*(?:(?:nghỉ|pause)(?!\w)[^\]]*|nghi\s*(?:\d[^\]]*)?)\]', re.IGNORECASE)
 PAUSE_VALUE = re.compile(r'\[\s*(?:nghỉ|nghi|pause)\s*(?:(\d+(?:[.,]\d+)?)\s*(ms|seconds?|sec|s|giây|giay)?\s*)?\]', re.IGNORECASE)
 
 
