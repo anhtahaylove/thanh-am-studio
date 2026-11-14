@@ -70,6 +70,11 @@ Last updated 2026-11-14. Evidence below was observed, not inferred; anything not
   `[P1]`, `[P2]` lines start chapters and "Mỗi chương một file" exports one numbered file per chapter, with
   a button that saves them all into a folder without overwriting; the export bar keeps its controls at
   full size and puts the dub summary on its own row.
+- Added for v1.0.8 (#76-#78): an export started right after the takes are made no longer asks to pick a
+  take (the editor reloads the project first when it has not yet seen a take the server already selected);
+  after an emotion or pause button the caret sits right after the inserted tag and the text box has focus,
+  so a second click or typing continues there; a pause mark that cannot be read collapses with the spaces
+  around it into one space; the copy of "save all chapters" has a test that fails midway.
 
 ## Verification (2026-11-11)
 
@@ -711,9 +716,9 @@ Evidence: `work\release-v1.0.6-sandbox` (`dub\` for the dub phase; a first `dub`
 | Installer SHA-256 | `ebda42e54ae4a57843a6af3e2359a7a03ffbc7495fe35eeb3198523b4a738b9f`; `sha256sum -c` OK after `gh release download` |
 | Clean Sandbox run on that exact installer | `full` (trims 0-3657 ms and 17-2228 ms follow the takes' speech edges), `features` (2 speakers in the 102 s dialogue, 22 rows): 16 PASS; `dub`: export bar "1 đoạn đọc nhanh hơn · 1 đoạn bị lùi (tối đa 1,08 s)", places 1000 / 5000 x1.5 / 7081 (pushed from 6000) / 12000 ms, speech within 10 ms of each place, normalized render at 0 ms lag, SRT at the same places: 10 PASS |
 | Clean Sandbox `scripts` phase on the same installer | a Word file saved by Word imported through the open dialog as 3 lines of 2 speakers; `[pause 0.4s]` typed and the laugh cue inserted by its button reach the engine unchanged (2800 ms take, longest pause inside 910 ms); `[P1]`/`[P2]` with "Mỗi chương một file" give render jobs `001-P1` (2793 ms) and `002-P2` (1951 ms) of one batch, each exactly its takes plus gaps; the installed app's no-overwrite copy saved both and skipped both on a second pass, same sizes: 7 PASS, 0 FAIL |
-| Carried over from the 1.0.3 draft | `reopen`, `turbo`, `offline`, `export`, `ux`, `clone`, `dpi` |
+| Older groups rerun on the same installer after publishing | run a: `full`, `reopen`, `turbo` (Whisper Turbo download, MP3 48 kHz 192 kbps, STT on the MP3), `offline` (network adapters disabled), `export`: 26 PASS, 0 FAIL; run b: `full`, `clone` (WER 7.3 %), `dpi` (4/4 sizes, 6 pages clean each): 20 PASS; `ux`: dropping a script file passed (3 PASS), then the follow-along step failed for a test-script reason: it clicked the first "apply transcript" button before the queue list (refreshed every 2.5 s) showed the new job's button, so it applied an older 6 s transcript; fixed in the 1.0.8 release PR and checked on that installer |
 
-Evidence: `work\release-v1.0.7-sandbox` (`run35-all-phases\` stopped in `scripts` on a test-script selector; `run36-scripts\` stopped when the test exported before the editor had picked up the new takes; `run37-scripts\` is the passing `scripts` run after both test-script fixes in #75; the installer was the same in all three).
+Evidence: `work\release-v1.0.7-sandbox` (`run38a`, `run38b` for the older groups; `run35-all-phases\` stopped in `scripts` on a test-script selector; `run36-scripts\` stopped when the test exported before the editor had picked up the new takes; `run37-scripts\` is the passing `scripts` run after both test-script fixes in #75; the installer was the same in all three).
 
 ## Not verified / known gaps
 
@@ -766,9 +771,11 @@ Evidence: `work\release-v1.0.7-sandbox` (`run35-all-phases\` stopped in `scripts
   a few hundred ms; the segment boundaries are exact. The overlap chip is a hint (recall 0.46 on AMI) and
   names the right second speaker for only about a third of the marked rows.
 - A take synthesized at a speed other than 1 is stretched a second time when it has to fit its subtitle cue.
-- Emotion cues are experimental in the model and nobody has listened to them; an unaccented chunk that also
+- Emotion cues are experimental in the model and nobody has listened to them. A machine check of 36 pairs (6 preset
+  voices, each cue at the end and in the middle, the same text with and without the cue; `work\emotion-cues-listening`)
+  found the engine token in every cued text, no cue read aloud as a word, cued takes 0.3-0.6 s longer on average and
+  extra non-word sound at the cue in about half of the pairs; six pairs showed almost no difference, Whisper heard one
+  take with `[thở dài]` repeat its phrase and one with `[cười]` lose three words. An unaccented chunk that also
   carries a cue (for example "Cam on ban [cuoi]") is still read with English phonemes. Word import reads only
   `word/document.xml` with the `w:` prefix and reads hidden (`w:vanish`) text. Per-chapter export cannot be
   combined with the subtitle timing, and the save-all button offers only the newest batch.
-- Right after takes are made, the editor picks them up on its next job poll (up to 2.5 s); an export started
-  before that is refused with the "pick a take for each segment" message and works when started again.

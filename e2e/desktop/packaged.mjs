@@ -414,7 +414,10 @@ try {
       await emit('tauri://drag-drop', [audio]);
       const [job] = await waitJobs('stt', s0 + 1, 10 * 60000);
       await nav('Hàng đợi');
-      await page.getByRole('button', {name: 'Áp dụng transcript'}).first().click(); // newest first; STT rows do not show the job id
+      const apply = page.getByRole('button', {name: 'Áp dụng transcript'}); // newest first; STT rows do not show the job id
+      const total = await done('stt');
+      for (let i = 0; i < 20 && (await apply.count()) < total; i++) await page.waitForTimeout(500); // the list refreshes every 2.5 s
+      await apply.first().click();
       await nav('Chép lời');
       const rows = job.result.transcript;
       if (rows.length < 2) throw Error(`need at least 2 transcript rows, got ${rows.length}`);
