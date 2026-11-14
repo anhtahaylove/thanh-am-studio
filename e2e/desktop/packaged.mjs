@@ -82,6 +82,16 @@ function loud(peaks, from, to) {
   for (let f = a; f < z; f++) if (peaks[f] > 0.1 * top) { if (first < 0) first = f; last = f; }
   return [first * 10, last * 10 + 10];
 }
+// Lag in ms (10 ms steps, up to 200 ms either way) at which b's level envelope best matches a's.
+function lag(a, b) {
+  let best = [0, -Infinity];
+  for (let d = -20; d <= 20; d++) {
+    let s = 0;
+    for (let i = Math.max(0, -d); i < Math.min(a.length, b.length - d); i++) s += Math.sqrt(a[i] * b[i + d]);
+    if (s > best[1]) best = [d, s];
+  }
+  return best[0] * 10;
+}
 async function exportSteps() {
   const wav = join(saves, `xuất thử ổn định ${Date.now()}.wav`);
   await step('render and export wav via save dialog', async () => {
@@ -560,17 +570,23 @@ try {
       await shot('dub-export-bar');
       return text;
     });
-    await step('render follows the plan', async () => {
+    const render = async (normalize, name) => {
+      await nav('Tạo giọng đọc');
+      await page.getByRole('checkbox', {name: 'Chuẩn hóa'}).setChecked(normalize);
       const before = await done('render');
       await page.getByRole('button', {name: 'Xuất audio'}).click();
-      [job] = await waitJobs('render', before + 1, 5 * 60000);
-      const {payload} = job, pad = Math.max(plan.at(-1).end, ...project.segments.map((s) => s.cue_end_ms));
+      const [rendered] = await waitJobs('render', before + 1, 5 * 60000);
+      const {payload} = rendered, pad = Math.max(plan.at(-1).end, ...project.segments.map((s) => s.cue_end_ms));
       const sent = payload.segments.map((s) => [s.dub_at_ms, s.dub_rate]);
-      if (payload.timeline !== true || Math.abs(payload.pad_to_ms - pad) > 1 || sent.some(([at, rate], i) => Math.abs(at - plan[i].at) > 1 || Math.abs(rate - plan[i].rate) > 1e-9))
-        throw Error(`payload ${JSON.stringify({timeline: payload.timeline, pad_to_ms: payload.pad_to_ms, sent})}, spec ${JSON.stringify({pad, plan: plan.map(({at, rate}) => [at, rate])})}`);
-      if (Math.abs(job.result.duration_ms - payload.pad_to_ms) > 25) throw Error(`rendered ${job.result.duration_ms} ms, padded to ${payload.pad_to_ms} ms`);
-      copyFileSync(job.result.path, join(out, 'lồng tiếng theo phụ đề.wav'));
-      return `${sent.map(([at, rate]) => `${at} ms x${+rate.toFixed(3)}`).join(', ')}; ${job.result.duration_ms} ms long, normalize ${payload.normalize}`;
+      if (payload.timeline !== true || payload.normalize !== normalize || Math.abs(payload.pad_to_ms - pad) > 1 || sent.some(([at, rate], i) => Math.abs(at - plan[i].at) > 1 || Math.abs(rate - plan[i].rate) > 1e-9))
+        throw Error(`payload ${JSON.stringify({timeline: payload.timeline, normalize: payload.normalize, pad_to_ms: payload.pad_to_ms, sent})}, spec ${JSON.stringify({pad, plan: plan.map(({at, rate}) => [at, rate])})}`);
+      if (Math.abs(rendered.result.duration_ms - payload.pad_to_ms) > 25) throw Error(`rendered ${rendered.result.duration_ms} ms, padded to ${payload.pad_to_ms} ms`);
+      copyFileSync(rendered.result.path, join(out, name));
+      return rendered;
+    };
+    await step('render follows the plan', async () => {
+      job = await render(false, 'lồng tiếng theo phụ đề.wav'); // unnormalized, so the takes keep their own levels for the measurement below
+      return `${job.payload.segments.map((s) => `${s.dub_at_ms} ms x${+s.dub_rate.toFixed(3)}`).join(', ')}; ${job.result.duration_ms} ms long`;
     });
     await step('each take starts where it was placed', async () => {
       // Where speech starts and ends (10 ms frames above 10 % of the stretch's peak), in the take's own file inside its trim and
@@ -586,8 +602,16 @@ try {
       if (bad.length) throw Error(`off place: ${JSON.stringify(bad)}`);
       return rows.map((r) => `cue ${r.cue}: placed ${r.at} x${r.rate}, speech ${r.start[1]}-${r.end[1]} ms (expected ${r.start[0]}-${r.end[0]})`).join('; ');
     });
+    await step('normalized render keeps the same timeline', async () => {
+      // Loudness normalization changes levels over time (a quiet onset after silence comes out louder), so the takes are not
+      // measured again; the level envelope must line up with the unnormalized render's at no lag.
+      const normalized = await render(true, 'lồng tiếng theo phụ đề (chuẩn hóa).wav'), shift = lag(framePeaks(job.result.path), framePeaks(normalized.result.path));
+      if (shift) throw Error(`normalized render is ${shift} ms off the unnormalized one`);
+      return `${normalized.result.duration_ms} ms long, envelope lag ${shift} ms`;
+    });
     await step('srt export uses the same places', async () => {
       const srt = join(saves, `phụ đề lồng tiếng ${Date.now()}.srt`);
+      await nav('Tạo giọng đọc');
       await page.getByRole('button', {name: 'SRT', exact: true}).first().click();
       dialog(srt);
       await saved(srt);
