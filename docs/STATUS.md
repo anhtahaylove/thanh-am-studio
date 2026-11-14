@@ -43,7 +43,8 @@ Last updated 2026-11-14. Evidence below was observed, not inferred; anything not
   speaker into another; with speaker separation on, a transcript row is split where its words change
   speaker (Whisper word timestamps, requested only in that case; a window whose words cannot be aligned is
   transcribed again without them, so its rows keep one speaker each instead of the job failing); a
-  Troubleshooting section and a note on the preset voices' unconfirmed commercial-use status in the README.
+  Troubleshooting section and a note on the preset voices' usage rights in the README (the pinned model card allows commercial use and
+  states the speakers consented; two upstream issues asking for confirmation are still open).
 
 ## Verification (2026-11-11)
 
