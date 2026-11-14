@@ -454,6 +454,19 @@ def load_audio(path):
     return decode_audio(str(path), sampling_rate=STT_RATE)
 
 
+def stt_window(model, audio, offset, lang, with_words, duration, progress):
+    """Transcribe one window: its rows, each row's words (empty without word times) and the language used."""
+    segments, info = model.transcribe(audio, language=lang,
+        beam_size=5, vad_filter=True, condition_on_previous_text=False, word_timestamps=with_words)
+    rows, words = [], []
+    for segment in segments:
+        rows.append({'start': offset + segment.start, 'end': offset + segment.end, 'text': segment.text.strip()})
+        words.append([{'start': offset + w.start, 'end': offset + w.end, 'text': w.word} for w in segment.words or []] if with_words else [])
+        # Linear in audio time, so the queue's remaining-time estimate is not skewed early on.
+        progress(max(0.05, min(0.99, (offset + segment.end) / duration)), 'Transcribing')
+    return rows, words, info.language  # an 'auto' detection from the first window applies to the rest
+
+
 def stt(payload, progress):
     speakers = payload.get('num_speakers')
     if speakers is not None and (isinstance(speakers, bool) or not isinstance(speakers, int) or not 1 <= speakers <= 8):
@@ -479,16 +492,17 @@ def stt(payload, progress):
     diarizing = bool(payload.get('diarize_model_path'))  # word times let rows split where the speaker changes
     cuts = stt_windows(audio)
     for start, end in zip(cuts, cuts[1:]):
-        offset = start / STT_RATE
-        segments, info = model.transcribe(audio[start:end], language=lang,
-            beam_size=5, vad_filter=True, condition_on_previous_text=False, word_timestamps=diarizing)
-        lang = info.language  # an 'auto' detection from the first window applies to the rest
-        for segment in segments:
-            result.append({'start': offset + segment.start, 'end': offset + segment.end, 'text': segment.text.strip()})
-            if diarizing:
-                words.append([{'start': offset + w.start, 'end': offset + w.end, 'text': w.word} for w in segment.words or []])
-            # Linear in audio time, so the queue's remaining-time estimate is not skewed early on.
-            progress(max(0.05, min(0.99, (offset + segment.end) / duration)), 'Transcribing')
+        window = lambda with_words: stt_window(model, audio[start:end], start / STT_RATE, lang, with_words, duration, progress)
+        try:
+            rows, row_words, lang = window(diarizing)
+        except IndexError:
+            if not diarizing:
+                raise
+            # faster-whisper 1.2.1 with CTranslate2 >= 4.8.1 fails on an empty word alignment (a tiny last VAD chunk;
+            # fixed upstream in SYSTRAN/faster-whisper#1460, not released): redo the window without word times, so its
+            # rows keep one speaker each instead of the whole transcript being lost.
+            rows, row_words, lang = window(False)
+        result += rows; words += row_words
     response = {'segments': result, 'language': lang}
     if diarizing:
         progress(0.99, 'Separating speakers')
