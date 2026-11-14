@@ -23,9 +23,9 @@ export function replaceInTranscript(rows:TranscriptSegment[],find:string,replace
 /** Badge for a take that Whisper listened back to; soft mismatches (merged initials/finals) do not warn. */
 export function checkSummary(check:TakeCheck|undefined):{tone:'ok'|'warn';label:string;detail:string}|null{
  if(!check||check.error||!check.mismatches)return null;
- const hard=check.mismatches.filter(m=>!m.soft),tried=(check.attempts??1)>1;const detail=`${tried?`Đã thử ${check.attempts} lần, giữ bản tốt nhất. `:''}Whisper nghe: “${check.heard??''}”`,tail=tried?` · ${check.attempts} lần`:'';
- if(!hard.length)return {tone:'ok',label:`Khớp kịch bản${tail}`,detail};
- return {tone:'warn',label:`Có thể đọc sai: ${hard.slice(0,2).map(m=>`“${m.expected||'…'}” → “${m.heard||'…'}”`).join(', ')}${hard.length>2?` +${hard.length-2}`:''}${tail}`,detail};
+ const hard=check.mismatches.filter(m=>!m.soft);const detail=`Whisper nghe: “${check.heard??''}”`;
+ if(!hard.length)return {tone:'ok',label:'Khớp kịch bản',detail};
+ return {tone:'warn',label:`Có thể đọc sai: ${hard.slice(0,2).map(m=>`“${m.expected||'…'}” → “${m.heard||'…'}”`).join(', ')}${hard.length>2?` +${hard.length-2}`:''}`,detail};
 }
 /** Speaker choices for a row: every speaker in the transcript plus one new one. */
 export function speakerSlots(rows:TranscriptSegment[]):number{return Math.max(-1,...rows.map(r=>r.speaker??-1))+2;}

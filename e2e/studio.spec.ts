@@ -88,13 +88,12 @@ test('pasting a script with "Tên:" labels creates one role per speaker and drop
  await expect(page.getByRole('textbox',{name:'Nhân vật đoạn 2'})).toHaveValue('Mai');await expect(page.getByRole('textbox',{name:'Nhân vật đoạn 3'})).toHaveValue('Nam');await expect(page.getByRole('textbox',{name:'Nội dung đoạn 3'})).toHaveValue('Khỏe, cảm ơn.');
  await expect(page.getByRole('textbox',{name:'Nội dung đoạn 4'})).toHaveValue('Lúc 8:30 gặp lại.');await expect(page.getByRole('textbox',{name:'Nhân vật đoạn 4'})).toHaveValue('Nam');
 });
-test('overlap marker and take-check attempts show in the transcript and the script',async({page})=>{
- const take={id:'t1',asset_id:'a1',path:'a.wav',duration_ms:1000,sample_rate:24000,created_at:new Date().toISOString(),check:{model:'whisper-small',attempts:3,heard:'xin chào',mismatches:[]}};
+test('overlap marker shows in the transcript',async({page})=>{
+ const take={id:'t1',asset_id:'a1',path:'a.wav',duration_ms:1000,sample_rate:24000,created_at:new Date().toISOString(),check:{model:'whisper-small',heard:'xin chào',mismatches:[]}};
  const seg={id:'s1',text:'Xin chào',normalized_text:'Xin chào',voice_id:null,speaker:'Người dẫn',gap_ms:300,takes:[take],selected_take_id:'t1',trim_start_ms:0,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0,gain_db:0};
  const project={id:'p1',name:'Họp nhóm',updated_at:new Date().toISOString(),revision:1,segments:[seg],transcript:[{id:'r1',start_ms:0,end_ms:2000,text:'Một',speaker:0,overlap_speaker:1},{id:'r2',start_ms:2000,end_ms:4000,text:'Hai',speaker:1,overlap_speaker:null},{id:'r3',start_ms:4000,end_ms:6000,text:'Ba',speaker:1}],dictionary:{},source_asset_id:null};
  await page.goto('/');await page.evaluate(p=>localStorage.setItem('thanh-am-preview-projects-v1',JSON.stringify([p])),project);await page.reload();
  await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();
- const badge=page.getByText('Khớp kịch bản · 3 lần');await expect(badge).toBeVisible();await expect(badge).toHaveAttribute('title',/Đã thử 3 lần, giữ bản tốt nhất/);
  await page.getByRole('button',{name:'Chép lời',exact:true}).click();
  const chip=page.getByTitle('Có người nói chồng: Người 2');await expect(chip).toHaveCount(1);await expect(chip).toHaveText('+ Người 2');await expect(page.locator('.overlap-chip')).toHaveCount(1);
 });

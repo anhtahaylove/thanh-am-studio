@@ -72,8 +72,4 @@ describe('transcript rows',()=>{
   plain('Lưu ý: đọc chậm.\nCâu thứ hai.');plain('Lúc 8:30 sáng.\nHết giờ 9:45 rồi.');plain('Xem http://a.vn/x\nhttps://b.vn/y');plain(`${'a'.repeat(31)}: một\nMai2: hai\nlink www.x.vn: ba`);
   expect(scriptChunks('Lưu ý: đọc chậm.\nCâu thứ hai.').map(c=>c.text)).toEqual(['Lưu ý: đọc chậm.','Câu thứ hai.']);
  });
- it('mentions how many takes a self-check tried',()=>{
-  const ok=checkSummary({model:'m',attempts:3,heard:'h',mismatches:[]})!;expect(ok.detail).toContain('Đã thử 3 lần, giữ bản tốt nhất');expect(ok.label).toBe('Khớp kịch bản · 3 lần');
-  expect(checkSummary({model:'m',attempts:1,heard:'h',mismatches:[]})!.label).toBe('Khớp kịch bản');expect(checkSummary({model:'m',heard:'h',mismatches:[{expected:'a',heard:'b',soft:false}]})!.detail).not.toContain('Đã thử');
- });
 });
