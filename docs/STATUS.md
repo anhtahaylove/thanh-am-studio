@@ -703,6 +703,18 @@ A first run stopped at the dialogue step because the test file had not been copi
 
 Evidence: `work\release-v1.0.6-sandbox` (`dub\` for the dub phase; a first `dub` run measured the places on the normalized render, where loudness normalization makes a quiet onset after silence cross the level threshold up to 60 ms earlier without moving the audio; it is not counted).
 
+### v1.0.7 release (built by `.github/workflows/release.yml` from tag `v1.0.7` at `a5cfe5f`)
+
+| Check | Result |
+|---|---|
+| Tests | CI green on #69 to #75 (79 unit, 25 Playwright, 3 + 13 + 12 + 11 Rust, 71 worker with 7 skipped); locally 71 worker with the real diarization model and the bundled FFmpeg |
+| Installer SHA-256 | `ebda42e54ae4a57843a6af3e2359a7a03ffbc7495fe35eeb3198523b4a738b9f`; `sha256sum -c` OK after `gh release download` |
+| Clean Sandbox run on that exact installer | `full` (trims 0-3657 ms and 17-2228 ms follow the takes' speech edges), `features` (2 speakers in the 102 s dialogue, 22 rows): 16 PASS; `dub`: export bar "1 đoạn đọc nhanh hơn · 1 đoạn bị lùi (tối đa 1,08 s)", places 1000 / 5000 x1.5 / 7081 (pushed from 6000) / 12000 ms, speech within 10 ms of each place, normalized render at 0 ms lag, SRT at the same places: 10 PASS |
+| Clean Sandbox `scripts` phase on the same installer | a Word file saved by Word imported through the open dialog as 3 lines of 2 speakers; `[pause 0.4s]` typed and the laugh cue inserted by its button reach the engine unchanged (2800 ms take, longest pause inside 910 ms); `[P1]`/`[P2]` with "Mỗi chương một file" give render jobs `001-P1` (2793 ms) and `002-P2` (1951 ms) of one batch, each exactly its takes plus gaps; the installed app's no-overwrite copy saved both and skipped both on a second pass, same sizes: 7 PASS, 0 FAIL |
+| Carried over from the 1.0.3 draft | `reopen`, `turbo`, `offline`, `export`, `ux`, `clone`, `dpi` |
+
+Evidence: `work\release-v1.0.7-sandbox` (`run35-all-phases\` stopped in `scripts` on a test-script selector; `run36-scripts\` stopped when the test exported before the editor had picked up the new takes; `run37-scripts\` is the passing `scripts` run after both test-script fixes in #75; the installer was the same in all three).
+
 ## Not verified / known gaps
 
 - Listening quality has not been judged by a human; the clipping checks above are signal analysis.
@@ -758,3 +770,5 @@ Evidence: `work\release-v1.0.6-sandbox` (`dub\` for the dub phase; a first `dub`
   carries a cue (for example "Cam on ban [cuoi]") is still read with English phonemes. Word import reads only
   `word/document.xml` with the `w:` prefix and reads hidden (`w:vanish`) text. Per-chapter export cannot be
   combined with the subtitle timing, and the save-all button offers only the newest batch.
+- Right after takes are made, the editor picks them up on its next job poll (up to 2.5 s); an export started
+  before that is refused with the "pick a take for each segment" message and works when started again.
