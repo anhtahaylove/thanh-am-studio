@@ -45,6 +45,16 @@ Last updated 2026-11-14. Evidence below was observed, not inferred; anything not
   transcribed again without them, so its rows keep one speaker each instead of the job failing); a
   Troubleshooting section and a note on the preset voices' usage rights in the README (the pinned model card allows commercial use and
   states the speakers consented; two upstream issues asking for confirmation are still open).
+- Added for v1.0.5: speaker separation runs in a child process, so a native crash there leaves the
+  plain transcript and a `diarize_error` instead of a lost job; a speaker count range ("Chỉ biết khoảng":
+  2-3, 3-4, 4-6) next to the exact counts; a known count keeps the automatic result when it already has
+  that many speakers; a "+ Người N" chip on rows where another speaker talks over at least half of the
+  row (a hint, see below); scripts pasted as `Tên: lời` lines become one segment per speaker block;
+  pronunciation dictionary keys match whole words only (`{AI}` no longer changes "OpenAI"); Markdown,
+  HTML and subtitle markup is removed before speaking instead of being read aloud ("sao sao",
+  "thăng", "nhỏ hơn font"); TTS subtitles are cut into cues of at most two 42-character lines; an
+  untagged one- to three-word chunk made only of English-looking words ("y", "in", "im", "u") is read
+  in Vietnamese.
 
 ## Verification (2026-11-11)
 
@@ -585,6 +595,58 @@ The Sandbox harness now counts only the per-row speaker menus: the speaker panel
 its cards, so the 1.0.2 harness would have failed on 1.0.3 for a harness reason. Evidence:
 `work\release-v1.0.3-sandbox`.
 
+### Speaker separation upgrades and TTS retakes (2026-11-14)
+
+Measured outside the repo (`work\lane-b-stt`, `work\lane-a-tts`) on a shared, busy CPU, so times are
+rough. Speaker count accuracy and DER (no collar / 250 ms collar) on AMI (16 meetings), 97 Vietnamese
+YouTube dialogues (ViYT) and 48 VIVOS mixes:
+
+| Mode | AMI | ViYT | VIVOS |
+|---|---|---|---|
+| automatic | 11/16, 21.77 / 14.52 | 65/97, 18.19 / 7.36 | 34/48, 23.54 / 16.07 |
+| exact count, clustered again (1.0.4) | 16/16, 23.57 / 17.17 | 96/97, 18.06 / 7.16 | 46/48, 21.00 / 13.44 |
+| exact count as min = max (1.0.5) | 16/16, 20.94 / 14.01 | 96/97, 17.84 / 7.02 | 46/48, 21.13 / 13.56 |
+| range k-1..k+1 | 11/16, 21.41 / 14.20 | 65/97, 18.19 / 7.36 | 34/48, 23.15 / 15.64 |
+
+- A range only helps when the automatic estimate falls outside it (talk-show clip 2: 8 speakers found,
+  5 with the range 3..5); a wrong range hurts (2..3 on a 4-speaker clip dropped row agreement from 0.906 to
+  0.850). Exact counts as min = max kept 0.906 on the four talk-show clips. When the automatic count
+  differs from the known count, min = max runs the clustering twice (about 30 % of the clips above).
+- Child process: the same turns as in process on a 61 s clip in three modes; a child killed with
+  0xC0000005 raises a `RuntimeError` in the caller; fixed cost under 1 s.
+- Overlap mark (`OVERLAP_SHARE` 0.5), scored on 5,286 AMI utterances against rows with at least half
+  their time overlapped in the reference: precision 0.90, recall 0.46 (0.3: 0.77 / 0.59; 0.8: 0.95 /
+  0.25). The other speaker's id is right for only about a third of the marked rows.
+- Not adopted: `window_shift_ratio` 0.15 / 0.2 for speed (CPU about 0.7x / 0.55x, but talk-show row
+  agreement with the known count fell from 0.906 to 0.808 / 0.751 and VIVOS DER rose 2 points).
+- Not adopted: retaking a checked TTS item up to twice when Whisper Small flags it. Whisper Small
+  flagged 15 of 16 long-sentence takes that Whisper large-v3 heard clean, and the one- and two-word
+  repeats ("Lục Minh", "Vâng.") recurred in 6 of 6 takes, so retakes cost 2-4x the time (about 3.9x on 5
+  real items) without fewer real errors.
+- Not adopted: cloning from the best 8 s of a long reference instead of the first 8 s (32 cloned takes,
+  4 speakers: WER and speaker similarity within noise; an energy VAD cannot skip background noise).
+- Vietnamese single words: before, `y`, `in`, `im`, `u` were phonemized as English (`wˈaɪ`, `ˈɪn`, `aɪm`,
+  `jˈuː`) and Whisper large-v3 heard "Why", "I'm", "You"; after, `ˈi`, `ˈin`, `ˈim`, `ˈu`. On 72 test chunks
+  27 changed, all made only of words that are both English and Vietnamese.
+
+### v1.0.4 release (built by `.github/workflows/release.yml` from tag `v1.0.4` at `3f943c6`)
+
+1.0.3 plus #56: a window whose word alignment comes back empty is transcribed again without word timestamps.
+The owner asked to skip steps where it is safe, so the gate was reduced to one Sandbox run with the phases
+that exercise the changed code; the other phases are carried over from the 1.0.3 draft, which differs only
+by #56 and the version number.
+
+| Check | Result |
+|---|---|
+| Tests | CI green on #56 and #57; worker 47/47 locally with the real diarization model, including the new empty-alignment test |
+| Installer SHA-256 | `2f7a39ad12ebf2339f1b1ff998f1f223852927b4376124d3add3b3221f847b5e`; `sha256sum -c` OK after `gh release download` and after an anonymous download from `/releases/latest/download/` |
+| Clean Sandbox run on that exact installer | `full`, `features` (as for 1.0.3; 2 speakers asked and found in the 102 s dialogue, 22 rows): 16 PASS, 0 FAIL |
+| Carried over from the 1.0.3 draft | `reopen`, `turbo`, `offline`, `export`, `ux`, `clone`, `dpi` |
+
+A first attempt ran while other measurements loaded the host (the app took 50 s to start instead of 3-10 s
+and UI clicks timed out); it was rerun after lowering those processes to idle priority and is not counted.
+Evidence: `work\release-v1.0.4-sandbox`.
+
 ## Not verified / known gaps
 
 - Listening quality has not been judged by a human; the clipping checks above are signal analysis.
@@ -632,3 +694,6 @@ its cards, so the 1.0.2 harness would have failed on 1.0.3 for a harness reason.
 - Installers are unsigned (SmartScreen warning); the SignPath Foundation application was submitted
   on 2026-11-13 and awaits their reply ([SIGNING.md](SIGNING.md)). CUDA is not enabled.
 - Preview does not apply loudness normalization; export does when "Chuẩn hóa" is on.
+- TTS subtitle cues inside one segment are timed by character count, not measured, so they can be off by
+  a few hundred ms; the segment boundaries are exact. The overlap chip is a hint (recall 0.46 on AMI) and
+  names the right second speaker for only about a third of the marked rows.
