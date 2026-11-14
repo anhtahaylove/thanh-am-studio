@@ -720,6 +720,18 @@ Evidence: `work\release-v1.0.6-sandbox` (`dub\` for the dub phase; a first `dub`
 
 Evidence: `work\release-v1.0.7-sandbox` (`run38a`, `run38b` for the older groups; `run35-all-phases\` stopped in `scripts` on a test-script selector; `run36-scripts\` stopped when the test exported before the editor had picked up the new takes; `run37-scripts\` is the passing `scripts` run after both test-script fixes in #75; the installer was the same in all three).
 
+### v1.0.8 release (built by `.github/workflows/release.yml` from tag `v1.0.8` at `b01b42d`)
+
+| Check | Result |
+|---|---|
+| Tests | CI green on #76 to #80 (79 unit, 27 Playwright, 4 + 13 + 12 + 11 Rust, 72 worker with 7 skipped); locally 72 worker with the real diarization model and the bundled FFmpeg |
+| Installer SHA-256 | `0218fd1c33b1828adbedfe88a231bdaf8d77fe12d4baf3af245ba4a50fb96633`; `sha256sum -c` OK after `gh release download` and after an anonymous download from `/releases/latest/download/` |
+| Clean Sandbox run 1 on that exact installer | `full` (trims 0-3733 ms and 17-2362 ms), `dub` (places 1000 / 5000 x1.5 / 7200 / 12000 ms, speech within 9 ms of each place, normalized render at 0 ms lag), `scripts` (Word file as 3 lines of 2 speakers; pause alias and laugh cue reach the engine, 2160 ms take with an 820 ms pause; `001-P1` 2818 ms and `002-P2` 1764 ms, each its takes plus gaps; no-overwrite save twice), `ux` (a dropped script file; the 102 s dialogue dropped, transcribed and applied, the highlight moves from row 1 to row 21 during playback): 33 PASS; `features` stopped on a test-script check that expected no space after the pause tag, which the pause button adds at the end of the text since #78 (#80) |
+| Clean Sandbox run 2 on that exact installer | `full`, `features` (pause mark with 1.1x speed and the self-check, a CSV dictionary with a BOM, waveform progress, 2 speakers asked and found in the 102 s dialogue, 22 rows): 16 PASS, 0 FAIL |
+| Older groups | `reopen`, `turbo`, `offline`, `export`, `clone`, `dpi` passed on the 1.0.7 installer the same day (see above); not rerun on 1.0.8, whose changes do not touch them |
+
+Evidence: `work\release-v1.0.8-sandbox` (`run39`, `run40`).
+
 ## Not verified / known gaps
 
 - Listening quality has not been judged by a human; the clipping checks above are signal analysis.
