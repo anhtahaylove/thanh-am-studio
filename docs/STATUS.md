@@ -735,6 +735,17 @@ Evidence: `work\release-v1.0.7-sandbox` (`run38a`, `run38b` for the older groups
 
 Evidence: `work\release-v1.0.8-sandbox` (`run39`, `run40`).
 
+### v1.0.9 release (built by `.github/workflows/release.yml` from tag `v1.0.9` at `cdb8adc`)
+
+| Check | Result |
+|---|---|
+| Tests | CI green on #82 (79 unit, 27 Playwright, 4 + 13 + 12 + 11 Rust, 72 worker with 7 skipped); `worker/` and `src-tauri/src` unchanged since 1.0.8, where 72/72 worker tests passed locally with the real models |
+| Installer SHA-256 | `534f3eeda0623361c615a3340319b1278d5480701613e8f305fee3869d42a722`; `sha256sum -c` OK after `gh release download` and after an anonymous download from `/releases/latest/download/` |
+| Clean Sandbox run on that exact installer | `full` (trims 10-3617 ms and 0-2223 ms), `features` (pause mark with 1.1x speed and the self-check, CSV with a BOM, waveform, 2 speakers and 22 rows in the 102 s dialogue), `dub` (places 1000 / 5000 x1.5 / 7024 / 12000 ms, speech within 12 ms of each place, 0 ms lag after normalization), `scripts` (Word import; pause alias and the sigh cue inserted by its button reach the engine; `001-P1` 2959 ms and `002-P2` 1599 ms; no-overwrite save twice), `ux` (script drop; dialogue drop, highlight from row 1 to row 21): 37 PASS, 0 FAIL in one run |
+| Older groups | `reopen`, `turbo`, `offline`, `export`, `clone`, `dpi` passed on the 1.0.7 installer (see above) |
+
+Evidence: `work\release-v1.0.9-sandbox` (`run41`); the cue measurements in `work\emotion-cues-listening` (`VERDICT.md`).
+
 ## Not verified / known gaps
 
 - Listening quality has not been judged by a human; the clipping checks above are signal analysis.
