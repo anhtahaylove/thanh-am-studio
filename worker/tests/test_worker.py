@@ -14,6 +14,17 @@ sys.path.insert(0, str(ROOT))
 import main as worker
 
 
+def diarize_child_here(calls):
+    """Stand-in for subprocess.run in diarize_isolated(): does the child's work in this process, where the sherpa_onnx mock is."""
+    def run(args, **kwargs):
+        import diarize
+        import numpy as np
+        model, *counts = json.loads(args[-1]); calls.append(counts)
+        Path(args[-2]).write_text(json.dumps(diarize.diarize(np.load(args[-3]), Path(model), *counts)), encoding='utf-8')
+        return subprocess.CompletedProcess(args, 0, b'', b'')
+    return run
+
+
 class WorkerTests(unittest.TestCase):
     def test_rejects_unsupported_protocol(self):
         with self.assertRaisesRegex(worker.WorkerError, 'protocol'):
@@ -152,7 +163,8 @@ class WorkerTests(unittest.TestCase):
         sherpa.OfflineSpeakerDiarization.return_value.sample_rate = 16000
         sherpa.OfflineSpeakerDiarization.return_value.process.return_value.sort_by_start_time.return_value = [
             SimpleNamespace(start=0, end=2, speaker=0), SimpleNamespace(start=2, end=4, speaker=1)]
-        with tempfile.TemporaryDirectory() as td, \
+        calls = []  # the speaker counts each diarization child got: [num, min, max]
+        with tempfile.TemporaryDirectory() as td,                 mock.patch.object(subprocess, 'run', side_effect=diarize_child_here(calls)), \
                 mock.patch.object(worker, 'verify_model', return_value={'engine': 'faster-whisper'}), \
                 mock.patch.object(worker, 'offline_mode'), \
                 mock.patch.object(worker, 'load_audio', return_value=np.zeros(4 * worker.STT_RATE, dtype=np.float32)), \
@@ -162,9 +174,13 @@ class WorkerTests(unittest.TestCase):
             source = Path(td) / 'a.wav'; source.write_bytes(b'x')
             payload = {'model_path': td, 'input_path': str(source), 'diarize_model_path': td}
             result = worker.stt(payload, lambda *a: None)
+            worker.stt({**payload, 'num_speakers': 2}, lambda *a: None)
+            worker.stt({**payload, 'min_speakers': 2, 'max_speakers': 3}, lambda *a: None)
             sherpa.OfflineSpeakerDiarization.side_effect = RuntimeError('engine failed')
             fallback = worker.stt(payload, lambda *a: None)
         self.assertTrue(model.transcribe.call_args.kwargs['word_timestamps'])
+        # A known count is sent as min = max, so an automatic result with that many speakers is kept.
+        self.assertEqual(calls[:3], [[None, None, None], [None, 2, 2], [None, 2, 3]])
         self.assertNotIn('diarize_error', result)
         self.assertEqual(result['segments'], [{'start': 0, 'end': 2, 'text': 'Xin chào.', 'speaker': 0},
                                               {'start': 2, 'end': 4, 'text': 'Vâng.', 'speaker': 1}])
@@ -186,7 +202,7 @@ class WorkerTests(unittest.TestCase):
         sherpa.OfflineSpeakerDiarization.return_value.sample_rate = 16000
         sherpa.OfflineSpeakerDiarization.return_value.process.return_value.sort_by_start_time.return_value = [
             SimpleNamespace(start=0, end=1, speaker=0), SimpleNamespace(start=1, end=4, speaker=1)]
-        with tempfile.TemporaryDirectory() as td, \
+        with tempfile.TemporaryDirectory() as td,                 mock.patch.object(subprocess, 'run', side_effect=diarize_child_here([])), \
                 mock.patch.object(worker, 'verify_model', return_value={'engine': 'faster-whisper'}), \
                 mock.patch.object(worker, 'offline_mode'), \
                 mock.patch.object(worker, 'load_audio', return_value=np.zeros(4 * worker.STT_RATE, dtype=np.float32)), \
@@ -206,6 +222,10 @@ class WorkerTests(unittest.TestCase):
         for bad in [0, 9, 2.5, '2', True]:
             with self.subTest(bad=bad), self.assertRaises(worker.WorkerError) as ctx:
                 worker.stt({'model_path': 'missing', 'input_path': 'missing.wav', 'num_speakers': bad}, lambda *a: None)
+            self.assertEqual(ctx.exception.code, 'INVALID_RECIPE')
+        for bad in [{'min_speakers': 0}, {'max_speakers': 9}, {'num_speakers': 2, 'max_speakers': 3}, {'min_speakers': 4, 'max_speakers': 3}]:
+            with self.subTest(bad=bad), self.assertRaises(worker.WorkerError) as ctx:
+                worker.stt({'model_path': 'missing', 'input_path': 'missing.wav', **bad}, lambda *a: None)
             self.assertEqual(ctx.exception.code, 'INVALID_RECIPE')
         with self.assertRaises(worker.WorkerError) as ctx:  # a valid count gets past the check
             worker.stt({'model_path': 'missing', 'input_path': 'missing.wav', 'num_speakers': 2}, lambda *a: None)
