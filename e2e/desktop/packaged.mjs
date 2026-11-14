@@ -454,7 +454,8 @@ try {
       const english = page.getByRole('checkbox', {name: 'Đọc từ tiếng Anh'});
       await english.check();
       await page.getByRole('button', {name: 'Chèn khoảng nghỉ 0,5 giây tại con trỏ'}).first().click();
-      if (!/\[nghỉ 0\.5s\]$/.test(await box.inputValue())) throw Error(`pause mark missing: ${await box.inputValue()}`);
+      // Since 1.0.8 the pause button inserts like the emotion buttons: at the end of the text it adds a space after the tag.
+      if (!/\[nghỉ 0\.5s\] ?$/.test(await box.inputValue())) throw Error(`pause mark missing: ${await box.inputValue()}`);
       await page.getByRole('combobox', {name: 'Tốc độ đọc đoạn 1'}).selectOption('1.1');
       const check = page.getByRole('checkbox', {name: 'Tự kiểm bằng Whisper'});
       if (!(await check.isChecked())) await check.check();
