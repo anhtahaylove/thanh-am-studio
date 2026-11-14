@@ -93,6 +93,35 @@ class SplitRowsTests(unittest.TestCase):
         self.assertEqual([(r['start'], r['speaker']) for r in rows], [(0, 0), (1, 0)])
 
 
+class OverlapTests(unittest.TestCase):
+    def test_other_cover_counts_each_second_of_one_speaker_once(self):
+        turns = [turn(0, 4, 0), turn(0, 3, 1), turn(2, 4, 1), turn(1, 2, 2)]
+        self.assertEqual(diarize.other_cover(row(0, 4), turns, 0), (1, 1.0))  # 1: 3 s + 2 s overlapping by 1 s, 2: 0.25
+        self.assertEqual(diarize.other_cover(row(0, 4), turns, 1), (0, 1.0))
+        self.assertEqual(diarize.other_cover(row(1, 3), [turn(0, 2, 0), turn(1, 2, 1)], 0), (1, 0.5))
+
+    def test_other_cover_without_another_speaker(self):
+        self.assertEqual(diarize.other_cover(row(0, 4), [turn(0, 9, 0), turn(5, 6, 1)], 0), (None, 0.0))
+        self.assertEqual(diarize.other_cover(row(0, 4), [], 0), (None, 0.0))
+
+    def test_a_row_talked_over_names_the_other_speaker(self):
+        turns = [turn(0, 4, 0), turn(0.1, 3.9, 1)]
+        self.assertEqual(diarize.split_rows([row(0, 4)], [[word(0, 2, 'a'), word(2, 4, 'b')]], turns),
+                         [{**row(0, 4), 'speaker': 0, 'overlap': 1}])
+        self.assertEqual(diarize.split_rows([row(0, 4)], [[]], turns), [{**row(0, 4), 'speaker': 0, 'overlap': 1}])
+
+    def test_a_row_with_only_a_short_interjection_is_not_marked(self):
+        turns = [turn(0, 10, 0), turn(1, 1 + 0.3 * 10, 1)]
+        (marked,) = diarize.split_rows([row(0, 10)], [[word(0, 10, 'a')]], turns)
+        self.assertNotIn('overlap', marked)
+
+    def test_overlap_is_found_per_split_row(self):
+        words = [word(0, 2, 'a'), word(2, 4, 'b'), word(4, 6, 'c'), word(6, 8, 'd')]
+        turns = [turn(0, 4, 0), turn(4, 8, 1), turn(4.2, 7.8, 2)]
+        rows = diarize.split_rows([row(0, 8)], [words], turns)
+        self.assertEqual([(r['speaker'], r.get('overlap')) for r in rows], [(0, None), (1, 2)])
+
+
 class DiarizeInputTests(unittest.TestCase):
     def test_rejects_bad_audio_and_speaker_count(self):
         with tempfile.TemporaryDirectory() as tmp:

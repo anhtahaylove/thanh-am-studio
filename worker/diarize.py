@@ -29,6 +29,10 @@ MIN_AUTO_SHARE = 0.04
 # turn edges are only accurate to a few hundred ms. On four Vietnamese talk shows 0.6 s agreed best with two reference
 # diarizers (0, 0.3, 1, 1.5 and 2 s tried); 0 and 0.3 s split off 3-5x as many rows for less agreement.
 MIN_RUN_S = 0.6
+# A row is marked as talked over when one other speaker's turns cover at least this share of its time. On 5,286 AMI
+# utterances, rows with at least half their time overlapped in the reference were found at precision 0.90 / recall 0.46 at
+# 0.5 (0.8: 0.95 / 0.25; 0.3, best F1: 0.77 / 0.59); the other speaker's id was right for only about a third of those.
+OVERLAP_SHARE = 0.5
 
 
 def _check(audio_16k, model_dir: Path, num_speakers, min_speakers, max_speakers) -> np.ndarray:
@@ -186,12 +190,31 @@ def assign_speakers(transcript_rows: list[dict], turns: list[dict]) -> list[int]
     return labels
 
 
+def other_cover(row: dict, turns: list[dict], speaker: int) -> tuple[int | None, float]:
+    """Return (the speaker other than `speaker` whose turns cover most of the row's time, that share of it); (None, 0.0) if none."""
+    spans = {}
+    for turn in turns:
+        start, end = max(row['start'], turn['start']), min(row['end'], turn['end'])
+        if turn['speaker'] != speaker and end > start:
+            spans.setdefault(turn['speaker'], []).append((start, end))
+    best, share = None, 0.0
+    for other in sorted(spans):
+        covered, edge = 0.0, row['start']
+        for start, end in sorted(spans[other]):  # the turns of one speaker may overlap each other
+            covered += max(0.0, end - max(start, edge))
+            edge = max(edge, end)
+        if covered / (row['end'] - row['start']) > share:
+            best, share = other, covered / (row['end'] - row['start'])
+    return best, share
+
+
 def split_rows(rows: list[dict], words: list[list[dict]], turns: list[dict]) -> list[dict]:
     """Give each row a speaker, splitting a row into several where its words change speaker.
 
     words[i] lists row i's words [{'start', 'end', 'text'}], each text with its own leading space. Every word takes a
     speaker as assign_speakers() does; a run of words shorter than MIN_RUN_S joins its longer neighbour run.
     A row with a single run, or without words, keeps its start, end and text.
+    A row gets `overlap` (the other speaker's id) when that speaker's turns cover at least OVERLAP_SHARE of its time.
     """
     out = []
     for row, row_words in zip(rows, words):
@@ -212,6 +235,10 @@ def split_rows(rows: list[dict], words: list[list[dict]], turns: list[dict]) -> 
         else:
             out += [{'start': run[0]['start'], 'end': run[-1]['end'], 'text': ''.join(w['text'] for w in run).strip(),
                      'speaker': speaker} for speaker, run in runs]
+    for row in out:
+        other, share = other_cover(row, turns, row['speaker'])
+        if share >= OVERLAP_SHARE:
+            row['overlap'] = other
     return out
 
 
