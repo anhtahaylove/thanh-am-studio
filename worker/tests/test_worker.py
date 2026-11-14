@@ -313,6 +313,25 @@ class WorkerTests(unittest.TestCase):
         self.assertAlmostEqual(np.argmax(spectrum) * 48000 / len(fast[4800:-4800]), 220, delta=3)
 
     @unittest.skipUnless(shutil.which('ffmpeg'), 'FFmpeg required for actual render test')
+    def test_actual_render_places_clips_on_the_subtitle_timeline(self):
+        import numpy as np
+        import soundfile as sf
+        with tempfile.TemporaryDirectory() as td:
+            source = Path(td) / 'câu.wav'
+            sf.write(str(source), np.full(48000, 0.25, dtype=np.float32), 48000)  # 1 s of sound
+            clip = {'path': str(source), 'trim_start_ms': 0, 'trim_end_ms': None, 'gap_ms': 300}
+            result = worker.render({'clips': [{**clip, 'at_ms': 500, 'rate': 1}, {**clip, 'at_ms': 2000, 'rate': 1.25}],
+                'normalize': False, 'format': 'wav', 'timeline': True, 'pad_to_ms': 3500}, Path(td), lambda *_: None)
+            audio, rate = sf.read(result['path'], dtype='float32')
+        loud = np.abs(audio) > 0.1
+        ms = lambda a, b: loud[a * 48:b * 48]
+        # Clip 1 at 500-1500 ms, the gap is not used; clip 2 waits until 2000 ms and lasts 1 s / 1.25; silence pads to 3500 ms.
+        self.assertEqual(rate, 48000)
+        self.assertAlmostEqual(len(audio) / 48, 3500, delta=2)
+        self.assertTrue(ms(520, 1480).all() and ms(2020, 2780).all())
+        self.assertFalse(ms(0, 480).any() or ms(1520, 1980).any() or ms(2820, 3500).any())
+
+    @unittest.skipUnless(shutil.which('ffmpeg'), 'FFmpeg required for actual render test')
     def test_actual_render_trim_gap_fade_atomic_output(self):
         with tempfile.TemporaryDirectory() as td:
             source = Path(td) / 'tiếng Việt.wav'

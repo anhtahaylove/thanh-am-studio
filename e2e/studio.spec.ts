@@ -119,3 +119,28 @@ test('speaker count range is sent as min/max speakers and a fixed count stays a 
   if('min_speakers' in expected)expect(sent).not.toHaveProperty('num_speakers');else expect(sent).not.toHaveProperty('min_speakers');
  }
 });
+test('an imported SRT keeps its cue times and audio export can follow them',async({page})=>{
+ await page.addInitScript(()=>{
+  const w=window as any,calls:any[]=[];w.isTauri=true;w.__calls=calls;
+  const take=(id:string,duration_ms:number)=>({id,asset_id:'a'+id,path:id+'.wav',duration_ms,sample_rate:48000,created_at:new Date().toISOString()});
+  const seg=(id:string,text:string,duration_ms:number,cue_start_ms:number,cue_end_ms:number)=>({id,text,normalized_text:text,voice_id:null,speaker:'Người dẫn',gap_ms:300,takes:[take('t'+id,duration_ms)],selected_take_id:'t'+id,trim_start_ms:0,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0,gain_db:0,cue_start_ms,cue_end_ms});
+  let project:any={id:'p1',name:'Lồng tiếng',updated_at:new Date().toISOString(),revision:1,segments:[seg('1','Một.',3000,0,2000),seg('2','Hai.',1000,2000,3000)],transcript:[],dictionary:{},source_asset_id:null};
+  w.__TAURI_INTERNALS__={convertFileSrc:(p:string)=>p,transformCallback:()=>1,unregisterCallback:()=>{},metadata:{currentWindow:{label:'main'},currentWebview:{label:'main',windowLabel:'main'}},
+   invoke:async(cmd:string,args:any)=>{calls.push({cmd,args});switch(cmd){
+    case 'list_projects':return [project];case 'load_project':return project;case 'list_jobs':case 'list_voices':return [];case 'list_models':return [];case 'get_settings':return {dictionary:{}};
+    case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,python_path:null,ffmpeg_path:null,message:''};
+    case 'save_project':project={...args.project,revision:args.project.revision+1};return project;
+    case 'plugin:dialog|open':return ['C:/phụ đề.srt'];case 'read_text_file':return '1\n00:00:05,000 --> 00:00:06,500\nBa.\n';
+    case 'enqueue_job':return {id:'j1'};default:return null;}}};
+ });
+ await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();
+ const dub=page.getByRole('checkbox',{name:'Theo mốc phụ đề'});await dub.check();
+ // 3 s in a 2 s cue is read 1.5x faster and ends at 2 s, so the second take starts 50 ms late.
+ await expect(page.getByText('1 đoạn đọc nhanh hơn · 1 đoạn bị lùi (tối đa 0,05 s)')).toBeVisible();
+ await page.getByRole('button',{name:'Xuất audio'}).click();
+ const render=()=>page.evaluate(()=>(window as any).__calls.filter((c:any)=>c.cmd==='enqueue_job').map((c:any)=>c.args.payload));
+ await expect.poll(async()=>(await render()).length).toBe(1);const sent=(await render())[0];
+ expect(sent).toMatchObject({timeline:true,pad_to_ms:3050});expect(sent.segments.map((s:any)=>[s.dub_at_ms,s.dub_rate])).toEqual([[0,1.5],[2050,1]]);
+ await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:/^Tạo giọng đọc/}).click();await page.getByRole('button',{name:/Nhập TXT \/ SRT/}).click();
+ await expect.poll(()=>page.evaluate(()=>{const saves=(window as any).__calls.filter((c:any)=>c.cmd==='save_project');return saves.at(-1)?.args.project.segments.at(-1);})).toMatchObject({text:'Ba.',cue_start_ms:5000,cue_end_ms:6500});
+});

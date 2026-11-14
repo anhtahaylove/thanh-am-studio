@@ -30,10 +30,10 @@ export function checkSummary(check:TakeCheck|undefined):{tone:'ok'|'warn';label:
 /** Speaker choices for a row: every speaker in the transcript plus one new one. */
 export function speakerSlots(rows:TranscriptSegment[]):number{return Math.max(-1,...rows.map(r=>r.speaker??-1))+2;}
 /** Script lines from a transcript: consecutive rows of one speaker are joined (up to `max` characters). */
-export function transcriptToScript(rows:TranscriptSegment[],max=500):{speaker:string;text:string}[]{
- const out:{speaker:string;text:string}[]=[];
+export function transcriptToScript(rows:TranscriptSegment[],max=500):{speaker:string;text:string;cue_start_ms:number;cue_end_ms:number}[]{
+ const out:{speaker:string;text:string;cue_start_ms:number;cue_end_ms:number}[]=[];
  for(const r of rows){const text=r.text.trim();if(!text)continue;const speaker=r.speaker===undefined?'Người dẫn':`Người ${r.speaker+1}`;const last=out.at(-1);
-  if(last&&last.speaker===speaker&&last.text.length+1+text.length<=max)last.text+=' '+text;else out.push({speaker,text});}
+  if(last&&last.speaker===speaker&&last.text.length+1+text.length<=max){last.text+=' '+text;last.cue_end_ms=r.end_ms;}else out.push({speaker,text,cue_start_ms:r.start_ms,cue_end_ms:r.end_ms});}
  return out;
 }
 /** The transcript row being heard at `ms` of the source audio, if any. */
@@ -99,10 +99,10 @@ export function splitSegment(s:Segment,cursor?:number,dictionary:Record<string,s
  const t=s.text,mid=t.length/2,closest=(m:number[])=>m.sort((a,b)=>Math.abs(a-mid)-Math.abs(b-mid))[0];
  const at=cursor!==undefined&&cursor>0&&cursor<t.length&&t.slice(0,cursor).trim()&&t.slice(cursor).trim()?cursor:closest(splitMarks(t,SENTENCE_END))??closest(splitMarks(t,/\s+/g));
  if(at===undefined)throw Error('Đoạn cần ít nhất hai từ để chia');
- const a=t.slice(0,at).trim(),b=t.slice(at).trim();
- return [{...s,text:a,normalized_text:normalizeText(a,dictionary)},{...s,id:uid(),text:b,normalized_text:normalizeText(b,dictionary),takes:[],selected_take_id:null,trim_start_ms:0,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0}];
+ const a=t.slice(0,at).trim(),b=t.slice(at).trim(),cut=s.cue_start_ms!=null&&s.cue_end_ms!=null?Math.round(s.cue_start_ms+(s.cue_end_ms-s.cue_start_ms)*a.length/(a.length+b.length)):undefined;
+ return [{...s,text:a,normalized_text:normalizeText(a,dictionary),...(cut!==undefined&&{cue_end_ms:cut})},{...s,id:uid(),text:b,...(cut!==undefined&&{cue_start_ms:cut}),normalized_text:normalizeText(b,dictionary),takes:[],selected_take_id:null,trim_start_ms:0,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0}];
 }
-export function mergeSegments(a:Segment,b:Segment,dictionary:Record<string,string>={}):Segment{const text=[a.text.trim(),b.text.trim()].filter(Boolean).join(' ');return {...a,text,normalized_text:normalizeText(text,dictionary),gap_ms:b.gap_ms};}
+export function mergeSegments(a:Segment,b:Segment,dictionary:Record<string,string>={}):Segment{const text=[a.text.trim(),b.text.trim()].filter(Boolean).join(' ');return {...a,text,normalized_text:normalizeText(text,dictionary),gap_ms:b.gap_ms,...(a.cue_start_ms!=null&&a.cue_end_ms!=null&&b.cue_start_ms!=null&&b.cue_end_ms!=null&&{cue_start_ms:Math.min(a.cue_start_ms,b.cue_start_ms),cue_end_ms:Math.max(a.cue_end_ms,b.cue_end_ms)})};}
 // Takes are append-only and server-owned: restoring an older snapshot must keep every take of the current project, plus new segments that already own takes.
 export function restoreSnapshot(snap:Project,cur:Project):Project{
  const byId=new Map(cur.segments.map(s=>[s.id,s]));
@@ -125,5 +125,26 @@ function cuePieces(text:string,max=CUE_CHARS):string[]{
  return [...out,rest].filter(Boolean);
 }
 const wrapCue=(cue:string)=>{if(cue.length<=LINE_CHARS)return cue;let best=-1;for(let i=cue.indexOf(' ');i>=0;i=cue.indexOf(' ',i+1))if(best<0||Math.abs(i-cue.length/2)<Math.abs(best-cue.length/2))best=i;return best<0?cue:`${cue.slice(0,best)}\n${cue.slice(best+1)}`;};
-/** Subtitle rows for the rendered takes: each segment's text in readable cues sharing the take's time by character count (proportional, not measured). */
-export function ttsTranscript(clips:(Recipe&{text:string})[]):TranscriptSegment[]{let time=0;return clips.flatMap(c=>{const start=time;time+=clipDuration(c);const end=time-c.gap_ms,cues=cuePieces(spokenText(c.text)),total=cues.reduce((n,q)=>n+q.length,0);let at=start,chars=0;return cues.map(q=>{const start_ms=at;chars+=q.length;at=Math.round(start+(end-start)*chars/total);return {id:uid(),start_ms,end_ms:at,text:wrapCue(q)};});});}
+// Dubbing on the subtitle timeline (after cit-voice-studio's dubbing.py): a take starts at its cue and is sped up to fit it, at most
+// 1.5x; one that still runs over pushes the next take back (at least 50 ms between them). Words are never cut. A segment without a
+// cue follows the previous take after that take's gap.
+export const MAX_FIT_RATE=1.5,DUB_GAP_MS=50;
+export interface DubCue {cue_start_ms?:number|null;cue_end_ms?:number|null}
+/** Where each take starts on the timeline, its speed-up and where it ends; counts of sped-up and pushed takes; the total length (at least the last cue's end). */
+export function dubPlan(clips:(Recipe&DubCue)[]):{places:{at_ms:number;rate:number;end_ms:number}[];sped_up:number;pushed:number;max_push_ms:number;length_ms:number}{
+ let cursor=0,gap=0,sped_up=0,pushed=0,max_push_ms=0;
+ const places=clips.map((c,i)=>{const audio=clipDuration(c)-c.gap_ms;let at=cursor+(i?gap:0),rate=1;
+  if(c.cue_start_ms!=null&&c.cue_end_ms!=null){const slot=c.cue_end_ms-c.cue_start_ms;if(audio>slot)rate=slot>0?Math.min(MAX_FIT_RATE,audio/slot):MAX_FIT_RATE;at=Math.max(c.cue_start_ms,i?cursor+DUB_GAP_MS:0);
+   if(rate>1)sped_up++;if(at-c.cue_start_ms>5){pushed++;max_push_ms=Math.max(max_push_ms,at-c.cue_start_ms);}}
+  cursor=at+audio/rate;gap=c.gap_ms;return {at_ms:Math.round(at),rate,end_ms:Math.round(cursor)};});
+ return {places,sped_up,pushed,max_push_ms:Math.round(max_push_ms),length_ms:Math.round(Math.max(cursor,...clips.map(c=>c.cue_end_ms??0)))};
+}
+/** One line on how the takes fit their cues, for the export bar; empty when a segment has no selected take yet. It runs while rendering, so a trim or fade being typed in must not throw. */
+export function dubSummary(segments:Segment[]):string{
+ const clips=segments.map(s=>{const t=s.takes.find(t=>t.id===s.selected_take_id);return t&&{...s,duration_ms:t.duration_ms};});if(!clips.length||clips.some(c=>!c))return '';
+ let r:ReturnType<typeof dubPlan>;try{r=dubPlan(clips as (Segment&{duration_ms:number})[]);}catch(e){return e instanceof Error?e.message:'';}
+ const secs=(r.max_push_ms/1000).toLocaleString('vi-VN',{maximumFractionDigits:2});
+ return `${r.sped_up} đoạn đọc nhanh hơn · ${r.pushed} đoạn bị lùi${r.pushed?` (tối đa ${secs} s)`:''}`;
+}
+/** Subtitle rows for the rendered takes: each segment's text in readable cues sharing the take's time by character count (proportional, not measured); with `dub`, at the takes' places on the subtitle timeline, each shown at least as long as its cue. */
+export function ttsTranscript(clips:(Recipe&DubCue&{text:string})[],dub=false):TranscriptSegment[]{let time=0;const plan=dub?dubPlan(clips).places:null;return clips.flatMap((c,i)=>{let start=time;time+=clipDuration(c);let end=time-c.gap_ms;if(plan){start=plan[i].at_ms;end=Math.min(plan[i+1]?.at_ms??Infinity,Math.max(plan[i].end_ms,start+(c.cue_end_ms??0)-(c.cue_start_ms??0)));}const cues=cuePieces(spokenText(c.text)),total=cues.reduce((n,q)=>n+q.length,0);let at=start,chars=0;return cues.map(q=>{const start_ms=at;chars+=q.length;at=Math.round(start+(end-start)*chars/total);return {id:uid(),start_ms,end_ms:at,text:wrapCue(q)};});});}
