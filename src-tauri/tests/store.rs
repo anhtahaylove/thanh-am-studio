@@ -155,3 +155,18 @@ fn app_settings_default_roundtrip_and_validation() {
     assert!(s.save_settings(json!({"dictionary":many})).unwrap_err().starts_with("INVALID_SETTINGS"));
     assert_eq!(s.settings().unwrap(), saved);
 }
+
+#[test]
+fn a_segment_chapter_survives_save_and_load() {
+    let tmp = tempfile::tempdir().unwrap();
+    let store = Store::open(tmp.path()).unwrap();
+    let mut p = store.create_project("Chương").unwrap();
+    p["segments"] = json!([
+        {"id":"s1","text":"Một.","normalized_text":"Một.","takes":[],"selected_take_id":null,"chapter":"P1"},
+        {"id":"s2","text":"Hai.","normalized_text":"Hai.","takes":[],"selected_take_id":null,"chapter":null}
+    ]);
+    let saved = store.save_project(p).unwrap();
+    let loaded = store.load_project(saved["id"].as_str().unwrap()).unwrap();
+    assert_eq!(loaded["segments"][0]["chapter"], "P1");
+    assert!(loaded["segments"][1]["chapter"].is_null());
+}

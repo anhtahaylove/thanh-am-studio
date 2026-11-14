@@ -17,3 +17,4 @@ progress::-webkit-progress-value{background:var(--green)}
 .export-controls{flex-wrap:wrap;justify-content:flex-end;row-gap:6px}.export-controls>*{flex-shrink:0}.export-controls .check{white-space:nowrap}.waveform>span{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .dub-stats{font-size:11px;color:var(--muted);order:1;flex-basis:100%;text-align:right}
 .emotion-bar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}.emotion-bar button{padding:6px 10px;font-size:11px}
+.chapter-chip{font-size:10px;font-weight:600;padding:2px 8px;border-radius:999px;color:#58864c;background:var(--green-soft);white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis}

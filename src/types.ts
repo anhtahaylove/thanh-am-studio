@@ -1,6 +1,6 @@
 export interface TakeCheck {model:string;wer?:number;heard?:string;mismatches?:{expected:string;heard:string;soft:boolean}[];error?:string}
 export interface Take {id:string;asset_id:string;path:string;duration_ms:number;sample_rate:number;created_at:string;check?:TakeCheck;speech_start_ms?:number;speech_end_ms?:number|null}
-export interface Segment {id:string;text:string;normalized_text:string;voice_id:string|null;speaker:string;gap_ms:number;takes:Take[];selected_take_id:string|null;trim_start_ms:number;trim_end_ms:number|null;fade_in_ms:number;fade_out_ms:number;gain_db:number;speed?:number;cue_start_ms?:number|null;cue_end_ms?:number|null}
+export interface Segment {id:string;text:string;normalized_text:string;voice_id:string|null;speaker:string;gap_ms:number;takes:Take[];selected_take_id:string|null;trim_start_ms:number;trim_end_ms:number|null;fade_in_ms:number;fade_out_ms:number;gain_db:number;speed?:number;cue_start_ms?:number|null;cue_end_ms?:number|null;chapter?:string|null}
 export interface TranscriptSegment {id:string;start_ms:number;end_ms:number;text:string;speaker?:number;overlap_speaker?:number|null}
 export interface ProjectSummary {id:string;name:string;updated_at:string;revision:number}
 export interface Project extends ProjectSummary {segments:Segment[];transcript:TranscriptSegment[];dictionary:Record<string,string>;source_asset_id:string|null}

@@ -40,4 +40,12 @@ export async function saveText(name:string,content:string):Promise<void>{
  if(!desktop){const url=URL.createObjectURL(new Blob([content],{type:'text/plain;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);return;}
  const path=await save({defaultPath:name,filters:[{name:'Văn bản',extensions:[name.split('.').pop()!]}]});if(path)await call('export_text',{path,content});
 }
-export async function saveAudio(assetId:string,format:string):Promise<void>{const path=await save({defaultPath:`thanh-am.${format}`,filters:[{name:'Audio',extensions:[format]}]});if(path)await call('export_asset',{assetId,path});}
+export async function saveAudio(assetId:string,format:string,name='thanh-am'):Promise<void>{const path=await save({defaultPath:`${name}.${format}`,filters:[{name:'Audio',extensions:[format]}]});if(path)await call('export_asset',{assetId,path});}
+/** Asks for a folder and copies each audio asset there as `file`, leaving a file that already exists alone. Null when cancelled. */
+export async function saveAudioFiles(items:{assetId:string;file:string}[]):Promise<{saved:number;skipped:string[]}|null>{
+ if(!desktop)throw Error('Mở bản desktop để lưu tệp.');
+ const dir=await open({directory:true});if(typeof dir!=='string')return null;
+ const base=dir.replace(/[\\/]$/,'')+(dir.includes('\\')?'\\':'/'),skipped:string[]=[];let saved=0;
+ for(const {assetId,file} of items){if(await call<boolean>('export_asset_new',{assetId,path:base+file}))saved++;else skipped.push(file);}
+ return {saved,skipped};
+}
