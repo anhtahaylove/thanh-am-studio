@@ -23,9 +23,9 @@ export function replaceInTranscript(rows:TranscriptSegment[],find:string,replace
 /** Badge for a take that Whisper listened back to; soft mismatches (merged initials/finals) do not warn. */
 export function checkSummary(check:TakeCheck|undefined):{tone:'ok'|'warn';label:string;detail:string}|null{
  if(!check||check.error||!check.mismatches)return null;
- const hard=check.mismatches.filter(m=>!m.soft);const detail=`Whisper nghe: “${check.heard??''}”`;
- if(!hard.length)return {tone:'ok',label:'Khớp kịch bản',detail};
- return {tone:'warn',label:`Có thể đọc sai: ${hard.slice(0,2).map(m=>`“${m.expected||'…'}” → “${m.heard||'…'}”`).join(', ')}${hard.length>2?` +${hard.length-2}`:''}`,detail};
+ const hard=check.mismatches.filter(m=>!m.soft),tried=(check.attempts??1)>1;const detail=`${tried?`Đã thử ${check.attempts} lần, giữ bản tốt nhất. `:''}Whisper nghe: “${check.heard??''}”`,tail=tried?` · ${check.attempts} lần`:'';
+ if(!hard.length)return {tone:'ok',label:`Khớp kịch bản${tail}`,detail};
+ return {tone:'warn',label:`Có thể đọc sai: ${hard.slice(0,2).map(m=>`“${m.expected||'…'}” → “${m.heard||'…'}”`).join(', ')}${hard.length>2?` +${hard.length-2}`:''}${tail}`,detail};
 }
 /** Speaker choices for a row: every speaker in the transcript plus one new one. */
 export function speakerSlots(rows:TranscriptSegment[]):number{return Math.max(-1,...rows.map(r=>r.speaker??-1))+2;}
@@ -59,9 +59,13 @@ const EN_TOKEN=/(<en>[\s\S]*?<\/en>|\[[^\]]*\]|<\|[^|]*\|>|\S*(?::\/\/|@|www\.|[
 const onlyEnglish=(w:string)=>w!==w.toUpperCase()&&/[aeiouy]/i.test(w)&&(/[fjwz]/i.test(w)||!/(?:[aeiouymn]|ng|nh)$/i.test(w));
 // Only sentences typed with diacritics, so Vietnamese written without them ("hoc", "dep") is left alone.
 const tagEnglish=(text:string)=>text.split(/(?<=[.!?…])(\s+)/u).map((s,i)=>i%2||!/\p{M}|đ/iu.test(s.normalize('NFD'))?s:s.replace(EN_TOKEN,(m,kept)=>kept||!onlyEnglish(m)?m:`<en>${m}</en>`)).join('').replace(/<\/en>(\s+)<en>/g,'$1');
+// Markup the engine reads aloud ("sao sao", "thăng", "nhỏ hơn font"): Markdown bold, headings and quotes at a line start, links (the text stays), HTML/subtitle tags other than our <en>, ASS overrides such as {\an8}, and ♪.
+const stripMarkup=(s:string)=>s.replace(/\*\*(?=\S)([\s\S]*?\S)\*\*/gu,'$1').replace(/^[ \t]*(?:#{1,6}|>)[ \t]+/gmu,'').replace(/\[([^\]\n]+)\]\((?:https?:|www\.)[^)\s]*\)/gu,'$1').replace(/<\/?(?!en>)[a-z][^<>]*>/giu,' ').replace(/\{\\[^}]*\}|♪/gu,' ');
+// Whole words only, so "AI" leaves "OpenAI" alone; a key that starts or ends with punctuation ("TP.", "đ/cp") is bounded on its letter side only.
+const WORD='[\\p{L}\\p{M}\\p{N}]',bounded=(k:string)=>`${/^[\p{L}\p{M}\p{N}]/u.test(k)?`(?<!${WORD})`:''}${escapeRegExp(k)}${/[\p{L}\p{M}\p{N}]$/u.test(k)?`(?!${WORD})`:''}`;
 function normalizeSpoken(text:string,dictionary:Record<string,string>,codeSwitch=false):string {
- const keys=Object.keys(dictionary).filter(Boolean).sort((a,b)=>b.length-a.length);let out=text.normalize('NFC');
- if(keys.length){const escaped=keys.map(escapeRegExp);out=out.replace(new RegExp(escaped.join('|'),'gu'),m=>dictionary[m]);}
+ const keys=Object.keys(dictionary).filter(Boolean).sort((a,b)=>b.length-a.length);let out=stripMarkup(text.normalize('NFC'));
+ if(keys.length)out=out.replace(new RegExp(keys.map(bounded).join('|'),'gu'),m=>dictionary[m]);
  out=out.replace(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/g,(_,d,m,y)=>`${Number(d)} tháng ${Number(m)} năm ${y}`).replace(/(\d[\d.,]*)\s*(₫|đ)(?=\s|[.,;!?]|$)/g,(_,n)=>`${n.replace(/\./g,'')} đồng`).replace(/\b(\d+(?:[.,]\d+)?)\s*kg\b/gi,'$1 ki lô gam').replace(/\b(\d+(?:[.,]\d+)?)\s*km\b/gi,'$1 ki lô mét')
   // Readings pinned sea-g2p 0.10.0 gets wrong (its issues #20, #21, #22, #25): đ/cp → "địa chỉp", -2,5 loses the sign, 50k → "năm mươi ca", 1.2B → "bê", rate 1.1200 → a date, ₿₹₽¢ dropped.
   .replace(/(?<!\p{L})(\d?)\s*đ\/(c\p{L}+)/gu,(_,d,u)=>`${d&&d+' '}đồng trên ${u==='cp'?'cổ phiếu':u}`).replace(/(?<![\p{L}\d])[-\u2212](?=\d+,\d)/gu,'âm ').replace(/(?<![\p{L}\d.,])(\d[\d.,]*)k(?![\p{L}\d])/gu,'$1 nghìn').replace(/(?<![\p{L}\d.,])(\d+)[.,](\d+)B(?![\p{L}\d])/gu,'$1,$2 tỷ')
@@ -73,6 +77,15 @@ function splitWords(text:string,max:number):string[]{const out:string[]=[];let c
 // Each line is its own paragraph; sentences are packed up to max chars and only a single over-long sentence is cut (at word boundaries).
 export function splitText(input:string,max=500):string[]{const out:string[]=[];for(const para of input.trim().split(/\n+/)){let current='';for(const sentence of para.trim().replace(/\s+/g,' ').split(SENTENCE_END)){if(!sentence)continue;if(current&&current.length+1+sentence.length<=max){current+=' '+sentence;continue;}if(current)out.push(current);if(sentence.length<=max)current=sentence;else{const parts=splitWords(sentence,max);current=parts.pop()!;out.push(...parts);}}if(current)out.push(current);}return out;}
 export function makeSegment(text=''):Segment{return {id:uid(),text,normalized_text:text,voice_id:null,speaker:'Người dẫn',gap_ms:300,takes:[],selected_take_id:null,trim_start_ms:0,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0,gain_db:0};}
+// A line "Tên: lời" or "[Tên]: lời" names its speaker. The name is at most 30 characters with no digits or URL (so "8:30" and "http://…" are not labels).
+const LABEL=/^\s*(?:\[([^\][:\n]+)\]|([^:[\]\n]+?))\s*[:：](?!\/\/)\s*(.*)$/u;
+const labelOf=(line:string)=>{const m=line.match(LABEL),name=(m?.[1]??m?.[2])?.trim();return m&&name&&name.length<=30&&!/\d|www\.|@/i.test(name)?{name,rest:m[3]}:null;};
+/** Script chunks of pasted text. With at least two labelled lines each label starts a block (continuing until the next label) spoken by that name; otherwise one speaker reads everything, so a lone "Lưu ý:" stays text. */
+export function scriptChunks(text:string):{speaker:string;text:string}[]{
+ const lines=text.split(/\r?\n/).map(line=>({line,label:labelOf(line)})),labelled=lines.filter(l=>l.label).length>=2,blocks=[{speaker:'Người dẫn',lines:[] as string[]}];
+ for(const {line,label} of lines){if(labelled&&label)blocks.push({speaker:label.name,lines:[label.rest]});else blocks.at(-1)!.lines.push(line);}
+ return blocks.flatMap(b=>splitText(b.lines.join('\n')).map(text=>({speaker:b.speaker,text})));
+}
 export function splitTranscript(row:TranscriptSegment):[TranscriptSegment,TranscriptSegment]{const words=row.text.split(/\s+/);if(words.length<2||row.end_ms-row.start_ms<2)throw Error('Cần ít nhất hai từ để chia đoạn');const n=Math.ceil(words.length/2);const mid=Math.round(row.start_ms+(row.end_ms-row.start_ms)*n/words.length);return [{...row,text:words.slice(0,n).join(' '),end_ms:mid},{id:uid(),start_ms:mid,end_ms:row.end_ms,text:words.slice(n).join(' ')}];}
 export function mergeTranscript(a:TranscriptSegment,b:TranscriptSegment):TranscriptSegment{return {...a,start_ms:Math.min(a.start_ms,b.start_ms),end_ms:Math.max(a.end_ms,b.end_ms),text:a.text+' '+b.text};}
 export interface Recipe {duration_ms:number;trim_start_ms:number;trim_end_ms:number|null;gap_ms:number;fade_in_ms:number;fade_out_ms:number;gain_db:number}
