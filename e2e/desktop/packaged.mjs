@@ -1,5 +1,5 @@
 // Acceptance run against the packaged desktop app (UI -> Rust -> worker -> files).
-// usage: node packaged.mjs <app.exe> <outDir> <phase: full|reopen|turbo|offline|export|clone|dpi|longstt|ux|features|dub>
+// usage: node packaged.mjs <app.exe> <outDir> <phase: full|reopen|turbo|offline|export|clone|dpi|longstt|ux|features|dub|scripts>
 // Drives the real WebView2 over CDP; native file dialogs are filled by file-dialog.ps1.
 import {chromium} from 'playwright-core';
 import {spawn, execFileSync} from 'node:child_process';
@@ -91,6 +91,22 @@ function lag(a, b) {
     if (s > best[1]) best = [d, s];
   }
   return best[0] * 10;
+}
+// The VieNeu model, downloaded through the UI when this phase runs on a fresh install.
+async function voiceModel() {
+  if ((await invoke('list_models')).find((m) => m.id === 'vieneu-v3')?.installed) return 'already installed';
+  const before = await done('model_download');
+  await nav('Model & cài đặt');
+  await page.locator('article', {has: page.getByRole('heading', {name: 'VieNeu v3 Turbo', exact: true})}).getByRole('button', {name: 'Tải model'}).click();
+  await waitJobs('model_download', before + 1, 20 * 60000);
+  return 'downloaded through the UI';
+}
+async function newProject(prefix) {
+  const name = `${prefix} ${Date.now()}`;
+  await nav('Dự án');
+  await page.getByRole('textbox', {name: 'Tên dự án mới'}).fill(name);
+  await page.getByRole('button', {name: 'Tạo dự án'}).click();
+  return name;
 }
 async function exportSteps() {
   const wav = join(saves, `xuất thử ổn định ${Date.now()}.wav`);
@@ -505,6 +521,47 @@ try {
       return `${speakers.length} rows, ${new Set(speakers).size} speakers [${speakers.join('')}], ${chips} chips; script now ${segs} segments`;
     });
   }
+  if (phase === 'scripts') {
+    // 1.0.7 script features in the installed app: a Word file made by Word imported through the open dialog, then a take
+    // whose text has a pause alias and an emotion cue inserted with its button. Needs THANHAM_DOCX (sandbox-run.ps1).
+    let project;
+    await step('voice model ready', voiceModel);
+    await step('a Word script imports with its speakers', async () => {
+      const src = process.env.THANHAM_DOCX;
+      if (!src || !existsSync(src)) throw Error(`THANHAM_DOCX missing: ${src}`);
+      const docx = join(saves, `kịch bản ${Date.now()}.docx`);
+      copyFileSync(src, docx);
+      const name = await newProject('Kịch bản Word');
+      await page.getByRole('button', {name: /^Nhập TXT \/ SRT/}).click();
+      dialog(docx);
+      await page.getByRole('textbox', {name: 'Nội dung đoạn 3'}).waitFor({timeout: 15000});
+      await page.waitForTimeout(1500); // autosave
+      project = await invoke('load_project', {id: (await invoke('list_projects')).find((p) => p.name === name)?.id});
+      const got = project.segments.map((s) => [s.speaker, s.text]);
+      const want = [['Lan', 'Xin chào các bạn, đây là kịch bản Word.'], ['Minh', 'Hôm nay trời đẹp quá.'], ['Lan', 'Chúng ta bắt đầu nhé.']];
+      if (JSON.stringify(got) !== JSON.stringify(want)) throw Error(`segments ${JSON.stringify(got)}`);
+      return got.map(([who, text]) => `${who}: ${text}`).join(' | ');
+    });
+    await step('a pause alias and an emotion cue reach a new take', async () => {
+      const box = page.getByRole('textbox', {name: 'Nội dung đoạn 2'});
+      await box.click();
+      await box.fill('Hôm nay [pause 0.4s] trời đẹp quá.');
+      await box.press('End');
+      await page.getByRole('button', {name: 'Cười', exact: true}).click();
+      const text = await box.inputValue();
+      if (!/^Hôm nay \[pause 0\.4s\] trời đẹp quá\. ?\[cười\] ?$/.test(text)) throw Error(`text after the cue button: "${text}"`);
+      const before = await done('tts');
+      await page.locator('article.segment').nth(1).getByRole('button', {name: 'Tạo take mới'}).click();
+      const [job] = await waitJobs('tts', before + 1, 10 * 60000);
+      if (!job.payload.text.includes('[pause 0.4s]') || !job.payload.text.includes('[cười]')) throw Error(`sent "${job.payload.text}"`);
+      // The longest quiet stretch (frames under 5 % of the take's peak) between the first and the last speech frame.
+      const peaks = framePeaks(job.result.path), top = Math.max(...peaks), on = peaks.map((v) => v > 0.05 * top);
+      let run = 0, longest = 0;
+      for (let f = on.indexOf(true); f <= on.lastIndexOf(true); f++) { run = on[f] ? 0 : run + 1; longest = Math.max(longest, run); }
+      if (longest * 10 < 350) throw Error(`longest pause inside the take is ${longest * 10} ms`);
+      return `sent "${job.payload.text}", ${job.result.duration_ms} ms take, longest pause inside ${longest * 10} ms`;
+    });
+  }
   if (phase === 'dub') {
     // Subtitle-timed export: an SRT imported through the UI, takes generated, "Theo mốc phụ đề" on, then the rendered file is
     // measured. Cue 2 is far too short for its text (sped up) and pushes cue 3 back; cues 1 and 4 have room.
@@ -512,19 +569,9 @@ try {
       [6000, 8000, 'Câu này phải chờ câu trước.'], [12000, 14500, 'Cảm ơn các bạn đã lắng nghe.']];
     const stamp = (ms) => new Date(ms).toISOString().slice(11, 23).replace('.', ',');
     let project, job;
-    await step('voice model ready', async () => {
-      if ((await invoke('list_models')).find((m) => m.id === 'vieneu-v3')?.installed) return 'already installed';
-      const before = await done('model_download');
-      await nav('Model & cài đặt');
-      await page.locator('article', {has: page.getByRole('heading', {name: 'VieNeu v3 Turbo', exact: true})}).getByRole('button', {name: 'Tải model'}).click();
-      await waitJobs('model_download', before + 1, 20 * 60000);
-      return 'downloaded through the UI';
-    });
+    await step('voice model ready', voiceModel);
     await step('srt import keeps the cue times', async () => {
-      const name = `Lồng tiếng ${Date.now()}`;
-      await nav('Dự án');
-      await page.getByRole('textbox', {name: 'Tên dự án mới'}).fill(name);
-      await page.getByRole('button', {name: 'Tạo dự án'}).click();
+      const name = await newProject('Lồng tiếng');
       const srt = join(saves, `phụ đề nguồn ${Date.now()}.srt`);
       writeFileSync(srt, cues.map(([a, b, text], i) => `${i + 1}\n${stamp(a)} --> ${stamp(b)}\n${text}\n`).join('\n'));
       copyFileSync(srt, join(out, 'phụ đề nguồn.srt'));
