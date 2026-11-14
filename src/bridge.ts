@@ -27,7 +27,7 @@ export async function call<T>(command:string,args:Record<string,unknown>={}):Pro
 export const mediaUrl=(path:string)=>desktop?convertFileSrc(path):path;
 export async function pickFiles(kind:'text'|'audio'|'csv',multiple=false):Promise<string[]>{
  if(!desktop)throw Error('Mở bản desktop để chọn tệp từ máy tính.');
- const result=await open({multiple,filters:kind==='text'?[{name:'Văn bản & phụ đề',extensions:['txt','srt','vtt']}]:kind==='csv'?[{name:'Bảng CSV',extensions:['csv']}]:[{name:'Audio & video',extensions:['wav','mp3','m4a','flac','ogg','opus','mp4','mkv','webm','mov']}]});return result?Array.isArray(result)?result:[result]:[];
+ const result=await open({multiple,filters:kind==='text'?[{name:'Văn bản, Word & phụ đề',extensions:['txt','srt','vtt','docx']}]:kind==='csv'?[{name:'Bảng CSV',extensions:['csv']}]:[{name:'Audio & video',extensions:['wav','mp3','m4a','flac','ogg','opus','mp4','mkv','webm','mov']}]});return result?Array.isArray(result)?result:[result]:[];
 }
 /** Content of one CSV the user picks, or null when cancelled. The browser preview has no file paths, so it reads through a file input. */
 export async function openCsv():Promise<string|null>{
