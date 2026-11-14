@@ -126,7 +126,15 @@ try {
       const t = Date.now();
       await page.getByRole('button', {name: 'Tạo giọng tất cả'}).click();
       const jobs = await waitJobs('tts', 2, 10 * 60000);
-      return `2 segments in ${Date.now() - t} ms, audio ${jobs.map((j) => j.result.duration_ms).join('+')} ms`;
+      // The server trims each segment to its first take's speech edges when it selects that take.
+      const project = await invoke('load_project', {id: jobs[0].project_id});
+      const trims = project.segments.map((s) => {
+        const take = s.takes.find((x) => x.id === s.selected_take_id);
+        if (!take || typeof take.speech_start_ms !== 'number' || s.trim_start_ms !== take.speech_start_ms || (s.trim_end_ms ?? null) !== (take.speech_end_ms ?? null))
+          throw Error(`segment trim does not follow the take's speech edges: ${JSON.stringify({trim: [s.trim_start_ms, s.trim_end_ms], take})}`);
+        return `${s.trim_start_ms}-${s.trim_end_ms ?? take.duration_ms}`;
+      });
+      return `2 segments in ${Date.now() - t} ms, audio ${jobs.map((j) => j.result.duration_ms).join('+')} ms, trimmed to ${trims.join(' and ')} ms`;
     });
     await step('takes visible and preview plays', async () => {
       await page.getByText('1 take').first().waitFor({timeout: 15000});

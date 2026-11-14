@@ -55,6 +55,12 @@ Last updated 2026-11-14. Evidence below was observed, not inferred; anything not
   "thăng", "nhỏ hơn font"); TTS subtitles are cut into cues of at most two 42-character lines; an
   untagged one- to three-word chunk made only of English-looking words ("y", "in", "im", "u") is read
   in Vietnamese.
+- Added for v1.0.6: a new take's leading and trailing silence is left out through its segment trim
+  (speech edges at 2 % of peak plus 80 ms, set when the server selects the first take or the user picks a
+  take, kept through undo, skipped when the segment's fades would not fit; pause marks at the text edges
+  stay); dubbing on the subtitle timeline: segments keep their SRT/VTT or transcript cue times, and with
+  "Theo mốc phụ đề" the export places each take at its cue, speeds it up to fit (at most 1.5x), pushes the
+  next take back when it still runs over (50 ms apart) and exports the SRT at the same places.
 
 ## Verification (2026-11-11)
 
@@ -647,6 +653,35 @@ A first attempt ran while other measurements loaded the host (the app took 50 s 
 and UI clicks timed out); it was rerun after lowering those processes to idle priority and is not counted.
 Evidence: `work\release-v1.0.4-sandbox`.
 
+### Take edge trim and subtitle dubbing (2026-11-14)
+
+- Edge trim margin, measured on the 162 existing takes (6 preset voices, one word to three sentences;
+  `work\take-edge-trim`): each take trimmed at 40 ms and 80 ms and transcribed by Whisper Small next to the
+  untrimmed take. At 40 ms the first or last word of short inputs came back with another tone more often
+  ("lục" as "lúc", "không" as "khùng"; first word changed in 8 takes, last word in 5); at 80 ms most of
+  those were heard as before. Mean WER against the text: 0.417 untrimmed, 0.419 at 40 ms, 0.370 at 80 ms.
+  One decode per take, and 32 takes changed a word in the middle where the trim cannot reach, so a few
+  takes either way are decoder noise. 80 ms removes a median 106 ms (max 384 ms) of trailing silence and
+  rarely touches the start (median 1 ms).
+- Dubbing: the plan (`dubPlan`) is unit-tested; the worker's placement (`atempo`, `adelay` in samples,
+  `apad=whole_len`) was checked with a real render on the bundled FFmpeg n9.0.2 and the system FFmpeg 9.0.2
+  (clips at 500 and 2000 ms, the second sped up 1.25x, padded to 3500 ms). That render test is skipped in
+  CI, which has no FFmpeg. An independent review found and we fixed: undo dropping the server's trim, a
+  trim that left less audio than the fades, the export bar crashing on a trim being typed in, and merged
+  cues out of order.
+
+### v1.0.5 release (built by `.github/workflows/release.yml` from tag `v1.0.5` at `808b567`)
+
+| Check | Result |
+|---|---|
+| Tests | CI green on #59 to #63; locally 61 unit, 13 Playwright, 11 + 8 Rust, 65 worker with the real diarization model |
+| Installer SHA-256 | `8047b95f546fd20f8cd30c150c1d975be286adb47ba58101c675e4b00df484ea`; `sha256sum -c` OK after `gh release download` and after an anonymous download from `/releases/latest/download/` |
+| Clean Sandbox run on that exact installer | `full`, `features` (2 speakers asked and found in the 102 s dialogue through the child-process diarization, 22 rows): 16 PASS, 0 FAIL |
+| Carried over from the 1.0.3 draft | `reopen`, `turbo`, `offline`, `export`, `ux`, `clone`, `dpi` |
+
+A first run stopped at the dialogue step because the test file had not been copied next to the installer
+(harness setup); it was rerun and is not counted. Evidence: `work\release-v1.0.5-sandbox`.
+
 ## Not verified / known gaps
 
 - Listening quality has not been judged by a human; the clipping checks above are signal analysis.
@@ -697,3 +732,5 @@ Evidence: `work\release-v1.0.4-sandbox`.
 - TTS subtitle cues inside one segment are timed by character count, not measured, so they can be off by
   a few hundred ms; the segment boundaries are exact. The overlap chip is a hint (recall 0.46 on AMI) and
   names the right second speaker for only about a third of the marked rows.
+- Subtitle dubbing was checked by unit, browser and worker tests, not in the Sandbox; a take synthesized at a
+  speed other than 1 is stretched a second time when it has to fit its cue.
