@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {progressLabel,jobProgressLabel,parseSubtitles,exportSubtitles,normalizeText,splitText,splitTranscript,mergeTranscript,clipDuration,validateRecipe,ttsTranscript,makeSegment,splitSegment,mergeSegments,restoreSnapshot,addTranscriptRow,validRange,replaceInTranscript,rowAt,spokenText,checkSummary,transcriptToScript,barState,speakerSlots} from './domain';
+import {progressLabel,jobProgressLabel,parseSubtitles,exportSubtitles,normalizeText,splitText,splitTranscript,mergeTranscript,clipDuration,validateRecipe,ttsTranscript,makeSegment,splitSegment,mergeSegments,restoreSnapshot,addTranscriptRow,validRange,replaceInTranscript,rowAt,spokenText,checkSummary,transcriptToScript,barState,speakerSlots,scriptChunks} from './domain';
 import type {Project,Take} from './types';
 describe('subtitle and text contracts',()=>{
  it('reads BOM SRT and multiline Vietnamese',()=>{expect(parseSubtitles('\uFEFF1\r\n00:00:01,250 --> 00:00:03,500\r\nXin chào\r\nViệt Nam\r\n')).toMatchObject([{start_ms:1250,end_ms:3500,text:'Xin chào\nViệt Nam'}]);});
@@ -59,4 +59,18 @@ describe('transcript rows',()=>{
  it('marks waveform bars as trimmed or played',()=>{const trim={trim_start_ms:1000,trim_end_ms:3000};expect(barState(0,10,4000,trim,null)).toBe('trimmed');expect(barState(9,10,4000,trim,null)).toBe('trimmed');expect(barState(3,10,4000,trim,null)).toBe('');expect(barState(3,10,4000,trim,1500)).toBe('played');expect(barState(5,10,4000,trim,1500)).toBe('');expect(barState(9,10,4000,{trim_start_ms:0,trim_end_ms:null},null)).toBe('');});
  it('offers every transcript speaker plus one new one',()=>{const r=(speaker?:number)=>({id:'x',start_ms:0,end_ms:1,text:'a',speaker});expect(speakerSlots([r(0),r(2),r()])).toBe(4);expect(speakerSlots([r()])).toBe(1);expect(speakerSlots([])).toBe(1);});
  it('validates ranges the way the backend does',()=>{expect(validRange(0,1)).toBe(true);for(const [a,b] of [[5,5],[6,5],[-1,5],[0,NaN]])expect(validRange(a,b)).toBe(false);});
+
+ it('splits a pasted script by "Tên:" and "[Tên]:" labels and keeps a label running until the next one',()=>{
+  expect(scriptChunks('Mai: Chào anh.\nAnh vẫn khỏe chứ?\n[Nam]: Khỏe, cảm ơn.\nMai: Hẹn gặp lại.')).toEqual([{speaker:'Mai',text:'Chào anh.'},{speaker:'Mai',text:'Anh vẫn khỏe chứ?'},{speaker:'Nam',text:'Khỏe, cảm ơn.'},{speaker:'Mai',text:'Hẹn gặp lại.'}]);
+  expect(scriptChunks('Lời dẫn đầu.\nMai: A.\nNam: B.')).toEqual([{speaker:'Người dẫn',text:'Lời dẫn đầu.'},{speaker:'Mai',text:'A.'},{speaker:'Nam',text:'B.'}]);
+ });
+ it('treats a single label, times, URLs and long or numbered names as plain text',()=>{
+  const plain=(t:string)=>expect(scriptChunks(t).every(c=>c.speaker==='Người dẫn')).toBe(true);
+  plain('Lưu ý: đọc chậm.\nCâu thứ hai.');plain('Lúc 8:30 sáng.\nHết giờ 9:45 rồi.');plain('Xem http://a.vn/x\nhttps://b.vn/y');plain(`${'a'.repeat(31)}: một\nMai2: hai\nlink www.x.vn: ba`);
+  expect(scriptChunks('Lưu ý: đọc chậm.\nCâu thứ hai.').map(c=>c.text)).toEqual(['Lưu ý: đọc chậm.','Câu thứ hai.']);
+ });
+ it('mentions how many takes a self-check tried',()=>{
+  const ok=checkSummary({model:'m',attempts:3,heard:'h',mismatches:[]})!;expect(ok.detail).toContain('Đã thử 3 lần, giữ bản tốt nhất');expect(ok.label).toBe('Khớp kịch bản · 3 lần');
+  expect(checkSummary({model:'m',attempts:1,heard:'h',mismatches:[]})!.label).toBe('Khớp kịch bản');expect(checkSummary({model:'m',heard:'h',mismatches:[{expected:'a',heard:'b',soft:false}]})!.detail).not.toContain('Đã thử');
+ });
 });

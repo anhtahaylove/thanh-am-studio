@@ -81,3 +81,42 @@ test('speaker panel summarizes diarized rows and merges one speaker into another
  const chips=page.getByRole('combobox',{name:/^Người nói tại/});await expect(chips.nth(2)).toHaveValue('0');await expect(chips.nth(4)).toHaveValue('0');
  await page.keyboard.press('Control+z');await expect(chips.nth(2)).toHaveValue('2');await expect(page.getByRole('combobox',{name:'Gộp Người 3 vào'})).toBeVisible();
 });
+test('pasting a script with "Tên:" labels creates one role per speaker and drops the prefix',async({page})=>{
+ await page.goto('/');await page.getByRole('button',{name:'Thêm nội dung',exact:true}).click();
+ await page.getByRole('textbox',{name:'Nội dung cần thêm'}).fill('Mai: Chào anh.\nAnh vẫn khỏe chứ?\n[Nam]: Khỏe, cảm ơn.\nLúc 8:30 gặp lại.');await page.getByRole('button',{name:'Thêm vào kịch bản'}).click();
+ await expect(page.getByRole('textbox',{name:'Nhân vật đoạn 1'})).toHaveValue('Mai');await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toHaveValue('Chào anh.');
+ await expect(page.getByRole('textbox',{name:'Nhân vật đoạn 2'})).toHaveValue('Mai');await expect(page.getByRole('textbox',{name:'Nhân vật đoạn 3'})).toHaveValue('Nam');await expect(page.getByRole('textbox',{name:'Nội dung đoạn 3'})).toHaveValue('Khỏe, cảm ơn.');
+ await expect(page.getByRole('textbox',{name:'Nội dung đoạn 4'})).toHaveValue('Lúc 8:30 gặp lại.');await expect(page.getByRole('textbox',{name:'Nhân vật đoạn 4'})).toHaveValue('Nam');
+});
+test('overlap marker and take-check attempts show in the transcript and the script',async({page})=>{
+ const take={id:'t1',asset_id:'a1',path:'a.wav',duration_ms:1000,sample_rate:24000,created_at:new Date().toISOString(),check:{model:'whisper-small',attempts:3,heard:'xin chào',mismatches:[]}};
+ const seg={id:'s1',text:'Xin chào',normalized_text:'Xin chào',voice_id:null,speaker:'Người dẫn',gap_ms:300,takes:[take],selected_take_id:'t1',trim_start_ms:0,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0,gain_db:0};
+ const project={id:'p1',name:'Họp nhóm',updated_at:new Date().toISOString(),revision:1,segments:[seg],transcript:[{id:'r1',start_ms:0,end_ms:2000,text:'Một',speaker:0,overlap_speaker:1},{id:'r2',start_ms:2000,end_ms:4000,text:'Hai',speaker:1,overlap_speaker:null},{id:'r3',start_ms:4000,end_ms:6000,text:'Ba',speaker:1}],dictionary:{},source_asset_id:null};
+ await page.goto('/');await page.evaluate(p=>localStorage.setItem('thanh-am-preview-projects-v1',JSON.stringify([p])),project);await page.reload();
+ await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();
+ const badge=page.getByText('Khớp kịch bản · 3 lần');await expect(badge).toBeVisible();await expect(badge).toHaveAttribute('title',/Đã thử 3 lần, giữ bản tốt nhất/);
+ await page.getByRole('button',{name:'Chép lời',exact:true}).click();
+ const chip=page.getByTitle('Có người nói chồng: Người 2');await expect(chip).toHaveCount(1);await expect(chip).toHaveText('+ Người 2');await expect(page.locator('.overlap-chip')).toHaveCount(1);
+});
+test('speaker count range is sent as min/max speakers and a fixed count stays a single number',async({page})=>{
+ await page.addInitScript(()=>{
+  const w=window as any,calls:any[]=[];w.isTauri=true;w.__calls=calls;let project:any=null;
+  const models=[{id:'whisper-small',installed:true},{id:'diarization',installed:true}];
+  w.__TAURI_INTERNALS__={convertFileSrc:(p:string)=>p,transformCallback:()=>1,unregisterCallback:()=>{},metadata:{currentWindow:{label:'main'},currentWebview:{label:'main',windowLabel:'main'}},
+   invoke:async(cmd:string,args:any)=>{calls.push({cmd,args});switch(cmd){
+    case 'list_projects':return project?[project]:[];case 'list_jobs':case 'list_voices':return [];case 'list_models':return models;case 'get_settings':return {dictionary:{}};
+    case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,python_path:null,ffmpeg_path:null,message:''};
+    case 'create_project':project={id:'p1',name:args.name,updated_at:new Date().toISOString(),revision:0,segments:[],transcript:[],dictionary:{},source_asset_id:null};return project;
+    case 'save_project':project={...args.project,revision:args.project.revision+1};return project;
+    case 'plugin:dialog|open':return ['C:/a.wav'];case 'import_asset':return {id:'a1',path:args.path,name:'a.wav',duration_ms:1000,sample_rate:16000};
+    case 'enqueue_job':return {id:'j1'};default:return null;}}};
+ });
+ await page.goto('/');await page.getByRole('button',{name:'Chép lời',exact:true}).click();
+ const count=page.getByRole('combobox',{name:'Số người nói'});await expect(count).toBeDisabled();await page.getByRole('checkbox',{name:'Phân biệt người nói'}).check();
+ const payloads=()=>page.evaluate(()=>(window as any).__calls.filter((c:any)=>c.cmd==='enqueue_job').map((c:any)=>c.args.payload));
+ for(const [value,expected] of [['3-4',{min_speakers:3,max_speakers:4}],['4-6',{min_speakers:4,max_speakers:6}],['3',{num_speakers:3}],['0',{num_speakers:null}]] as const){
+  await count.selectOption(value);const before=(await payloads()).length;await page.getByRole('button',{name:'Chọn tệp & chép lời'}).click();
+  await expect.poll(async()=>(await payloads()).length).toBe(before+1);const sent=(await payloads()).at(-1);expect(sent).toMatchObject({diarize:true,...expected});
+  if('min_speakers' in expected)expect(sent).not.toHaveProperty('num_speakers');else expect(sent).not.toHaveProperty('min_speakers');
+ }
+});

@@ -23,9 +23,9 @@ export function replaceInTranscript(rows:TranscriptSegment[],find:string,replace
 /** Badge for a take that Whisper listened back to; soft mismatches (merged initials/finals) do not warn. */
 export function checkSummary(check:TakeCheck|undefined):{tone:'ok'|'warn';label:string;detail:string}|null{
  if(!check||check.error||!check.mismatches)return null;
- const hard=check.mismatches.filter(m=>!m.soft);const detail=`Whisper nghe: “${check.heard??''}”`;
- if(!hard.length)return {tone:'ok',label:'Khớp kịch bản',detail};
- return {tone:'warn',label:`Có thể đọc sai: ${hard.slice(0,2).map(m=>`“${m.expected||'…'}” → “${m.heard||'…'}”`).join(', ')}${hard.length>2?` +${hard.length-2}`:''}`,detail};
+ const hard=check.mismatches.filter(m=>!m.soft),tried=(check.attempts??1)>1;const detail=`${tried?`Đã thử ${check.attempts} lần, giữ bản tốt nhất. `:''}Whisper nghe: “${check.heard??''}”`,tail=tried?` · ${check.attempts} lần`:'';
+ if(!hard.length)return {tone:'ok',label:`Khớp kịch bản${tail}`,detail};
+ return {tone:'warn',label:`Có thể đọc sai: ${hard.slice(0,2).map(m=>`“${m.expected||'…'}” → “${m.heard||'…'}”`).join(', ')}${hard.length>2?` +${hard.length-2}`:''}${tail}`,detail};
 }
 /** Speaker choices for a row: every speaker in the transcript plus one new one. */
 export function speakerSlots(rows:TranscriptSegment[]):number{return Math.max(-1,...rows.map(r=>r.speaker??-1))+2;}
@@ -73,6 +73,15 @@ function splitWords(text:string,max:number):string[]{const out:string[]=[];let c
 // Each line is its own paragraph; sentences are packed up to max chars and only a single over-long sentence is cut (at word boundaries).
 export function splitText(input:string,max=500):string[]{const out:string[]=[];for(const para of input.trim().split(/\n+/)){let current='';for(const sentence of para.trim().replace(/\s+/g,' ').split(SENTENCE_END)){if(!sentence)continue;if(current&&current.length+1+sentence.length<=max){current+=' '+sentence;continue;}if(current)out.push(current);if(sentence.length<=max)current=sentence;else{const parts=splitWords(sentence,max);current=parts.pop()!;out.push(...parts);}}if(current)out.push(current);}return out;}
 export function makeSegment(text=''):Segment{return {id:uid(),text,normalized_text:text,voice_id:null,speaker:'Người dẫn',gap_ms:300,takes:[],selected_take_id:null,trim_start_ms:0,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0,gain_db:0};}
+// A line "Tên: lời" or "[Tên]: lời" names its speaker. The name is at most 30 characters with no digits or URL (so "8:30" and "http://…" are not labels).
+const LABEL=/^\s*(?:\[([^\][:\n]+)\]|([^:[\]\n]+?))\s*[:：](?!\/\/)\s*(.*)$/u;
+const labelOf=(line:string)=>{const m=line.match(LABEL),name=(m?.[1]??m?.[2])?.trim();return m&&name&&name.length<=30&&!/\d|www\.|@/i.test(name)?{name,rest:m[3]}:null;};
+/** Script chunks of pasted text. With at least two labelled lines each label starts a block (continuing until the next label) spoken by that name; otherwise one speaker reads everything, so a lone "Lưu ý:" stays text. */
+export function scriptChunks(text:string):{speaker:string;text:string}[]{
+ const lines=text.split(/\r?\n/).map(line=>({line,label:labelOf(line)})),labelled=lines.filter(l=>l.label).length>=2,blocks=[{speaker:'Người dẫn',lines:[] as string[]}];
+ for(const {line,label} of lines){if(labelled&&label)blocks.push({speaker:label.name,lines:[label.rest]});else blocks.at(-1)!.lines.push(line);}
+ return blocks.flatMap(b=>splitText(b.lines.join('\n')).map(text=>({speaker:b.speaker,text})));
+}
 export function splitTranscript(row:TranscriptSegment):[TranscriptSegment,TranscriptSegment]{const words=row.text.split(/\s+/);if(words.length<2||row.end_ms-row.start_ms<2)throw Error('Cần ít nhất hai từ để chia đoạn');const n=Math.ceil(words.length/2);const mid=Math.round(row.start_ms+(row.end_ms-row.start_ms)*n/words.length);return [{...row,text:words.slice(0,n).join(' '),end_ms:mid},{id:uid(),start_ms:mid,end_ms:row.end_ms,text:words.slice(n).join(' ')}];}
 export function mergeTranscript(a:TranscriptSegment,b:TranscriptSegment):TranscriptSegment{return {...a,start_ms:Math.min(a.start_ms,b.start_ms),end_ms:Math.max(a.end_ms,b.end_ms),text:a.text+' '+b.text};}
 export interface Recipe {duration_ms:number;trim_start_ms:number;trim_end_ms:number|null;gap_ms:number;fade_in_ms:number;fade_out_ms:number;gain_db:number}
