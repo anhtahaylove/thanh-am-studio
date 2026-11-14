@@ -60,7 +60,8 @@ impl Store {
     let Some(old)=stored["segments"].as_array().and_then(|ss|ss.iter().find(|s|s["id"]==seg["id"])) else {continue};
     if !seg["takes"].is_array(){seg["takes"]=json!([])}
     for t in old["takes"].as_array().into_iter().flatten() { let takes=seg["takes"].as_array_mut().unwrap(); if !takes.iter().any(|x|x["id"]==t["id"]){takes.push(t.clone())} }
-    if seg["selected_take_id"].is_null(){seg["selected_take_id"]=old["selected_take_id"].clone()}
+    // A take the server selected comes with the trim it set from the take's speech edges.
+    if seg["selected_take_id"].is_null()&&!old["selected_take_id"].is_null(){for k in ["selected_take_id","trim_start_ms","trim_end_ms"]{seg[k]=old[k].clone()}}
    }
   }
   let n=db.execute("UPDATE projects SET name=?1,revision=?2,updated_at=?3,data=?4 WHERE id=?5 AND revision=?6",params![name,revision+1,p["updated_at"].as_str(),p.to_string(),id,revision]).map_err(err)?;
@@ -85,7 +86,7 @@ impl Store {
  pub fn fail(&self,id:&str,message:&str)->Result<()> {if self.job(id)?["status"]!="cancelled"{self.transition(id,"failed",Some(message))?;}Ok(())}
  pub fn finish(&self,id:&str,result:Value)->Result<Value>{
   let mut db=self.db.lock().map_err(err)?;let tx=db.transaction().map_err(err)?;let d:String=tx.query_row("SELECT data FROM jobs WHERE id=?1",[id],|r|r.get(0)).map_err(err)?;let mut j=parse(d)?;if j["status"]!="running"{return Err("INVALID_JOB_STATE".into())}
-  if j["kind"]=="tts" {if let Some(pid)=j["project_id"].as_str(){let d:String=tx.query_row("SELECT data FROM projects WHERE id=?1",[pid],|r|r.get(0)).map_err(err)?;let mut p=parse(d)?;if let Some(s)=p["segments"].as_array_mut().and_then(|ss|ss.iter_mut().find(|s|s["id"]==j["payload"]["segment_id"])) {let mut take=result.clone();take["id"]=json!(Uuid::new_v4().to_string());take["created_at"]=json!(now());if s["selected_take_id"].is_null(){s["selected_take_id"]=take["id"].clone();}if !s["takes"].is_array(){s["takes"]=json!([])}s["takes"].as_array_mut().unwrap().push(take);tx.execute("UPDATE projects SET data=?1 WHERE id=?2",params![p.to_string(),pid]).map_err(err)?;}}}
+  if j["kind"]=="tts" {if let Some(pid)=j["project_id"].as_str(){let d:String=tx.query_row("SELECT data FROM projects WHERE id=?1",[pid],|r|r.get(0)).map_err(err)?;let mut p=parse(d)?;if let Some(s)=p["segments"].as_array_mut().and_then(|ss|ss.iter_mut().find(|s|s["id"]==j["payload"]["segment_id"])) {let mut take=result.clone();take["id"]=json!(Uuid::new_v4().to_string());take["created_at"]=json!(now());if s["selected_take_id"].is_null(){s["selected_take_id"]=take["id"].clone();s["trim_start_ms"]=json!(take["speech_start_ms"].as_f64().unwrap_or(0.0));s["trim_end_ms"]=take["speech_end_ms"].clone();}if !s["takes"].is_array(){s["takes"]=json!([])}s["takes"].as_array_mut().unwrap().push(take);tx.execute("UPDATE projects SET data=?1 WHERE id=?2",params![p.to_string(),pid]).map_err(err)?;}}}
   j["status"]=json!("succeeded");j["progress"]=json!(1);j["result"]=result;j["updated_at"]=json!(now());tx.execute("UPDATE jobs SET status='succeeded',data=?1 WHERE id=?2",params![j.to_string(),id]).map_err(err)?;tx.commit().map_err(err)?;Ok(j)
  }
  pub fn import_asset(&self,path:&Path)->Result<Value>{

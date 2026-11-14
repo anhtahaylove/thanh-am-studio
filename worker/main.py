@@ -56,6 +56,11 @@ PEAK_CEILING = 0.98
 # 1.01 % to 0.75 % (Whisper large-v3), 1.41 % to 1.01 % (turbo) and 4.40 % to 3.92 % (wav2vec2) with the same
 # pitch range. Reference-voice cloning keeps the engine default (not measured).
 PRESET_TEMPERATURE = 0.5
+# A new take's leading and trailing silence is left out by its segment's trim (non-destructive, editable): speech runs from the
+# first to the last sample above max(1e-3, 2 % of peak), plus this margin (cit-voice-studio's _trim_edges uses 40 ms). On 162
+# takes, Whisper Small heard the first or last word of short inputs differently more often at 40 ms ("lục" as "lúc", "không" as
+# "khùng") than at 80 ms; 80 ms still cuts a median 106 ms (max 384 ms) of trailing silence.
+EDGE_MARGIN_S = 0.08
 
 
 PAUSE_MARK = re.compile(r'\[\s*nghỉ\s+(\d+(?:[.,]\d+)?)\s*(ms|s|giây)?\s*\]', re.IGNORECASE)
@@ -146,6 +151,19 @@ def voice_kwargs(item):
         kwargs['voice'] = item['voice_id']
     kwargs['temperature'] = PRESET_TEMPERATURE
     return kwargs
+
+
+def speech_edges(audio, keep_start=False, keep_end=False):
+    """(start_ms, end_ms) of the speech in 48 kHz audio; end_ms is None when it runs to the end. keep_* leaves an edge alone."""
+    import numpy as np
+    level = np.abs(audio)
+    loud = np.flatnonzero(level > max(1e-3, 0.02 * float(level.max())))
+    if not loud.size:
+        return 0, None
+    margin = round(EDGE_MARGIN_S * 48000)
+    start = 0 if keep_start else max(0, int(loud[0]) - margin)
+    end = len(audio) if keep_end else min(len(audio), int(loud[-1]) + 1 + margin)
+    return round(start / 48), None if end >= len(audio) else round(end / 48)
 
 
 def limit_peak(audio):
@@ -429,7 +447,10 @@ def tts(payload, output_dir: Path, progress, emit_item=None):
             os.replace(partial, final)
         finally:
             partial.unlink(missing_ok=True)
-        result = {'path': str(final), 'duration_ms': round(len(audio) / 48), 'sample_rate': 48000}
+        # Pause marks at the very start or end are wanted silence, so that edge stays.
+        start_ms, end_ms = speech_edges(audio, keep_start=parts[0][1] > 0, keep_end=trailing > 0)
+        result = {'path': str(final), 'duration_ms': round(len(audio) / 48), 'sample_rate': 48000,
+                  'speech_start_ms': start_ms, 'speech_end_ms': end_ms}
         if item.get('check_model_path'):
             result['check'] = check_take(final, item['text'], Path(item['check_model_path']))
         return result

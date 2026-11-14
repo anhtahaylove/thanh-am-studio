@@ -1,4 +1,4 @@
-import type {Project,Segment,TakeCheck,TranscriptSegment} from './types';
+import type {Project,Segment,Take,TakeCheck,TranscriptSegment} from './types';
 export const uid=()=>crypto.randomUUID();
 export function timestamp(ms:number,separator=','):string {ms=Math.round(ms);return `${String(Math.floor(ms/3600000)).padStart(2,'0')}:${String(Math.floor(ms/60000)%60).padStart(2,'0')}:${String(Math.floor(ms/1000)%60).padStart(2,'0')}${separator}${String(ms%1000).padStart(3,'0')}`;}
 export function parseTime(value:string):number {const parts=value.trim().replace(',','.').split(':').map(Number);if(parts.length<2||parts.length>3||parts.some(x=>!Number.isFinite(x)||x<0)||parts.at(-1)!>=60||parts.at(-2)!>=60)throw Error('Mốc thời gian không hợp lệ');return Math.round(parts.reduce((a,n)=>a*60+n,0)*1000);}
@@ -76,6 +76,8 @@ const SENTENCE_END=/(?<=[.!?…]["'”’)\]]*)\s+/gu;
 function splitWords(text:string,max:number):string[]{const out:string[]=[];let current='';for(const word of text.split(/\s+/)){if(!word)continue;if(current.length+word.length+1>max&&current){out.push(current);current='';}if(word.length>max){if(current)out.push(current);for(let i=0;i<word.length;i+=max)out.push(word.slice(i,i+max));current='';}else current+=(current?' ':'')+word;}if(current)out.push(current);return out;}
 // Each line is its own paragraph; sentences are packed up to max chars and only a single over-long sentence is cut (at word boundaries).
 export function splitText(input:string,max=500):string[]{const out:string[]=[];for(const para of input.trim().split(/\n+/)){let current='';for(const sentence of para.trim().replace(/\s+/g,' ').split(SENTENCE_END)){if(!sentence)continue;if(current&&current.length+1+sentence.length<=max){current+=' '+sentence;continue;}if(current)out.push(current);if(sentence.length<=max)current=sentence;else{const parts=splitWords(sentence,max);current=parts.pop()!;out.push(...parts);}}if(current)out.push(current);}return out;}
+/** Trim for a take: its speech edges as the worker found them (older takes have none and play whole). */
+export const takeTrim=(take?:Take)=>({trim_start_ms:take?.speech_start_ms??0,trim_end_ms:take?.speech_end_ms??null});
 export function makeSegment(text=''):Segment{return {id:uid(),text,normalized_text:text,voice_id:null,speaker:'Người dẫn',gap_ms:300,takes:[],selected_take_id:null,trim_start_ms:0,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0,gain_db:0};}
 // A line "Tên: lời" or "[Tên]: lời" names its speaker. The name is at most 30 characters with no digits or URL (so "8:30" and "http://…" are not labels).
 const LABEL=/^\s*(?:\[([^\][:\n]+)\]|([^:[\]\n]+?))\s*[:：](?!\/\/)\s*(.*)$/u;
