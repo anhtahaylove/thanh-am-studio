@@ -114,4 +114,14 @@ export function addTranscriptRow(rows:TranscriptSegment[],afterId:string|null):T
 export function progressLabel(progress:number,startedAt:string,now=Date.now()):string{const pct=`${Math.floor(progress*100)} %`;const elapsed=now-Date.parse(startedAt);if(!(progress>=0.15&&progress<1&&elapsed>0))return pct;return `${pct} · còn ~${Math.max(1,Math.round(elapsed*(1-progress)/progress/60000))} phút`;}
 // A TTS batch marks all its jobs running but reports progress only for the one being synthesized.
 export const jobProgressLabel=(kind:string,progress:number,startedAt:string,now=Date.now())=>kind==='tts'&&progress<=0?'Chờ trong lô':progressLabel(progress,startedAt,now);
-export function ttsTranscript(clips:(Recipe&{text:string})[]):TranscriptSegment[]{let time=0;return clips.map(c=>{const start_ms=time;time+=clipDuration(c);return {id:uid(),start_ms,end_ms:time-c.gap_ms,text:spokenText(c.text)};});}
+// Readable captions: at most 84 characters per cue in two lines of at most 42 (common subtitle limits).
+const CUE_CHARS=84,LINE_CHARS=42;
+/** Cut text into pieces of at most `max` characters, after punctuation when that keeps at least half a piece, else at the last space; a longer word stays whole. */
+function cuePieces(text:string,max=CUE_CHARS):string[]{
+ const out:string[]=[];let rest=text.trim();
+ while(rest.length>max){const head=rest.slice(0,max+1),punct=Math.max(...[',',';',':','.','!','?'].map(p=>head.lastIndexOf(p+' ')));let cut=punct>=max/2?punct+1:head.lastIndexOf(' ');if(cut<=0)cut=rest.indexOf(' ',max);if(cut<0)break;out.push(rest.slice(0,cut).trim());rest=rest.slice(cut).trim();}
+ return [...out,rest].filter(Boolean);
+}
+const wrapCue=(cue:string)=>{if(cue.length<=LINE_CHARS)return cue;let best=-1;for(let i=cue.indexOf(' ');i>=0;i=cue.indexOf(' ',i+1))if(best<0||Math.abs(i-cue.length/2)<Math.abs(best-cue.length/2))best=i;return best<0?cue:`${cue.slice(0,best)}\n${cue.slice(best+1)}`;};
+/** Subtitle rows for the rendered takes: each segment's text in readable cues sharing the take's time by character count (proportional, not measured). */
+export function ttsTranscript(clips:(Recipe&{text:string})[]):TranscriptSegment[]{let time=0;return clips.flatMap(c=>{const start=time;time+=clipDuration(c);const end=time-c.gap_ms,cues=cuePieces(spokenText(c.text)),total=cues.reduce((n,q)=>n+q.length,0);let at=start,chars=0;return cues.map(q=>{const start_ms=at;chars+=q.length;at=Math.round(start+(end-start)*chars/total);return {id:uid(),start_ms,end_ms:at,text:wrapCue(q)};});});}
