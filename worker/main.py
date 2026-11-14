@@ -122,6 +122,18 @@ def check_take(path, text, model_dir):
         return {'model': 'whisper-small', 'error': str(error)[:300]}
 
 
+def vietnamese_reading(phonemize):
+    """The pinned sea-g2p reads a chunk made only of words that are also English ('y', 'in', 'to do') as English, but
+    untagged text is Vietnamese: put a Vietnamese-only word after the chunk and cut its phonemes off again."""
+    def read(text):
+        phonemes, body = phonemize(text), text.rstrip(' .!?,;:')
+        if not body or not text.isascii() or any(c in text for c in '<[|') or len(body.split()) > 3:  # accents and tags decide themselves
+            return phonemes
+        spoken = ' '.join(phonemize(body + ' ơi' + text[len(body):]).split(' ')[:-1])
+        return spoken.rstrip(' .!?,;:') + phonemes[len(phonemes.rstrip(' .!?,;:')):]
+    return read
+
+
 def voice_kwargs(item):
     kwargs = {'batch_size': 1}
     if item.get('reference_path'):
@@ -389,6 +401,8 @@ def tts(payload, output_dir: Path, progress, emit_item=None):
             max_batch_size=1, max_streams=1, threads=min(8, os.cpu_count() or 4))
     finally:
         OnnxV3LiteEngine._fetch = staticmethod(original_fetch)
+    v3turbo = importlib.import_module('vieneu.v3turbo')
+    v3turbo.phonemize_text_with_emotions = vietnamese_reading(v3turbo.phonemize_text_with_emotions)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     def synth(item):
