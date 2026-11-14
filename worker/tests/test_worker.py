@@ -120,6 +120,24 @@ class WorkerTests(unittest.TestCase):
             with self.subTest(bad=bad), self.assertRaises(worker.WorkerError):
                 worker.split_pauses(bad)
 
+    def test_pause_mark_aliases_bare_tag_and_dropped_malformed_marks(self):
+        for mark, seconds in [('[nghỉ]', 1.0), ('[nghi]', 1.0), ('[PAUSE]', 1.0), ('[nghi 2s]', 2.0), ('[pause 2 sec]', 2.0), ('[Pause 1,5 seconds]', 1.5),
+                              ('[nghỉ 2 giay]', 2.0), ('[nghỉ 2 second]', 2.0), ('[ nghỉ 300 ms ]', 0.3)]:
+            with self.subTest(mark=mark):
+                self.assertEqual(worker.split_pauses(f'A {mark} B'), ([('A', 0.0), ('B', seconds)], 0.0))
+        for bad in ['[nghỉ abc]', '[pause 2 phút]', '[nghỉ giây]', '[nghỉ: 2s]', '[pause .5]']:
+            with self.subTest(bad=bad):
+                (chunk, pause), = worker.split_pauses(f'A {bad} B')[0]
+                self.assertEqual((' '.join(chunk.split()), pause), ('A B', 0.0))
+                with self.assertRaises(worker.WorkerError):
+                    worker.split_pauses(bad)
+        self.assertEqual(worker.split_pauses('Nghỉ ngơi [pausex] nhé'), ([('Nghỉ ngơi [pausex] nhé', 0.0)], 0.0))
+        with self.assertRaises(worker.WorkerError):
+            worker.split_pauses('A [nghỉ 0] B')
+
+    def test_take_check_expects_no_words_of_any_pause_mark(self):
+        self.assertEqual(worker.words('Xin [nghỉ] chào [pause 2 sec] bạn [nghi 1s][nghỉ abc]'), ['xin', 'chào', 'bạn'])
+
     def test_take_check_reports_word_errors_and_ignores_pause_marks(self):
         wer, spans = worker.compare_words('Chợ Bến Thành [nghỉ 1s] đông vui.', 'chợ biến thành, đông vui')
         self.assertEqual(spans, [{'expected': 'bến', 'heard': 'biến', 'soft': False}])
