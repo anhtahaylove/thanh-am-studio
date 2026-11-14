@@ -150,7 +150,8 @@ class WorkerTests(unittest.TestCase):
         engine = SimpleNamespace(infer=lambda text, **kw: np.full(4800, 0.1, dtype=np.float32))
         fakes = {'vieneu': SimpleNamespace(Vieneu=lambda **k: engine), 'vieneu.v3turbo': v3turbo,
                  'vieneu._v3_turbo_engine': mock.Mock(),
-                 'vieneu._v3_turbo_engine.onnx_runtime_lite': SimpleNamespace(OnnxV3LiteEngine=mock.Mock())}
+                 'vieneu._v3_turbo_engine.onnx_runtime_lite': SimpleNamespace(OnnxV3LiteEngine=mock.Mock()),
+                 'soundfile': SimpleNamespace(write=lambda path, *a, **k: Path(path).write_bytes(b'RIFF'))}  # CI has no soundfile
         with tempfile.TemporaryDirectory() as td, mock.patch.object(worker, 'verify_model'),                 mock.patch.object(worker, 'offline_mode'), mock.patch.dict(sys.modules, fakes):
             worker.tts({'model_path': td, 'text': 'y.'}, Path(td) / 'out', lambda *a: None)
         self.assertEqual(v3turbo.phonemize_text_with_emotions('y.'), 'ˈi.')
