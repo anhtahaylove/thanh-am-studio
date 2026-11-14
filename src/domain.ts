@@ -46,10 +46,18 @@ export function barState(i:number,n:number,durationMs:number,trim:{trim_start_ms
 export const rowAt=(rows:TranscriptSegment[],ms:number)=>rows.find(r=>r.start_ms<=ms&&ms<r.end_ms)?.id??null;
 /** Pause mark the worker turns into silence: "[nghỉ 0.5s]", "[nghỉ 300ms]", "[pause 2 sec]", bare "[nghỉ]" = 1 s. Any bracket opening with nghỉ or pause matches, and nghi only when bare or followed by a digit (so "[nghi ngờ]" stays text); one that does not parse is dropped by the worker (worker/main.py PAUSE_MARK). */
 export const PAUSE_MARK=/\[\s*(?:(?:nghỉ|pause)(?![\p{L}\p{N}_])[^\]]*|nghi\s*(?:\d[^\]]*)?)\]/giu;
-export const spokenText=(text:string)=>text.replace(PAUSE_MARK,' ').replace(/\s+/g,' ').trim();
-/** Dictionary and number rules apply to spoken text only; pause marks pass through untouched. `codeSwitch` wraps English-only words in <en>…</en>. */
+/** Non-verbal cue the engine turns into an emotion token (experimental): the spellings its phonemizer accepts, which must reach it unchanged. */
+export const CUE_MARK=/\[\s*(?:chuckle|cười|cuoi|sigh|thở dài|tho dai|clear throat|hắng giọng|hang giong)\s*\]/giu;
+export const spokenText=(text:string)=>text.replace(PAUSE_MARK,' ').replace(CUE_MARK,' ').replace(/\s+/g,' ').trim();
+/** Insert `tag` over [start,end), with a space on each side when it would touch a word. */
+export function insertAtCursor(text:string,start:number,end:number,tag:string):{text:string;caret:number} {
+ const from=Math.max(0,Math.min(start,text.length)),to=Math.max(from,Math.min(end,text.length)),before=text.slice(0,from),after=text.slice(to);
+ const inserted=`${before&&!/\s/.test(before.slice(-1))?' ':''}${tag}${after&&/\s/.test(after[0])?'':' '}`;
+ return {text:before+inserted+after,caret:before.length+inserted.length};
+}
+/** Dictionary and number rules apply to spoken text only; pause marks and cues pass through untouched. `codeSwitch` wraps English-only words in <en>…</en>. */
 export function normalizeText(text:string,dictionary:Record<string,string>,options:{codeSwitch?:boolean}={}):string {
- return text.normalize('NFC').split(new RegExp(`(${PAUSE_MARK.source})`,'iu')).map((part,i)=>i%2?part:normalizeSpoken(part,dictionary,options.codeSwitch)).join('');
+ return text.normalize('NFC').split(new RegExp(`(${PAUSE_MARK.source}|${CUE_MARK.source})`,'iu')).map((part,i)=>i%2?part:normalizeSpoken(part,dictionary,options.codeSwitch)).join('');
 }
 const CURRENCY:Record<string,string>={'₿':'bitcoin','₹':'rupi','₽':'rúp','¢':'xu'};
 // Code-switching idea ported from nguyenan97/VieNeu-TTS commit c836e480 (src/vieneu_utils/codeswitch.py, Apache-2.0): pinned sea-g2p reads <en>…</en> with its English engine.

@@ -93,9 +93,13 @@ def split_pauses(text):
     return parts, pause
 
 
+# Non-verbal cues the engine maps to emotion tokens (src/domain.ts CUE_MARK); they reach it unchanged and are not spoken words.
+CUE_MARK = re.compile(r'\[\s*(?:chuckle|cười|cuoi|sigh|thở dài|tho dai|clear throat|hắng giọng|hang giong)\s*\]', re.IGNORECASE)
+
+
 def words(text):
     # <en>…</en> marks English words for the engine (the app's "read English words" switch); the tags are not spoken.
-    return re.findall(r'\w+', re.sub(r'</?en>', ' ', PAUSE_MARK.sub(' ', text)).lower())
+    return re.findall(r'\w+', re.sub(r'</?en>', ' ', CUE_MARK.sub(' ', PAUSE_MARK.sub(' ', text))).lower())
 
 
 def compare_words(expected, heard):
