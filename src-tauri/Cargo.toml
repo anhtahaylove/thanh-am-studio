@@ -21,6 +21,8 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 sha2 = "0.10"
 chrono = { version = "0.4", features = ["serde"] }
+miniz_oxide = "0.8.9"
+quick-xml = "0.42.0"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Power", "Win32_System_Threading"] }

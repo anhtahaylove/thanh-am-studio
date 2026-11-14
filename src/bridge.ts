@@ -7,8 +7,10 @@ export const desktop=isTauri();
 const KEY='thanh-am-preview-projects-v1',SETTINGS_KEY='thanh-am-preview-settings-v1';
 function projects():Project[]{try{return JSON.parse(localStorage.getItem(KEY)||'[]');}catch{return [];}}
 const persist=(list:Project[])=>localStorage.setItem(KEY,JSON.stringify(list));
+const ERRORS:Record<string,string>={INVALID_DOCX:'Không đọc được tệp Word này. Hãy mở bằng Word rồi lưu lại dạng .docx.',DOCX_TOO_LARGE:'Tệp quá lớn: phần chữ vượt 10 MB.',TEXT_FILE_TOO_LARGE:'Tệp quá lớn: phần chữ vượt 10 MB.',UNSUPPORTED_TEXT:'Định dạng tệp không được hỗ trợ.'};
+const friendly=(e:unknown)=>{const code=Object.keys(ERRORS).find(k=>String(e).startsWith(k));return code?Error(ERRORS[code]):e;};
 export async function call<T>(command:string,args:Record<string,unknown>={}):Promise<T>{
- if(desktop)return invoke<T>(command,args);
+ if(desktop)return invoke<T>(command,args).catch(e=>{throw friendly(e);});
  const list=projects();let result:unknown;
  switch(command){
  case 'list_projects':result=list.map(({id,name,updated_at,revision}):ProjectSummary=>({id,name,updated_at,revision}));break;
@@ -27,7 +29,7 @@ export async function call<T>(command:string,args:Record<string,unknown>={}):Pro
 export const mediaUrl=(path:string)=>desktop?convertFileSrc(path):path;
 export async function pickFiles(kind:'text'|'audio'|'csv',multiple=false):Promise<string[]>{
  if(!desktop)throw Error('Mở bản desktop để chọn tệp từ máy tính.');
- const result=await open({multiple,filters:kind==='text'?[{name:'Văn bản & phụ đề',extensions:['txt','srt','vtt']}]:kind==='csv'?[{name:'Bảng CSV',extensions:['csv']}]:[{name:'Audio & video',extensions:['wav','mp3','m4a','flac','ogg','opus','mp4','mkv','webm','mov']}]});return result?Array.isArray(result)?result:[result]:[];
+ const result=await open({multiple,filters:kind==='text'?[{name:'Văn bản, Word & phụ đề',extensions:['txt','srt','vtt','docx']}]:kind==='csv'?[{name:'Bảng CSV',extensions:['csv']}]:[{name:'Audio & video',extensions:['wav','mp3','m4a','flac','ogg','opus','mp4','mkv','webm','mov']}]});return result?Array.isArray(result)?result:[result]:[];
 }
 /** Content of one CSV the user picks, or null when cancelled. The browser preview has no file paths, so it reads through a file input. */
 export async function openCsv():Promise<string|null>{

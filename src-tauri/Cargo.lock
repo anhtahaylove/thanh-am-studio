@@ -3580,6 +3580,8 @@ name = "thanh-am-studio"
 version = "1.0.6"
 dependencies = [
  "chrono",
+ "miniz_oxide 0.8.9",
+ "quick-xml",
  "rusqlite",
  "serde",
  "serde_json",
