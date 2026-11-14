@@ -18,12 +18,14 @@ After that the app works offline. Installers are not code-signed yet, so SmartSc
 
 Models are downloaded from their original publishers and keep their licences (VieNeu v3 Turbo and
 the MOSS audio tokenizer: Apache-2.0; faster-whisper conversions: MIT; pyannote segmentation-3.0:
-MIT; 3D-Speaker CAM++: Apache-2.0). The preset voices come with the VieNeu model. Where those
-voices come from, and whether they and the audio made with VieNeu may be used commercially, has
-been asked upstream and is not answered yet
+MIT; 3D-Speaker CAM++: Apache-2.0). The preset voices come with the VieNeu model. Its model card
+at the revision the app pins
+([pnnbao-ump/VieNeu-TTS-v3-Turbo@61b85e3](https://huggingface.co/pnnbao-ump/VieNeu-TTS-v3-Turbo/blob/61b85e3d937fbbacb387714180e8182823512523/README.md),
+"Usage Rights & Licensing FAQ") states that Apache-2.0 also covers the preset voices, that audio made
+with them may be used commercially, and that the speakers consented; the training data is not
+disclosed. Two upstream issues asking the maintainer to confirm this are still open
 ([pnnbao97/VieNeu-TTS#222](https://github.com/pnnbao97/VieNeu-TTS/issues/222),
-[#218](https://github.com/pnnbao97/VieNeu-TTS/issues/218)); check them before commercial use.
-Clone only voices you have permission to use.
+[#218](https://github.com/pnnbao97/VieNeu-TTS/issues/218)). Clone only voices you have permission to use.
 
 ## Troubleshooting
 
