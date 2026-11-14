@@ -75,6 +75,9 @@ Last updated 2026-11-14. Evidence below was observed, not inferred; anything not
   after an emotion or pause button the caret sits right after the inserted tag and the text box has focus,
   so a second click or typing continues there; a pause mark that cannot be read collapses with the spaces
   around it into one space; the copy of "save all chapters" has a test that fails midway.
+- Added for v1.0.9: only the sigh keeps a button. A sound-event tagger trained on AudioSet (AST) heard the target
+  sound in 13 of 36 takes with `[thở dài]` (Sigh up to 0.87), 0 of 36 with `[cười]` (Laughter at most 0.09) and 3 of
+  36 with `[hắng giọng]`, so the laugh and throat-clearing buttons are gone; those tags still work when typed.
 
 ## Verification (2026-11-11)
 
@@ -787,7 +790,14 @@ Evidence: `work\release-v1.0.8-sandbox` (`run39`, `run40`).
   voices, each cue at the end and in the middle, the same text with and without the cue; `work\emotion-cues-listening`)
   found the engine token in every cued text, no cue read aloud as a word, cued takes 0.3-0.6 s longer on average and
   extra non-word sound at the cue in about half of the pairs; six pairs showed almost no difference, Whisper heard one
-  take with `[thở dài]` repeat its phrase and one with `[cười]` lose three words. An unaccented chunk that also
+  take with `[thở dài]` repeat its phrase and one with `[cười]` lose three words. A second pass (36 pairs per cue, three
+  takes per voice and sentence, an AudioSet tagger (AST) for the target sound; rules fixed before measuring: a pair
+  shows the cue when the cued take's score is at least 0.10 above its plain twin and at least 0.15; keep the button
+  when 25-75 % of pairs show it, drop the experimental label from 75 % with no extra word errors, hide it under 25 %;
+  `work\emotion-cues-listening\VERDICT.md`) found the sigh in 13/36 pairs (9/18 at the end, 4/18 in the middle; one
+  voice 6/6, another 0/6) with more takes with word errors than the plain twins (22 against 16), the laugh in 0/36 and
+  throat clearing in 3/36; the verdicts held at thresholds 0.05/0.10 and 0.15/0.20. The tagger had no positive control
+  for a laugh or a throat clearing, so "not heard" may partly be the tagger. An unaccented chunk that also
   carries a cue (for example "Cam on ban [cuoi]") is still read with English phonemes. Word import reads only
   `word/document.xml` with the `w:` prefix and reads hidden (`w:vanish`) text. Per-chapter export cannot be
   combined with the subtitle timing, and the save-all button offers only the newest batch.

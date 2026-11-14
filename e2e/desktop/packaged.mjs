@@ -551,14 +551,14 @@ try {
       await box.click();
       await box.fill('Hôm nay [pause 0.4s] trời đẹp quá.');
       await box.press('End');
-      await page.getByRole('button', {name: 'Cười', exact: true}).click();
+      await page.getByRole('button', {name: 'Thở dài', exact: true}).click();
       const text = await box.inputValue();
-      if (!/^Hôm nay \[pause 0\.4s\] trời đẹp quá\. ?\[cười\] ?$/.test(text)) throw Error(`text after the cue button: "${text}"`);
+      if (!/^Hôm nay \[pause 0\.4s\] trời đẹp quá\. ?\[thở dài\] ?$/.test(text)) throw Error(`text after the cue button: "${text}"`);
       const before = await done('tts');
       // A segment without a take labels this button "Tạo giọng"; it reads "Tạo take mới" once a take exists.
       await page.locator('article.segment').nth(1).getByRole('button', {name: /^(Tạo giọng|Tạo take mới)$/}).click();
       const [job] = await waitJobs('tts', before + 1, 10 * 60000);
-      if (!job.payload.text.includes('[pause 0.4s]') || !job.payload.text.includes('[cười]')) throw Error(`sent "${job.payload.text}"`);
+      if (!job.payload.text.includes('[pause 0.4s]') || !job.payload.text.includes('[thở dài]')) throw Error(`sent "${job.payload.text}"`);
       // The longest quiet stretch (frames under 5 % of the take's peak) between the first and the last speech frame.
       const peaks = framePeaks(job.result.path), top = Math.max(...peaks), on = peaks.map((v) => v > 0.05 * top);
       let run = 0, longest = 0;
