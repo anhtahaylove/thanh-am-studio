@@ -32,7 +32,7 @@ Project: {id,name,updated_at,revision,segments: Segment[],transcript: Transcript
 AppSettings: {dictionary: Record<string,string>} (app-wide pronunciation dictionary; TTS normalization applies `{...appDictionary, ...project.dictionary}`, so the project entry wins)
 Segment: {id,text,normalized_text,voice_id:string|null,speaker:string,gap_ms:number,takes: Take[],selected_take_id:string|null,trim_start_ms:number,trim_end_ms:number|null,fade_in_ms:number,fade_out_ms:number,gain_db:number}
 Take: {id,asset_id,path,duration_ms,sample_rate,created_at}
-TranscriptSegment: {id,start_ms,end_ms,text}
+TranscriptSegment: {id,start_ms,end_ms,text,speaker:number|null,overlap_speaker:number|null}  // speaker only when the job diarized; overlap_speaker = another speaker talking over most of this row, else null
 Asset: {id,path,name,duration_ms:number|null,sample_rate:number|null}
 Voice: {id,name,kind:'preset'|'reference',reference_asset_id:string|null,consent:boolean,engine_voice_id:string|null}
 Job: {id,kind,project_id:string|null,payload:object,status:'queued'|'running'|'succeeded'|'failed'|'cancelled'|'interrupted',progress:number,error:string|null,result:object|null,created_at,updated_at}
@@ -48,7 +48,7 @@ ModelInfo: {id,name,engine,installed:boolean,revision:string,license:string,desc
 
 ## Job kinds and payloads
 - tts: {segment_id,text,voice_id:string|null,reference_asset_id:string|null}; backend resolves voice/reference and model paths; result adds a new take without replacing existing selection (first take auto-selected only when none). Takes are append-only: adding one does not change the project revision, and save_project keeps stored takes the client has not seen.
-- stt: {asset_id,model_id:'whisper-small'|'whisper-turbo',language:'vi'|'auto'}; result transcript must not silently overwrite edited transcript: retain result on job, UI applies explicitly.
+- stt: {asset_id,model_id:'whisper-small'|'whisper-turbo',language:'vi'|'auto',diarize?:boolean,num_speakers?:1..8|null,min_speakers?:1..8|null,max_speakers?:1..8|null}; the speaker counts are whole numbers 1..8 and only used with `diarize`; `num_speakers` (exact count) excludes `min_speakers`/`max_speakers` (an allowed range for the automatic count, min <= max); a bad value or a mix is rejected with INVALID_SPEAKERS; result transcript must not silently overwrite edited transcript: retain result on job, UI applies explicitly.
 - render: {segments:Segment[],normalize:boolean,format:'wav'|'mp3'}; backend resolves selected takes by asset IDs, ignores untrusted payload paths. Output is a new asset.
 - model_download: {model_id}; download pins manifest revision and verifies cached content.
 
@@ -57,7 +57,7 @@ One process per job, one JSON request on stdin, UTF-8 JSON events on stdout; dia
 
 Worker tts payload {text,voice_id?,reference_path?,model_path,output_name}; result {path,duration_ms,sample_rate}.
 Worker tts batch payload {model_path,items:[{text,voice_id?,reference_path?,output_name}]}: the engine loads once; each item reports {protocol:1,id,event:'item',index,result:{path,duration_ms,sample_rate}} or {...,event:'item',index,error:{code,message}}; a failed item does not stop the batch; final result {count}. The desktop batches up to 32 queued tts jobs per worker process.
-Worker stt payload {input_path,model_path,language:'vi'|'auto'}; result {segments:[{start,end,text}],language}.
+Worker stt payload {input_path,model_path,language:'vi'|'auto',diarize_model_path:string|null,num_speakers:number|null,min_speakers:number|null,max_speakers:number|null} (the last four are null when the job does not diarize); result {segments:[{start,end,text,speaker?,overlap?}],language,diarize_error?}. `overlap` (only present when set) is the id of another speaker whose turns cover at least `OVERLAP_SHARE` (0.5) of that segment's time; the desktop copies it to the transcript row as `overlap_speaker` (null when absent). `diarize.py` runs the diarization in a child process (`diarize_isolated`), so a native crash there ends in `diarize_error` and the plain transcript instead of a lost job.
 Worker render payload {clips:[{path,trim_start_ms,trim_end_ms,gap_ms,fade_in_ms,fade_out_ms,gain_db}],normalize,format,ffmpeg_path?}; result {path,duration_ms,sample_rate}.
 Worker download payload {model_id}; result {model_id,path,revision}.
 

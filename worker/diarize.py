@@ -4,7 +4,12 @@ pyannote segmentation-3.0 (ONNX, MIT) finds who speaks when; a 3D-Speaker CAM++
 embedding (ONNX, Apache-2.0) is clustered into speakers. Both run through sherpa-onnx
 on CPU, fully from files in ``model_dir`` (see the ``diarization`` entry of models.json).
 """
+import json
+import os
 from pathlib import Path
+import subprocess
+import sys
+import tempfile
 
 import numpy as np
 
@@ -24,31 +29,80 @@ MIN_AUTO_SHARE = 0.04
 # turn edges are only accurate to a few hundred ms. On four Vietnamese talk shows 0.6 s agreed best with two reference
 # diarizers (0, 0.3, 1, 1.5 and 2 s tried); 0 and 0.3 s split off 3-5x as many rows for less agreement.
 MIN_RUN_S = 0.6
+# A row is marked as talked over when one other speaker's turns cover at least this share of its time. On 5,286 AMI
+# utterances, rows with at least half their time overlapped in the reference were found at precision 0.90 / recall 0.46 at
+# 0.5 (0.8: 0.95 / 0.25; 0.3, best F1: 0.77 / 0.59); the other speaker's id was right for only about a third of those.
+OVERLAP_SHARE = 0.5
 
 
-def diarize(audio_16k: np.ndarray, model_dir: Path, num_speakers: int | None = None) -> list[dict]:
-    """Return speaker turns [{'start': s, 'end': s, 'speaker': 0..n-1}] sorted by start time.
-
-    Speakers are numbered by first appearance. Turns from different speakers may overlap.
-    num_speakers=None estimates the speaker count from the audio.
-    """
+def _check(audio_16k, model_dir: Path, num_speakers, min_speakers, max_speakers) -> np.ndarray:
     audio = np.asarray(audio_16k, dtype=np.float32)
     if audio.ndim != 1 or audio.size == 0 or not np.isfinite(audio).all():
         raise ValueError('audio_16k must be a non-empty finite mono float array')
-    if num_speakers is not None and num_speakers < 1:
-        raise ValueError('num_speakers must be at least 1')
-    model_dir = Path(model_dir)
+    if any(n is not None and n < 1 for n in (num_speakers, min_speakers, max_speakers)):
+        raise ValueError('speaker counts must be at least 1')
+    if min_speakers is not None and max_speakers is not None and min_speakers > max_speakers:
+        raise ValueError('min_speakers must not exceed max_speakers')
+    if num_speakers is not None and (min_speakers is not None or max_speakers is not None):
+        raise ValueError('num_speakers cannot be combined with min_speakers or max_speakers')
     for name in (SEGMENTATION_FILE, EMBEDDING_FILE):
-        if not (model_dir / name).is_file():
-            raise FileNotFoundError(f'Diarization model file missing: {model_dir / name}')
-    auto = num_speakers is None
+        if not (Path(model_dir) / name).is_file():
+            raise FileNotFoundError(f'Diarization model file missing: {Path(model_dir) / name}')
+    return audio
+
+
+def diarize(audio_16k: np.ndarray, model_dir: Path, num_speakers: int | None = None,
+            min_speakers: int | None = None, max_speakers: int | None = None) -> list[dict]:
+    """Return speaker turns [{'start': s, 'end': s, 'speaker': 0..n-1}] sorted by start time.
+
+    Speakers are numbered by first appearance. Turns from different speakers may overlap.
+    num_speakers=None estimates the speaker count from the audio; min_speakers/max_speakers (only without
+    num_speakers) clamp that estimate, and when it falls outside the range the audio is clustered again at the
+    nearest allowed count. Fewer speakers than asked for can come back when the audio holds fewer.
+    """
+    audio = _check(audio_16k, model_dir, num_speakers, min_speakers, max_speakers)
+    model_dir = Path(model_dir)
     threshold_cut = None
-    if auto:
+    if num_speakers is None:
         threshold_cut = _turns(audio, model_dir, None)
-        num_speakers = max(1, real_speakers(threshold_cut))
-        if not threshold_cut or num_speakers == len({t['speaker'] for t in threshold_cut}):
-            return drop_small_speakers(threshold_cut)
-        # Outlier clusters found: cluster again into the speakers that are left.
+        if not threshold_cut:
+            return []
+        found = max(1, real_speakers(threshold_cut))
+        turns = threshold_cut if found == len({t['speaker'] for t in threshold_cut}) else _known(audio, model_dir, found, threshold_cut)
+        turns = drop_small_speakers(turns)
+        count = len({t['speaker'] for t in turns})
+        num_speakers = max(count, min_speakers or 1)
+        if max_speakers:
+            num_speakers = min(num_speakers, max_speakers)
+        if num_speakers == count:
+            return turns
+    return _known(audio, model_dir, num_speakers, threshold_cut)
+
+
+def diarize_isolated(audio_16k: np.ndarray, model_dir: Path, num_speakers: int | None = None,
+                     min_speakers: int | None = None, max_speakers: int | None = None) -> list[dict]:
+    """diarize() in a child process: a native crash (sherpa-onnx 2.0.1 pyannote heap-use-after-free, PR #3826) then
+    kills the child, not the caller. Raises RuntimeError with the exit code when the child dies or returns garbage."""
+    audio = _check(audio_16k, model_dir, num_speakers, min_speakers, max_speakers)
+    with tempfile.TemporaryDirectory(prefix='thanham-diarize-') as tmp:
+        audio_path, turns_path = Path(tmp) / 'audio.npy', Path(tmp) / 'turns.json'
+        np.save(audio_path, audio)
+        run = subprocess.run([sys.executable, '-I', str(Path(__file__).resolve()), str(audio_path), str(turns_path),
+                              json.dumps([str(model_dir), num_speakers, min_speakers, max_speakers])],
+                             capture_output=True, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        code = run.returncode & 0xFFFFFFFF
+        if run.returncode:
+            raise RuntimeError(f'Diarization process failed with exit code {code} (0x{code:08X}): '
+                               f'{run.stderr.decode("utf-8", "replace").strip()[-300:]}')
+        try:
+            turns = json.loads(turns_path.read_text(encoding='utf-8'))
+            return [{'start': float(t['start']), 'end': float(t['end']), 'speaker': int(t['speaker'])} for t in turns]
+        except (OSError, ValueError, TypeError, KeyError) as error:
+            raise RuntimeError(f'Diarization process returned no usable turns (exit code 0): {error!r}') from error
+
+
+def _known(audio: np.ndarray, model_dir: Path, num_speakers: int, threshold_cut: list[dict] | None) -> list[dict]:
+    """Cluster into `num_speakers` and keep the real speakers; `threshold_cut` is the automatic result when known."""
     # Complete-linkage clustering cut at k clusters can spend a cluster on an outlier embedding with little or
     # no speech of its own, merging two real speakers (17 of 97 real two-speaker dialogues lost one).
     # Ask for up to two more clusters until k real speakers appear, then keep the k who speak most.
@@ -65,8 +119,7 @@ def diarize(audio_16k: np.ndarray, model_dir: Path, num_speakers: int | None = N
                 threshold_cut = _turns(audio, model_dir, None)
             if real_speakers(threshold_cut) > 1:
                 turns = threshold_cut
-    turns = keep_speakers(turns, num_speakers)
-    return drop_small_speakers(turns) if auto else turns
+    return keep_speakers(turns, num_speakers)
 
 
 def speech_seconds(turns: list[dict]) -> dict[int, float]:
@@ -137,12 +190,31 @@ def assign_speakers(transcript_rows: list[dict], turns: list[dict]) -> list[int]
     return labels
 
 
+def other_cover(row: dict, turns: list[dict], speaker: int) -> tuple[int | None, float]:
+    """Return (the speaker other than `speaker` whose turns cover most of the row's time, that share of it); (None, 0.0) if none."""
+    spans = {}
+    for turn in turns:
+        start, end = max(row['start'], turn['start']), min(row['end'], turn['end'])
+        if turn['speaker'] != speaker and end > start:
+            spans.setdefault(turn['speaker'], []).append((start, end))
+    best, share = None, 0.0
+    for other in sorted(spans):
+        covered, edge = 0.0, row['start']
+        for start, end in sorted(spans[other]):  # the turns of one speaker may overlap each other
+            covered += max(0.0, end - max(start, edge))
+            edge = max(edge, end)
+        if covered / (row['end'] - row['start']) > share:
+            best, share = other, covered / (row['end'] - row['start'])
+    return best, share
+
+
 def split_rows(rows: list[dict], words: list[list[dict]], turns: list[dict]) -> list[dict]:
     """Give each row a speaker, splitting a row into several where its words change speaker.
 
     words[i] lists row i's words [{'start', 'end', 'text'}], each text with its own leading space. Every word takes a
     speaker as assign_speakers() does; a run of words shorter than MIN_RUN_S joins its longer neighbour run.
     A row with a single run, or without words, keeps its start, end and text.
+    A row gets `overlap` (the other speaker's id) when that speaker's turns cover at least OVERLAP_SHARE of its time.
     """
     out = []
     for row, row_words in zip(rows, words):
@@ -163,6 +235,10 @@ def split_rows(rows: list[dict], words: list[list[dict]], turns: list[dict]) -> 
         else:
             out += [{'start': run[0]['start'], 'end': run[-1]['end'], 'text': ''.join(w['text'] for w in run).strip(),
                      'speaker': speaker} for speaker, run in runs]
+    for row in out:
+        other, share = other_cover(row, turns, row['speaker'])
+        if share >= OVERLAP_SHARE:
+            row['overlap'] = other
     return out
 
 
@@ -175,3 +251,11 @@ def _join_runs(pairs) -> list[list]:
         else:
             runs.append([speaker, list(words)])
     return runs
+
+
+if __name__ == '__main__':  # child of diarize_isolated(): audio.npy, turns.json, JSON [model_dir, num, min, max]
+    crash = int(os.environ.get('THANHAM_DIARIZE_CRASH') or 0)  # test hook: die with this exit code, as a native crash does
+    if crash:
+        os._exit(crash - (1 << 32 if crash >= 1 << 31 else 0))
+    model, *counts = json.loads(sys.argv[3])
+    Path(sys.argv[2]).write_text(json.dumps(diarize(np.load(sys.argv[1]), Path(model), *counts)), encoding='utf-8')

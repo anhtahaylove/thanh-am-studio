@@ -468,9 +468,11 @@ def stt_window(model, audio, offset, lang, with_words, duration, progress):
 
 
 def stt(payload, progress):
-    speakers = payload.get('num_speakers')
-    if speakers is not None and (isinstance(speakers, bool) or not isinstance(speakers, int) or not 1 <= speakers <= 8):
-        raise WorkerError('INVALID_RECIPE', 'num_speakers must be a whole number from 1 to 8.')
+    speakers, low, high = (payload.get(k) for k in ('num_speakers', 'min_speakers', 'max_speakers'))
+    if any(n is not None and (isinstance(n, bool) or not isinstance(n, int) or not 1 <= n <= 8) for n in (speakers, low, high)):
+        raise WorkerError('INVALID_RECIPE', 'Speaker counts must be whole numbers from 1 to 8.')
+    if (speakers is not None and (low is not None or high is not None)) or (low is not None and high is not None and low > high):
+        raise WorkerError('INVALID_RECIPE', 'num_speakers excludes min_speakers/max_speakers, and min_speakers must not exceed max_speakers.')
     model_dir = Path(payload.get('model_path', ''))
     spec = verify_model(model_dir)
     if spec['engine'] != 'faster-whisper':
@@ -511,7 +513,11 @@ def stt(payload, progress):
             verify_model(model, 'diarization')
             spec = importlib.util.spec_from_file_location('diarize', ROOT / 'diarize.py')  # -I drops the script dir from sys.path
             diarize = importlib.util.module_from_spec(spec); spec.loader.exec_module(diarize)
-            response['segments'] = diarize.split_rows(result, words, diarize.diarize(audio, model, speakers))
+            # A known count goes in as min = max, so the automatic result is kept when it already has that many speakers: that beat
+            # clustering again at the count on AMI (DER 20.94 vs 23.57 %) and ViYT (17.84 vs 18.06 %), VIVOS 21.13 vs 21.00 %.
+            if speakers:
+                low = high = speakers
+            response['segments'] = diarize.split_rows(result, words, diarize.diarize_isolated(audio, model, None, low, high))
         except Exception as error:  # noqa: BLE001 - the transcript is still valid without speakers
             response['diarize_error'] = str(error)[:300]
     return response

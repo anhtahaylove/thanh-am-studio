@@ -3,6 +3,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 import numpy as np
 
@@ -92,6 +93,35 @@ class SplitRowsTests(unittest.TestCase):
         self.assertEqual([(r['start'], r['speaker']) for r in rows], [(0, 0), (1, 0)])
 
 
+class OverlapTests(unittest.TestCase):
+    def test_other_cover_counts_each_second_of_one_speaker_once(self):
+        turns = [turn(0, 4, 0), turn(0, 3, 1), turn(2, 4, 1), turn(1, 2, 2)]
+        self.assertEqual(diarize.other_cover(row(0, 4), turns, 0), (1, 1.0))  # 1: 3 s + 2 s overlapping by 1 s, 2: 0.25
+        self.assertEqual(diarize.other_cover(row(0, 4), turns, 1), (0, 1.0))
+        self.assertEqual(diarize.other_cover(row(1, 3), [turn(0, 2, 0), turn(1, 2, 1)], 0), (1, 0.5))
+
+    def test_other_cover_without_another_speaker(self):
+        self.assertEqual(diarize.other_cover(row(0, 4), [turn(0, 9, 0), turn(5, 6, 1)], 0), (None, 0.0))
+        self.assertEqual(diarize.other_cover(row(0, 4), [], 0), (None, 0.0))
+
+    def test_a_row_talked_over_names_the_other_speaker(self):
+        turns = [turn(0, 4, 0), turn(0.1, 3.9, 1)]
+        self.assertEqual(diarize.split_rows([row(0, 4)], [[word(0, 2, 'a'), word(2, 4, 'b')]], turns),
+                         [{**row(0, 4), 'speaker': 0, 'overlap': 1}])
+        self.assertEqual(diarize.split_rows([row(0, 4)], [[]], turns), [{**row(0, 4), 'speaker': 0, 'overlap': 1}])
+
+    def test_a_row_with_only_a_short_interjection_is_not_marked(self):
+        turns = [turn(0, 10, 0), turn(1, 1 + 0.3 * 10, 1)]
+        (marked,) = diarize.split_rows([row(0, 10)], [[word(0, 10, 'a')]], turns)
+        self.assertNotIn('overlap', marked)
+
+    def test_overlap_is_found_per_split_row(self):
+        words = [word(0, 2, 'a'), word(2, 4, 'b'), word(4, 6, 'c'), word(6, 8, 'd')]
+        turns = [turn(0, 4, 0), turn(4, 8, 1), turn(4.2, 7.8, 2)]
+        rows = diarize.split_rows([row(0, 8)], [words], turns)
+        self.assertEqual([(r['speaker'], r.get('overlap')) for r in rows], [(0, None), (1, 2)])
+
+
 class DiarizeInputTests(unittest.TestCase):
     def test_rejects_bad_audio_and_speaker_count(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -107,7 +137,7 @@ class DiarizeInputTests(unittest.TestCase):
 
 
 class KnownSpeakerCountTests(unittest.TestCase):
-    def run_with(self, results, count):
+    def run_with(self, results, count, **limits):
         """Run diarize() with the engine replaced: `results` maps a requested cluster count to its turns."""
         asked = []
 
@@ -121,7 +151,7 @@ class KnownSpeakerCountTests(unittest.TestCase):
                 for name in (diarize.SEGMENTATION_FILE, diarize.EMBEDDING_FILE):
                     (Path(tmp) / name).parent.mkdir(parents=True, exist_ok=True)
                     (Path(tmp) / name).write_bytes(b'')
-                return diarize.diarize(np.zeros(16000, np.float32), Path(tmp), count), asked
+                return diarize.diarize(np.zeros(16000, np.float32), Path(tmp), count, **limits), asked
         finally:
             diarize._turns = original
 
@@ -188,6 +218,74 @@ class KnownSpeakerCountTests(unittest.TestCase):
         self.assertEqual(diarize.keep_speakers(turns, 5), turns)
 
 
+class SpeakerRangeTests(unittest.TestCase):
+    run_with = KnownSpeakerCountTests.run_with
+    three = [turn(0, 3, 0), turn(3, 6, 1), turn(6, 9, 2)]
+    two = [turn(0, 4, 0), turn(4, 9, 1)]
+    one = [turn(0, 9, 0)]
+
+    def test_an_estimate_inside_the_range_is_kept_without_clustering_again(self):
+        turns, asked = self.run_with({None: self.three}, None, min_speakers=2, max_speakers=4)
+        self.assertEqual((asked, turns), ([None], self.three))
+
+    def test_an_estimate_above_the_range_is_clustered_again_at_the_maximum(self):
+        turns, asked = self.run_with({None: self.three, 2: self.two}, None, max_speakers=2)
+        self.assertEqual((asked, turns), ([None, 2], self.two))
+
+    def test_an_estimate_below_the_range_is_clustered_again_at_the_minimum(self):
+        turns, asked = self.run_with({None: self.one, 2: self.two}, None, min_speakers=2)
+        self.assertEqual((asked, turns), ([None, 2], self.two))
+
+    def test_silence_is_not_clustered_again(self):
+        self.assertEqual(self.run_with({None: []}, None, min_speakers=2), ([], [None]))
+
+    def test_rejects_bad_ranges(self):
+        for limits, count in (({'min_speakers': 3, 'max_speakers': 2}, None), ({'min_speakers': 0}, None),
+                              ({'max_speakers': 0}, None), ({'min_speakers': 1}, 2), ({'max_speakers': 3}, 2)):
+            with self.subTest(limits=limits, count=count), self.assertRaises(ValueError):
+                self.run_with({}, count, **limits)
+
+
+class IsolatedTests(unittest.TestCase):
+    def fake_models(self, tmp):
+        for name in (diarize.SEGMENTATION_FILE, diarize.EMBEDDING_FILE):
+            (Path(tmp) / name).parent.mkdir(parents=True, exist_ok=True)
+            (Path(tmp) / name).write_bytes(b'')
+
+    def test_a_crashing_child_raises_with_its_exit_code_instead_of_killing_the_caller(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, {'THANHAM_DIARIZE_CRASH': '3221225477'}):
+            self.fake_models(tmp)
+            with self.assertRaisesRegex(RuntimeError, r'exit code 3221225477 \(0xC0000005\)'):
+                diarize.diarize_isolated(np.zeros(16000, np.float32), Path(tmp))
+
+    def test_a_child_that_fails_in_python_raises_with_its_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.fake_models(tmp)  # empty files are no ONNX models
+            with self.assertRaisesRegex(RuntimeError, r'exit code 1 \(0x00000001\)'):
+                diarize.diarize_isolated(np.zeros(16000, np.float32), Path(tmp))
+
+    def test_unusable_child_output_raises(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.fake_models(tmp)
+            for text in (None, 'not json', '[{"start": 0}]', '{"a": 1}'):
+                def fake_run(argv, **kwargs):
+                    if text is not None:
+                        Path(argv[4]).write_text(text, encoding='utf-8')
+                    return mock.Mock(returncode=0, stderr=b'')
+                with self.subTest(text=text), mock.patch.object(diarize.subprocess, 'run', fake_run), \
+                        self.assertRaisesRegex(RuntimeError, 'no usable turns'):
+                    diarize.diarize_isolated(np.zeros(16000, np.float32), Path(tmp))
+
+    def test_bad_input_raises_before_a_child_starts(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(diarize.subprocess, 'run', side_effect=AssertionError('started')):
+            with self.assertRaises(ValueError):
+                diarize.diarize_isolated(np.zeros(0, np.float32), Path(tmp))
+            with self.assertRaises(ValueError):
+                diarize.diarize_isolated(np.zeros(16000, np.float32), Path(tmp), num_speakers=2, max_speakers=3)
+            with self.assertRaises(FileNotFoundError):
+                diarize.diarize_isolated(np.zeros(16000, np.float32), Path(tmp))
+
+
 @unittest.skipUnless(MODELS_READY, 'set THANHAM_DIARIZATION_MODELS to an installed models/diarization folder')
 class RealModelTests(unittest.TestCase):
     def test_silence_gives_no_turns(self):
@@ -204,6 +302,15 @@ class RealModelTests(unittest.TestCase):
         forced = diarize.diarize(audio, MODEL_DIR, num_speakers=expected)
         self.assertEqual(len({t['speaker'] for t in forced}), expected)
         self.assertTrue(all(0 <= t['start'] < t['end'] <= len(audio) / 16000 + 0.5 for t in turns))
+
+    @unittest.skipUnless(TEST_WAV.is_file(), 'set THANHAM_DIARIZE_TEST_WAV to a mono 16 kHz WAV with alternating speakers')
+    def test_isolated_child_gives_the_same_turns_as_in_process(self):
+        import soundfile as sf
+        audio, _ = sf.read(str(TEST_WAV), dtype='float32')
+        for limits in ({}, {'num_speakers': 2}, {'max_speakers': 1}):
+            with self.subTest(limits=limits):
+                self.assertEqual(diarize.diarize_isolated(audio, MODEL_DIR, **limits), diarize.diarize(audio, MODEL_DIR, **limits))
+        self.assertEqual(len({t['speaker'] for t in diarize.diarize(audio, MODEL_DIR, max_speakers=1)}), 1)
 
 
 if __name__ == '__main__':
