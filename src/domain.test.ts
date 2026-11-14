@@ -27,6 +27,7 @@ describe('preview/export recipe invariants',()=>{
  it('uses same trimmed duration with gap',()=>expect(clipDuration(clip)).toBe(3250));
  it('rejects out-of-range trim',()=>expect(()=>validateRecipe({...clip,trim_end_ms:6000})).toThrow('Trim'));
  it('rejects overlapping fades',()=>expect(()=>validateRecipe({...clip,fade_in_ms:2000,fade_out_ms:2000})).toThrow('Fade'));
+ it('splits a long TTS segment into readable cues that share its time',()=>{const text='Hôm nay trời Hà Nội trong xanh, gió nhẹ và nắng vàng trải dài khắp các con phố cổ. '.repeat(6)+'[nghỉ 0.5s] Hết.';const rows=ttsTranscript([{...clip,trim_start_ms:0,trim_end_ms:null,text,duration_ms:20000}]);expect(rows.length).toBeGreaterThan(5);expect(rows[0].start_ms).toBe(0);expect(rows.at(-1)!.end_ms).toBe(20000);for(const [i,r] of rows.entries()){expect(r.text.replace('\n',' ').length).toBeLessThanOrEqual(84);expect(r.text.split('\n').length).toBeLessThanOrEqual(2);for(const line of r.text.split('\n'))expect(line.length).toBeLessThanOrEqual(42);expect(r.end_ms).toBeGreaterThan(r.start_ms);if(i)expect(r.start_ms).toBe(rows[i-1].end_ms);}expect(rows.map(r=>r.text.replace('\n',' ')).join(' ')).toBe(spokenText(text));expect(exportSubtitles(rows,'srt')).not.toContain('nghỉ');});
  it('exports TTS subtitles based on rendered clip positions',()=>expect(ttsTranscript([{...clip,text:'Một'},{...clip,text:'Hai'}])).toMatchObject([{start_ms:0,end_ms:3000,text:'Một'},{start_ms:3250,end_ms:6250,text:'Hai'}]));
 });
 describe('sentence-aware text import',()=>{
