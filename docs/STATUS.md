@@ -690,8 +690,9 @@ A first run stopped at the dialogue step because the test file had not been copi
 | Installer SHA-256 | `0249c6159fb9d36b0fa0621270146bdff65ca3ba036d33d6ef473fabc742ec5b`; `sha256sum -c` OK after `gh release download` and after an anonymous download from `/releases/latest/download/` |
 | Clean Sandbox run on that exact installer | `full` (each segment's trim follows its first take's speech edges: 0-3754 ms of 3840 ms and 21-2291 ms of 2400 ms), `features` (2 speakers asked and found in the 102 s dialogue, 22 rows): 16 PASS, 0 FAIL |
 | Carried over from the 1.0.3 draft | `reopen`, `turbo`, `offline`, `export`, `ux`, `clone`, `dpi` |
+| Clean Sandbox `dub` phase on the same installer | SRT with 4 cues imported through the UI, takes generated, **Theo mốc phụ đề** on: export bar "1 đoạn đọc nhanh hơn · 1 đoạn bị lùi (tối đa 1,17 s)"; render places 1000 / 5000 x1.5 / 7168 (pushed from 6000) / 12000 ms, 14,500 ms long; speech in the unnormalized render within 11 ms of where each take was placed (start and end); the normalized render lines up with it at 0 ms lag; the exported SRT starts at the same places: 10 PASS, 0 FAIL |
 
-Evidence: `work\release-v1.0.6-sandbox`.
+Evidence: `work\release-v1.0.6-sandbox` (`dub\` for the dub phase; a first `dub` run measured the places on the normalized render, where loudness normalization makes a quiet onset after silence cross the level threshold up to 60 ms earlier without moving the audio; it is not counted).
 
 ## Not verified / known gaps
 
@@ -743,5 +744,4 @@ Evidence: `work\release-v1.0.6-sandbox`.
 - TTS subtitle cues inside one segment are timed by character count, not measured, so they can be off by
   a few hundred ms; the segment boundaries are exact. The overlap chip is a hint (recall 0.46 on AMI) and
   names the right second speaker for only about a third of the marked rows.
-- Subtitle dubbing was checked by unit, browser and worker tests, not in the Sandbox; a take synthesized at a
-  speed other than 1 is stretched a second time when it has to fit its cue.
+- A take synthesized at a speed other than 1 is stretched a second time when it has to fit its subtitle cue.
