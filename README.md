@@ -14,6 +14,17 @@ Turbo for TTS ≈ 640 MB, Whisper Small ≈ 490 MB or Whisper Large v3 Turbo ≈
 After that the app works offline. Installers are not code-signed yet, so SmartScreen may warn
 (see [Code signing policy](#code-signing-policy)).
 
+## Models and preset voices
+
+Models are downloaded from their original publishers and keep their licences (VieNeu v3 Turbo and
+the MOSS audio tokenizer: Apache-2.0; faster-whisper conversions: MIT; pyannote segmentation-3.0:
+MIT; 3D-Speaker CAM++: Apache-2.0). The preset voices come with the VieNeu model. Where those
+voices come from, and whether they and the audio made with VieNeu may be used commercially, has
+been asked upstream and is not answered yet
+([pnnbao97/VieNeu-TTS#222](https://github.com/pnnbao97/VieNeu-TTS/issues/222),
+[#218](https://github.com/pnnbao97/VieNeu-TTS/issues/218)); check them before commercial use.
+Clone only voices you have permission to use.
+
 ## Troubleshooting
 
 - **"Windows protected your PC" (SmartScreen).** The installer is not code-signed yet. Check its
