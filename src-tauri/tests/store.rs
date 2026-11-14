@@ -36,6 +36,43 @@ fn tts_take_landing_during_edit_is_kept_and_edit_saves() {
 }
 
 #[test]
+fn first_take_trims_its_segment_to_the_speech_and_an_edit_keeps_that_trim() {
+    let tmp = tempfile::tempdir().unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    let mut p = s.create_project("Test").unwrap();
+    p["segments"] = json!([{"id":"one","text":"Xin chào","takes":[],"selected_take_id":null,"trim_start_ms":0,"trim_end_ms":null}]);
+    let mut p = s.save_project(p).unwrap();
+    let pid = p["id"].as_str().unwrap().to_owned();
+    for (start, end) in [(120, json!(1480)), (40, json!(null))] {
+        s.enqueue("tts", Some(&pid), json!({"segment_id":"one","text":"Xin chào"})).unwrap();
+        let job = s.claim_next().unwrap().unwrap();
+        s.finish(job["id"].as_str().unwrap(), json!({"asset_id":"a1","path":"x.wav","duration_ms":1600,"sample_rate":48000,"speech_start_ms":start,"speech_end_ms":end})).unwrap();
+    }
+    p["segments"][0]["text"] = json!("Xin chào bạn"); // the UI never saw either take
+    let saved = s.save_project(p).unwrap();
+    let seg = &saved["segments"][0];
+    assert_eq!(seg["takes"].as_array().unwrap().len(), 2);
+    assert_eq!(seg["selected_take_id"], seg["takes"][0]["id"]); // the second take does not change the selection or its trim
+    assert_eq!((seg["trim_start_ms"].as_f64(), seg["trim_end_ms"].as_f64()), (Some(120.0), Some(1480.0)));
+    assert_eq!(seg["text"], "Xin chào bạn");
+}
+
+#[test]
+fn first_take_keeps_the_whole_take_when_the_segment_fades_would_not_fit_its_speech() {
+    let tmp = tempfile::tempdir().unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    let mut p = s.create_project("Test").unwrap();
+    p["segments"] = json!([{"id":"one","text":"Ừ","takes":[],"selected_take_id":null,"trim_start_ms":0,"trim_end_ms":null,"fade_in_ms":300,"fade_out_ms":300}]);
+    let pid = s.save_project(p).unwrap()["id"].as_str().unwrap().to_owned();
+    s.enqueue("tts", Some(&pid), json!({"segment_id":"one","text":"Ừ"})).unwrap();
+    let job = s.claim_next().unwrap().unwrap();
+    s.finish(job["id"].as_str().unwrap(), json!({"asset_id":"a1","path":"x.wav","duration_ms":900,"sample_rate":48000,"speech_start_ms":100,"speech_end_ms":560})).unwrap();
+    let seg = &s.load_project(&pid).unwrap()["segments"][0];
+    assert!(!seg["selected_take_id"].is_null());
+    assert_eq!((seg["trim_start_ms"].as_f64(), seg["trim_end_ms"].is_null()), (Some(0.0), true)); // 460 ms of speech < 600 ms of fades
+}
+
+#[test]
 fn claim_queued_batches_only_queued_jobs_of_one_kind() {
     let tmp = tempfile::tempdir().unwrap();
     let s = Store::open(tmp.path()).unwrap();

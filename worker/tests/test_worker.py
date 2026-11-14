@@ -156,6 +156,32 @@ class WorkerTests(unittest.TestCase):
             worker.tts({'model_path': td, 'text': 'y.'}, Path(td) / 'out', lambda *a: None)
         self.assertEqual(v3turbo.phonemize_text_with_emotions('y.'), 'ˈi.')
 
+    def test_speech_edges_leave_out_silence_with_a_margin(self):
+        import numpy as np
+        audio = np.concatenate([np.zeros(14400), np.full(48000, 0.5), np.full(4800, 0.004), np.zeros(24000)]).astype(np.float32)
+        # Speech is 300-1300 ms; the 0.004 tail is under 2 % of the peak, so it counts as silence. 80 ms margin each side.
+        self.assertEqual(worker.speech_edges(audio), (220, 1380))
+        self.assertEqual(worker.speech_edges(audio, keep_start=True, keep_end=True), (0, None))
+        self.assertEqual(worker.speech_edges(np.full(4800, 0.5, dtype=np.float32)), (0, None))  # no silence to cut
+        self.assertEqual(worker.speech_edges(np.zeros(4800, dtype=np.float32)), (0, None))
+
+    def test_tts_reports_speech_edges_but_keeps_pause_marks_at_the_edges(self):
+        import numpy as np
+        from types import SimpleNamespace
+        from unittest import mock
+        speech = np.concatenate([np.zeros(9600), np.full(24000, 0.3), np.zeros(14400)]).astype(np.float32)  # 200 ms in, 300 ms out
+        fakes = {'vieneu': SimpleNamespace(Vieneu=lambda **k: SimpleNamespace(infer=lambda text, **kw: speech)),
+                 'vieneu.v3turbo': SimpleNamespace(phonemize_text_with_emotions=lambda text: text),
+                 'vieneu._v3_turbo_engine': mock.Mock(),
+                 'vieneu._v3_turbo_engine.onnx_runtime_lite': SimpleNamespace(OnnxV3LiteEngine=mock.Mock()),
+                 'soundfile': SimpleNamespace(write=lambda path, *a, **k: Path(path).write_bytes(b'RIFF'))}
+        results = []
+        with tempfile.TemporaryDirectory() as td, mock.patch.object(worker, 'verify_model'),                 mock.patch.object(worker, 'offline_mode'), mock.patch.dict(sys.modules, fakes):
+            for i, text in enumerate(['Xin chào.', '[nghỉ 0.5s] Xin chào. [nghỉ 0.3s]']):
+                results.append(worker.tts({'model_path': td, 'text': text, 'output_name': f'{i}.wav'}, Path(td) / 'out', lambda *a: None))
+        self.assertEqual([(r['speech_start_ms'], r['speech_end_ms'], r['duration_ms']) for r in results],
+                         [(120, 780, 1000), (0, None, 1800)])
+
     def test_real_g2p_reads_a_lone_y_as_the_vietnamese_letter(self):
         try:
             from vieneu_utils.phonemize_text import phonemize_text_with_emotions as g2p
