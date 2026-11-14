@@ -102,7 +102,7 @@ export function splitSegment(s:Segment,cursor?:number,dictionary:Record<string,s
  const a=t.slice(0,at).trim(),b=t.slice(at).trim(),cut=s.cue_start_ms!=null&&s.cue_end_ms!=null?Math.round(s.cue_start_ms+(s.cue_end_ms-s.cue_start_ms)*a.length/(a.length+b.length)):undefined;
  return [{...s,text:a,normalized_text:normalizeText(a,dictionary),...(cut!==undefined&&{cue_end_ms:cut})},{...s,id:uid(),text:b,...(cut!==undefined&&{cue_start_ms:cut}),normalized_text:normalizeText(b,dictionary),takes:[],selected_take_id:null,trim_start_ms:0,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0}];
 }
-export function mergeSegments(a:Segment,b:Segment,dictionary:Record<string,string>={}):Segment{const text=[a.text.trim(),b.text.trim()].filter(Boolean).join(' ');return {...a,text,normalized_text:normalizeText(text,dictionary),gap_ms:b.gap_ms,...(a.cue_start_ms!=null&&b.cue_end_ms!=null&&{cue_end_ms:b.cue_end_ms})};}
+export function mergeSegments(a:Segment,b:Segment,dictionary:Record<string,string>={}):Segment{const text=[a.text.trim(),b.text.trim()].filter(Boolean).join(' ');return {...a,text,normalized_text:normalizeText(text,dictionary),gap_ms:b.gap_ms,...(a.cue_start_ms!=null&&a.cue_end_ms!=null&&b.cue_start_ms!=null&&b.cue_end_ms!=null&&{cue_start_ms:Math.min(a.cue_start_ms,b.cue_start_ms),cue_end_ms:Math.max(a.cue_end_ms,b.cue_end_ms)})};}
 // Takes are append-only and server-owned: restoring an older snapshot must keep every take of the current project, plus new segments that already own takes.
 export function restoreSnapshot(snap:Project,cur:Project):Project{
  const byId=new Map(cur.segments.map(s=>[s.id,s]));
@@ -139,10 +139,11 @@ export function dubPlan(clips:(Recipe&DubCue)[]):{places:{at_ms:number;rate:numb
   cursor=at+audio/rate;gap=c.gap_ms;return {at_ms:Math.round(at),rate,end_ms:Math.round(cursor)};});
  return {places,sped_up,pushed,max_push_ms:Math.round(max_push_ms),length_ms:Math.round(Math.max(cursor,...clips.map(c=>c.cue_end_ms??0)))};
 }
-/** One line on how the takes fit their cues, for the export bar; empty when a segment has no selected take yet. */
+/** One line on how the takes fit their cues, for the export bar; empty when a segment has no selected take yet. It runs while rendering, so a trim or fade being typed in must not throw. */
 export function dubSummary(segments:Segment[]):string{
  const clips=segments.map(s=>{const t=s.takes.find(t=>t.id===s.selected_take_id);return t&&{...s,duration_ms:t.duration_ms};});if(!clips.length||clips.some(c=>!c))return '';
- const r=dubPlan(clips as (Segment&{duration_ms:number})[]),secs=(r.max_push_ms/1000).toLocaleString('vi-VN',{maximumFractionDigits:2});
+ let r:ReturnType<typeof dubPlan>;try{r=dubPlan(clips as (Segment&{duration_ms:number})[]);}catch(e){return e instanceof Error?e.message:'';}
+ const secs=(r.max_push_ms/1000).toLocaleString('vi-VN',{maximumFractionDigits:2});
  return `${r.sped_up} đoạn đọc nhanh hơn · ${r.pushed} đoạn bị lùi${r.pushed?` (tối đa ${secs} s)`:''}`;
 }
 /** Subtitle rows for the rendered takes: each segment's text in readable cues sharing the take's time by character count (proportional, not measured); with `dub`, at the takes' places on the subtitle timeline, each shown at least as long as its cue. */
