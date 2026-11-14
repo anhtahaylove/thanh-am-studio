@@ -1,5 +1,5 @@
 // Acceptance run against the packaged desktop app (UI -> Rust -> worker -> files).
-// usage: node packaged.mjs <app.exe> <outDir> <phase: full|reopen|turbo|offline|export|clone|dpi|longstt|ux|features>
+// usage: node packaged.mjs <app.exe> <outDir> <phase: full|reopen|turbo|offline|export|clone|dpi|longstt|ux|features|dub>
 // Drives the real WebView2 over CDP; native file dialogs are filled by file-dialog.ps1.
 import {chromium} from 'playwright-core';
 import {spawn, execFileSync} from 'node:child_process';
@@ -58,6 +58,30 @@ const saved = async (path) => {
 // a stale list would offer an earlier render whose format the save dialog then rejects.
 const jobButton = (text, name) => page.locator('article', {hasText: text}).getByRole('button', {name});
 const done = async (kind) => (await invoke('list_jobs')).filter((j) => j.kind === kind && j.status === 'succeeded').length;
+// Peak level of each 10 ms frame of a PCM or float WAV (first channel).
+function framePeaks(path) {
+  const b = readFileSync(path);
+  let fmt, ch, rate, bits, data;
+  for (let off = 12; off + 8 <= b.length && !data; ) {
+    const id = b.toString('ascii', off, off + 4), size = b.readUInt32LE(off + 4);
+    if (id === 'fmt ') [fmt, ch, rate, bits] = [b.readUInt16LE(off + 8), b.readUInt16LE(off + 10), b.readUInt32LE(off + 12), b.readUInt16LE(off + 22)];
+    if (id === 'fmt ' && fmt === 0xfffe) fmt = b.readUInt16LE(off + 32); // WAVE_FORMAT_EXTENSIBLE: the sub-format GUID starts with the format code
+    if (id === 'data') data = b.subarray(off + 8, off + 8 + size);
+    off += 8 + size + (size & 1);
+  }
+  const block = (bits / 8) * ch, n = Math.floor(data.length / block), per = rate / 100;
+  const at = (i) => (fmt === 3 ? data.readFloatLE(i * block) : data.readIntLE(i * block, bits / 8) / 2 ** (bits - 1));
+  const peaks = [];
+  for (let f = 0; f * per < n; f++) { let m = 0; for (let i = f * per; i < Math.min(n, (f + 1) * per); i++) m = Math.max(m, Math.abs(at(i))); peaks.push(m); }
+  return peaks;
+}
+// [first, last] ms of the frames between from and to ms that reach 10 % of that stretch's peak.
+function loud(peaks, from, to) {
+  const a = Math.max(0, Math.floor(from / 10)), z = Math.min(peaks.length, Math.ceil(to / 10)), top = Math.max(...peaks.slice(a, z));
+  let first = -1, last = -1;
+  for (let f = a; f < z; f++) if (peaks[f] > 0.1 * top) { if (first < 0) first = f; last = f; }
+  return [first * 10, last * 10 + 10];
+}
 async function exportSteps() {
   const wav = join(saves, `xuất thử ổn định ${Date.now()}.wav`);
   await step('render and export wav via save dialog', async () => {
@@ -469,6 +493,109 @@ try {
       await page.getByRole('textbox', {name: /^Nội dung đoạn/}).first().waitFor();
       const segs = await page.getByRole('textbox', {name: /^Nội dung đoạn/}).count();
       return `${speakers.length} rows, ${new Set(speakers).size} speakers [${speakers.join('')}], ${chips} chips; script now ${segs} segments`;
+    });
+  }
+  if (phase === 'dub') {
+    // Subtitle-timed export: an SRT imported through the UI, takes generated, "Theo mốc phụ đề" on, then the rendered file is
+    // measured. Cue 2 is far too short for its text (sped up) and pushes cue 3 back; cues 1 and 4 have room.
+    const cues = [[1000, 4000, 'Xin chào các bạn.'], [5000, 5600, 'Hôm nay chúng ta cùng nghe thử giọng đọc theo mốc thời gian của phụ đề.'],
+      [6000, 8000, 'Câu này phải chờ câu trước.'], [12000, 14500, 'Cảm ơn các bạn đã lắng nghe.']];
+    const stamp = (ms) => new Date(ms).toISOString().slice(11, 23).replace('.', ',');
+    let project, job;
+    await step('voice model ready', async () => {
+      if ((await invoke('list_models')).find((m) => m.id === 'vieneu-v3')?.installed) return 'already installed';
+      const before = await done('model_download');
+      await nav('Model & cài đặt');
+      await page.locator('article', {has: page.getByRole('heading', {name: 'VieNeu v3 Turbo', exact: true})}).getByRole('button', {name: 'Tải model'}).click();
+      await waitJobs('model_download', before + 1, 20 * 60000);
+      return 'downloaded through the UI';
+    });
+    await step('srt import keeps the cue times', async () => {
+      const name = `Lồng tiếng ${Date.now()}`;
+      await nav('Dự án');
+      await page.getByRole('textbox', {name: 'Tên dự án mới'}).fill(name);
+      await page.getByRole('button', {name: 'Tạo dự án'}).click();
+      const srt = join(saves, `phụ đề nguồn ${Date.now()}.srt`);
+      writeFileSync(srt, cues.map(([a, b, text], i) => `${i + 1}\n${stamp(a)} --> ${stamp(b)}\n${text}\n`).join('\n'));
+      copyFileSync(srt, join(out, 'phụ đề nguồn.srt'));
+      await page.getByRole('button', {name: 'Nhập TXT / SRT'}).click();
+      dialog(srt);
+      await page.getByRole('textbox', {name: `Nội dung đoạn ${cues.length}`}).waitFor({timeout: 15000});
+      await page.waitForTimeout(1500); // autosave
+      const id = (await invoke('list_projects')).find((p) => p.name === name)?.id;
+      project = await invoke('load_project', {id});
+      const got = project.segments.map((s) => [s.cue_start_ms, s.cue_end_ms, s.text]);
+      if (JSON.stringify(got) !== JSON.stringify(cues)) throw Error(`segments ${JSON.stringify(got)}`);
+      return `${got.length} segments with their cues`;
+    });
+    await step('generate the takes', async () => {
+      const before = await done('tts');
+      await page.getByRole('button', {name: 'Tạo giọng tất cả'}).click();
+      await waitJobs('tts', before + cues.length, 15 * 60000);
+      project = await invoke('load_project', {id: project.id});
+      return project.segments.map((s) => `${s.takes.find((t) => t.id === s.selected_take_id)?.duration_ms} ms`).join(', ');
+    });
+    // The plan the spec asks for, from the saved project: start at the cue, or 50 ms after the previous take when it runs over;
+    // a take longer than its cue is sped up to fit, at most 1.5x.
+    const spec = () => {
+      let cursor = 0;
+      return project.segments.map((s, i) => {
+        const take = s.takes.find((t) => t.id === s.selected_take_id), len = (s.trim_end_ms ?? take.duration_ms) - s.trim_start_ms;
+        const slot = s.cue_end_ms - s.cue_start_ms, rate = len > slot ? Math.min(1.5, len / slot) : 1, at = Math.max(s.cue_start_ms, i ? cursor + 50 : 0);
+        cursor = at + len / rate;
+        return {cue: s.cue_start_ms, at, rate, end: cursor, take, trim: [s.trim_start_ms, s.trim_end_ms ?? take.duration_ms]};
+      });
+    };
+    let plan;
+    await step('export bar shows the dub plan', async () => {
+      await nav('Tạo giọng đọc');
+      await page.getByRole('checkbox', {name: 'Theo mốc phụ đề'}).check();
+      plan = spec();
+      const sped = plan.filter((p) => p.rate > 1).length, pushed = plan.filter((p) => p.at - p.cue > 5).length;
+      if (!sped || !pushed) throw Error(`the cues did not exercise a speed-up and a push: ${JSON.stringify(plan.map(({at, rate}) => [at, rate]))}`);
+      const stats = page.locator('.dub-stats');
+      await stats.filter({hasText: 'đọc nhanh hơn'}).waitFor({timeout: 15000});
+      const text = await stats.innerText();
+      if (!text.startsWith(`${sped} đoạn đọc nhanh hơn · ${pushed} đoạn bị lùi`)) throw Error(`stats "${text}", expected ${sped} sped up and ${pushed} pushed`);
+      await shot('dub-export-bar');
+      return text;
+    });
+    await step('render follows the plan', async () => {
+      const before = await done('render');
+      await page.getByRole('button', {name: 'Xuất audio'}).click();
+      [job] = await waitJobs('render', before + 1, 5 * 60000);
+      const {payload} = job, pad = Math.max(plan.at(-1).end, ...project.segments.map((s) => s.cue_end_ms));
+      const sent = payload.segments.map((s) => [s.dub_at_ms, s.dub_rate]);
+      if (payload.timeline !== true || Math.abs(payload.pad_to_ms - pad) > 1 || sent.some(([at, rate], i) => Math.abs(at - plan[i].at) > 1 || Math.abs(rate - plan[i].rate) > 1e-9))
+        throw Error(`payload ${JSON.stringify({timeline: payload.timeline, pad_to_ms: payload.pad_to_ms, sent})}, spec ${JSON.stringify({pad, plan: plan.map(({at, rate}) => [at, rate])})}`);
+      if (Math.abs(job.result.duration_ms - payload.pad_to_ms) > 25) throw Error(`rendered ${job.result.duration_ms} ms, padded to ${payload.pad_to_ms} ms`);
+      copyFileSync(job.result.path, join(out, 'lồng tiếng theo phụ đề.wav'));
+      return `${sent.map(([at, rate]) => `${at} ms x${+rate.toFixed(3)}`).join(', ')}; ${job.result.duration_ms} ms long, normalize ${payload.normalize}`;
+    });
+    await step('each take starts where it was placed', async () => {
+      // Where speech starts and ends (10 ms frames above 10 % of the stretch's peak), in the take's own file inside its trim and
+      // in the rendered file around its place; the rendered one must match the take's, moved to its place and divided by its rate.
+      const mix = framePeaks(job.result.path), rows = plan.map((p, i) => {
+        const [first, last] = loud(framePeaks(p.take.path), p.trim[0], p.trim[1]);
+        const want = [p.at + (first - p.trim[0]) / p.rate, p.at + (last - p.trim[0]) / p.rate];
+        const got = loud(mix, p.at - 40, i + 1 < plan.length ? plan[i + 1].at - 40 : mix.length * 10);
+        return {cue: p.cue, at: Math.round(p.at), rate: +p.rate.toFixed(3), start: [Math.round(want[0]), got[0]], end: [Math.round(want[1]), got[1]]};
+      });
+      writeFileSync(join(out, 'dub-positions.json'), JSON.stringify(rows, null, 1));
+      const bad = rows.filter((r) => Math.abs(r.start[1] - r.start[0]) > 30 || Math.abs(r.end[1] - r.end[0]) > 40);
+      if (bad.length) throw Error(`off place: ${JSON.stringify(bad)}`);
+      return rows.map((r) => `cue ${r.cue}: placed ${r.at} x${r.rate}, speech ${r.start[1]}-${r.end[1]} ms (expected ${r.start[0]}-${r.end[0]})`).join('; ');
+    });
+    await step('srt export uses the same places', async () => {
+      const srt = join(saves, `phụ đề lồng tiếng ${Date.now()}.srt`);
+      await page.getByRole('button', {name: 'SRT', exact: true}).first().click();
+      dialog(srt);
+      await saved(srt);
+      copyFileSync(srt, join(out, 'phụ đề lồng tiếng.srt'));
+      const starts = [...readFileSync(srt, 'utf8').matchAll(/(\d\d):(\d\d):(\d\d),(\d{3}) -->/g)].map(([, h, m, s, ms]) => ((+h * 60 + +m) * 60 + +s) * 1000 + +ms);
+      const missing = plan.filter((p) => !starts.includes(Math.round(p.at)));
+      if (missing.length) throw Error(`cue starts ${starts.join(', ')} miss ${missing.map((p) => Math.round(p.at)).join(', ')}`);
+      return `${starts.length} cues starting at ${starts.join(', ')} ms`;
     });
   }
   if (phase === 'export') {
