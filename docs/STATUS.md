@@ -682,6 +682,17 @@ Evidence: `work\release-v1.0.4-sandbox`.
 A first run stopped at the dialogue step because the test file had not been copied next to the installer
 (harness setup); it was rerun and is not counted. Evidence: `work\release-v1.0.5-sandbox`.
 
+### v1.0.6 release (built by `.github/workflows/release.yml` from tag `v1.0.6` at `3dc90be`)
+
+| Check | Result |
+|---|---|
+| Tests | CI green on #64 to #66; locally 68 unit, 14 Playwright, 12 + 10 Rust, 68 worker with the real diarization model and the bundled FFmpeg |
+| Installer SHA-256 | `0249c6159fb9d36b0fa0621270146bdff65ca3ba036d33d6ef473fabc742ec5b`; `sha256sum -c` OK after `gh release download` and after an anonymous download from `/releases/latest/download/` |
+| Clean Sandbox run on that exact installer | `full` (each segment's trim follows its first take's speech edges: 0-3754 ms of 3840 ms and 21-2291 ms of 2400 ms), `features` (2 speakers asked and found in the 102 s dialogue, 22 rows): 16 PASS, 0 FAIL |
+| Carried over from the 1.0.3 draft | `reopen`, `turbo`, `offline`, `export`, `ux`, `clone`, `dpi` |
+
+Evidence: `work\release-v1.0.6-sandbox`.
+
 ## Not verified / known gaps
 
 - Listening quality has not been judged by a human; the clipping checks above are signal analysis.
