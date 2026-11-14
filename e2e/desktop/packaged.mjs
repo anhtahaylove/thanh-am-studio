@@ -573,11 +573,15 @@ try {
       const tts = await done('tts');
       await page.getByRole('button', {name: 'Tạo giọng tất cả'}).click();
       await waitJobs('tts', tts + 3, 10 * 60000);
+      // The editor picks up new takes on its next job poll (2.5 s) and refuses to export a segment without one before that.
+      const withTake = page.locator('article.segment').getByRole('button', {name: 'Tạo take mới'});
+      for (const end = Date.now() + 30000; (await withTake.count()) < 3 && Date.now() < end;) await page.waitForTimeout(500);
       await nav('Tạo giọng đọc');
       await page.getByRole('checkbox', {name: 'Mỗi chương một file'}).check();
       const before = await done('render');
       await page.getByRole('button', {name: 'Xuất audio'}).click();
-      const jobs = (await waitJobs('render', before + 2, 5 * 60000)).slice(0, 2).sort((a, b) => a.payload.name.localeCompare(b.payload.name));
+      const rendered = await waitJobs('render', before + 2, 5 * 60000).catch(async (e) => { throw Error(`${e.message}; alerts: ${JSON.stringify(await page.locator('.alert').allInnerTexts())}`); });
+      const jobs = rendered.slice(0, 2).sort((a, b) => a.payload.name.localeCompare(b.payload.name));
       const id = jobs[0].project_id, project = await invoke('load_project', {id});
       // Each file holds its chapter's segments: their trimmed takes, each followed by its gap.
       const len = (s) => (s.trim_end_ms ?? s.takes.find((t) => t.id === s.selected_take_id).duration_ms) - s.trim_start_ms + s.gap_ms;
