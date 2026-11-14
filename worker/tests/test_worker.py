@@ -138,6 +138,14 @@ class WorkerTests(unittest.TestCase):
         with self.assertRaises(worker.WorkerError):
             worker.split_pauses('A [nghỉ 0] B')
 
+    def test_a_dropped_pause_mark_leaves_one_space_between_words_and_none_at_the_edges(self):
+        for text, spoken in [('Hôm nay [nghỉ abc] trời đẹp', 'Hôm nay trời đẹp'), ('Hôm nay[pause for effect]trời đẹp', 'Hôm nay trời đẹp'),
+                             ('Hôm nay [nghỉ abc], trời đẹp', 'Hôm nay, trời đẹp'), ('Hôm nay  [nghỉ abc]   [pause x]  trời đẹp', 'Hôm nay trời đẹp'),
+                             ('[nghỉ abc] Hôm nay', 'Hôm nay'), ('Hôm nay [nghỉ abc]', 'Hôm nay')]:
+            with self.subTest(text=text):
+                self.assertEqual(worker.split_pauses(text), ([(spoken, 0.0)], 0.0))
+        self.assertEqual(worker.split_pauses('A [nghỉ abc] [nghỉ 1s] [pause x] B'), ([('A', 0.0), ('B', 1.0)], 0.0))
+
     def test_emotion_cues_are_left_to_the_engine_and_not_expected_as_words(self):
         for cue in ['[cười]', '[thở dài]', '[hắng giọng]', '[chuckle]', '[Sigh]', '[clear throat]', '[cuoi]', '[tho dai]', '[hang giong]', '[ cười ]']:
             with self.subTest(cue=cue):

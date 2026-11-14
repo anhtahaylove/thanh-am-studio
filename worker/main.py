@@ -76,8 +76,13 @@ def pause_seconds(mark):
 
 
 def split_pauses(text):
-    """'A [nghỉ 0.5s] B' -> ([('A', 0.0), ('B', 0.5)], trailing): each spoken part with the silence before it. Unparsable marks are dropped."""
-    text = PAUSE_MARK.sub(lambda m: m.group(0) if pause_seconds(m.group(0)) is not None else ' ', text)
+    """'A [nghỉ 0.5s] B' -> ([('A', 0.0), ('B', 0.5)], trailing): each spoken part with the silence before it. Unparsable marks are dropped; a run of marks and the spaces around it become one space (none at the edges or before , . ; : ! ? …)."""
+    def drop(run):
+        kept = [m.group(0) for m in PAUSE_MARK.finditer(run.group(0)) if pause_seconds(m.group(0)) is not None]
+        if kept:
+            return ''.join(kept)
+        return '' if run.start() == 0 or run.end() == len(text) or text[run.end()] in ',.;:!?…' else ' '
+    text = re.sub(rf'\s*(?:{PAUSE_MARK.pattern}\s*)+', drop, text, flags=re.IGNORECASE)
     parts, pause, pos = [], 0.0, 0
     for m in PAUSE_MARK.finditer(text):
         if chunk := text[pos:m.start()].strip():
