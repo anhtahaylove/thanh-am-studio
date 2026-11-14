@@ -3,6 +3,8 @@ use quick_xml::{events::Event, Reader};
 
 /// Cap on the uncompressed size of `word/document.xml`, enforced while inflating (zip bomb guard).
 pub const MAX_DOCUMENT_XML: usize = 64 * 1024 * 1024;
+/// Same limit as TXT files in `read_text_file`.
+pub const MAX_TEXT: usize = 10_000_000;
 const INVALID: &str = "INVALID_DOCX";
 
 fn u16_at(b: &[u8], i: usize) -> Result<usize, String> {
@@ -67,27 +69,51 @@ fn document_xml(zip: &[u8]) -> Result<Vec<u8>, String> {
 }
 
 /// Plain text of a .docx: one line per paragraph, a table row joined with ", " into one line.
+/// Stops with `TEXT_FILE_TOO_LARGE` once the text passes `MAX_TEXT` (same limit as TXT files).
 pub fn docx_text(zip: &[u8]) -> Result<String, String> {
     let xml = String::from_utf8(document_xml(zip)?).map_err(|_| INVALID.to_string())?;
     let mut reader = Reader::from_str(&xml);
     reader.config_mut().expand_empty_elements = true;
-    let (mut lines, mut row, mut cell, mut para) = (Vec::<String>::new(), Vec::<String>::new(), String::new(), String::new());
-    let (mut in_t, mut skip, mut deleted, mut rows, mut cells) = (false, 0usize, 0usize, 0usize, 0usize);
+    let (mut out, mut lines, mut row, mut row_len, mut cell, mut para) = (String::new(), 0usize, Vec::<String>::new(), 0usize, String::new(), String::new());
+    let (mut in_t, mut skip, mut deleted, mut runs, mut rows, mut cells) = (false, 0usize, 0usize, 0usize, 0usize, 0usize);
+    macro_rules! over {
+        ($extra:expr) => {
+            if out.len() + para.len() + cell.len() + row_len + $extra > MAX_TEXT {
+                return Err("TEXT_FILE_TOO_LARGE".into());
+            }
+        };
+    }
+    macro_rules! line {
+        ($s:expr) => {{
+            let s: &str = $s;
+            if out.len() + s.len() + 1 > MAX_TEXT {
+                return Err("TEXT_FILE_TOO_LARGE".into());
+            }
+            if lines > 0 {
+                out.push('\n');
+            }
+            out.push_str(s);
+            lines += 1;
+        }};
+    }
     loop {
         match reader.read_event().map_err(|_| INVALID.to_string())? {
             Event::Eof => break,
             Event::Start(e) => match e.name().as_ref() {
-                "w:txbxContent" => skip += 1,
+                "w:txbxContent" | "mc:Fallback" => skip += 1,
                 _ if skip > 0 => {}
                 "w:del" | "w:moveFrom" => deleted += 1,
                 "w:p" => para.clear(),
+                "w:r" => runs += 1,
                 "w:t" => in_t = true,
-                "w:tab" => para.push(' '),
-                "w:br" | "w:cr" => para.push('\n'),
+                "w:tab" | "w:ptab" if runs > 0 && deleted == 0 => para.push(' '),
+                "w:noBreakHyphen" if runs > 0 && deleted == 0 => para.push('-'),
+                "w:br" | "w:cr" if runs > 0 && deleted == 0 => para.push(if cells > 0 { ' ' } else { '\n' }),
                 "w:tr" => {
                     rows += 1;
                     if rows == 1 {
                         row.clear();
+                        row_len = 0;
                     }
                 }
                 "w:tc" => {
@@ -99,45 +125,62 @@ pub fn docx_text(zip: &[u8]) -> Result<String, String> {
                 _ => {}
             },
             Event::End(e) => match e.name().as_ref() {
-                "w:txbxContent" => skip = skip.saturating_sub(1),
+                "w:txbxContent" | "mc:Fallback" => skip = skip.saturating_sub(1),
                 _ if skip > 0 => {}
                 "w:del" | "w:moveFrom" => deleted = deleted.saturating_sub(1),
+                "w:r" => runs = runs.saturating_sub(1),
                 "w:t" => in_t = false,
                 "w:p" if cells > 0 => {
-                    if !para.is_empty() {
+                    if !para.trim().is_empty() {
                         if !cell.is_empty() {
                             cell.push(' ');
                         }
-                        cell.push_str(&para);
+                        cell.push_str(para.trim());
                     }
                 }
-                "w:p" => lines.push(std::mem::take(&mut para)),
+                "w:p" => {
+                    line!(&para);
+                    para.clear();
+                }
                 "w:tc" => {
                     cells = cells.saturating_sub(1);
                     if cells == 0 {
-                        row.push(std::mem::take(&mut cell));
+                        // empty and vertically merged cells would leave junk separators
+                        if !cell.trim().is_empty() {
+                            row_len += cell.len() + 2;
+                            row.push(std::mem::take(&mut cell));
+                        }
+                        cell.clear();
                     }
                 }
                 "w:tr" => {
                     rows = rows.saturating_sub(1);
-                    if rows == 0 {
-                        lines.push(row.join(", "));
+                    if rows == 0 && !row.is_empty() {
+                        line!(&row.join(", "));
+                        row.clear();
+                        row_len = 0;
                     }
                 }
                 _ => {}
             },
-            Event::Text(t) if in_t && skip == 0 && deleted == 0 => para.push_str(&t),
-            Event::GeneralRef(r) if in_t && skip == 0 && deleted == 0 => match (r.resolve_char_ref().map_err(|_| INVALID.to_string())?, &*r) {
-                (Some(c), _) => para.push(c),
-                (None, "lt") => para.push('<'),
-                (None, "gt") => para.push('>'),
-                (None, "amp") => para.push('&'),
-                (None, "quot") => para.push('"'),
-                (None, "apos") => para.push('\''),
-                _ => {}
-            },
+            Event::Text(t) if in_t && skip == 0 && deleted == 0 => {
+                over!(t.len());
+                para.push_str(&t);
+            }
+            Event::GeneralRef(r) if in_t && skip == 0 && deleted == 0 => {
+                over!(4);
+                match (r.resolve_char_ref().map_err(|_| INVALID.to_string())?, &*r) {
+                    (Some(c), _) => para.push(c),
+                    (None, "lt") => para.push('<'),
+                    (None, "gt") => para.push('>'),
+                    (None, "amp") => para.push('&'),
+                    (None, "quot") => para.push('"'),
+                    (None, "apos") => para.push('\''),
+                    _ => {}
+                }
+            }
             _ => {}
         }
     }
-    Ok(lines.join("\n"))
+    Ok(out)
 }

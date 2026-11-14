@@ -1,5 +1,5 @@
 use miniz_oxide::deflate::compress_to_vec;
-use thanh_am_studio::docx::{docx_text, MAX_DOCUMENT_XML};
+use thanh_am_studio::docx::{docx_text, MAX_DOCUMENT_XML, MAX_TEXT};
 
 const NS: &str = r#"xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main""#;
 
@@ -127,4 +127,46 @@ fn stops_inflating_past_the_cap() {
         ok.resize(MAX_DOCUMENT_XML, b' ');
         zip(&ok, true)
     }), Ok("vừa".into()));
+}
+
+#[test]
+fn text_over_the_txt_limit_stops_early() {
+    // more than 10 M empty paragraphs would be 10 MB of newlines; a single huge w:t is the other amplification.
+    let paras = "<w:p/>".repeat(MAX_TEXT + 2);
+    assert_eq!(docx_text(&zip(&body(&paras), true)), Err("TEXT_FILE_TOO_LARGE".into()));
+    let run = format!("<w:p><w:r><w:t>{}</w:t></w:r></w:p>", "a".repeat(MAX_TEXT + 1));
+    assert_eq!(docx_text(&zip(&body(&run), true)), Err("TEXT_FILE_TOO_LARGE".into()));
+    let ok = format!("<w:p><w:r><w:t>{}</w:t></w:r></w:p>", "a".repeat(MAX_TEXT - 1));
+    assert_eq!(docx_text(&zip(&body(&ok), true)).unwrap().len(), MAX_TEXT - 1);
+}
+
+#[test]
+fn empty_and_merged_cells_leave_no_separators() {
+    let cell = |t: &str| format!("<w:tc><w:p><w:r><w:t>{t}</w:t></w:r></w:p></w:tc>");
+    let merged = "<w:tc><w:tcPr><w:vMerge/></w:tcPr><w:p/></w:tc>";
+    let inner = format!("<w:tbl><w:tr>{}{}{merged}</w:tr><w:tr>{merged}{}</w:tr><w:tr>{merged}{merged}</w:tr></w:tbl><w:p><w:r><w:t>sau</w:t></w:r></w:p>", cell("An"), cell("Xin chào"), cell(" "));
+    assert_eq!(text(&inner, false), "An, Xin chào\nsau");
+}
+
+#[test]
+fn breaks_and_tabs_only_count_inside_live_runs() {
+    let inner = r#"<w:p><w:pPr><w:tabs><w:tab w:val="left" w:pos="720"/></w:tabs></w:pPr><w:r><w:t>a</w:t></w:r><w:del w:id="1"><w:r><w:br/><w:tab/><w:delText>x</w:delText></w:r></w:del><w:r><w:t>b</w:t></w:r></w:p>"#;
+    assert_eq!(text(inner, false), "ab");
+}
+
+#[test]
+fn hyphens_and_position_tabs_are_kept() {
+    assert_eq!(text("<w:p><w:r><w:t>e</w:t><w:noBreakHyphen/><w:t>mail</w:t><w:ptab/><w:t>x</w:t></w:r></w:p>", false), "e-mail x");
+}
+
+#[test]
+fn a_break_inside_a_cell_keeps_the_row_on_one_line() {
+    let inner = "<w:tbl><w:tr><w:tc><w:p><w:r><w:t>a</w:t><w:br/><w:t>b</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>c</w:t></w:r></w:p></w:tc></w:tr></w:tbl>";
+    assert_eq!(text(inner, false), "a b, c");
+}
+
+#[test]
+fn alternate_content_fallback_is_skipped() {
+    let inner = r#"<w:p><mc:AlternateContent xmlns:mc="m"><mc:Choice><w:r><w:t>Một</w:t></w:r></mc:Choice><mc:Fallback><w:r><w:t>Một</w:t></w:r></mc:Fallback></mc:AlternateContent><w:r><w:t>.</w:t></w:r></w:p>"#;
+    assert_eq!(text(inner, false), "Một.");
 }

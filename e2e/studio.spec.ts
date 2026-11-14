@@ -161,3 +161,17 @@ test('an imported Word script is split like typed text and never read as subtitl
  expect(await page.evaluate(()=>(window as any).__calls.find((c:any)=>c.cmd==='read_text_file').args)).toEqual({path:'C:/kịch bản.docx'});
  await expect.poll(()=>page.evaluate(()=>{const saves=(window as any).__calls.filter((c:any)=>c.cmd==='save_project');return saves.at(-1)?.args.project.segments.map((s:any)=>[s.speaker,s.text,s.cue_start_ms??null]);})).toEqual([['Mai','Chào anh.',null],['Nam','Khỏe, cảm ơn.',null]]);
 });
+test('a Word file the app cannot read shows a short Vietnamese message instead of the raw code',async({page})=>{
+ await page.addInitScript(()=>{
+  const w=window as any;w.isTauri=true;
+  w.__TAURI_INTERNALS__={convertFileSrc:(p:string)=>p,transformCallback:()=>1,unregisterCallback:()=>{},metadata:{currentWindow:{label:'main'},currentWebview:{label:'main',windowLabel:'main'}},
+   invoke:async(cmd:string)=>{switch(cmd){
+    case 'list_projects':case 'list_jobs':case 'list_voices':case 'list_models':return [];case 'get_settings':return {dictionary:{}};
+    case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,python_path:null,ffmpeg_path:null,message:''};
+    case 'create_project':return {id:'p1',name:'x',updated_at:new Date().toISOString(),revision:1,segments:[],transcript:[],dictionary:{},source_asset_id:null};
+    case 'plugin:dialog|open':return ['C:/hỏng.docx'];case 'read_text_file':throw 'INVALID_DOCX';
+    default:return null;}}};
+ });
+ await page.goto('/');await page.getByRole('button',{name:/Nhập TXT \/ SRT \/ Word/}).click();
+ await expect(page.getByText('Không đọc được tệp Word này. Hãy mở bằng Word rồi lưu lại dạng .docx.')).toBeVisible();await expect(page.getByText('INVALID_DOCX')).toHaveCount(0);
+});

@@ -14,7 +14,7 @@ All JSON fields are snake_case. Times are milliseconds except worker STT segment
 - `enqueue_job({kind,projectId,payload})` -> Job
 - `cancel_job({id})`, `retry_job({id})` -> Job
 - `runtime_status` -> RuntimeStatus
-- `read_text_file({path})` -> string (TXT/SRT/VTT/CSV/DOCX only; text files are UTF-8 with BOM removed; a DOCX returns the plain text of `word/document.xml`: one line per paragraph, a table row on one line with cells joined by ", ", inserted text kept, deleted text, field codes and text boxes skipped; errors `INVALID_DOCX`, `DOCX_TOO_LARGE`; DOCX files up to 100 MB, other files up to 10 MB)
+- `read_text_file({path})` -> string (TXT/SRT/VTT/CSV/DOCX only; text files are UTF-8 with BOM removed; a DOCX returns the plain text of `word/document.xml`: one line per paragraph, a table row on one line with non-empty cells joined by ", ", inserted text kept, deleted text, field codes, text boxes and `mc:Fallback` skipped; errors `INVALID_DOCX`, `DOCX_TOO_LARGE`, and `TEXT_FILE_TOO_LARGE` when the text passes 10 MB; DOCX files up to 100 MB, other files up to 10 MB; the command runs on a blocking thread; the bridge maps these codes to short Vietnamese messages)
 - `import_asset({path})` -> Asset (copies to app data by hash, original untouched)
 - `get_asset({id})` -> Asset (restore imported source playback)
 - `list_models` -> ModelInfo[]

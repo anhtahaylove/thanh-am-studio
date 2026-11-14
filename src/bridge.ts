@@ -7,8 +7,10 @@ export const desktop=isTauri();
 const KEY='thanh-am-preview-projects-v1',SETTINGS_KEY='thanh-am-preview-settings-v1';
 function projects():Project[]{try{return JSON.parse(localStorage.getItem(KEY)||'[]');}catch{return [];}}
 const persist=(list:Project[])=>localStorage.setItem(KEY,JSON.stringify(list));
+const ERRORS:Record<string,string>={INVALID_DOCX:'Không đọc được tệp Word này. Hãy mở bằng Word rồi lưu lại dạng .docx.',DOCX_TOO_LARGE:'Tệp quá lớn: phần chữ vượt 10 MB.',TEXT_FILE_TOO_LARGE:'Tệp quá lớn: phần chữ vượt 10 MB.',UNSUPPORTED_TEXT:'Định dạng tệp không được hỗ trợ.'};
+const friendly=(e:unknown)=>{const code=Object.keys(ERRORS).find(k=>String(e).startsWith(k));return code?Error(ERRORS[code]):e;};
 export async function call<T>(command:string,args:Record<string,unknown>={}):Promise<T>{
- if(desktop)return invoke<T>(command,args);
+ if(desktop)return invoke<T>(command,args).catch(e=>{throw friendly(e);});
  const list=projects();let result:unknown;
  switch(command){
  case 'list_projects':result=list.map(({id,name,updated_at,revision}):ProjectSummary=>({id,name,updated_at,revision}));break;
