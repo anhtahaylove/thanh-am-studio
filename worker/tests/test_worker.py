@@ -138,6 +138,14 @@ class WorkerTests(unittest.TestCase):
         with self.assertRaises(worker.WorkerError):
             worker.split_pauses('A [nghỉ 0] B')
 
+    def test_emotion_cues_are_left_to_the_engine_and_not_expected_as_words(self):
+        for cue in ['[cười]', '[thở dài]', '[hắng giọng]', '[chuckle]', '[Sigh]', '[clear throat]', '[cuoi]', '[tho dai]', '[hang giong]', '[ cười ]']:
+            with self.subTest(cue=cue):
+                self.assertEqual(worker.split_pauses(f'Nghe hay quá {cue}. [nghỉ 1s] Thôi.'), ([(f'Nghe hay quá {cue}.', 0.0), ('Thôi.', 1.0)], 0.0))
+                self.assertEqual(worker.words(f'Nghe hay {cue} quá'), ['nghe', 'hay', 'quá'])
+        self.assertEqual(worker.split_pauses('[cười]'), ([('[cười]', 0.0)], 0.0))
+        self.assertEqual(worker.words('Nghe [ghi chú] [thở  dài]'), ['nghe', 'ghi', 'chú', 'thở', 'dài'])
+
     def test_take_check_expects_no_words_of_any_pause_mark(self):
         self.assertEqual(worker.words('Xin [nghỉ] chào [pause 2 sec] bạn [nghi 1s][nghỉ abc]'), ['xin', 'chào', 'bạn'])
 
@@ -160,7 +168,7 @@ class WorkerTests(unittest.TestCase):
         read = worker.vietnamese_reading(g2p)
         self.assertEqual((read('y.'), read('y!'), read('y')), ('ˈi.', 'ˈi.', 'ˈi'))
         self.assertEqual(read('ok.'), 'ˌoʊkˈeɪ.')  # a real English word stays English
-        for kept in ['Vâng.', '<en>y</en>.', '[sigh]', '.', 'y a b c.']:  # accents, tags, cues, no words, long chunks: untouched
+        for kept in ['Vâng.', '<en>y</en>.', '[sigh]', 'y [cười].', '.', 'y a b c.']:  # accents, tags, cues, no words, long chunks: untouched
             self.assertEqual(read(kept), g2p(kept))
 
     def test_tts_reads_single_english_looking_words_in_vietnamese(self):

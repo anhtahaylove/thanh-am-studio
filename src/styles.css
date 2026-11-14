@@ -16,3 +16,4 @@ progress::-webkit-progress-value{background:var(--green)}
 /* The controls keep their size and wrap as a whole; the dub summary takes its own row under them. */
 .export-controls{flex-wrap:wrap;justify-content:flex-end;row-gap:6px}.export-controls>*{flex-shrink:0}.export-controls .check{white-space:nowrap}.waveform>span{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .dub-stats{font-size:11px;color:var(--muted);order:1;flex-basis:100%;text-align:right}
+.emotion-bar{display:flex;flex-wrap:wrap;gap:6px}.emotion-bar button{padding:6px 10px;font-size:11px}
