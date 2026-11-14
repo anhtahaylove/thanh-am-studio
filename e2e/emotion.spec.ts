@@ -24,24 +24,25 @@ test('emotion cue buttons insert at the cursor or over the selection and keep th
  await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();
  const box=page.getByRole('textbox',{name:'Nội dung đoạn 1'});
  const saved=()=>page.evaluate(()=>{const saves=(window as any).__calls.filter((c:any)=>c.cmd==='save_project');const s=saves.at(-1)?.args.project.segments[0];return s&&[s.text,s.normalized_text];});
- await box.click();await expect(page.getByRole('button',{name:'Cười',exact:true})).toHaveAttribute('title','Chèn [cười] tại con trỏ (thử nghiệm)');await page.keyboard.press('Control+Home');for(let i=0;i<8;i++)await page.keyboard.press('ArrowRight');
- await page.getByRole('button',{name:'Cười',exact:true}).click();
- await expect(box).toHaveValue('Nghe hay [cười] quá 50k nhé.');
- await expect.poll(saved).toEqual(['Nghe hay [cười] quá 50k nhé.','Nghe hay [cười] quá 50 nghìn nhé.']);
+ await box.click();await expect(page.getByRole('button',{name:'Thở dài',exact:true})).toHaveAttribute('title','Chèn [thở dài] tại con trỏ (thử nghiệm)');await expect(page.getByRole('button',{name:/^(Cười|Hắng giọng)$/})).toHaveCount(0);await page.keyboard.press('Control+Home');for(let i=0;i<8;i++)await page.keyboard.press('ArrowRight');
+ await page.getByRole('button',{name:'Thở dài',exact:true}).click();
+ await expect(box).toHaveValue('Nghe hay [thở dài] quá 50k nhé.');
+ await expect.poll(saved).toEqual(['Nghe hay [thở dài] quá 50k nhé.','Nghe hay [thở dài] quá 50 nghìn nhé.']);
  await box.press('Control+End');await page.getByRole('button',{name:'Thở dài',exact:true}).click();
- await expect(box).toHaveValue('Nghe hay [cười] quá 50k nhé. [thở dài] ');
- await box.press('Control+a');await page.getByRole('button',{name:'Hắng giọng',exact:true}).click();
- await expect(box).toHaveValue('[hắng giọng] ');
- await expect.poll(saved).toEqual(['[hắng giọng] ','[hắng giọng] ']);
- await page.keyboard.press('Control+z');await expect(box).not.toHaveValue('[hắng giọng] ');
+ await expect(box).toHaveValue('Nghe hay [thở dài] quá 50k nhé. [thở dài] ');
+ await box.press('Control+a');await page.getByRole('button',{name:'Thở dài',exact:true}).click();
+ await expect(box).toHaveValue('[thở dài] ');
+ await expect.poll(saved).toEqual(['[thở dài] ','[thở dài] ']);
+ await page.keyboard.press('Control+z');await expect(box).not.toHaveValue('[thở dài] ');
 });
 
 test('after an emotion or pause button the caret sits behind the inserted tag, so the next tag and typing follow it',async({page})=>{
  await open(page);const box=page.getByRole('textbox',{name:'Nội dung đoạn 1'});
  const at8=async()=>{await box.click();await page.keyboard.press('Control+Home');for(let i=0;i<8;i++)await page.keyboard.press('ArrowRight');};
- await at8();await page.getByRole('button',{name:'Cười',exact:true}).click();await page.getByRole('button',{name:'Thở dài',exact:true}).click();
- await expect(box).toHaveValue('Nghe hay [cười] [thở dài] quá 50k nhé.');await expect(box).toBeFocused();
- await page.keyboard.type('X');await expect(box).toHaveValue('Nghe hay [cười] [thở dài]X quá 50k nhé.');
+ const sigh=page.getByRole('button',{name:'Thở dài',exact:true});
+ await at8();await sigh.click();await sigh.click();
+ await expect(box).toHaveValue('Nghe hay [thở dài] [thở dài] quá 50k nhé.');await expect(box).toBeFocused();
+ await page.keyboard.type('X');await expect(box).toHaveValue('Nghe hay [thở dài] [thở dài]X quá 50k nhé.');
  await box.fill('Nghe hay quá 50k nhé.');await at8();
  const pause=page.getByRole('button',{name:'Chèn khoảng nghỉ 0,5 giây tại con trỏ'});
  await pause.click();await pause.click();
