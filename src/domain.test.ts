@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {dubPlan,dubSummary,takeTrim,progressLabel,jobProgressLabel,parseSubtitles,exportSubtitles,normalizeText,splitText,splitTranscript,mergeTranscript,clipDuration,validateRecipe,ttsTranscript,makeSegment,splitSegment,mergeSegments,restoreSnapshot,addTranscriptRow,validRange,replaceInTranscript,rowAt,spokenText,insertAtCursor,checkSummary,transcriptToScript,barState,speakerSlots,scriptChunks} from './domain';
+import {chapterFileName,chapterGroups,dubPlan,dubSummary,takeTrim,progressLabel,jobProgressLabel,parseSubtitles,exportSubtitles,normalizeText,splitText,splitTranscript,mergeTranscript,clipDuration,validateRecipe,ttsTranscript,makeSegment,splitSegment,mergeSegments,restoreSnapshot,addTranscriptRow,validRange,replaceInTranscript,rowAt,spokenText,insertAtCursor,checkSummary,transcriptToScript,barState,speakerSlots,scriptChunks} from './domain';
 import type {Project,Take} from './types';
 describe('subtitle and text contracts',()=>{
  it('reads BOM SRT and multiline Vietnamese',()=>{expect(parseSubtitles('\uFEFF1\r\n00:00:01,250 --> 00:00:03,500\r\nXin chào\r\nViệt Nam\r\n')).toMatchObject([{start_ms:1250,end_ms:3500,text:'Xin chào\nViệt Nam'}]);});
@@ -89,5 +89,47 @@ describe('transcript rows',()=>{
   const plain=(t:string)=>expect(scriptChunks(t).every(c=>c.speaker==='Người dẫn')).toBe(true);
   plain('Lưu ý: đọc chậm.\nCâu thứ hai.');plain('Lúc 8:30 sáng.\nHết giờ 9:45 rồi.');plain('Xem http://a.vn/x\nhttps://b.vn/y');plain(`${'a'.repeat(31)}: một\nMai2: hai\nlink www.x.vn: ba`);
   expect(scriptChunks('Lưu ý: đọc chậm.\nCâu thứ hai.').map(c=>c.text)).toEqual(['Lưu ý: đọc chậm.','Câu thứ hai.']);
+ });
+});
+describe('chapters',()=>{
+ const segs=(...ch:(string|null)[])=>ch.map((chapter,i)=>({...makeSegment(`Câu ${i+1}.`),chapter}));
+ it('a [P<digits>] line starts a chapter; a marker alone or with text on its line both work and are never spoken',()=>{
+  expect(scriptChunks('[P1]\nMột.\nHai.\n[ p2 ] Ba.\nBốn.')).toEqual([{speaker:'Người dẫn',text:'Một.',chapter:'P1'},{speaker:'Người dẫn',text:'Hai.'},{speaker:'Người dẫn',text:'Ba.',chapter:'P2'},{speaker:'Người dẫn',text:'Bốn.'}]);
+  expect(scriptChunks('[P01] Mở đầu.').map(c=>c.chapter)).toEqual(['P01']);
+ });
+ it('only a marker at the start of a line counts, and text without markers is unchanged',()=>{
+  expect(scriptChunks('Xem [P1] ở trên.\n[Mục P1] khác.\n[P1x] không phải.')).toEqual([{speaker:'Người dẫn',text:'Xem [P1] ở trên.'},{speaker:'Người dẫn',text:'[Mục P1] khác.'},{speaker:'Người dẫn',text:'[P1x] không phải.'}]);
+  expect(scriptChunks('Một.\nHai.').some(c=>'chapter' in c)).toBe(false);
+ });
+ it('a marker keeps the current speaker, can carry a "Tên: lời" line, and waits for the next text when empty',()=>{
+  expect(scriptChunks('Mai: Chào.\n[P1]\nAnh khỏe chứ?\n[P2] Nam: Khỏe.\n[P3]\n[P4]\nHết.')).toEqual([
+   {speaker:'Mai',text:'Chào.'},{speaker:'Mai',text:'Anh khỏe chứ?',chapter:'P1'},{speaker:'Nam',text:'Khỏe.',chapter:'P2'},{speaker:'Nam',text:'Hết.',chapter:'P4'}]);
+ });
+ it('groups segments by their nearest chapter start, with the lead-in as P0, and none without markers',()=>{
+  expect(chapterGroups(segs(null,null))).toEqual([]);
+  expect(chapterGroups(segs(null,'P1',null,'P2')).map(g=>[g.label,g.segments.length])).toEqual([['P0',1],['P1',2],['P2',1]]);
+  expect(chapterGroups(segs('P1',null,'  ')).map(g=>[g.label,g.segments.length])).toEqual([['P1',3]]);
+ });
+ it('names chapter files with a 3-digit order and a sanitized label',()=>{
+  expect([chapterFileName(1,'P1'),chapterFileName(12,'Chương 3: Mở/đầu?'),chapterFileName(2,'***'),chapterFileName(3,'a_b-c')]).toEqual(['001-P1','012-Chương_3_Mởđầu','002','003-a_b-c']);
+ });
+ it('file names compose decomposed labels and cap the label part',()=>{
+  const nfd='Chương Mở đầu'.normalize('NFD');expect(nfd).not.toBe(nfd.normalize('NFC'));
+  expect(chapterFileName(1,nfd)).toBe('001-Chương_Mở_đầu');
+  expect(chapterFileName(1,'x'.repeat(300))).toBe('001-'+'x'.repeat(80));
+ });
+ it('a marker right after a speaker label, or followed by a colon, is stripped and never spoken',()=>{
+  expect(scriptChunks('Lan: [P1] Xin chào.\nMai: Chào.')).toEqual([{speaker:'Lan',text:'Xin chào.',chapter:'P1'},{speaker:'Mai',text:'Chào.'}]);
+  expect(scriptChunks('[P1]: Xin chào.')).toEqual([{speaker:'Người dẫn',text:'Xin chào.',chapter:'P1'}]);
+  expect(scriptChunks('[P2]：Hai.')).toEqual([{speaker:'Người dẫn',text:'Hai.',chapter:'P2'}]);
+  // a lone label stays text (needs two labels), but the marker still goes
+  expect(scriptChunks('Lan: [P3] Xin chào.')).toEqual([{speaker:'Người dẫn',text:'Lan: Xin chào.',chapter:'P3'}]);
+  // a marker later in the text is still just text
+  expect(scriptChunks('Lan: Xem [P1] ở trên.\nMai: Vâng.')).toEqual([{speaker:'Lan',text:'Xem [P1] ở trên.'},{speaker:'Mai',text:'Vâng.'}]);
+ });
+ it('split gives the chapter to the first half only; merge keeps the first chapter',()=>{
+  const s={...makeSegment('Xin chào bạn. Tôi là Mai.'),chapter:'P2'};const [a,b]=splitSegment(s,'Xin chào bạn.'.length);
+  expect(a.chapter).toBe('P2');expect(b.chapter).toBeUndefined();
+  expect(mergeSegments(a,{...b,chapter:'P3'}).chapter).toBe('P2');
  });
 });
