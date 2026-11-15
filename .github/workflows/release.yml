@@ -1,6 +1,6 @@
 name: release
 # Builds the Windows installer with the bundled runtime from the tagged revision and
-# attaches it, its SHA-256, the SBOM and third-party notices to a DRAFT release.
+# attaches it, its SHA-256, the update feed (latest.json), the SBOM and third-party notices to a DRAFT release.
 on:
   push:
     tags: ['v*']
@@ -27,12 +27,32 @@ jobs:
       # tauri-build needs the bundled resources to exist, so test after the runtime is built.
       - run: cargo test --manifest-path src-tauri/Cargo.toml --tests --locked
       - run: npm run tauri build -- --ci
-      - name: Checksums
+        env:
+          # Signs the installer for the in-app updater; the public key is in tauri.conf.json.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      - name: Update feed and checksums
         shell: pwsh
         run: |
           $exe = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe
           # GitHub renames assets with spaces/diacritics, so ship an ASCII name that SHA256SUMS can match.
-          Copy-Item $exe.FullName (Join-Path release ('ThanhAmStudio_' + ($exe.Name -replace '^.*?_', '')))
+          $name = 'ThanhAmStudio_' + ($exe.Name -replace '^.*?_', '')
+          Copy-Item $exe.FullName (Join-Path release $name)
+          # The in-app updater reads latest.json from the newest published release; its notes are the
+          # bundled Vietnamese changelog entry, and the signature must name the tagged version.
+          $version = $env:GITHUB_REF_NAME.TrimStart('v')
+          if ($version -ne (Get-Content package.json -Raw | ConvertFrom-Json).version) { throw "tag $env:GITHUB_REF_NAME does not match package.json" }
+          $entry = Get-Content src/changelog.vi.json -Raw -Encoding utf8 | ConvertFrom-Json | Where-Object version -eq $version
+          if (-not $entry) { throw "src/changelog.vi.json has no entry for $version" }
+          $feed = [ordered]@{
+            version = $version
+            notes = ($entry.changes | ForEach-Object { "- $_" }) -join "`n"
+            pub_date = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+            platforms = @{ 'windows-x86_64' = [ordered]@{
+              signature = (Get-Content "$($exe.FullName).sig" -Raw).Trim()
+              url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:GITHUB_REF_NAME/$name" } }
+          }
+          [IO.File]::WriteAllText((Join-Path $PWD 'release/latest.json'), ($feed | ConvertTo-Json -Depth 4))
           # LF line endings so `sha256sum -c SHA256SUMS.txt` works as published.
           $sums = Get-ChildItem release -File | Get-FileHash -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" }
           [IO.File]::WriteAllText((Join-Path $PWD 'release/SHA256SUMS.txt'), (($sums -join "`n") + "`n"))

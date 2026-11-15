@@ -1,0 +1,28 @@
+[
+ {"version": "1.0.11", "date": "", "changes": [
+  "App tự kiểm tra bản mới, tải sẵn ở chế độ nền và cài khi bạn đóng cửa sổ. Mỗi bản cập nhật được kiểm chữ ký trước khi cài; dự án, take và model được giữ nguyên. Tắt được trong Model & cài đặt.",
+  "Mục “Có gì mới” tự mở một lần sau mỗi lần cập nhật và xem lại được trong Model & cài đặt.",
+  "Phím Space phát hoặc dừng take của đoạn đang chọn (khi không gõ chữ).",
+  "Chọn tốc độ nghe từ 0,75× đến 2× khi rà bản chép lời; tệp gốc không đổi.",
+  "Sau khi lưu tệp, bấm “Mở thư mục” để thấy tệp trong Explorer.",
+  "Đóng app khi còn việc đang chạy sẽ hỏi lại trước."
+ ]},
+ {"version": "1.0.10", "date": "2026-11-15", "changes": [
+  "Phụ đề của đoạn dài bắt đầu đúng lúc giọng đọc tới câu đó, với take tạo khi bật “Tự kiểm bằng Whisper” (sai lệch trung vị còn khoảng 50 ms thay vì khoảng 190 ms).",
+  "Take đọc nhanh hoặc chậm hơn 1× chỉ bị kéo giãn một lần khi phải vừa mốc phụ đề, nên tiếng sạch hơn."
+ ]},
+ {"version": "1.0.9", "date": "2026-11-15", "changes": [
+  "Thanh âm thanh biểu cảm chỉ còn nút Thở dài: nút Cười và Hắng giọng được bỏ vì gần như không tạo ra âm thanh nghe được. Gõ tay [cười] hay [hắng giọng] vẫn dùng được."
+ ]},
+ {"version": "1.0.8", "date": "2026-11-14", "changes": [
+  "Xuất audio ngay sau khi tạo giọng không còn báo thiếu take.",
+  "Con trỏ đứng ngay sau thẻ vừa chèn, gõ tiếp được luôn.",
+  "Thẻ nghỉ viết sai được bỏ qua mà không để lại khoảng trắng thừa."
+ ]},
+ {"version": "1.0.7", "date": "2026-11-14", "changes": [
+  "Nhập kịch bản từ tệp Word (.docx), giữ tên người nói như “Lan: …”.",
+  "Thêm cách viết khoảng nghỉ: [nghỉ], [nghi 2s], [pause 2s].",
+  "Đánh dấu chương bằng [P1], [P2] ở đầu dòng để xuất mỗi chương một tệp.",
+  "Nút chèn âm thanh biểu cảm tại con trỏ (thử nghiệm)."
+ ]}
+]

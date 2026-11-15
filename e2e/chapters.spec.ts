@@ -44,7 +44,7 @@ test('one render job per chapter with numbered names, and the queue saves them a
  await page.getByRole('button',{name:'Lưu audio'}).first().click();
  expect((await calls(page,'plugin:dialog|save')).at(-1).options.defaultPath).toMatch(/^002-P2\.wav$/);
  await page.getByRole('button',{name:'Lưu tất cả chương'}).click();
- await expect(page.getByRole('status')).toContainText('Đã lưu 1/2 chương. Bỏ qua vì đã có tệp trùng tên: 002-P2.wav.');
+ await expect(page.getByRole('status').filter({hasText:'chương'})).toContainText('Đã lưu 1/2 chương. Bỏ qua vì đã có tệp trùng tên: 002-P2.wav.');
  expect((await calls(page,'export_asset_new')).map((c:any)=>c.path)).toEqual(['C:\\Xuất\\001-P1.wav','C:\\Xuất\\002-P2.wav']);
 });
 
