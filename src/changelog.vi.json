@@ -5,7 +5,9 @@
   "Phím Space phát hoặc dừng take của đoạn đang chọn (khi không gõ chữ).",
   "Chọn tốc độ nghe từ 0,75× đến 2× khi rà bản chép lời; tệp gốc không đổi.",
   "Sau khi lưu tệp, bấm “Mở thư mục” để thấy tệp trong Explorer.",
-  "Đóng app khi còn việc đang chạy sẽ hỏi lại trước."
+  "Đóng app khi còn việc đang chạy sẽ hỏi lại trước.",
+  "Văn bản chép từ sách đọc trơn hơn: dấu chú thích như [1], chữ số mũ và dòng ngắt cảnh (***) được bỏ qua trước khi đọc, và phần xem trước hiện ngay kết quả.",
+  "Lưu tệp và tải model tự thử lại một lúc khi phần mềm diệt virus tạm khoá tệp vừa ghi, nên ít báo lỗi hơn."
  ]},
  {"version": "1.0.10", "date": "2026-11-15", "changes": [
   "Phụ đề của đoạn dài bắt đầu đúng lúc giọng đọc tới câu đó, với take tạo khi bật “Tự kiểm bằng Whisper” (sai lệch trung vị còn khoảng 50 ms thay vì khoảng 190 ms).",
