@@ -138,10 +138,13 @@ def check_take(path, text, model_dir):
             _CHECKERS[model_dir] = WhisperModel(str(model_dir), device='cpu', compute_type='int8',
                 cpu_threads=min(8, os.cpu_count() or 4), local_files_only=True)
         segments, _ = _CHECKERS[model_dir].transcribe(str(path), language='vi', beam_size=5,
-            condition_on_previous_text=False)
+            condition_on_previous_text=False, word_timestamps=True)
+        segments = list(segments)
         heard = ' '.join(s.text.strip() for s in segments)
         wer, mismatches = compare_words(text, heard)
-        return {'model': 'whisper-small', 'wer': wer, 'heard': heard, 'mismatches': mismatches}
+        # Where each heard word starts in the take; the app times subtitle cues inside the segment from these.
+        timed = [{'text': w.word.strip(), 'start_ms': round(w.start * 1000)} for s in segments for w in s.words or []]
+        return {'model': 'whisper-small', 'wer': wer, 'heard': heard, 'mismatches': mismatches, 'words': timed}
     except Exception as error:  # noqa: BLE001 - the take is still valid without a check
         return {'model': 'whisper-small', 'error': str(error)[:300]}
 

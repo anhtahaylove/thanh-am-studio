@@ -174,5 +174,28 @@ export function dubSummary(segments:Segment[]):string{
  const secs=(r.max_push_ms/1000).toLocaleString('vi-VN',{maximumFractionDigits:2});
  return `${r.sped_up} đoạn đọc nhanh hơn · ${r.pushed} đoạn bị lùi${r.pushed?` (tối đa ${secs} s)`:''}`;
 }
-/** Subtitle rows for the rendered takes: each segment's text in readable cues sharing the take's time by character count (proportional, not measured); with `dub`, at the takes' places on the subtitle timeline, each shown at least as long as its cue. */
-export function ttsTranscript(clips:(Recipe&DubCue&{text:string})[],dub=false):TranscriptSegment[]{let time=0;const plan=dub?dubPlan(clips).places:null;return clips.flatMap((c,i)=>{let start=time;time+=clipDuration(c);let end=time-c.gap_ms;if(plan){start=plan[i].at_ms;end=Math.min(plan[i+1]?.at_ms??Infinity,Math.max(plan[i].end_ms,start+(c.cue_end_ms??0)-(c.cue_start_ms??0)));}const cues=cuePieces(spokenText(c.text)),total=cues.reduce((n,q)=>n+q.length,0);let at=start,chars=0;return cues.map(q=>{const start_ms=at;chars+=q.length;at=Math.round(start+(end-start)*chars/total);return {id:uid(),start_ms,end_ms:at,text:wrapCue(q)};});});}
+/** Lowercase words of a script or of what Whisper heard, for matching the two. */
+const wordTokens=(text:string)=>text.normalize('NFC').toLowerCase().match(/[\p{L}\p{N}]+/gu)??[];
+/** Matches script words to heard words in order (longest common subsequence): for each script word the index of its heard word token, or -1, and every heard token's start (ms). */
+export function matchWords(script:string[],heard:{text:string;start_ms:number}[]):{match:number[];starts:number[]}{
+ const h=heard.flatMap(w=>wordTokens(w.text).map(t=>[t,w.start_ms] as const)),n=script.length,m=h.length,match:number[]=Array(n).fill(-1),starts=h.map(x=>x[1]);
+ if(!n||!m||n*m>4e6)return {match,starts}; // shortcut: a very long segment keeps character-count timing
+ const L=new Int32Array((n+1)*(m+1)),at=(i:number,j:number)=>i*(m+1)+j;
+ for(let i=n-1;i>=0;i--)for(let j=m-1;j>=0;j--)L[at(i,j)]=script[i]===h[j][0]?L[at(i+1,j+1)]+1:Math.max(L[at(i+1,j)],L[at(i,j+1)]);
+ for(let i=0,j=0;i<n&&j<m;)if(script[i]===h[j][0])match[i++]=j++;else if(L[at(i+1,j)]>=L[at(i,j+1)])i++;else j++;
+ return {match,starts};
+}
+/** Subtitle rows for the rendered takes: each segment's text in readable cues; a cue starts where the self-check heard its first word (`words`, take time) and the other cue edges share the time between those by character count; with `dub`, at the takes' places on the subtitle timeline, each shown at least as long as its cue. */
+export function ttsTranscript(clips:(Recipe&DubCue&{text:string;words?:{text:string;start_ms:number}[]})[],dub=false):TranscriptSegment[]{let time=0;const plan=dub?dubPlan(clips).places:null;return clips.flatMap((c,i)=>{let start=time;time+=clipDuration(c);let end=time-c.gap_ms;if(plan){start=plan[i].at_ms;end=Math.min(plan[i+1]?.at_ms??Infinity,Math.max(plan[i].end_ms,start+(c.cue_end_ms??0)-(c.cue_start_ms??0)));}
+ const cues=cuePieces(spokenText(c.text)),total=cues.reduce((n,q)=>n+q.length,0),tokens=cues.map(wordTokens),{match,starts}=matchWords(c.words?.length?tokens.flat():[],c.words??[]),rate=plan?.[i].rate??1,share=(end-start)/total/2;
+ // [characters before a cue, its start]: the segment's edges and the measured cue starts. A cue's first word counts only when
+ // a neighbouring word matched the neighbouring heard word too (a lone match may be the same word elsewhere), and only when
+ // the cues before and after it keep at least half the time their characters would get. A misheard first word ("hy" heard as
+ // "hi") is the one unmatched heard word between a matched word and the cue's next two words.
+ const anchors:[number,number][]=[[0,start]];let chars=0,k=0;
+ cues.forEach((q,n)=>{const f=k,next=match[f+1]??-1,misheard=match[f]<0&&tokens[n].length>2&&next>0&&match[f+2]===next+1&&!match.includes(next-1)&&(next===1||match.includes(next-2)),j=misheard?next-1:match[f];k+=tokens[n].length;
+  if(n&&tokens[n].length&&j>=0&&(match[f+1]===j+1||match[f-1]===j-1)){const t=start+(starts[j]-c.trim_start_ms)/rate,[c0,t0]=anchors[anchors.length-1];if(t-t0>=(chars-c0)*share&&end-t>=(total-chars)*share)anchors.push([chars,t]);}
+  chars+=q.length;});
+ anchors.push([total,end]);
+ const timeAt=(ch:number)=>{const z=anchors.findIndex(a=>a[0]>=ch),[c0,t0]=anchors[z-1]??anchors[z],[c1,t1]=anchors[z];return c1===c0?t1:t0+(t1-t0)*(ch-c0)/(c1-c0);};
+ let at=start;chars=0;return cues.map(q=>{const start_ms=at;chars+=q.length;at=Math.round(timeAt(chars));return {id:uid(),start_ms,end_ms:at,text:wrapCue(q)};});});}

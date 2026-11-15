@@ -86,6 +86,14 @@ Last updated 2026-11-14. Evidence below was observed, not inferred; anything not
   and with eight parts between pause marks at 0.85x every part stays in place (at most 4 of the 10 ms frames differ from
   the twice-stretched render; 93 when only the pauses were scaled, which an independent review caught). Takes made before
   1.0.10, or whose reading file is gone, are still stretched twice.
+- Added for v1.0.10: TTS subtitles start a cue inside a segment where the self-check heard its first word (Whisper
+  Small word times, kept on the take; only takes made with "Tự kiểm bằng Whisper" on have them). A heard word counts only
+  when a neighbouring word matches too; a misheard first word is timed when it is the one unmatched heard word between
+  matches; a start that would leave a neighbouring cue under half its character share is dropped (an independent review
+  found a repeated common word starting the wrong cue). Other cue edges share the time between those by character count.
+  On 132 sentence-start cue edges in 60 takes (6 voices; reference: the energy onset after the pause before the sentence;
+  `work\cue-timing`): error median 50 ms, p90 234 ms, 90 % within 250 ms, against 188 ms, 581 ms and 64 % by character
+  count. The 70 % of edges timed directly from a heard word: median 30 ms, p90 100 ms.
 
 ## Verification (2026-11-11)
 
@@ -801,8 +809,9 @@ Evidence: `work\release-v1.0.9-sandbox` (`run41`; `run42a`, `run42b` for the old
 - Installers are unsigned (SmartScreen warning); the SignPath Foundation application was submitted
   on 2026-11-13 and awaits their reply ([SIGNING.md](SIGNING.md)). CUDA is not enabled.
 - Preview does not apply loudness normalization; export does when "Chuẩn hóa" is on.
-- TTS subtitle cues inside one segment are timed by character count, not measured, so they can be off by
-  a few hundred ms; the segment boundaries are exact. The overlap chip is a hint (recall 0.46 on AMI) and
+- TTS subtitle cues inside one segment are timed from heard words only for takes made with the self-check on;
+  without it, cue edges inside a segment fall by character count (median 188 ms, p90 581 ms off in the measurement
+  above). The segment boundaries are exact. The overlap chip is a hint (recall 0.46 on AMI) and
   names the right second speaker for only about a third of the marked rows.
 - Emotion cues are experimental in the model and nobody has listened to them. A machine check of 36 pairs (6 preset
   voices, each cue at the end and in the middle, the same text with and without the cue; `work\emotion-cues-listening`)
