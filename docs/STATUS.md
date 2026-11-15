@@ -78,6 +78,14 @@ Last updated 2026-11-14. Evidence below was observed, not inferred; anything not
 - Added for v1.0.9: only the sigh keeps a button. A sound-event tagger trained on AudioSet (AST) heard the target
   sound in 13 of 36 takes with `[thở dài]` (Sigh up to 0.87), 0 of 36 with `[cười]` (Laughter at most 0.09) and 3 of
   36 with `[hắng giọng]`, so the laugh and throat-clearing buttons are gone; those tags still work when typed.
+- Added for v1.0.10: a take read at another speed (0.85-1.2x) also keeps its reading before the speed change (a second
+  asset; each spoken part starts where its stretched part starts in the take, times the speed, because atempo returns
+  17-28 ms less than length / speed for a part that ends in silence); when "Theo mốc phụ đề" has to speed the take up to
+  fit its cue, the render stretches that reading once by speed x fit rate instead of stretching the take a second time.
+  Worker tests: the render matches one stretch of the same chirp (RMS difference under 0.001; 0.225 with two stretches),
+  and with eight parts between pause marks at 0.85x every part stays in place (at most 4 of the 10 ms frames differ from
+  the twice-stretched render; 93 when only the pauses were scaled, which an independent review caught). Takes made before
+  1.0.10, or whose reading file is gone, are still stretched twice.
 
 ## Verification (2026-11-11)
 
@@ -796,7 +804,6 @@ Evidence: `work\release-v1.0.9-sandbox` (`run41`; `run42a`, `run42b` for the old
 - TTS subtitle cues inside one segment are timed by character count, not measured, so they can be off by
   a few hundred ms; the segment boundaries are exact. The overlap chip is a hint (recall 0.46 on AMI) and
   names the right second speaker for only about a third of the marked rows.
-- A take synthesized at a speed other than 1 is stretched a second time when it has to fit its subtitle cue.
 - Emotion cues are experimental in the model and nobody has listened to them. A machine check of 36 pairs (6 preset
   voices, each cue at the end and in the middle, the same text with and without the cue; `work\emotion-cues-listening`)
   found the engine token in every cued text, no cue read aloud as a word, cued takes 0.3-0.6 s longer on average and

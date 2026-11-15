@@ -110,6 +110,12 @@ fn render_timeline_places_are_bounded_and_forwarded_only_when_asked(){
  assert_eq!((&r["payload"]["clips"][0]["at_ms"],&r["payload"]["clips"][0]["rate"],&r["payload"]["pad_to_ms"],&r["payload"]["timeline"]),(&json!(2500.0),&json!(1.25),&json!(4000.0),&json!(true)));
  let plain=prepare_request(&s,&job(json!({"segments":[seg(json!(2500),json!(1.25))]})),None).unwrap();
  assert!(plain["payload"]["clips"][0].get("at_ms").is_none()&&plain["payload"]["pad_to_ms"].is_null());
+ let raw=t.path().join("raw.wav");std::fs::write(&raw,b"RIFF1111WAVE").unwrap();let ra=s.import_asset(&raw).unwrap();
+ let sped=|speed:serde_json::Value|json!({"selected_take_id":"t1","takes":[{"id":"t1","asset_id":a["id"],"raw_asset_id":ra["id"],"speed":speed}],"gap_ms":0,"dub_at_ms":0,"dub_rate":1.5});
+ let r=prepare_request(&s,&job(json!({"segments":[sped(json!(1.25))],"timeline":true,"pad_to_ms":0})),None).unwrap();
+ assert_eq!((&r["payload"]["clips"][0]["raw_path"],&r["payload"]["clips"][0]["speed"]),(&ra["path"],&json!(1.25)));
+ std::fs::remove_file(ra["path"].as_str().unwrap()).unwrap();let gone=prepare_request(&s,&job(json!({"segments":[sped(json!(1.25))],"timeline":true,"pad_to_ms":0})),None).unwrap();assert!(gone["payload"]["clips"][0].get("raw_path").is_none()); // a lost file: stretched twice as before
+ for (v,timeline) in [(json!(1.25),false),(json!(5.0),true)]{let r=prepare_request(&s,&job(json!({"segments":[sped(v)],"timeline":timeline,"pad_to_ms":0})),None).unwrap();assert!(r["payload"]["clips"][0].get("raw_path").is_none());}
  for (at,rate,pad) in [(json!(-1),json!(1.0),json!(0)),(json!(0),json!(0.5),json!(0)),(json!(0),json!(3.0),json!(0)),(json!(null),json!(1.0),json!(0)),(json!(0),json!(1.0),json!(null))]{
   assert_eq!(prepare_request(&s,&job(json!({"segments":[seg(at,rate)],"timeline":true,"pad_to_ms":pad})),None).unwrap_err(),"INVALID_TIMELINE");
  }

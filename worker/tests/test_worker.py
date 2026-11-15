@@ -219,6 +219,29 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual([(r['speech_start_ms'], r['speech_end_ms'], r['duration_ms']) for r in results],
                          [(120, 780, 1000), (0, None, 1800)])
 
+    def test_tts_at_another_speed_keeps_the_reading_before_the_speed_change(self):
+        import numpy as np
+        from types import SimpleNamespace
+        from unittest import mock
+        written = {}
+        fakes = {'vieneu': SimpleNamespace(Vieneu=lambda **k: SimpleNamespace(infer=lambda text, **kw: np.full(4800, 0.3, dtype=np.float32))),
+                 'vieneu.v3turbo': SimpleNamespace(phonemize_text_with_emotions=lambda text: text),
+                 'vieneu._v3_turbo_engine': mock.Mock(),
+                 'vieneu._v3_turbo_engine.onnx_runtime_lite': SimpleNamespace(OnnxV3LiteEngine=mock.Mock()),
+                 'soundfile': SimpleNamespace(write=lambda path, data, *a, **k: (written.__setitem__(Path(path).name, len(data)), Path(path).write_bytes(b'RIFF')))}
+        with tempfile.TemporaryDirectory() as td, mock.patch.object(worker, 'verify_model'), mock.patch.object(worker, 'offline_mode'), \
+                mock.patch.object(worker, 'executable', return_value='ffmpeg'), mock.patch.object(worker, 'stretch', lambda a, speed, ff: a[::2]), \
+                mock.patch.dict(sys.modules, fakes):
+            text = '[nghỉ 0.5s] Xin chào. [nghỉ 0.2s]'
+            fast = worker.tts({'model_path': td, 'text': text, 'speed': 2, 'output_name': 'a.wav'}, Path(td) / 'out', lambda *a: None)
+            plain = worker.tts({'model_path': td, 'text': text, 'output_name': 'b.wav'}, Path(td) / 'out', lambda *a: None)
+            self.assertTrue(Path(fast['raw_path']).is_file())
+        # Take: 0.5 s, the reading at 2x (2400 samples), 0.2 s. Before the change: pauses x2 around the 4800-sample reading.
+        self.assertEqual((written['a.partial.wav'], written['a.raw.partial.wav'], Path(fast['raw_path']).name, fast['speed']),
+                         (24000 + 2400 + 9600, 48000 + 4800 + 19200, 'a.raw.wav', 2))
+        self.assertNotIn('raw_path', plain)
+        self.assertNotIn('b.raw.partial.wav', written)
+
     def test_real_g2p_reads_a_lone_y_as_the_vietnamese_letter(self):
         try:
             from vieneu_utils.phonemize_text import phonemize_text_with_emotions as g2p
@@ -367,6 +390,55 @@ class WorkerTests(unittest.TestCase):
         self.assertAlmostEqual(len(audio) / 48, 3500, delta=2)
         self.assertTrue(ms(520, 1480).all() and ms(2020, 2780).all())
         self.assertFalse(ms(0, 480).any() or ms(1520, 1980).any() or ms(2820, 3500).any())
+
+    @unittest.skipUnless(shutil.which('ffmpeg'), 'FFmpeg required for actual render test')
+    def test_actual_render_fits_a_sped_up_take_to_its_cue_with_one_stretch(self):
+        import numpy as np
+        import soundfile as sf
+        ffmpeg = shutil.which('ffmpeg')
+        t = np.arange(48000) / 48000
+        reading = (0.4 * np.sin(2 * np.pi * (150 + 400 * t) * t) * (1 + np.sin(2 * np.pi * 3 * t)) / 2).astype(np.float32)
+        take = worker.stretch(reading, 1.25, ffmpeg)  # what TTS wrote at speed 1.25
+        with tempfile.TemporaryDirectory() as td:
+            sf.write(str(Path(td) / 'take.wav'), take, 48000, subtype='FLOAT')
+            sf.write(str(Path(td) / 'raw.wav'), reading, 48000, subtype='FLOAT')
+            clip = {'path': str(Path(td) / 'take.wav'), 'raw_path': str(Path(td) / 'raw.wav'), 'speed': 1.25,
+                    'trim_start_ms': 0, 'trim_end_ms': None, 'at_ms': 0, 'rate': 1.5}
+            result = worker.render({'clips': [clip], 'normalize': False, 'format': 'wav', 'timeline': True, 'pad_to_ms': 0},
+                Path(td), lambda *_: None)
+            out, _ = sf.read(result['path'], dtype='float32')
+        once, twice = worker.stretch(reading, 1.875, ffmpeg), worker.stretch(take, 1.5, ffmpeg)
+        n = min(len(out), len(once), len(twice)) - 2400
+        error = lambda ref: float(np.sqrt(np.mean((out[:n] - ref[:n]) ** 2)))
+        self.assertAlmostEqual(len(out) / 48, 1000 / 1.875, delta=5)
+        self.assertLess(error(once), 1e-3)
+        self.assertGreater(error(twice), 1e-2)
+
+    @unittest.skipUnless(shutil.which('ffmpeg'), 'FFmpeg required for actual render test')
+    def test_actual_render_of_a_sped_up_take_with_many_pauses_keeps_every_part_in_place(self):
+        import numpy as np
+        import soundfile as sf
+        from types import SimpleNamespace
+        from unittest import mock
+        # Each spoken part: 0.8 s of sound and 0.2 s of silence, like a TTS reading; atempo shortens such a part by 17-28 ms.
+        reading = np.concatenate([0.4 * np.sin(2 * np.pi * 220 * np.arange(38400) / 48000), np.zeros(9600)]).astype(np.float32)
+        fakes = {'vieneu': SimpleNamespace(Vieneu=lambda **k: SimpleNamespace(infer=lambda text, **kw: reading)),
+                 'vieneu.v3turbo': SimpleNamespace(phonemize_text_with_emotions=lambda text: text),
+                 'vieneu._v3_turbo_engine': mock.Mock(),
+                 'vieneu._v3_turbo_engine.onnx_runtime_lite': SimpleNamespace(OnnxV3LiteEngine=mock.Mock())}
+        with tempfile.TemporaryDirectory() as td, mock.patch.object(worker, 'verify_model'), mock.patch.object(worker, 'offline_mode'), \
+                mock.patch.dict(sys.modules, fakes):
+            take = worker.tts({'model_path': td, 'text': ' [nghỉ 0.3s] '.join(['Câu.'] * 8), 'speed': 0.85, 'output_name': 'a.wav'},
+                Path(td) / 'out', lambda *a: None)
+            clip = {'path': take['path'], 'trim_start_ms': take['speech_start_ms'], 'trim_end_ms': take['speech_end_ms'], 'at_ms': 0, 'rate': 1.5}
+            once, twice = (sf.read(worker.render({'clips': [c], 'normalize': False, 'format': 'wav', 'timeline': True, 'pad_to_ms': 0},
+                Path(td), lambda *_: None)['path'], dtype='float32')[0] for c in ({**clip, 'raw_path': take['raw_path'], 'speed': 0.85}, clip))
+        loud = lambda a: np.abs(a[:len(a) // 480 * 480]).reshape(-1, 480).max(axis=1) > 0.05  # 10 ms frames
+        a, b = loud(once), loud(twice)
+        n = min(len(a), len(b))
+        # One stretch must keep the parts where two stretches put them (the same 10 ms frames loud) and keep the last one whole.
+        self.assertLessEqual(int(np.sum(a[:n] != b[:n])), 4)
+        self.assertGreaterEqual(np.flatnonzero(a)[-1], np.flatnonzero(b)[-1] - 1)
 
     @unittest.skipUnless(shutil.which('ffmpeg'), 'FFmpeg required for actual render test')
     def test_actual_render_trim_gap_fade_atomic_output(self):

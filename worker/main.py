@@ -185,8 +185,9 @@ def speech_edges(audio, keep_start=False, keep_end=False):
     return round(start / 48), None if end >= len(audio) else round(end / 48)
 
 
-def limit_peak(audio):
-    peak = float(abs(audio).max())
+def limit_peak(audio, peak=None):
+    """Scale audio down so its peak (or the given one, to scale two files alike) stays under PEAK_CEILING."""
+    peak = float(abs(audio).max()) if peak is None else peak
     return audio * (PEAK_CEILING / peak) if peak > PEAK_CEILING else audio
 
 
@@ -275,23 +276,26 @@ def render(payload, output_dir: Path, progress):
             for i, clip in enumerate(clips):
                 info = probe(clip['path'], ffmpeg)
                 recipe = clip_recipe(clip, info['duration_ms'])
-                length = recipe['duration_ms'] / 1000
-                filters = [f"atrim=start={recipe['start_ms']/1000}:duration={length}", 'asetpts=PTS-STARTPTS',
+                rate = number(clip.get('rate', 1), 'rate', 1, 2) if timeline else 1
+                # A take read at another speed fits its cue from its reading before the speed change: one stretch, not two.
+                source, scale = ((clip['raw_path'], number(clip.get('speed'), 'speed', 0.5, 2))
+                    if rate != 1 and clip.get('raw_path') else (clip['path'], 1))
+                length = recipe['duration_ms'] / 1000 * scale
+                filters = [f"atrim=start={recipe['start_ms']/1000*scale}:duration={length}", 'asetpts=PTS-STARTPTS',
                     'aresample=48000', 'aformat=sample_fmts=flt:channel_layouts=mono', f"volume={recipe['gain_db']}dB"]
                 if recipe['fade_in_ms']:
-                    filters.append(f"afade=t=in:st=0:d={recipe['fade_in_ms']/1000}")
+                    filters.append(f"afade=t=in:st=0:d={recipe['fade_in_ms']/1000*scale}")
                 if recipe['fade_out_ms']:
-                    fade = recipe['fade_out_ms'] / 1000
+                    fade = recipe['fade_out_ms'] / 1000 * scale
                     filters.append(f'afade=t=out:st={max(0,length-fade)}:d={fade}')
                 if timeline:
-                    rate = number(clip.get('rate', 1), 'rate', 1, 2)
                     wait = max(0, round(number(clip.get('at_ms'), 'at_ms', 0, 86400000) * 48) - written)
-                    filters += [f'atempo={rate}'] * (rate != 1) + [f'adelay=delays={wait}S:all=1'] * (wait > 0)
+                    filters += [f'atempo={rate*scale}'] * (rate * scale != 1) + [f'adelay=delays={wait}S:all=1'] * (wait > 0)
                     if i == len(clips) - 1 and pad_to > written:
                         filters.append(f'apad=whole_len={pad_to - written}')
                 elif recipe['gap_ms']:
                     filters.append(f"apad=pad_dur={recipe['gap_ms']/1000}")
-                run_process([ffmpeg, '-nostdin', '-hide_banner', '-loglevel', 'error', '-y', '-i', clip['path'],
+                run_process([ffmpeg, '-nostdin', '-hide_banner', '-loglevel', 'error', '-y', '-i', source,
                     '-vn', '-af', ','.join(filters), '-c:a', 'pcm_f32le', str(temp / f'{i:06d}.wav')])
                 if timeline:
                     import soundfile as sf
@@ -467,23 +471,39 @@ def tts(payload, output_dir: Path, progress, emit_item=None):
         parts, trailing = split_pauses(item['text'])
         speed = number(item.get('speed', 1), 'speed', 0.5, 2)
         ffmpeg = executable('ffmpeg', item.get('ffmpeg_path')) if speed != 1 else None
-        spoken = lambda chunk: (lambda a: stretch(a, speed, ffmpeg) if ffmpeg else a)(
-            np.asarray(engine.infer(chunk, **kwargs), dtype=np.float32))
-        silence = lambda s: np.zeros(round(s * 48000), dtype=np.float32)
-        audio = np.concatenate([piece for chunk, before in parts for piece in (silence(before), spoken(chunk))]
-            + [silence(trailing)])
+        silence = lambda n: np.zeros(max(0, n), dtype=np.float32)
+        # With a speed change the take also keeps its reading before it, so fitting the take to a subtitle cue later
+        # stretches that once (speed x fit rate) instead of stretching the take a second time. Each part of it starts where
+        # its stretched part starts in the take, times the speed: atempo returns a little less than length / speed, so
+        # pauses scaled by the speed alone would drift by some 20 ms per part.
+        pieces, unstretched = [], []
+        for chunk, before in parts:
+            pieces.append(silence(round(before * 48000)))
+            reading = np.asarray(engine.infer(chunk, **kwargs), dtype=np.float32)
+            if ffmpeg:
+                unstretched += [silence(round(sum(map(len, pieces)) * speed) - sum(map(len, unstretched))), reading]
+            pieces.append(stretch(reading, speed, ffmpeg) if ffmpeg else reading)
+        audio = np.concatenate(pieces + [silence(round(trailing * 48000))])
         if audio.size == 0 or not np.isfinite(audio).all() or float(np.max(np.abs(audio))) < 1e-7:
             raise WorkerError('INVALID_AUDIO', 'Engine returned empty, silent or non-finite audio.')
-        partial = final.with_name(final.stem + '.partial.wav')
-        try:
-            sf.write(str(partial), limit_peak(audio), 48000, subtype='PCM_24')
-            os.replace(partial, final)
-        finally:
-            partial.unlink(missing_ok=True)
+        peak = float(np.max(np.abs(audio)))
+        def save(path, samples):
+            partial = path.with_name(path.stem + '.partial.wav')
+            try:
+                sf.write(str(partial), limit_peak(samples, peak), 48000, subtype='PCM_24')
+                os.replace(partial, path)
+            finally:
+                partial.unlink(missing_ok=True)
+        raw = final.with_name(final.stem + '.raw.wav')
+        if ffmpeg:
+            save(raw, np.concatenate(unstretched + [silence(round(len(audio) * speed) - sum(map(len, unstretched)))]))
+        save(final, audio)
         # Pause marks at the very start or end are wanted silence, so that edge stays.
         start_ms, end_ms = speech_edges(audio, keep_start=parts[0][1] > 0, keep_end=trailing > 0)
         result = {'path': str(final), 'duration_ms': round(len(audio) / 48), 'sample_rate': 48000,
                   'speech_start_ms': start_ms, 'speech_end_ms': end_ms}
+        if ffmpeg:
+            result.update(raw_path=str(raw), speed=speed)
         if item.get('check_model_path'):
             result['check'] = check_take(final, item['text'], Path(item['check_model_path']))
         return result
