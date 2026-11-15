@@ -415,6 +415,32 @@ class WorkerTests(unittest.TestCase):
         self.assertGreater(error(twice), 1e-2)
 
     @unittest.skipUnless(shutil.which('ffmpeg'), 'FFmpeg required for actual render test')
+    def test_actual_render_of_a_sped_up_take_with_many_pauses_keeps_every_part_in_place(self):
+        import numpy as np
+        import soundfile as sf
+        from types import SimpleNamespace
+        from unittest import mock
+        # Each spoken part: 0.8 s of sound and 0.2 s of silence, like a TTS reading; atempo shortens such a part by 17-28 ms.
+        reading = np.concatenate([0.4 * np.sin(2 * np.pi * 220 * np.arange(38400) / 48000), np.zeros(9600)]).astype(np.float32)
+        fakes = {'vieneu': SimpleNamespace(Vieneu=lambda **k: SimpleNamespace(infer=lambda text, **kw: reading)),
+                 'vieneu.v3turbo': SimpleNamespace(phonemize_text_with_emotions=lambda text: text),
+                 'vieneu._v3_turbo_engine': mock.Mock(),
+                 'vieneu._v3_turbo_engine.onnx_runtime_lite': SimpleNamespace(OnnxV3LiteEngine=mock.Mock())}
+        with tempfile.TemporaryDirectory() as td, mock.patch.object(worker, 'verify_model'), mock.patch.object(worker, 'offline_mode'), \
+                mock.patch.dict(sys.modules, fakes):
+            take = worker.tts({'model_path': td, 'text': ' [nghỉ 0.3s] '.join(['Câu.'] * 8), 'speed': 0.85, 'output_name': 'a.wav'},
+                Path(td) / 'out', lambda *a: None)
+            clip = {'path': take['path'], 'trim_start_ms': take['speech_start_ms'], 'trim_end_ms': take['speech_end_ms'], 'at_ms': 0, 'rate': 1.5}
+            once, twice = (sf.read(worker.render({'clips': [c], 'normalize': False, 'format': 'wav', 'timeline': True, 'pad_to_ms': 0},
+                Path(td), lambda *_: None)['path'], dtype='float32')[0] for c in ({**clip, 'raw_path': take['raw_path'], 'speed': 0.85}, clip))
+        loud = lambda a: np.abs(a[:len(a) // 480 * 480]).reshape(-1, 480).max(axis=1) > 0.05  # 10 ms frames
+        a, b = loud(once), loud(twice)
+        n = min(len(a), len(b))
+        # One stretch must keep the parts where two stretches put them (the same 10 ms frames loud) and keep the last one whole.
+        self.assertLessEqual(int(np.sum(a[:n] != b[:n])), 4)
+        self.assertGreaterEqual(np.flatnonzero(a)[-1], np.flatnonzero(b)[-1] - 1)
+
+    @unittest.skipUnless(shutil.which('ffmpeg'), 'FFmpeg required for actual render test')
     def test_actual_render_trim_gap_fade_atomic_output(self):
         with tempfile.TemporaryDirectory() as td:
             source = Path(td) / 'tiếng Việt.wav'
