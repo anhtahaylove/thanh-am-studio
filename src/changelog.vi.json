@@ -1,5 +1,5 @@
 [
- {"version": "1.0.11", "date": "", "changes": [
+ {"version": "1.0.11", "date": "2026-11-15", "changes": [
   "App tự kiểm tra bản mới, tải sẵn ở chế độ nền và cài khi bạn đóng cửa sổ. Mỗi bản cập nhật được kiểm chữ ký trước khi cài; dự án, take và model được giữ nguyên. Tắt được trong Model & cài đặt.",
   "Mục “Có gì mới” tự mở một lần sau mỗi lần cập nhật và xem lại được trong Model & cài đặt.",
   "Phím Space phát hoặc dừng take của đoạn đang chọn (khi không gõ chữ).",

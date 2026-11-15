@@ -752,6 +752,7 @@ try {
       return `${served.length} requests; ${text}`;
     });
     await step('update downloads, verifies, installs and reopens the signed release, keeping projects', async () => {
+      if (!(await invoke('list_projects')).length) await invoke('create_project', {name: 'Giữ qua bản cập nhật'}); // run alone, the phase brings its own project
       const projects = (await invoke('list_projects')).length, sentinel = join(dirname(exe), 'uninstall.exe');
       rmSync(sentinel, {force: true}); // the installer writes it again near its end (Sandbox only: a failed install would leave no uninstaller)
       feed('/good');
