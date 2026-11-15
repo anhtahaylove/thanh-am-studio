@@ -3,7 +3,7 @@
 // Drives the real WebView2 over CDP; native file dialogs are filled by file-dialog.ps1.
 import {chromium} from 'playwright-core';
 import {spawn, execFileSync} from 'node:child_process';
-import {existsSync, mkdirSync, writeFileSync, appendFileSync, statSync, copyFileSync, readdirSync, readFileSync, createReadStream, rmSync} from 'node:fs';
+import {existsSync, mkdirSync, writeFileSync, appendFileSync, statSync, copyFileSync, readdirSync, readFileSync, createReadStream, rmSync, openSync, closeSync} from 'node:fs';
 import {createServer} from 'node:http';
 import {tmpdir} from 'node:os';
 import {join, dirname} from 'node:path';
@@ -51,9 +51,11 @@ async function launch() {
 }
 async function quit() { app.kill(); await new Promise((r) => setTimeout(r, 3000)); }
 
+// The app saves with CopyFileExW, which creates the file first and keeps it locked until the copy ends.
+const readable = (path) => { try { closeSync(openSync(path, 'r')); return true; } catch { return false; } };
 const saved = async (path) => {
-  for (let i = 0; i < 60 && !existsSync(path); i++) await page.waitForTimeout(500);
-  if (!existsSync(path)) throw Error(`not saved after 30 s; folder has: ${readdirSync(dirname(path)).join(' | ')}`);
+  for (let i = 0; i < 60 && !readable(path); i++) await page.waitForTimeout(500);
+  if (!readable(path)) throw Error(existsSync(path) ? `still being written after 30 s: ${path}` : `not saved after 30 s; folder has: ${readdirSync(dirname(path)).join(' | ')}`);
 };
 // The queue UI refreshes every 2.5 s, so pick the row by its text instead of the first button:
 // a stale list would offer an earlier render whose format the save dialog then rejects.
