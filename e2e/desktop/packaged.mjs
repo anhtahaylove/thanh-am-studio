@@ -613,7 +613,8 @@ try {
   }
   if (phase === 'dub') {
     // Subtitle-timed export: an SRT imported through the UI, takes generated, "Theo mốc phụ đề" on, then the rendered file is
-    // measured. Cue 2 is far too short for its text (sped up) and pushes cue 3 back; cues 1 and 4 have room.
+    // measured. Cue 2 is far too short for its text (sped up) and pushes cue 3 back; cues 1 and 4 have room. Segment 2 is read
+    // at 1.2x, so its take keeps the reading before the speed change and the render fits that with one stretch.
     const cues = [[1000, 4000, 'Xin chào các bạn.'], [5000, 5600, 'Hôm nay chúng ta cùng nghe thử giọng đọc theo mốc thời gian của phụ đề.'],
       [6000, 8000, 'Câu này phải chờ câu trước.'], [12000, 14500, 'Cảm ơn các bạn đã lắng nghe.']];
     const stamp = (ms) => new Date(ms).toISOString().slice(11, 23).replace('.', ',');
@@ -635,10 +636,14 @@ try {
       return `${got.length} segments with their cues`;
     });
     await step('generate the takes', async () => {
+      await page.getByRole('combobox', {name: 'Tốc độ đọc đoạn 2'}).selectOption('1.2');
+      await page.waitForTimeout(1500); // autosave
       const before = await done('tts');
       await page.getByRole('button', {name: 'Tạo giọng tất cả'}).click();
       await waitJobs('tts', before + cues.length, 15 * 60000);
       project = await invoke('load_project', {id: project.id});
+      const raws = project.segments.map((s) => s.takes.find((t) => t.id === s.selected_take_id)).map((t) => [t.speed ?? 1, Boolean(t.raw_asset_id)]);
+      if (JSON.stringify(raws) !== JSON.stringify([[1, false], [1.2, true], [1, false], [1, false]])) throw Error(`speeds and readings ${JSON.stringify(raws)}`);
       return project.segments.map((s) => `${s.takes.find((t) => t.id === s.selected_take_id)?.duration_ms} ms`).join(', ');
     });
     // The plan the spec asks for, from the saved project: start at the cue, or 50 ms after the previous take when it runs over;
