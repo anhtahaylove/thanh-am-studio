@@ -1,6 +1,7 @@
 pub mod store;
 pub mod runtime;
 pub mod docx;
+pub mod update;
 use serde_json::{json,Value};
 use std::{path::{Path,PathBuf},sync::{Arc,atomic::Ordering}};
 use tauri::{Manager,State};
@@ -27,6 +28,9 @@ pub struct AppState {store:Arc<Store>,runtime:Arc<Runtime>}
 #[tauri::command] async fn import_asset(path:String,s:State<'_,AppState>)->Result<Value>{let store=s.store.clone();tauri::async_runtime::spawn_blocking(move||store.import_asset(Path::new(&path))).await.map_err(|e|e.to_string())?}
 #[tauri::command] async fn read_text_file(path:String)->Result<String>{tauri::async_runtime::spawn_blocking(move||read_text(path)).await.map_err(|e|e.to_string())?}
 fn read_text(path:String)->Result<String>{let p=Path::new(&path);let ext=p.extension().and_then(|s|s.to_str()).unwrap_or("").to_lowercase();if !["txt","srt","vtt","csv","docx"].contains(&ext.as_str()){return Err("UNSUPPORTED_TEXT".into())}if std::fs::metadata(p).map_err(|e|e.to_string())?.len()>if ext=="docx"{100_000_000}else{docx::MAX_TEXT as u64}{return Err("TEXT_FILE_TOO_LARGE".into())}if ext=="docx"{return docx::docx_text(&std::fs::read(p).map_err(|e|e.to_string())?)}std::fs::read_to_string(p).map(|s|s.trim_start_matches('\u{feff}').to_owned()).map_err(|e|format!("UTF8_REQUIRED: {e}"))}
+/// Explorer with a saved file selected; nothing is run. Paths cannot contain `"`, so quoting is safe.
+pub fn reveal_command(p:&Path)->std::process::Command{let mut c=std::process::Command::new(std::env::var_os("SystemRoot").map(|r|PathBuf::from(r).join("explorer.exe")).unwrap_or_else(||"explorer.exe".into()));#[cfg(windows)]{use std::os::windows::process::CommandExt;c.raw_arg(format!("/select,\"{}\"",p.display()));}c}
+#[tauri::command] fn reveal_path(path:String)->Result<()>{let p=Path::new(&path);if !p.is_absolute()||!p.is_file(){return Err("NOT_FOUND".into())}reveal_command(p).spawn().map(|_|()).map_err(|e|e.to_string())}
 #[tauri::command] fn export_text(path:String,content:String)->Result<()>{let p=Path::new(&path);if !["txt","srt","vtt","csv"].contains(&p.extension().and_then(|s|s.to_str()).unwrap_or("").to_lowercase().as_str()){return Err("UNSUPPORTED_TEXT".into())}std::fs::write(p,content.as_bytes()).map_err(|e|e.to_string())}
 #[tauri::command] async fn export_asset(asset_id:String,path:String,s:State<'_,AppState>)->Result<()>{let a=s.store.asset(&asset_id)?;let from=PathBuf::from(a["path"].as_str().ok_or("ASSET_PATH")?);let to=PathBuf::from(path);if from.extension().map(|v|v.to_ascii_lowercase())!=to.extension().map(|v|v.to_ascii_lowercase()){return Err("FORMAT_MISMATCH: Chọn đúng định dạng đã render.".into())}if from==to{return Ok(())}tauri::async_runtime::spawn_blocking(move||std::fs::copy(from,to).map(|_|()).map_err(|e|e.to_string())).await.map_err(|e|e.to_string())?}
 /// Copies `from` to `to` unless `to` already exists; `Ok(false)` means it was left alone. A failed copy removes the partial `to`, so a retry does not see it as existing.
@@ -40,7 +44,7 @@ pub fn write_new(src:&mut impl std::io::Read,to:&Path)->std::io::Result<bool>{le
 #[tauri::command] fn download_model(id:String,s:State<AppState>)->Result<Value>{if !runtime::MODELS.iter().any(|m|m.0==id){return Err("INVALID_MODEL".into())}for j in s.store.list_jobs()?{if j["kind"]=="model_download"&&j["payload"]["model_id"]==id&&["queued","running"].contains(&j["status"].as_str().unwrap_or("")){return Ok(j)}}s.store.enqueue("model_download",None,json!({"model_id":id}))}
 
 pub fn run() {
- let app=tauri::Builder::default().plugin(tauri_plugin_dialog::init()).setup(|app|{
+ let app=tauri::Builder::default().plugin(tauri_plugin_dialog::init()).plugin(tauri_plugin_updater::Builder::new().build()).manage(update::Updates::default()).setup(|app|{
   let root=app.path().app_local_data_dir()?;
   let resource=app.path().resource_dir()?;
   let source=PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().to_owned();
@@ -52,6 +56,6 @@ pub fn run() {
   let mut args="--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection".to_string();
   if let Some(port)=std::env::var("THANHAM_E2E_CDP_PORT").ok().and_then(|p|p.parse::<u16>().ok()){args+=&format!(" --remote-debugging-port={port}");}
   tauri::WebviewWindowBuilder::from_config(app.handle(),&app.config().app.windows[0])?.additional_browser_args(&args).build()?;Ok(())
- }).invoke_handler(tauri::generate_handler![list_projects,create_project,load_project,save_project,delete_project,get_settings,save_settings,list_jobs,enqueue_job,cancel_job,retry_job,runtime_status,read_text_file,import_asset,get_asset,list_models,download_model,export_text,export_asset,export_asset_new,list_voices,save_voice]).build(tauri::generate_context!()).expect("Khởi tạo Thanh Âm Studio");
+ }).invoke_handler(tauri::generate_handler![list_projects,create_project,load_project,save_project,delete_project,get_settings,save_settings,list_jobs,enqueue_job,cancel_job,retry_job,runtime_status,read_text_file,import_asset,get_asset,list_models,download_model,export_text,export_asset,export_asset_new,list_voices,save_voice,reveal_path,update::update_check,update::update_download,update::update_install,update::update_last_install]).build(tauri::generate_context!()).expect("Khởi tạo Thanh Âm Studio");
  app.run(|handle,event|if let tauri::RunEvent::Exit=event {handle.state::<AppState>().runtime.shutdown.store(true,Ordering::Relaxed);std::thread::sleep(std::time::Duration::from_millis(250));});
 }

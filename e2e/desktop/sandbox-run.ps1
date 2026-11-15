@@ -21,6 +21,8 @@ $harness = Join-Path $Repo 'e2e\desktop\packaged.mjs'
 $env:THANHAM_LONG_AUDIO = Join-Path $Installer 'long.mp3' # optional input of the longstt phase (long.txt = reference)
 $env:THANHAM_UX_AUDIO = Join-Path $Installer 'dialogue.wav' # optional input of the ux and features phases (two speakers for features)
 $env:THANHAM_DOCX = Join-Path $Installer 'script.docx' # optional input of the scripts phase (a Word file saved by Word)
+$env:THANHAM_UPDATE_FEED = Join-Path $Installer 'latest.json' # input of the update phase (the release's update feed)
+$env:THANHAM_UPDATE_SETUP = $setup.FullName
 if ($Gate) {
     & node (Join-Path $Repo 'e2e\desktop\gate.mjs') $exe.FullName $Out $Gate *>> $log
     Log "gate exit=$LASTEXITCODE"

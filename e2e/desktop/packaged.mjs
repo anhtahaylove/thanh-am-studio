@@ -1,9 +1,10 @@
 // Acceptance run against the packaged desktop app (UI -> Rust -> worker -> files).
-// usage: node packaged.mjs <app.exe> <outDir> <phase: full|reopen|turbo|offline|export|clone|dpi|longstt|ux|features|dub|scripts>
+// usage: node packaged.mjs <app.exe> <outDir> <phase: full|reopen|turbo|offline|export|clone|dpi|longstt|ux|features|dub|scripts|update>
 // Drives the real WebView2 over CDP; native file dialogs are filled by file-dialog.ps1.
 import {chromium} from 'playwright-core';
 import {spawn, execFileSync} from 'node:child_process';
-import {existsSync, mkdirSync, writeFileSync, appendFileSync, statSync, copyFileSync, readdirSync, readFileSync} from 'node:fs';
+import {existsSync, mkdirSync, writeFileSync, appendFileSync, statSync, copyFileSync, readdirSync, readFileSync, createReadStream, rmSync} from 'node:fs';
+import {createServer} from 'node:http';
 import {tmpdir} from 'node:os';
 import {join, dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -146,6 +147,17 @@ async function exportSteps() {
   });
   }
 
+// update phase: a local feed made from the release's latest.json serves its installer (THANHAM_UPDATE_SETUP), or its first
+// MiB at /bad, which must fail the signature check. The app reads the feed from THANHAM_UPDATE_MANIFEST on every check.
+const served = [];
+let feed;
+if (phase === 'update') {
+  const release = JSON.parse(readFileSync(process.env.THANHAM_UPDATE_FEED, 'utf8').replace(/^\uFEFF/, '')), setup = process.env.THANHAM_UPDATE_SETUP;
+  const server = createServer((q, r) => { served.push(q.url); r.writeHead(200, {'content-type': 'application/octet-stream'}); createReadStream(setup, q.url === '/bad' ? {end: (1 << 20) - 1} : {}).pipe(r); });
+  await new Promise((ok) => server.listen(8765, '127.0.0.1', ok)); server.unref();
+  feed = (path) => { const m = join(tmpdir(), 'thanh-am-update.json'); writeFileSync(m, JSON.stringify({...release, platforms: {'windows-x86_64': {...release.platforms['windows-x86_64'], url: `http://127.0.0.1:8765${path}`}}})); return m; };
+  process.env.THANHAM_UPDATE_MANIFEST = feed('/bad');
+}
 const fixture = 'Xin chào, đây là Thanh Âm Studio. Hôm nay trời Hà Nội trong xanh.\nChúng tôi kiểm tra giọng đọc tiếng Việt trên máy tính.';
 try {
   await step('launch', async () => `cold start ${await launch()} ms`);
@@ -724,6 +736,45 @@ try {
       const missing = plan.filter((p) => !starts.includes(Math.round(p.at)));
       if (missing.length) throw Error(`cue starts ${starts.join(', ')} miss ${missing.map((p) => Math.round(p.at)).join(', ')}`);
       return `${starts.length} cues starting at ${starts.join(', ')} ms`;
+    });
+  }
+  if (phase === 'update') {
+    await step('update refuses a package that does not match its signature', async () => {
+      for (let i = 0; i < 30 && !served.length; i++) await page.waitForTimeout(500); // the automatic check runs 3 s after start
+      await page.waitForTimeout(3000);
+      await nav('Model & cài đặt');
+      await page.getByRole('button', {name: 'Kiểm tra ngay'}).click({timeout: 120000}); // enabled once the automatic check is over
+      const alert = page.getByRole('alert').filter({hasText: 'Không kiểm tra được bản mới'});
+      await alert.waitFor({timeout: 120000});
+      const text = (await alert.innerText()).replace(/\s+/g, ' ');
+      if (await page.getByText(/đã tải xong/).count()) throw Error('a truncated package was offered for install');
+      await alert.getByRole('button', {name: 'Đóng lỗi cập nhật'}).click();
+      return `${served.length} requests; ${text}`;
+    });
+    await step('update downloads, verifies, installs and reopens the signed release, keeping projects', async () => {
+      if (!(await invoke('list_projects')).length) await invoke('create_project', {name: 'Giữ qua bản cập nhật'}); // run alone, the phase brings its own project
+      const projects = (await invoke('list_projects')).length, sentinel = join(dirname(exe), 'uninstall.exe');
+      rmSync(sentinel, {force: true}); // the installer writes it again near its end (Sandbox only: a failed install would leave no uninstaller)
+      feed('/good');
+      await page.getByRole('button', {name: 'Kiểm tra ngay'}).click();
+      await page.getByText(/đã tải xong và đã kiểm chữ ký/).first().waitFor({timeout: 300000});
+      const exited = new Promise((ok) => app.once('exit', ok));
+      await page.getByRole('button', {name: 'Cài ngay và mở lại'}).click();
+      await exited;
+      for (let i = 0; i < 360 && !existsSync(sentinel); i++) await new Promise((r) => setTimeout(r, 500));
+      if (!existsSync(sentinel)) throw Error('installer did not finish within 3 min');
+      let reopened = false;
+      for (let i = 0; i < 60 && !reopened; i++) { await new Promise((r) => setTimeout(r, 500)); reopened = execFileSync('tasklist', ['/FI', 'IMAGENAME eq thanh-am-studio.exe', '/NH'], {encoding: 'utf8'}).includes('thanh-am-studio.exe'); }
+      if (!reopened) throw Error('the app did not reopen after the install');
+      // Relaunch under the harness so the checks below run in a window it controls.
+      await new Promise((r) => setTimeout(r, 5000));
+      try { execFileSync('taskkill', ['/IM', 'thanh-am-studio.exe', '/F'], {stdio: 'ignore'}); } catch {}
+      await new Promise((r) => setTimeout(r, 2000));
+      await launch(); await page.waitForTimeout(2000);
+      if (await page.getByText(/Chưa cài được bản/).count()) throw Error('reported a failed install');
+      const after = (await invoke('list_projects')).length;
+      if (after !== projects) throw Error(`projects ${projects} -> ${after}`);
+      return `reinstalled and reopened; ${after} projects kept; requests ${served.join(' ')}`;
     });
   }
   if (phase === 'export') {

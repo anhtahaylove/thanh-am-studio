@@ -18,3 +18,6 @@ progress::-webkit-progress-value{background:var(--green)}
 .dub-stats{font-size:11px;color:var(--muted);order:1;flex-basis:100%;text-align:right}
 .emotion-bar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}.emotion-bar button{padding:6px 10px;font-size:11px}
 .chapter-chip{font-size:10px;font-weight:600;padding:2px 8px;border-radius:999px;color:#58864c;background:var(--green-soft);white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis}
+.update{background:var(--surface);border:1px solid var(--border);color:var(--ink)}.alert.update>span{flex:1}.alert.update .primary{padding:9px 14px}
+.update-settings{padding:22px;margin-top:23px}.update-settings p{font-size:11px;color:var(--muted);margin:10px 0 14px;max-width:640px}.update-actions,.modal-actions{display:flex;gap:10px;align-items:center}.modal-actions{justify-content:flex-end}
+.whats-new{max-height:80vh;overflow:auto}.whats-new h3{display:flex;align-items:center;gap:8px}.whats-new article{margin-bottom:16px}.whats-new h4{margin:0 0 6px;font-size:13px;display:flex;gap:10px;align-items:baseline}.whats-new h4 span{font-size:10px;color:var(--muted);font-weight:400}.whats-new ul{margin:0;padding-left:18px;font-size:12px;line-height:1.6}.whats-new li+li{margin-top:4px}

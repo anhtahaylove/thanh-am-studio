@@ -4,6 +4,9 @@ import {uid} from './domain';
 import {UTF8_HINT} from './csv';
 import type {AppSettings,Project,ProjectSummary,Voice} from './types';
 export const desktop=isTauri();
+/** Tells the app a file was saved, so it can offer to show it in Explorer. */
+export const SAVED_EVENT='thanh-am-saved';
+const announceSaved=(path:string)=>window.dispatchEvent(new CustomEvent(SAVED_EVENT,{detail:path}));
 const KEY='thanh-am-preview-projects-v1',SETTINGS_KEY='thanh-am-preview-settings-v1';
 function projects():Project[]{try{return JSON.parse(localStorage.getItem(KEY)||'[]');}catch{return [];}}
 const persist=(list:Project[])=>localStorage.setItem(KEY,JSON.stringify(list));
@@ -23,6 +26,10 @@ export async function call<T>(command:string,args:Record<string,unknown>={}):Pro
  case 'list_jobs':case 'list_models':result=[];break;
  case 'list_voices':result=[] satisfies Voice[];break;
  case 'runtime_status':result={python_ready:false,ffmpeg_ready:false,worker_ready:false,python_path:null,ffmpeg_path:null,message:'Bản xem trước giao diện trong trình duyệt. Chạy bản desktop để dùng engine và file cục bộ.'};break;
+ // The preview has no update feed; browser tests stage one under this key and read back what install was asked to do.
+ case 'update_check':case 'update_download':{const staged=localStorage.getItem('thanh-am-preview-update');if(!staged&&command==='update_download')throw Error('NO_UPDATE');result=staged?JSON.parse(staged):null;break;}
+ case 'update_install':localStorage.setItem('thanh-am-preview-installed',JSON.stringify(args));break;
+ case 'update_last_install':result=null;break;
  default:throw Error('Thao tác này cần bản desktop. Bản xem trước không chạy model hoặc giả lập audio.');
  }return result as T;
 }
@@ -38,9 +45,9 @@ export async function openCsv():Promise<string|null>{
 }
 export async function saveText(name:string,content:string):Promise<void>{
  if(!desktop){const url=URL.createObjectURL(new Blob([content],{type:'text/plain;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);return;}
- const path=await save({defaultPath:name,filters:[{name:'Văn bản',extensions:[name.split('.').pop()!]}]});if(path)await call('export_text',{path,content});
+ const path=await save({defaultPath:name,filters:[{name:'Văn bản',extensions:[name.split('.').pop()!]}]});if(path){await call('export_text',{path,content});announceSaved(path);}
 }
-export async function saveAudio(assetId:string,format:string,name='thanh-am'):Promise<void>{const path=await save({defaultPath:`${name}.${format}`,filters:[{name:'Audio',extensions:[format]}]});if(path)await call('export_asset',{assetId,path});}
+export async function saveAudio(assetId:string,format:string,name='thanh-am'):Promise<void>{const path=await save({defaultPath:`${name}.${format}`,filters:[{name:'Audio',extensions:[format]}]});if(path){await call('export_asset',{assetId,path});announceSaved(path);}}
 /** Asks for a folder and copies each audio asset there as `file`, leaving a file that already exists alone; a file that fails is reported and the rest still go on. Null when cancelled. */
 export async function saveAudioFiles(items:{assetId:string;file:string}[]):Promise<{saved:number;skipped:string[];failed:{file:string;error:string}[]}|null>{
  if(!desktop)throw Error('Mở bản desktop để lưu tệp.');
