@@ -94,6 +94,24 @@ Last updated 2026-11-14. Evidence below was observed, not inferred; anything not
   On 132 sentence-start cue edges in 60 takes (6 voices; reference: the energy onset after the pause before the sentence;
   `work\cue-timing`): error median 50 ms, p90 234 ms, 90 % within 250 ms, against 188 ms, 581 ms and 64 % by character
   count. The 70 % of edges timed directly from a heard word: median 30 ms, p90 100 ms.
+- Added for v1.0.11: the app updates itself (tauri-plugin-updater, called from Rust only). About 3 s after start and
+  every 12 h it reads `latest.json` from the newest published GitHub release, downloads a newer installer in the
+  background into the app's data folder, checks its minisign signature against the project key in `tauri.conf.json`
+  (`requireSignedVersion`: the signed comment must name the version) and installs it passively on close ("Cài và
+  đóng") or at once ("Cài ngay và mở lại"), after saving the open project and asking about running jobs. An install that
+  did not finish is reported at the next start; failed automatic checks stay silent. The release workflow signs with the
+  repository secrets and writes `latest.json` from the bundled changelog, after checking the tag against both version
+  files. The updater only installs a TLS provider when it asks GitHub, so a download after reading the feed from a file
+  never finished; the app installs the ring provider itself (found by the Sandbox `update` phase before release).
+  Playwright: 11 tests against a mocked feed (download progress, notes, install on close or at once, save and job
+  prompts, failed check, bad signature, unfinished install).
+- Added for v1.0.11: a Vietnamese list of changes ships with the app (`src/changelog.vi.json`, 1.0.7 onward), opens once
+  after an update ("Có gì mới", also for users coming from 1.0.10) and stays in Model & cài đặt; a unit test keeps its
+  newest entry equal to the package version.
+- Added for v1.0.11: book text drops footnote markers right after a word, superscript digits (except ² and ³ after
+  m, km, cm, dm, mm) and scene-break lines before reading; the worker retries a rename for up to 1.4 s when another
+  program holds the file; Space plays the selected take; STT source audio plays at 0.75-2x; "Mở thư mục" shows a saved
+  file in Explorer; closing while a job runs asks first.
 
 ## Verification (2026-11-11)
 
@@ -774,8 +792,24 @@ Evidence: `work\release-v1.0.9-sandbox` (`run41`; `run42a`, `run42b` for the old
 
 Evidence: `work\release-v1.0.10-sandbox` (`run43`, `run44a`, `run44b`); cue timing in `work\cue-timing` (`app-eval`).
 
+### v1.0.11 release (built by `.github/workflows/release.yml` from tag `v1.0.11` at `387a11b`)
+
+| Check | Result |
+|---|---|
+| Tests | CI green on #88, #89 and the merge commit (88 unit, 41 Playwright including 11 for updates, 41 Rust, worker); locally 79 worker tests with FFmpeg, 3 skipped |
+| Installer SHA-256 | `419e0def8bd8140c3e52e142a51bbfc30f89e8dda6608ee34551811be5bdae93`; `sha256sum -c` OK after `gh release download` and after an anonymous download from `/releases/latest/download/` |
+| Update feed | the anonymous `/releases/latest/download/latest.json` names 1.0.11, points to the v1.0.11 installer, and its signature's trusted comment holds `version:1.0.11` |
+| Clean Sandbox run 1 on that exact installer | `full`, `features`, `dub`, `scripts`, `ux`, `update` (a cut-off package refused for its signature; the signed one downloaded, installed passively and reopened the app with its 5 projects): 41 PASS, 0 FAIL |
+| Clean Sandbox runs 2 and 3 | the default runner (`full`, `reopen`, `turbo`, then with the network adapters disabled `offline` and `export`): 26 PASS; `full`, `clone` (WER 6.1 %), `dpi` (4/4 sizes): 20 PASS |
+| In all | 87 PASS, 0 FAIL. In the first pass, `full` stopped in runs 1 and 3 with `EBUSY`: the harness copied the exported WAV while the app's CopyFileExW still held it (reproduced on the dev machine). #90 makes the harness wait until the file can be read; runs 1 and 3 were then repeated on the same installer |
+
+Evidence: `work\release-v1.0.11-sandbox` (`run45*` first pass, `run46`, `run46b` repeats, `update-precheck` for the update phase on a locally signed build).
+
 ## Not verified / known gaps
 
+- Self-update was checked against a local copy of the 1.0.11 feed (`THANHAM_UPDATE_MANIFEST`), not against GitHub with a
+  newer release: the first real update from GitHub happens when 1.0.12 is published. Each update downloads the whole
+  installer (about 200 MB), and the updater leaves a copy of it in `%TEMP%`.
 - Listening quality has not been judged by a human; the clipping checks above are signal analysis.
   On 2026-11-13 the owner accepted the machine listening below in place of a human listening pass.
   The listening pack (first 20 sentences as separate files in script order, plus the full render) is
