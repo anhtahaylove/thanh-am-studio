@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {chapterFileName,chapterGroups,dubPlan,dubSummary,takeTrim,progressLabel,jobProgressLabel,parseSubtitles,exportSubtitles,normalizeText,splitText,splitTranscript,mergeTranscript,clipDuration,validateRecipe,ttsTranscript,makeSegment,splitSegment,mergeSegments,restoreSnapshot,addTranscriptRow,validRange,replaceInTranscript,rowAt,spokenText,insertAtCursor,checkSummary,transcriptToScript,barState,speakerSlots,scriptChunks} from './domain';
+import {wordStarts,chapterFileName,chapterGroups,dubPlan,dubSummary,takeTrim,progressLabel,jobProgressLabel,parseSubtitles,exportSubtitles,normalizeText,splitText,splitTranscript,mergeTranscript,clipDuration,validateRecipe,ttsTranscript,makeSegment,splitSegment,mergeSegments,restoreSnapshot,addTranscriptRow,validRange,replaceInTranscript,rowAt,spokenText,insertAtCursor,checkSummary,transcriptToScript,barState,speakerSlots,scriptChunks} from './domain';
 import type {Project,Take} from './types';
 describe('subtitle and text contracts',()=>{
  it('reads BOM SRT and multiline Vietnamese',()=>{expect(parseSubtitles('\uFEFF1\r\n00:00:01,250 --> 00:00:03,500\r\nXin chào\r\nViệt Nam\r\n')).toMatchObject([{start_ms:1250,end_ms:3500,text:'Xin chào\nViệt Nam'}]);});
@@ -74,6 +74,23 @@ describe('transcript rows',()=>{
  });
  it('timeline subtitles follow the dub plan and show each take at least as long as its cue',()=>{const c=(text:string,duration_ms:number,cue_start_ms:number,cue_end_ms:number)=>({text,duration_ms,trim_start_ms:0,trim_end_ms:null,gap_ms:300,fade_in_ms:0,fade_out_ms:0,gain_db:0,cue_start_ms,cue_end_ms});
   const clips=[c('Một.',1000,500,2500),c('Hai.',4000,2600,4600)];expect(ttsTranscript(clips,true).map(r=>[r.start_ms,r.end_ms])).toEqual([[500,2500],[2600,5267]]);expect(ttsTranscript(clips).map(r=>[r.start_ms,r.end_ms])).toEqual([[0,1000],[1300,5300]]);
+ });
+ it('matches script words to the words Whisper heard, in order',()=>{
+  expect(wordStarts(['xin','chào','các','bạn'],[{text:'Xin',start_ms:100},{text:'chào, à',start_ms:300},{text:'cả',start_ms:500},{text:'bạn.',start_ms:700}])).toEqual([100,300,undefined,700]);
+  expect(wordStarts(['một'],[])).toEqual([undefined]);
+ });
+ it('starts a TTS subtitle cue where the self-check heard its first word',()=>{
+  const text='Hôm nay trời Hà Nội trong xanh, gió nhẹ và nắng vàng. Chúng tôi kiểm tra giọng đọc tiếng Việt trên máy tính.';
+  const heard=(chung:number,word='Chúng')=>[{text:'Hôm',start_ms:250},{text:'nay',start_ms:420},{text:'vàng.',start_ms:2900},{text:word,start_ms:chung},{text:'tôi',start_ms:3600},{text:'tính.',start_ms:5600}];
+  const c={text,duration_ms:6000,trim_start_ms:200,trim_end_ms:null,gap_ms:0,fade_in_ms:0,fade_out_ms:0,gain_db:0};
+  const edges=(clip:typeof c&{words?:{text:string;start_ms:number}[];cue_start_ms?:number;cue_end_ms?:number},dub=false)=>ttsTranscript([clip],dub).map(r=>[r.start_ms,r.end_ms]);
+  const byChars=edges(c);expect(byChars.length).toBe(2);expect(byChars[0][1]).not.toBe(3200);
+  // 'Chúng' at 3400 ms in the take, 200 ms trimmed off: the second cue starts at 3200 ms.
+  expect(edges({...c,words:heard(3400)})).toEqual([[0,3200],[3200,5800]]);
+  // Placed at 1000 ms and sped up 1.5x on the subtitle timeline: 1000 + 3200 / 1.5.
+  expect(edges({...c,words:heard(3400),cue_start_ms:1000,cue_end_ms:4000},true)).toEqual([[1000,3133],[3133,4867]]);
+  // A misheard first word, or a time before the trim, keeps the character count.
+  expect(edges({...c,words:heard(3400,'Trúng')})).toEqual(byChars);expect(edges({...c,words:heard(100)})).toEqual(byChars);
  });
  it('dub summary counts the fit or waits for every take',()=>{const t={id:'t',asset_id:'a',path:'a.wav',duration_ms:4000,sample_rate:48000,created_at:''};const s={...makeSegment('Hai.'),cue_start_ms:0,cue_end_ms:2000,takes:[t],selected_take_id:'t'};expect(dubSummary([s,{...s,id:'b',cue_start_ms:2100,cue_end_ms:5000}])).toBe('2 đoạn đọc nhanh hơn · 1 đoạn bị lùi (tối đa 0,62 s)');expect(dubSummary([{...s,selected_take_id:null}])).toBe('');expect(dubSummary([{...s,trim_start_ms:5000}])).toBe('Trim và khoảng nghỉ phải nằm trong thời lượng audio');});
  it('turns a diarized transcript into one script line per speaker turn',()=>{const r=(id:string,text:string,speaker?:number)=>({id,start_ms:0,end_ms:1,text,speaker});expect(transcriptToScript([r('a','Chào bạn.',0),r('b','Hôm nay thế nào?',0),r('c','Ổn.',1),r('d','  ',1),r('e','Tốt.',0)])).toMatchObject([{speaker:'Người 1',text:'Chào bạn. Hôm nay thế nào?'},{speaker:'Người 2',text:'Ổn.'},{speaker:'Người 1',text:'Tốt.'}]);expect(transcriptToScript([r('a','x'),r('b','y')])).toMatchObject([{speaker:'Người dẫn',text:'x y'}]);expect(transcriptToScript([r('a','aaaa',0),r('b','bbbb',0)],6)).toHaveLength(2);});

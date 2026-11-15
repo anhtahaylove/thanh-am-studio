@@ -169,6 +169,20 @@ class WorkerTests(unittest.TestCase):
         broken = worker.check_take(Path('missing.wav'), 'Xin chào', Path(tempfile.gettempdir()) / 'no-model')
         self.assertIn('error', broken)  # a check failure is reported, never raised
 
+    def test_take_check_reports_when_each_heard_word_starts(self):
+        from types import SimpleNamespace
+        from unittest import mock
+        word = lambda w, s: SimpleNamespace(word=w, start=s, end=s + 0.2)
+        model = mock.Mock()
+        model.transcribe.return_value = (iter([SimpleNamespace(text=' Xin chào.', words=[word(' Xin', 0.12), word(' chào.', 0.4104)]),
+                                               SimpleNamespace(text=' Bạn khỏe', words=[word(' Bạn', 1.5), word(' khỏe', 1.75)])]), None)
+        with mock.patch.dict(worker._CHECKERS, {Path('m'): model}):
+            result = worker.check_take(Path('take.wav'), 'Xin chào. Bạn khỏe', Path('m'))
+        self.assertEqual(model.transcribe.call_args.kwargs['word_timestamps'], True)
+        self.assertEqual((result['heard'], result['wer']), ('Xin chào. Bạn khỏe', 0.0))
+        self.assertEqual(result['words'], [{'text': 'Xin', 'start_ms': 120}, {'text': 'chào.', 'start_ms': 410},
+                                           {'text': 'Bạn', 'start_ms': 1500}, {'text': 'khỏe', 'start_ms': 1750}])
+
     def test_chunks_of_words_that_are_also_english_keep_the_vietnamese_reading(self):
         def g2p(text):  # stands in for sea-g2p: English unless a Vietnamese-only word ('ơi') is present
             vi = 'ơi' in text

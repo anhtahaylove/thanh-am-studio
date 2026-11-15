@@ -471,7 +471,10 @@ try {
       await takes.selectOption({index: (await takes.locator('option').count()) - 1});
       const badge = page.locator('.take-check').first();
       await badge.waitFor({timeout: 15000});
-      return `${job.result.duration_ms} ms take; check "${await badge.innerText()}" (${JSON.stringify(job.result.check).slice(0, 200)})`;
+      // Since 1.0.10 the self-check also reports where each heard word starts; TTS subtitles time their cues from these.
+      const starts = (job.result.check.words ?? []).map((w) => w.start_ms);
+      if (starts.length < 5 || starts.some((ms, i) => ms < (starts[i - 1] ?? 0) || ms > job.result.duration_ms)) throw Error(`word times ${JSON.stringify(job.result.check.words)}`);
+      return `${job.result.duration_ms} ms take; check "${await badge.innerText()}", ${starts.length} word times ${starts[0]}-${starts.at(-1)} ms (${JSON.stringify(job.result.check).slice(0, 200)})`;
     });
     await step('a CSV dictionary file can be read', async () => {
       const csv = join(saves, `từ điển ${Date.now()}.csv`);
