@@ -53,11 +53,13 @@ pub async fn update_download(app:AppHandle,u:State<'_,Updates>)->Result<Value>{
 #[tauri::command]
 pub async fn update_install(app:AppHandle,restart:bool,u:State<'_,Updates>)->Result<()>{
  let (update,file)=u.ready.lock().map_err(|e|e.to_string())?.clone().ok_or("NO_UPDATE")?;
- let bytes=std::fs::read(&file).map_err(|e|e.to_string())?;
+ // A kept installer that is gone (quarantined, cleaned up) is forgotten, so the next check downloads it again.
+ let bytes=std::fs::read(&file).map_err(|e|{if let Ok(mut r)=u.ready.lock(){*r=None;}e.to_string()})?;
  let marker=dir(&app)?.join("installing");std::fs::write(&marker,&update.version).map_err(|e|e.to_string())?;
  update.restart_after_install(restart).install(bytes).map_err(|e|{let _=std::fs::remove_file(&marker);e.to_string()})
 }
 
 /// The version the last install was meant to bring, once: the installer runs after the app exits, so only the next start can tell.
+/// When that install took, its kept installer goes too.
 #[tauri::command]
-pub fn update_last_install(app:AppHandle)->Result<Option<String>>{let marker=dir(&app)?.join("installing");let v=std::fs::read_to_string(&marker).ok();let _=std::fs::remove_file(&marker);Ok(v)}
+pub fn update_last_install(app:AppHandle)->Result<Option<String>>{let dir=dir(&app)?;let v=std::fs::read_to_string(dir.join("installing")).ok();let _=std::fs::remove_file(dir.join("installing"));if v.as_deref()==Some(app.package_info().version.to_string().as_str()){let _=std::fs::remove_dir_all(&dir);}Ok(v)}

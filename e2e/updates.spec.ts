@@ -24,7 +24,7 @@ test('what is new opens once after an update and lists only the versions since t
  await page.addInitScript(mock,{found:null,seen:'1.0.9'});await page.goto('/');
  const dialog=page.getByRole('dialog',{name:'Có gì mới'});
  await expect(dialog).toBeVisible();await expect(dialog.getByRole('heading',{name:new RegExp(`^Bản ${version.replace(/\./g,'\\.')}`)})).toBeVisible();await expect(dialog.getByRole('heading',{name:/^Bản 1\.0\.10/})).toBeVisible();await expect(dialog.getByRole('heading',{name:/^Bản 1\.0\.9/})).toHaveCount(0);
- await expect(dialog.getByRole('button',{name:'Đã hiểu'})).toBeFocused();await page.keyboard.press('Escape');await expect(dialog).toHaveCount(0);
+ await expect(dialog.getByRole('button',{name:'Đóng Có gì mới'})).toBeFocused();await page.keyboard.press('Escape');await expect(dialog).toHaveCount(0);
  await page.reload();await page.waitForTimeout(500);await expect(dialog).toHaveCount(0);
  await page.getByRole('button',{name:'Model & cài đặt'}).click();await page.getByRole('button',{name:'Có gì mới'}).click();
  await expect(dialog.getByRole('heading',{name:/^Bản 1\.0\.7/})).toBeVisible();await dialog.getByRole('button',{name:'Đã hiểu'}).click();await expect(dialog).toHaveCount(0);

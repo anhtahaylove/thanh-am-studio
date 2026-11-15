@@ -10,7 +10,7 @@ const AUTO_KEY='thanh-am-auto-update',SEEN_KEY='thanh-am-seen-version',CHECK_EVE
 const pref=(key:string)=>{try{return localStorage.getItem(key);}catch{return null;}};
 const setPref=(key:string,value:string)=>{try{localStorage.setItem(key,value);}catch{/* the preference just does not persist */}};
 // Plugin errors are English; the common ones get a plain message (an offline check also ends in "Could not fetch a valid release JSON").
-const message=(e:unknown)=>{const text=String(e instanceof Error?e.message:e);return /error sending request|connect|dns|timed? ?out|valid release JSON|status: 404/i.test(text)?'Không lấy được thông tin bản mới từ GitHub. Kiểm tra mạng rồi thử lại.':/signature/i.test(text)?'Bản tải về không khớp chữ ký nên đã bị bỏ, không cài.':text;};
+const message=(e:unknown)=>{const text=String(e instanceof Error?e.message:e);return /error sending request|connect|dns|timed? ?out|valid release JSON|status: 404/i.test(text)?'Không lấy được thông tin bản mới từ GitHub. Kiểm tra mạng rồi thử lại.':/signature|signed for/i.test(text)?'Bản tải về không khớp chữ ký nên đã bị bỏ, không cài.':text;};
 
 /** Update feed state: an automatic check shortly after start and every 12 h (unless turned off), a background download of a
  * newer release, and the changes since the version the user last saw. */
@@ -34,7 +34,8 @@ export function useUpdates(current:string){
  // 1.0.10 and older did not store the seen version; their theme key marks an earlier install, so this one's changes still show.
  useEffect(()=>{const seen=pref(SEEN_KEY)??(pref('thanh-am-theme')?CHANGELOG.find(e=>compareVersions(e.version,current)<0)?.version??null:null);if(seen&&compareVersions(current,seen)>0){const list=changesSince(seen,current);if(list.length)setWhatsNew(list);}if(!seen||compareVersions(current,seen)>0)setPref(SEEN_KEY,current);},[current]);
  const setAuto=(on:boolean)=>{setAutoState(on);setPref(AUTO_KEY,on?'1':'0');};
- const install=(restart:boolean)=>call('update_install',{restart});
+ // A failed install (say the kept installer was quarantined) leaves the ready state, so the next check downloads it again.
+ const install=(restart:boolean)=>call('update_install',{restart}).catch(e=>setState({phase:'failed',title:'Không chạy được trình cài đặt',error:message(e)}));
  return {state,auto,setAuto,check,install,whatsNew,setWhatsNew,dismiss:()=>setState({phase:'idle'})};
 }
 
@@ -49,9 +50,9 @@ export function UpdateBanner({state,onInstall,onShowChanges,onDismiss}:{state:Up
 }
 
 export function WhatsNew({entries,onClose}:{entries:ChangelogEntry[];onClose:()=>void}){
- return <div className="modal-backdrop"><section className="modal panel whats-new" role="dialog" aria-modal="true" aria-labelledby="whats-new-title" onKeyDown={e=>{if(e.key==='Escape')onClose();}}><div className="panel-toolbar"><h3 id="whats-new-title"><Sparkles size={17}/>Có gì mới</h3><button type="button" className="icon-button" aria-label="Đóng Có gì mới" title="Đóng Có gì mới" onClick={onClose}><X size={17}/></button></div>
+ return <div className="modal-backdrop"><section className="modal panel whats-new" role="dialog" aria-modal="true" aria-labelledby="whats-new-title" onKeyDown={e=>{if(e.key==='Escape')onClose();}}><div className="panel-toolbar"><h3 id="whats-new-title"><Sparkles size={17}/>Có gì mới</h3><button type="button" className="icon-button" aria-label="Đóng Có gì mới" title="Đóng Có gì mới" autoFocus onClick={onClose}><X size={17}/></button></div>
   {entries.map(e=><article key={e.version}><h4>Bản {e.version}{e.date&&<span>{e.date.split('-').reverse().join('/')}</span>}</h4><ul>{e.changes.map(c=><li key={c}>{c}</li>)}</ul></article>)}
-  <button className="primary" autoFocus onClick={onClose}>Đã hiểu</button></section></div>;
+  <button className="primary" onClick={onClose}>Đã hiểu</button></section></div>;
 }
 
 export function InstallOnClose({version,onInstall,onLater,onCancel}:{version:string;onInstall:()=>void;onLater:()=>void;onCancel:()=>void}){

@@ -753,7 +753,7 @@ try {
     });
     await step('update downloads, verifies, installs and reopens the signed release, keeping projects', async () => {
       const projects = (await invoke('list_projects')).length, sentinel = join(dirname(exe), 'uninstall.exe');
-      rmSync(sentinel); // the installer writes it again near its end
+      rmSync(sentinel, {force: true}); // the installer writes it again near its end (Sandbox only: a failed install would leave no uninstaller)
       feed('/good');
       await page.getByRole('button', {name: 'Kiểm tra ngay'}).click();
       await page.getByText(/đã tải xong và đã kiểm chữ ký/).first().waitFor({timeout: 300000});
