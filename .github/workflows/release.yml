@@ -41,13 +41,13 @@ jobs:
           # The in-app updater reads latest.json from the newest published release; its notes are the
           # bundled Vietnamese changelog entry, and the signature must name the tagged version.
           $version = $env:GITHUB_REF_NAME.TrimStart('v')
-          if ($version -ne (Get-Content package.json -Raw | ConvertFrom-Json).version) { throw "tag $env:GITHUB_REF_NAME does not match package.json" }
+          foreach ($f in 'package.json', 'src-tauri/tauri.conf.json') { if ($version -ne (Get-Content $f -Raw | ConvertFrom-Json).version) { throw "tag $env:GITHUB_REF_NAME does not match $f" } }
           $entry = Get-Content src/changelog.vi.json -Raw -Encoding utf8 | ConvertFrom-Json | Where-Object version -eq $version
           if (-not $entry) { throw "src/changelog.vi.json has no entry for $version" }
           $feed = [ordered]@{
             version = $version
             notes = ($entry.changes | ForEach-Object { "- $_" }) -join "`n"
-            pub_date = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+            pub_date = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ', [Globalization.CultureInfo]::InvariantCulture)
             platforms = @{ 'windows-x86_64' = [ordered]@{
               signature = (Get-Content "$($exe.FullName).sig" -Raw).Trim()
               url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:GITHUB_REF_NAME/$name" } }
@@ -56,6 +56,8 @@ jobs:
           # LF line endings so `sha256sum -c SHA256SUMS.txt` works as published.
           $sums = Get-ChildItem release -File | Get-FileHash -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" }
           [IO.File]::WriteAllText((Join-Path $PWD 'release/SHA256SUMS.txt'), (($sums -join "`n") + "`n"))
+      # A draft prerelease until the Sandbox gate passes. Publish it with --prerelease=false --latest: the in-app
+      # updater reads releases/latest, which skips drafts and prereleases.
       - name: Draft release
         env:
           GH_TOKEN: ${{ github.token }}

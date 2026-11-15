@@ -3940,6 +3940,7 @@ dependencies = [
  "miniz_oxide 0.8.9",
  "quick-xml",
  "rusqlite",
+ "rustls",
  "serde",
  "serde_json",
  "sha2",

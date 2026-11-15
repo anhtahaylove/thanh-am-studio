@@ -15,6 +15,11 @@ Turbo for TTS ≈ 640 MB, Whisper Small ≈ 490 MB or Whisper Large v3 Turbo ≈
 After that the app works offline. Installers are not code-signed yet, so SmartScreen may warn
 (see [Code signing policy](#code-signing-policy)).
 
+From 1.0.11 the app updates itself: it checks GitHub for a newer release, downloads it in the
+background, verifies its signature and installs it when you close the window (projects, takes and
+models are kept). **Model & cài đặt → Cập nhật** turns this off or checks on request. Versions
+1.0.10 and older have no updater, so install 1.0.11 from the release page once.
+
 ## Models and preset voices
 
 Models are downloaded from their original publishers and keep their licences (VieNeu v3 Turbo and
@@ -75,11 +80,18 @@ Free code signing provided by [SignPath.io](https://about.signpath.io), certific
 
 ## Privacy
 
-This program will not transfer any information to other networked systems unless specifically
-requested by the user or the person installing or operating it. The only network access is the
-model download you start on the models page: the app then fetches pinned model files from
-Hugging Face ([privacy policy](https://huggingface.co/privacy)). Text, audio, projects and voice
-references stay on your machine.
+Text, audio, projects and voice references stay on your machine. The app makes two kinds of
+network requests, and neither carries your content:
+
+- **Model downloads** you start on the models page fetch pinned model files from Hugging Face
+  ([privacy policy](https://huggingface.co/privacy)).
+- **Update checks**, on by default: about 3 seconds after start and every 12 hours the app reads
+  `latest.json` of the newest GitHub release and, when it names a newer version, downloads that
+  release's signed installer from GitHub
+  ([privacy statement](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement)).
+  GitHub sees what any download shows (IP address and the updater's user agent). Turn the
+  checks off in **Model & cài đặt → Cập nhật**; **Kiểm tra ngay** there still checks once on
+  request.
 
 ## Scope
 

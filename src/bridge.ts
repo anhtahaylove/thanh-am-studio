@@ -29,6 +29,7 @@ export async function call<T>(command:string,args:Record<string,unknown>={}):Pro
  // The preview has no update feed; browser tests stage one under this key and read back what install was asked to do.
  case 'update_check':case 'update_download':{const staged=localStorage.getItem('thanh-am-preview-update');if(!staged&&command==='update_download')throw Error('NO_UPDATE');result=staged?JSON.parse(staged):null;break;}
  case 'update_install':localStorage.setItem('thanh-am-preview-installed',JSON.stringify(args));break;
+ case 'update_last_install':result=null;break;
  default:throw Error('Thao tác này cần bản desktop. Bản xem trước không chạy model hoặc giả lập audio.');
  }return result as T;
 }
