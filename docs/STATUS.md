@@ -762,6 +762,18 @@ Evidence: `work\release-v1.0.8-sandbox` (`run39`, `run40`).
 
 Evidence: `work\release-v1.0.9-sandbox` (`run41`; `run42a`, `run42b` for the older groups); the cue measurements in `work\emotion-cues-listening` (`VERDICT.md`).
 
+### v1.0.10 release (built by `.github/workflows/release.yml` from tag `v1.0.10` at `86fd55c`)
+
+| Check | Result |
+|---|---|
+| Tests | CI green on #85, #86 and the merge commit (82 unit, 27 Playwright, 4 + 13 + 12 + 11 Rust, worker); locally 76 worker tests with FFmpeg, 3 skipped (real engine or diarization model) |
+| Installer SHA-256 | `037fc6feafb324ddb5d80dee172532adfa442a97cea1c622bf99ccb520497dd9`; `sha256sum -c` OK after `gh release download` and after an anonymous download from `/releases/latest/download/` |
+| Clean Sandbox run 1 on that exact installer | `full`, `features` (the self-checked take carries 17 ordered word times), `dub` (segment 2 read at 1.2x keeps its unstretched reading and is fitted x1.5: speech 5050-6710 ms against 5053-6707 expected; every take within 8 ms), `scripts`, `ux`: 37 PASS, 0 FAIL |
+| Clean Sandbox runs 2 and 3 | the default runner (`full`, `reopen`, `turbo`, then with the network adapters disabled `offline` and `export`): 26 PASS; `full`, `clone` (WER 8.5 %), `dpi` (4/4 sizes): 20 PASS |
+| In all | 83 PASS, 0 FAIL, every group on the first try |
+
+Evidence: `work\release-v1.0.10-sandbox` (`run43`, `run44a`, `run44b`); cue timing in `work\cue-timing` (`app-eval`).
+
 ## Not verified / known gaps
 
 - Listening quality has not been judged by a human; the clipping checks above are signal analysis.
