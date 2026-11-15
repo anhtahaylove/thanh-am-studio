@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import uuid
 
 ROOT = Path(__file__).resolve().parent
@@ -23,6 +24,17 @@ class WorkerError(Exception):
     def __init__(self, code, message):
         super().__init__(message)
         self.code = code
+
+
+def replace_with_retry(src, dst):
+    """os.replace that waits out a file an antivirus scan or indexer holds for a moment (Windows WinError 32 raises PermissionError); about 1.4 s in all, then the last error is raised."""
+    for attempt in range(8):
+        try:
+            return os.replace(src, dst)
+        except PermissionError:
+            if attempt == 7:
+                raise
+            time.sleep(0.2)
 
 
 def validate_request(request):
@@ -313,7 +325,7 @@ def render(payload, output_dir: Path, progress):
             args += ['-c:a', 'pcm_s24le'] if fmt == 'wav' else ['-c:a', 'libmp3lame', '-b:a', '192k']
             run_process(args + [str(partial)])
             info = probe(partial, ffmpeg)
-            os.replace(partial, final)
+            replace_with_retry(partial, final)
             return {**info, 'path': str(final)}
     finally:
         partial.unlink(missing_ok=True)
@@ -405,7 +417,7 @@ def download(payload, models_dir: Path, progress):
                 fetched.unlink(missing_ok=True)
                 raise
             target.parent.mkdir(parents=True, exist_ok=True)
-            os.replace(fetched, target)
+            replace_with_retry(fetched, target)
             done += item['size']
             progress(min(0.99, done / total), 'Đã kiểm tra ' + item['filename'])
     finally:
@@ -416,7 +428,7 @@ def download(payload, models_dir: Path, progress):
     marker = destination / 'installed.json'
     temp = marker.with_suffix('.partial')
     temp.write_text(json.dumps({'model_id': spec['id'], 'revision': spec['revision']}, indent=2), encoding='utf-8')
-    os.replace(temp, marker)
+    replace_with_retry(temp, marker)
     progress(1, 'Model sẵn sàng')
     return {'model_id': spec['id'], 'path': str(destination), 'revision': spec['revision']}
 
@@ -494,7 +506,7 @@ def tts(payload, output_dir: Path, progress, emit_item=None):
             partial = path.with_name(path.stem + '.partial.wav')
             try:
                 sf.write(str(partial), limit_peak(samples, peak), 48000, subtype='PCM_24')
-                os.replace(partial, path)
+                replace_with_retry(partial, path)
             finally:
                 partial.unlink(missing_ok=True)
         raw = final.with_name(final.stem + '.raw.wav')

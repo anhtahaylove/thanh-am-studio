@@ -469,6 +469,33 @@ class WorkerTests(unittest.TestCase):
             self.assertEqual(result['sample_rate'], 48000)
             self.assertEqual(list(Path(td).glob('*.partial*')), [])
 
+    def test_replace_retries_a_file_an_antivirus_scan_holds_briefly(self):
+        from unittest import mock
+        real, calls = worker.os.replace, []
+        def flaky(src, dst):
+            calls.append(src)
+            if len(calls) <= 2:
+                raise PermissionError(13, 'The process cannot access the file because it is being used by another process')
+            real(src, dst)
+        with tempfile.TemporaryDirectory() as td, mock.patch.object(worker.os, 'replace', flaky), mock.patch.object(worker.time, 'sleep') as sleep:
+            a, b = Path(td, 'a'), Path(td, 'b'); a.write_text('x')
+            worker.replace_with_retry(a, b)
+            self.assertEqual(b.read_text(), 'x'); self.assertFalse(a.exists()); self.assertEqual(len(calls), 3); self.assertEqual(sleep.call_count, 2)
+
+    def test_replace_gives_up_with_the_last_error_after_a_bounded_wait(self):
+        from unittest import mock
+        with mock.patch.object(worker.os, 'replace', side_effect=PermissionError(13, 'locked')) as rep, mock.patch.object(worker.time, 'sleep') as sleep:
+            with self.assertRaises(PermissionError):
+                worker.replace_with_retry('a', 'b')
+            self.assertGreater(rep.call_count, 2); self.assertLess(sum(c.args[0] for c in sleep.call_args_list), 2)
+
+    def test_replace_does_not_retry_other_errors(self):
+        from unittest import mock
+        with mock.patch.object(worker.os, 'replace', side_effect=FileNotFoundError('gone')) as rep, mock.patch.object(worker.time, 'sleep') as sleep:
+            with self.assertRaises(FileNotFoundError):
+                worker.replace_with_retry('a', 'b')
+            self.assertEqual(rep.call_count, 1); sleep.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()

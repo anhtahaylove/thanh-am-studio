@@ -67,8 +67,12 @@ const EN_TOKEN=/(<en>[\s\S]*?<\/en>|\[[^\]]*\]|<\|[^|]*\|>|\S*(?::\/\/|@|www\.|[
 const onlyEnglish=(w:string)=>w!==w.toUpperCase()&&/[aeiouy]/i.test(w)&&(/[fjwz]/i.test(w)||!/(?:[aeiouymn]|ng|nh)$/i.test(w));
 // Only sentences typed with diacritics, so Vietnamese written without them ("hoc", "dep") is left alone.
 const tagEnglish=(text:string)=>text.split(/(?<=[.!?…])(\s+)/u).map((s,i)=>i%2||!/\p{M}|đ/iu.test(s.normalize('NFD'))?s:s.replace(EN_TOKEN,(m,kept)=>kept||!onlyEnglish(m)?m:`<en>${m}</en>`)).join('').replace(/<\/en>(\s+)<en>/g,'$1');
+// Book text the engine reads aloud ("một," for [1], "sao sao sao" for ***): a numeric footnote [1] right after a letter, digit or punctuation (a lone [1] is kept), superscript digits except the ² and ³ of units like m² and cm³, and lines that are only a scene break. Footnote idea after bunyu/VieNeu-TTS 1dd0a8d0 VietnameseText.kt (Apache-2.0).
+// A scene break is dropped, not turned into [nghỉ]: the worker rejects a segment of nothing but a pause, and the 300 ms gap between segments already separates the scenes.
+const SCENE_BREAK=/^[ \t]*(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,}|⁂)[ \t\r]*$/u;
+const stripBook=(s:string)=>s.replace(new RegExp(SCENE_BREAK.source,'gmu'),'').replace(/(?<=[\p{L}\p{N}.,;:!?"'”’…)])\[\d{1,3}\]/gu,'').replace(/[¹⁰⁴-⁹]|(?<!(?<![\p{L}\p{M}])[kcdm]?m)[²³]/gu,'');
 // Markup the engine reads aloud ("sao sao", "thăng", "nhỏ hơn font"): Markdown bold, headings and quotes at a line start, links (the text stays), HTML/subtitle tags other than our <en>, ASS overrides such as {\an8}, and ♪.
-const stripMarkup=(s:string)=>s.replace(/\*\*(?=\S)([\s\S]*?\S)\*\*/gu,'$1').replace(/^[ \t]*(?:#{1,6}|>)[ \t]+/gmu,'').replace(/\[([^\]\n]+)\]\((?:https?:|www\.)[^)\s]*\)/gu,'$1').replace(/<\/?(?!en>)[a-z][^<>]*>/giu,' ').replace(/\{\\[^}]*\}|♪/gu,' ');
+const stripMarkup=(s:string)=>stripBook(s).replace(/\*\*(?=\S)([\s\S]*?\S)\*\*/gu,'$1').replace(/^[ \t]*(?:#{1,6}|>)[ \t]+/gmu,'').replace(/\[([^\]\n]+)\]\((?:https?:|www\.)[^)\s]*\)/gu,'$1').replace(/<\/?(?!en>)[a-z][^<>]*>/giu,' ').replace(/\{\\[^}]*\}|♪/gu,' ');
 // Whole words only, so "AI" leaves "OpenAI" alone; a key that starts or ends with punctuation ("TP.", "đ/cp") is bounded on its letter side only.
 const WORD='[\\p{L}\\p{M}\\p{N}]',bounded=(k:string)=>`${/^[\p{L}\p{M}\p{N}]/u.test(k)?`(?<!${WORD})`:''}${escapeRegExp(k)}${/[\p{L}\p{M}\p{N}]$/u.test(k)?`(?!${WORD})`:''}`;
 function normalizeSpoken(text:string,dictionary:Record<string,string>,codeSwitch=false):string {
@@ -94,7 +98,7 @@ const CHAPTER=/^\s*\[\s*P(\d+)\s*\](.*)$/i;
 const labelOf=(line:string)=>{const m=line.match(LABEL),name=(m?.[1]??m?.[2])?.trim();return m&&name&&name.length<=30&&!/\d|www\.|@/i.test(name)?{name,rest:m[3]}:null;};
 /** Script chunks of pasted text. With at least two labelled lines each label starts a block (continuing until the next label) spoken by that name; otherwise one speaker reads everything, so a lone "Lưu ý:" stays text. */
 export function scriptChunks(text:string):{speaker:string;text:string;chapter?:string}[]{
- const lines=text.split(/\r?\n/).map(raw=>{
+ const lines=text.split(/\r?\n/).filter(l=>!SCENE_BREAK.test(l)).map(raw=>{
   // "[P1] text" or "[P1]: text", or the marker right after a speaker label: "Lan: [P1] text"
   const m=raw.match(CHAPTER);let line=m?m[2].replace(/^\s*[:：]/,'').trim():raw,label=labelOf(line),chapter=m?`P${m[1]}`:undefined;
   const after=!chapter&&label?label.rest.match(CHAPTER):null;
