@@ -1,15 +1,24 @@
 # Runs inside Windows Sandbox: clean Windows, no Python/FFmpeg, repo and installer mapped read-only.
 # -Only runs the listed packaged.mjs phases (network on); -Gate N runs the N-segment gate instead.
-param([string]$Repo = 'C:\repo', [string]$Installer = 'C:\installer', [string]$Out = 'C:\out', [string]$Only = '', [int]$Gate = 0)
+# -From (an earlier installer, or a folder holding one) installs that first, so the update phase updates it to the installer
+# under test as users get it; keep it out of the top of the installer folder, for example in C:\installer\from\. It needs
+# -Only update on its own: any other phase would test the earlier release.
+param([string]$Repo = 'C:\repo', [string]$Installer = 'C:\installer', [string]$Out = 'C:\out', [string]$Only = '', [int]$Gate = 0, [string]$From = '')
 $ErrorActionPreference = 'Continue'
 $log = Join-Path $Out 'sandbox.log'
 function Log($m) { "$(Get-Date -Format o) $m" | Tee-Object -FilePath $log -Append }
 Log "user=$env:USERNAME os=$([Environment]::OSVersion.VersionString) cpu=$((Get-CimInstance Win32_Processor).Name) ram=$([math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory/1GB,1))GB"
 foreach ($c in 'python', 'python3', 'py', 'ffmpeg', 'ffprobe', 'uv') { Log "PATH $c => $((Get-Command $c -ErrorAction SilentlyContinue).Source)" }
 $setup = Get-ChildItem -LiteralPath $Installer -Filter '*-setup.exe' | Select-Object -First 1
+$first = if ($From) { Get-ChildItem -Path $From -Filter '*-setup.exe' -ErrorAction SilentlyContinue | Select-Object -First 1 } else { $setup }
+if (-not $setup -or -not $first -or ($From -and $Only -ne 'update')) {
+    Log "not run: installer=$($setup.Name) from=$($first.Name) (-From $From) -Only $Only; -From needs an installer and -Only update alone"
+    'done' | Set-Content (Join-Path $Out 'DONE'); exit 1
+}
+$env:THANHAM_UPDATE_FROM = $From
 $t = Get-Date
-$p = Start-Process -FilePath $setup.FullName -ArgumentList '/S' -Wait -PassThru
-Log "install exit=$($p.ExitCode) seconds=$([math]::Round(((Get-Date)-$t).TotalSeconds))"
+$p = Start-Process -FilePath $first.FullName -ArgumentList '/S' -Wait -PassThru
+Log "install $($first.Name) exit=$($p.ExitCode) seconds=$([math]::Round(((Get-Date)-$t).TotalSeconds))"
 $exe = Get-ChildItem -LiteralPath $env:LOCALAPPDATA, "$env:LOCALAPPDATA\Programs" -Filter 'thanh-am-studio.exe' -Recurse -Depth 1 -ErrorAction SilentlyContinue | Select-Object -First 1
 $dir = $exe.Directory
 Log "installed $($exe.FullName) size=$([math]::Round((Get-ChildItem -LiteralPath $dir.FullName -Recurse -File | Measure-Object Length -Sum).Sum/1MB))MB"
