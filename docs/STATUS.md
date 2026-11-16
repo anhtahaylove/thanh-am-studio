@@ -117,8 +117,12 @@ Last updated 2026-11-14. Evidence below was observed, not inferred; anything not
   dispatched misses that key, and a dialog covered by another one does not take it). Text typed in "Thêm nội dung" is
   kept. The app removes `%TEMP%\<productName>-*-updater-*` (the installer copy the updater keeps before it exits)
   shortly after every start, retrying for a minute while a running installer holds one.
-- On main after v1.0.12 (not released yet): Word import skips hidden runs (`w:vanish` in a run's properties, unless
-  `w:val` turns it off), with their tabs and breaks. A paragraph whose mark alone is hidden keeps its text.
+- On main after v1.0.12 (not released yet): Word import skips hidden text, with its tabs and breaks: a run's own
+  `w:vanish` (unless `w:val` turns it off), and hiding set in `word/styles.xml` (document defaults, paragraph, character
+  and table styles along `w:basedOn`, the default paragraph and table styles). Styles resolve the way Word 16 shows
+  them, checked case by case in Word: the nearest explicit value in a `w:basedOn` chain wins, the table, paragraph and
+  character styles of a run toggle each other, hidden document defaults hide every run without its own `w:val="0"`.
+  A paragraph whose mark alone is hidden keeps its text.
 
 ## Verification (2026-11-11)
 
@@ -894,6 +898,6 @@ Evidence: `work\release-v1.0.12-sandbox` (`run1012`, `github-update`); the temp-
   throat clearing in 3/36; the verdicts held at thresholds 0.05/0.10 and 0.15/0.20. The tagger had no positive control
   for a laugh or a throat clearing, so "not heard" may partly be the tagger. An unaccented chunk that also
   carries a cue (for example "Cam on ban [cuoi]") is still read with English phonemes. Word import reads only
-  `word/document.xml` with the `w:` prefix; v1.0.12 and older read hidden (`w:vanish`) text, and text hidden through a
-  style (character, paragraph or table) or the document defaults is still read. Per-chapter export cannot be
+  `word/document.xml` and `word/styles.xml` with the `w:` prefix; v1.0.12 and older read hidden (`w:vanish`) text, and
+  a table style's conditional formatting (for example a hidden first row) is still not applied. Per-chapter export cannot be
   combined with the subtitle timing, and the save-all button offers only the newest batch.
