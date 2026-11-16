@@ -38,6 +38,22 @@ with `sha256sum -c SHA256SUMS.txt` (or compare `Get-FileHash <file>` with the li
    phases instead (`clone`: reference voice with consent and cloned takes; `dpi`: layout at high-DPI
    viewports; `longstt`: STT of `long.mp3` next to the installer, scored against `long.txt`; `ux`: drag and drop of a script and of `THANHAM_UX_AUDIO` (in the Sandbox: `dialogue.wav` next to the installer), then transcript follow-along during playback; `features`: pause mark, per-segment speed and Whisper self-check on a new take, waveform playback progress, diarization model download, speaker-labelled STT with a known speaker count, a row relabelled by hand and saved, turned into a script), and
    `-Gate 500` runs the long-project gate inside the Sandbox.
+   `update` serves the release's own `latest.json` and installer (both next to the installer) from a local
+   feed: a cut-off package must be refused, the signed one must install itself and reopen the app with its
+   projects, and the installer copy the updater leaves in `%TEMP%` must be gone after the next start.
+
+   Which Sandbox runs a release needs (owner decision 2026-11-16; one Sandbox holds 8 GB of RAM and the
+   full set takes 1-1.5 h):
+   - Every release: one Sandbox with `-Only update` (about 10 minutes, no model download). Each release
+     reaches every installed copy through the updater, and a release with a broken updater cannot
+     replace itself.
+   - Changes to the worker, export, TTS/STT or the Rust job code: add `full` and the phase that covers
+     the change (`features`, `dub`, `scripts`, `ux`, `clone`).
+   - New Python, FFmpeg, Tauri or NSIS versions, or a changed installer configuration: the full set in
+     three Sandboxes (`-Only full,features,dub,scripts,ux,update`; the default runner; `-Only full,clone,dpi`).
+
+   Afterwards, delete older installer copies. `vmmemWindowsSandbox` can keep about 2.4 GB of RAM after
+   the Sandbox closes, until the machine restarts.
 3. Long project: `node e2e/desktop/gate.mjs <installed exe> <out> 500` (500 segments, cancel,
    hard crash mid-batch, restart/retry, full render, STT round trip WER/CER, per-phase RAM in
    `ram.csv`, queue screenshots).
