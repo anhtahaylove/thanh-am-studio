@@ -124,6 +124,15 @@ Last updated 2026-11-14. Evidence below was observed, not inferred; anything not
   document defaults, each of a run's table, paragraph and character styles whose value differs from them flips it (two
   hidden styles cancel out); a style id of the wrong type counts as missing. A paragraph whose mark alone is hidden
   keeps its text.
+- Added for v1.0.14: rusqlite 0.43 bundles SQLite 3.54.1 (RUSTSEC-2026-0459, #104). A long voice sample is cloned
+  from its 8 s with the most speech instead of its first 8 s (#105), and "Nghe mẫu đã làm sạch" plays exactly the
+  cleaned 8 s VieNeu enrolls (`clone_preview`, reused per sample and app version, #107). Export adds M4A (AAC),
+  FLAC (24-bit) and Opus (#106). The runtime bundles PyTorch 2.15.0+cpu and Demucs 4.1.0; the optional HTDemucs model
+  (code MIT, weights licence unclear upstream) is downloaded by the user, and a `separate` job splits the project's
+  source into voice and background in 60 s windows (#108). "Giữ nhạc nền" mixes that background at 0 dB under the
+  subtitle-timed dub, with one constant gain when normalising (#109). The installer shows a licence page with Intel's
+  OpenMP and oneMKL terms (silent and updater installs skip it), and the `runtime` workflow runs the worker tests on
+  the real private runtime for worker and runtime changes.
 
 ## Verification (2026-11-11)
 
