@@ -53,8 +53,8 @@ with `sha256sum -c SHA256SUMS.txt` (or compare `Get-FileHash <file>` with the li
    - New Python, FFmpeg, Tauri or NSIS versions, or a changed installer configuration: the full set in
      three Sandboxes (`-Only full,features,dub,scripts,ux,update`; the default runner; `-Only full,clone,dpi`).
 
-   Afterwards, delete older installer copies. `vmmemWindowsSandbox` can keep about 2.4 GB of RAM after
-   the Sandbox closes, until the machine restarts.
+   Afterwards, delete older installer copies. `vmmemWindowsSandbox` can keep about 2.4 GB of RAM for a
+   while after the Sandbox closes (on 2026-11-16 it let go of it later without a restart).
 3. Long project: `node e2e/desktop/gate.mjs <installed exe> <out> 500` (500 segments, cancel,
    hard crash mid-batch, restart/retry, full render, STT round trip WER/CER, per-phase RAM in
    `ram.csv`, queue screenshots).

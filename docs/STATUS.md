@@ -112,6 +112,11 @@ Last updated 2026-11-14. Evidence below was observed, not inferred; anything not
   m, km, cm, dm, mm) and scene-break lines before reading; the worker retries a rename for up to 1.4 s when another
   program holds the file; Space plays the selected take; STT source audio plays at 0.75-2x; "Mở thư mục" shows a saved
   file in Explorer; closing while a job runs asks first.
+- Added for v1.0.12: Escape closes "Có gì mới", the install-on-close question and "Thêm nội dung" wherever focus is
+  (`useEscape` listens on `window`; the listener stays registered across renders, because one re-added while a key is
+  dispatched misses that key, and a dialog covered by another one does not take it). Text typed in "Thêm nội dung" is
+  kept. The app removes `%TEMP%\<productName>-*-updater-*` (the installer copy the updater keeps before it exits)
+  shortly after every start, retrying for a minute while a running installer holds one.
 
 ## Verification (2026-11-11)
 
@@ -805,12 +810,24 @@ Evidence: `work\release-v1.0.10-sandbox` (`run43`, `run44a`, `run44b`); cue timi
 
 Evidence: `work\release-v1.0.11-sandbox` (`run45*` first pass, `run46`, `run46b` repeats, `update-precheck` for the update phase on a locally signed build).
 
+### v1.0.12 release (built by `.github/workflows/release.yml` from tag `v1.0.12` at `189045e`)
+
+| Check | Result |
+|---|---|
+| Tests | CI green on #92, #93, #96, #97 and the merge commit (88 unit, 44 Playwright, 43 Rust; worker and job code unchanged since 1.0.11) |
+| Installer SHA-256 | `99521bf565af5c428d8c1f84bab1e9ea225a9940fb38425b933ab055290ae5a1`; `sha256sum -c` OK after `gh release download` and after an anonymous download from `/releases/latest/download/` |
+| Update feed | the anonymous `/releases/latest/download/latest.json` names 1.0.12, points to the v1.0.12 installer, and its signature's trusted comment holds `version:1.0.12` |
+| Clean Sandbox, `-Only update -From` the published 1.0.11 installer (the per-release tier, docs/RELEASE.md) | 1.0.11 refused a cut-off package, then updated itself to 1.0.12 through the local feed and reopened at 1.0.12 with its project; 1.0.12 removed the installer copy 1.0.11's updater left in `%TEMP%`: 4 PASS, 0 FAIL |
+| Not run | TTS, STT, export and Escape in the installed app (Escape: Playwright only); the update through GitHub itself |
+
+Evidence: `work\release-v1.0.12-sandbox` (`run1012`); the temp-copy fix before and after in `work\updater-temp-copy`.
+
 ## Not verified / known gaps
 
-- Self-update was checked against a local copy of the 1.0.11 feed (`THANHAM_UPDATE_MANIFEST`), not against GitHub with a
-  newer release: the first real update from GitHub happens when 1.0.12 is published. Each update downloads the whole
-  installer (about 200 MB). The copy of the installer that the updater leaves in `%TEMP%` is removed at the next start
-  by versions after 1.0.11 (Sandbox `update` phase).
+- Self-update was checked in clean Sandboxes through a local copy of the feed (`THANHAM_UPDATE_MANIFEST`), for 1.0.12
+  from the published 1.0.11, not through GitHub: the first updates through GitHub are installed 1.0.11 copies moving to
+  1.0.12, which the project does not observe. Each update downloads the whole installer (about 200 MB); from 1.0.12 the
+  app removes the installer copy the updater leaves in `%TEMP%` shortly after it starts.
 - Listening quality has not been judged by a human; the clipping checks above are signal analysis.
   On 2026-11-13 the owner accepted the machine listening below in place of a human listening pass.
   The listening pack (first 20 sentences as separate files in script order, plus the full render) is
