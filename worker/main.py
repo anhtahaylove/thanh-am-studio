@@ -318,6 +318,17 @@ def run_process(args):
     return result.stdout
 
 
+def loudness(ffmpeg, inputs, graph):
+    """Integrated loudness in LUFS (EBU R128; -inf for silence) of the audio the filtergraph `graph` makes from `inputs`."""
+    flags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+    result = subprocess.run([ffmpeg, '-nostdin', '-hide_banner', '-nostats', *inputs, '-filter_complex', graph + ',loudnorm=print_format=json',
+        '-f', 'null', '-'], capture_output=True, text=True, encoding='utf-8', errors='replace', creationflags=flags)
+    if result.returncode:
+        raise WorkerError('AUDIO_PROCESS_FAILED', result.stderr[-2500:] or 'Loudness measurement failed.')
+    log = result.stderr  # loudnorm prints its measurement as the last JSON object
+    return float(json.loads(log[log.rindex('{'):log.rindex('}') + 1])['input_i'])
+
+
 def stretch(audio, speed, ffmpeg):
     """Time-stretch mono 48 kHz float audio without changing pitch (FFmpeg atempo)."""
     import numpy as np
@@ -411,14 +422,19 @@ def render(payload, output_dir: Path, progress):
                 progress((i + 1) / (len(clips) + 1), f'Rendered {i+1}/{len(clips)} segments')
             listing = temp / 'concat.txt'
             listing.write_text(''.join(f"file '{i:06d}.wav'\n" for i in range(len(clips))), encoding='utf-8')
-            args = [ffmpeg, '-nostdin', '-hide_banner', '-loglevel', 'error', '-y', '-f', 'concat', '-safe', '1', '-i', str(listing)]
+            inputs = ['-f', 'concat', '-safe', '1', '-i', str(listing)] + (['-i', background] if background else [])
+            args = [ffmpeg, '-nostdin', '-hide_banner', '-loglevel', 'error', '-y', *inputs]
             if background:
                 # pan, not aformat: aformat's stereo upmix lowers each channel by 3 dB. amix at 0 dB each (normalize=0), as long as
-                # the longer input; no loop, stretch or fade. Unnormalised, a latency-compensated limiter keeps the sum below full scale.
-                tail = 'loudnorm=I=-16:TP=-1.5:LRA=11' if payload.get('normalize', False) else 'alimiter=limit=0.98:level=0:latency=1'
-                args += ['-i', background, '-filter_complex', '[0:a]pan=stereo|c0=c0|c1=c0[v];[1:a]aresample=48000,'
-                    f'aformat=sample_fmts=flt:channel_layouts=stereo[b];[v][b]amix=inputs=2:duration=longest:normalize=0,{tail}',
-                    '-ar', '48000', '-ac', '2']
+                # the longer input; no loop, stretch or fade.
+                mix = ('[0:a]pan=stereo|c0=c0|c1=c0[v];[1:a]aresample=48000,aformat=sample_fmts=flt:channel_layouts=stereo[b];'
+                    '[v][b]amix=inputs=2:duration=longest:normalize=0')
+                # Normalising applies one gain to -16 LUFS measured over the whole mix: loudnorm's single pass is dynamic and would
+                # swell the bed between lines (its linear mode turns dynamic when the true-peak target cannot be met).
+                lufs = loudness(ffmpeg, inputs, mix) if payload.get('normalize', False) else -16
+                gain = -16 - lufs if math.isfinite(lufs) else 0
+                # A latency-compensated limiter keeps the sum below full scale without moving the takes.
+                args += ['-filter_complex', f'{mix},volume={gain:.3f}dB,alimiter=limit=0.98:level=0:latency=1', '-ar', '48000', '-ac', '2']
             else:
                 if payload.get('normalize', False):
                     args += ['-af', 'loudnorm=I=-16:TP=-1.5:LRA=11']

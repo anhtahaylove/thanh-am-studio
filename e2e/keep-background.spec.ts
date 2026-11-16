@@ -15,6 +15,7 @@ const mock=(o:{model:boolean;source:string|null;cues?:boolean;jobs?:any[]})=>{
    case 'plugin:dialog|open':return 'C:\\phim có nhạc.mp4';
    case 'import_asset':return {id:'a2',path:'C:\\assets\\a2.mp4',name:'phim có nhạc.mp4',duration_ms:null,sample_rate:null};
    case 'save_project':project={...args.project,revision:args.project.revision+1};return project;
+   case 'create_project':project={...project,id:'p2',name:args.name,revision:0,source_asset_id:null};return project;
    case 'enqueue_job':{const job={id:'j'+(jobs.length+1),kind:args.kind,project_id:args.projectId,payload:args.payload,status:'queued',progress:0,error:null,result:null,created_at:new Date(Date.now()+jobs.length).toISOString(),updated_at:new Date().toISOString()};jobs.push(job);return job;}
    default:return null;}}};
 };
@@ -91,4 +92,16 @@ test('a separation of another file is ignored, and the render refuses to drop th
  await page.getByRole('button',{name:'Đóng lỗi'}).click();await exportAudio.click();
  await expect(page.getByRole('alert')).toContainText('Chưa có nhạc nền tách từ file gốc. Bỏ chọn rồi chọn lại “Giữ nhạc nền” để tách, hoặc bỏ chọn để xuất không kèm nhạc nền.');
  expect((await calls(page,'enqueue_job')).filter((a:any)=>a.kind==='render')).toEqual([]);
+});
+
+test('another or a new project starts with the background option off',async({page})=>{
+ await open(page,{model:true,source:'src',jobs:[separation('src','succeeded','stem')]});
+ await page.getByRole('checkbox',{name:'Theo mốc phụ đề'}).check();
+ await keep(page).click();await expect(keep(page)).toBeChecked();
+ await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:'Dự án'}).click();await page.getByRole('button',{name:'Mở dự án'}).click();
+ await expect(keep(page)).not.toBeChecked();
+ await keep(page).click();await expect(keep(page)).toBeChecked();
+ await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:'Dự án'}).click();await page.getByRole('button',{name:'Tạo dự án'}).click();
+ await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toBeVisible(); // the mock's new project has the same cues
+ await expect(keep(page)).not.toBeChecked();
 });
