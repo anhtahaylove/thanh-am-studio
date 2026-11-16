@@ -890,13 +890,19 @@ try {
         throw Error(`stem ${JSON.stringify(s)}, envelope lag ${shift} ms, level in speech ${diff.toFixed(2)} dB vs the bed`);
       return `RTF ${rtf.toFixed(2)}; stem flac 44100 Hz 2 ch ${s.ms} ms; envelope lag ${shift} ms; level where the takes speak ${diff >= 0 ? '+' : ''}${diff.toFixed(2)} dB vs the bed`;
     });
-    await step('the stem has no words left', async () => {
+    await step('the stem has no words the music alone does not', async () => {
       if (!(await invoke('list_models')).find((m) => m.id === 'whisper-small')?.installed) return 'skipped: Whisper Small is not installed';
-      const before = await done('stt');
-      await invoke('enqueue_job', {kind: 'stt', projectId: null, payload: {asset_id: stem.result.asset_id, model_id: 'whisper-small', language: 'vi'}});
-      const [heard] = await waitJobs('stt', before + 1, 10 * 60000), words = heard.result.transcript.map((r) => r.text).join(' ').split(/\s+/).filter(Boolean);
-      if (words.length > 1) throw Error(`heard ${words.length} words: ${words.join(' ')}`);
-      return `heard ${words.length} words${words.length ? `: ${words.join(' ')}` : ''}`;
+      // Whisper makes words up on music without a voice (the bed alone gave a whole "subscribe" sentence), so the stem is
+      // compared with the bed it came from: a voice left in the stem shows up as words the bed does not give.
+      const heard = async (asset_id) => {
+        const before = await done('stt');
+        await invoke('enqueue_job', {kind: 'stt', projectId: null, payload: {asset_id, model_id: 'whisper-small', language: 'vi'}});
+        const [j] = await waitJobs('stt', before + 1, 10 * 60000);
+        return j.result.transcript.map((r) => r.text).join(' ').toLowerCase().normalize('NFC').split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+      };
+      const bed = await heard((await invoke('import_asset', {path: bedWav})).id), words = await heard(stem.result.asset_id), extra = words.filter((w) => !bed.includes(w));
+      if (extra.length > 1) throw Error(`the stem gives ${extra.length} words the bed does not: ${extra.join(' ')} (stem "${words.join(' ')}", bed "${bed.join(' ')}")`);
+      return `stem "${words.join(' ')}"; bed alone "${bed.join(' ')}"; ${extra.length} words only in the stem`;
     });
     await step('render keeps the background under the dub', async () => {
       const mixed = await render(false, 'lồng tiếng giữ nhạc nền.wav', mediaMs), a = probeAudio(mixed.result.path);
