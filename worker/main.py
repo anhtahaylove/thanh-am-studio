@@ -187,6 +187,53 @@ def voice_kwargs(item):
     return kwargs
 
 
+CLONE_SECONDS = 8.0  # pinned VieNeu clones from the first 8 s of a reference (_MAX_REF_SECONDS)
+
+
+def clone_window(audio, sr, seconds=CLONE_SECONDS):
+    """(start, end) samples of the `seconds` of mono `audio` with the most speech; all of it when not longer.
+    Speech is 20 ms frames within 35 dB of the loudest; the start moves to the first word after a pause within a second.
+    After candidate_windows in bunyu/VieNeu-TTS apps/voice_lab.py at f276060e (Apache-2.0), best window only; unlike it,
+    the clip start counts as a pause and the window is never cut short at the end."""
+    import numpy as np
+    size, hop = int(seconds * sr), max(1, sr // 50)
+    if len(audio) <= size:
+        return 0, len(audio)
+    count, width = len(audio) // hop, size // hop
+    energy = np.sqrt(np.mean(np.square(audio[:count * hop].reshape(count, hop)), axis=1) + 1e-12)
+    voiced = 20 * np.log10(energy / float(energy.max())) > -35
+    score = np.convolve(voiced.astype(np.float64), np.ones(width), mode='valid')
+    at = start = int(np.argmax(score))  # the first best window, so speech from the very start keeps the first seconds
+    for f in range(at, min(at + 50, len(score))):
+        if voiced[f] and not voiced[max(0, f - 3):f].any():
+            start = max(0, f - 2)
+            break
+    start = min(start * hop, len(audio) - size)  # width * hop falls short of size when hop does not divide it
+    return start, start + size
+
+
+def clone_reference(path):
+    """A temporary WAV with the best CLONE_SECONDS of the reference at `path` for the caller to delete, or `path`
+    itself when it is not longer or soundfile cannot read it."""
+    import soundfile as sf
+    try:
+        audio, sr = sf.read(path, dtype='float32', always_2d=True)
+    except Exception:  # VieNeu reads it with soundfile too and reports the error as before
+        return path
+    start, end = clone_window(audio.mean(axis=1), sr)
+    if end - start >= len(audio):
+        return path
+    fd, crop = tempfile.mkstemp(prefix='clone-ref-', suffix='.wav')
+    os.close(fd)
+    try:
+        sf.write(crop, audio[start:end], sr, subtype='FLOAT')
+    except Exception:  # e.g. a full %TEMP%: clone from the whole sample as before
+        with contextlib.suppress(OSError):
+            Path(crop).unlink()
+        return path
+    return crop
+
+
 def speech_edges(audio, keep_start=False, keep_end=False):
     """(start_ms, end_ms) of the speech in 48 kHz audio; end_ms is None when it runs to the end. keep_* leaves an edge alone."""
     import numpy as np
@@ -474,6 +521,7 @@ def tts(payload, output_dir: Path, progress, emit_item=None):
     v3turbo = importlib.import_module('vieneu.v3turbo')
     v3turbo.phonemize_text_with_emotions = vietnamese_reading(v3turbo.phonemize_text_with_emotions)
     output_dir.mkdir(parents=True, exist_ok=True)
+    crops = {}  # reference path -> what VieNeu clones from, cut once per request
 
     def synth(item):
         kwargs = voice_kwargs(item)
@@ -483,6 +531,10 @@ def tts(payload, output_dir: Path, progress, emit_item=None):
         final = contained_path(output_dir, name)
         if final.exists():
             raise WorkerError('OUTPUT_EXISTS', 'A take already exists at that output name.')
+        if 'ref_audio' in kwargs:
+            if kwargs['ref_audio'] not in crops:
+                crops[kwargs['ref_audio']] = clone_reference(kwargs['ref_audio'])
+            kwargs['ref_audio'] = crops[kwargs['ref_audio']]
         parts, trailing = split_pauses(item['text'])
         speed = number(item.get('speed', 1), 'speed', 0.5, 2)
         ffmpeg = executable('ffmpeg', item.get('ffmpeg_path')) if speed != 1 else None
@@ -523,18 +575,24 @@ def tts(payload, output_dir: Path, progress, emit_item=None):
             result['check'] = check_take(final, item['text'], Path(item['check_model_path']))
         return result
 
-    if not batch:
-        progress(0.3, 'Synthesizing speech')
-        return synth(items[0])
-    for i, item in enumerate(items):
-        progress(0.1 + 0.9 * i / len(items), f'Synthesizing {i+1}/{len(items)}')
-        try:
-            emit_item(i, result=synth(item))
-        except WorkerError as error:
-            emit_item(i, error={'code': error.code, 'message': str(error)})
-        except Exception as error:  # one bad segment must not lose the rest of the batch
-            emit_item(i, error={'code': 'WORKER_ERROR', 'message': f'{type(error).__name__}: {error}'})
-    return {'count': len(items)}
+    try:
+        if not batch:
+            progress(0.3, 'Synthesizing speech')
+            return synth(items[0])
+        for i, item in enumerate(items):
+            progress(0.1 + 0.9 * i / len(items), f'Synthesizing {i+1}/{len(items)}')
+            try:
+                emit_item(i, result=synth(item))
+            except WorkerError as error:
+                emit_item(i, error={'code': error.code, 'message': str(error)})
+            except Exception as error:  # one bad segment must not lose the rest of the batch
+                emit_item(i, error={'code': 'WORKER_ERROR', 'message': f'{type(error).__name__}: {error}'})
+        return {'count': len(items)}
+    finally:
+        for reference, crop in crops.items():
+            if crop != reference:
+                with contextlib.suppress(OSError):  # a temp file left behind must not fail the take
+                    Path(crop).unlink(missing_ok=True)
 
 
 STT_RATE = 16000
