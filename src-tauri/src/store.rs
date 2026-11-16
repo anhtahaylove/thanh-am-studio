@@ -27,7 +27,9 @@ impl Store {
    CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, data TEXT NOT NULL);
    PRAGMA user_version=1;").map_err(err)?;
   let s = Self{db:Mutex::new(db),root:root.to_owned()};
-  for mut j in s.list_jobs()? { if j["status"] == "running" { j["status"]=json!("interrupted"); j["error"]=json!("Phiên trước dừng giữa chừng. Chọn thử lại."); s.write_job(&j)?; } }
+  for mut j in s.list_jobs()? { if j["status"] == "running" { j["status"]=json!("interrupted"); j["error"]=json!("Phiên trước dừng giữa chừng. Chọn thử lại."); s.write_job(&j)?;
+   // A separation cut off by a crash leaves its partial stem; it restarts from zero anyway.
+   if let ("separate",Some(id))=(j["kind"].as_str().unwrap_or(""),j["id"].as_str()){crate::runtime::remove_stems(&root.join("jobs").join(id));} } }
   Ok(s)
  }
  pub fn create_project(&self, name: &str) -> Result<Value> {

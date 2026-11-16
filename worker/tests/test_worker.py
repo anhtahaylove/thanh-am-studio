@@ -739,6 +739,14 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual(progress, sorted(set(progress)))
         self.assertEqual(progress[-1], 2100 / 2300)
 
+    def test_background_keeps_the_mix_dc_once(self):
+        import numpy as np
+        voice = 0.5 * np.sin(2 * np.pi * 100 * np.arange(4410) / 44100)  # 10 whole periods: no DC
+        mix = np.stack([voice + 0.1, voice + 0.1], axis=1).astype(np.float32)
+        ideal = lambda norm, callback: np.stack([norm * 0, norm * 0, norm * 0, norm])  # all but the DC is the voice
+        background = worker.background_separator(['drums', 'bass', 'other', 'vocals'], ideal, len(mix), lambda *a: None)(mix, 0)
+        np.testing.assert_allclose(background, 0.1, atol=1e-5)  # the input's DC, not once per kept source
+
     def test_separation_refuses_short_memory_or_disk_before_loading_the_model(self):
         from unittest import mock
         gib = 2**30
@@ -785,11 +793,12 @@ class WorkerTests(unittest.TestCase):
             self.assertTrue(np.isfinite(audio).all() and np.abs(audio).max() > 0)
             self.assertEqual(progress, sorted(progress))
             self.assertEqual([p.name for p in (td / 'out').iterdir()], ['bg.flac'])
-            # Any other class in the metadata is refused before it is built.
-            save_file({'x': torch.zeros(1)}, str(td / 'other.safetensors'), metadata={'klass': 'demucs.demucs.Demucs', 'args': '[]', 'kwargs': '{}'})
-            with self.assertRaises(worker.WorkerError) as ctx:
-                worker.demucs_model(td / 'other.safetensors')
-            self.assertEqual(ctx.exception.code, 'MODEL_UNKNOWN')
+            # Any other class in the metadata is refused before it is built, and so is a `structure` (it names classes to import).
+            for i, metadata in enumerate([{'klass': 'demucs.demucs.Demucs'}, {'klass': 'demucs.htdemucs.HTDemucs', 'structure': '{"_class": "collections.OrderedDict"}'}]):
+                save_file({'x': torch.zeros(1)}, str(td / f'other{i}.safetensors'), metadata={**metadata, 'args': '[]', 'kwargs': '{}'})
+                with self.subTest(metadata=metadata), self.assertRaises(worker.WorkerError) as ctx:
+                    worker.demucs_model(td / f'other{i}.safetensors')
+                self.assertEqual(ctx.exception.code, 'MODEL_UNKNOWN')
 
 
 def tone_bed(seconds, seed=0):

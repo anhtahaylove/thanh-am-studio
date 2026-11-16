@@ -191,3 +191,20 @@ fn queued_separations_run_after_other_queued_work() {
     for want in [&preview, &tts, &separation] { assert_eq!(s.claim_next().unwrap().unwrap()["id"], want["id"]); }
     assert!(s.claim_next().unwrap().is_none());
 }
+
+#[test]
+fn a_separation_cut_off_by_a_crash_leaves_only_its_log() {
+    let tmp = tempfile::tempdir().unwrap();
+    let id = {
+        let s = Store::open(tmp.path()).unwrap();
+        let j = s.enqueue("separate", None, json!({"asset_id":"a1"})).unwrap();
+        s.claim_next().unwrap().unwrap();
+        j["id"].as_str().unwrap().to_owned()
+    };
+    let dir = tmp.path().join("jobs").join(&id);
+    std::fs::create_dir_all(&dir).unwrap();
+    for f in ["stem.partial.flac", "worker.log"] { std::fs::write(dir.join(f), b"x").unwrap(); }
+    let s = Store::open(tmp.path()).unwrap();
+    assert_eq!(s.job(&id).unwrap()["status"], "interrupted");
+    assert!(!dir.join("stem.partial.flac").exists() && dir.join("worker.log").exists());
+}

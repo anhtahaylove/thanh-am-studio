@@ -768,7 +768,7 @@ def background_separator(sources, run, total, progress):
                 done[0] = value
                 progress(value, 'Separating')
         stems = run((mix - mean) / std, segment)
-        return (stems[keep] * std + mean).sum(axis=0).T
+        return (stems[keep].sum(axis=0) * std + mean).T  # the window's mean once, not once per kept source
     return separator
 
 
@@ -780,8 +780,10 @@ def demucs_model(path):
     from demucs.hf import load_safetensors_model
     from safetensors import safe_open
     torch.set_num_threads(min(8, os.cpu_count() or 4))
-    with safe_open(str(path), framework='pt') as weights:  # the sha256 pin is the guard; this only refuses to build another class
-        if (weights.metadata() or {}).get('klass') != 'demucs.htdemucs.HTDemucs':
+    # The sha256 pin is the guard; this only refuses to build another class, or to import the classes a `structure` names.
+    with safe_open(str(path), framework='pt') as weights:
+        metadata = weights.metadata() or {}
+        if metadata.get('klass') != 'demucs.htdemucs.HTDemucs' or 'structure' in metadata:
             raise WorkerError('MODEL_UNKNOWN', 'The separation model is not HTDemucs.')
     model = load_safetensors_model(path).eval()
     def run(mix, callback):
