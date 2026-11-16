@@ -78,16 +78,17 @@ fn val(e: &BytesStart) -> Option<String> {
     e.try_get_attribute("w:val").ok().flatten().map(|a| a.value.into_owned())
 }
 
-/// Hidden text set in `word/styles.xml`, resolved the way Word 16 shows it (checked case by case in Word):
-/// a style without its own `w:vanish` takes its `w:basedOn` style's, and the closest explicit value wins (`w:val="0"` shows);
-/// the table, paragraph and character styles of a run then toggle each other (XOR); hidden document defaults hide every run
-/// whatever its styles; only the run's own `w:vanish` overrides all of that.
+/// Hidden text set in `word/styles.xml`, resolved the way Word 16 shows it (each rule checked case by case in Word):
+/// a style without its own `w:vanish` takes its `w:basedOn` style's, the closest explicit value winning. The document
+/// defaults are the starting value, and each of a run's table, paragraph and character styles whose value differs from
+/// them flips it: two hidden styles cancel out, and under hidden defaults a `w:val="0"` style shows its text. A style id
+/// of the wrong type counts as missing. The run's own `w:vanish` overrides all of that.
 // shortcut: a table style's conditional formatting (`w:tblStylePr`, e.g. first row) is not applied; apply it if users hit that.
 #[derive(Default)]
 struct Styles {
     defaults: bool,
-    /// styleId -> (basedOn, own vanish)
-    all: HashMap<String, (Option<String>, Option<bool>)>,
+    /// styleId -> (type, basedOn, own vanish)
+    all: HashMap<String, (String, Option<String>, Option<bool>)>,
     para: Option<String>,
     table: Option<String>,
 }
@@ -96,7 +97,7 @@ impl Styles {
     fn parse(xml: &str) -> Result<Self, String> {
         let mut reader = Reader::from_str(xml);
         reader.config_mut().expand_empty_elements = true;
-        let (mut out, mut skip, mut style) = (Styles::default(), 0usize, None::<(String, Option<String>, Option<bool>)>);
+        let (mut out, mut skip, mut style) = (Styles::default(), 0usize, None::<(String, String, Option<String>, Option<bool>)>);
         loop {
             match reader.read_event().map_err(|_| INVALID.to_string())? {
                 Event::Eof => return Ok(out),
@@ -104,24 +105,26 @@ impl Styles {
                     "w:tblStylePr" | "w:rPrChange" => skip += 1,
                     _ if skip > 0 => {}
                     "w:style" => {
-                        let id = e.try_get_attribute("w:styleId").ok().flatten().map(|a| a.value.into_owned()).unwrap_or_default();
-                        if e.try_get_attribute("w:default").ok().flatten().is_some_and(|a| matches!(a.value.trim(), "1" | "true" | "on")) {
-                            match e.try_get_attribute("w:type").ok().flatten().as_ref().map(|a| a.value.as_ref()) {
-                                Some("paragraph") => out.para = Some(id.clone()),
-                                Some("table") => out.table = Some(id.clone()),
+                        let attr = |name| e.try_get_attribute(name).ok().flatten().map(|a| a.value.into_owned());
+                        // a style without `w:type` is a paragraph style
+                        let (id, kind) = (attr("w:styleId").unwrap_or_default(), attr("w:type").unwrap_or_else(|| "paragraph".into()));
+                        if attr("w:default").is_some_and(|d| matches!(d.trim(), "1" | "true" | "on")) {
+                            match kind.as_str() {
+                                "paragraph" => out.para = Some(id.clone()),
+                                "table" => out.table = Some(id.clone()),
                                 _ => {}
                             }
                         }
-                        style = Some((id, None, None));
+                        style = Some((id, kind, None, None));
                     }
                     "w:basedOn" => {
                         if let Some(s) = style.as_mut() {
-                            s.1 = val(&e);
+                            s.2 = val(&e);
                         }
                     }
                     // outside a style, the only run properties are the document defaults (`w:rPrDefault`)
                     "w:vanish" => match style.as_mut() {
-                        Some(s) => s.2 = Some(on(&e)),
+                        Some(s) => s.3 = Some(on(&e)),
                         None => out.defaults = on(&e),
                     },
                     _ => {}
@@ -129,8 +132,8 @@ impl Styles {
                 Event::End(e) => match e.name().as_ref() {
                     "w:tblStylePr" | "w:rPrChange" => skip = skip.saturating_sub(1),
                     "w:style" if skip == 0 => {
-                        if let Some((id, based, vanish)) = style.take() {
-                            out.all.insert(id, (based, vanish));
+                        if let Some((id, kind, based, vanish)) = style.take() {
+                            out.all.insert(id, (kind, based, vanish));
                         }
                     }
                     _ => {}
@@ -140,21 +143,23 @@ impl Styles {
         }
     }
 
-    /// Whether style `id` hides text, or None when no style has that id.
-    fn hidden(&self, id: Option<&str>) -> Option<bool> {
-        let mut at = self.all.get(id?)?;
+    /// The `w:vanish` that style `id` of type `kind` sets itself or through its `w:basedOn` styles (inner None: none sets
+    /// one), or None when no style of that type has that id.
+    fn vanish(&self, id: Option<&str>, kind: &str) -> Option<Option<bool>> {
+        let get = |id: &str| self.all.get(id).filter(|s| s.0 == kind);
+        let mut at = get(id?)?;
+        // a broken file can loop its basedOn chain; 64 steps bound it
         for _ in 0..64 {
-            // a broken file can loop its basedOn chain; this bounds it
             match at {
-                (_, Some(v)) => return Some(*v),
-                (Some(base), None) => match self.all.get(base.as_str()) {
+                (_, _, Some(v)) => return Some(Some(*v)),
+                (_, Some(base), None) => match get(base) {
                     Some(next) => at = next,
-                    None => return Some(false),
+                    None => break,
                 },
-                (None, None) => return Some(false),
+                (_, None, None) => break,
             }
         }
-        Some(false)
+        Some(None)
     }
 }
 
@@ -168,16 +173,17 @@ pub fn docx_text(zip: &[u8]) -> Result<String, String> {
         Some(s) => Styles::parse(&utf8(s)?)?,
         None => Styles::default(),
     };
-    let (para_style, table_style) = (styles.hidden(styles.para.as_deref()).unwrap_or(false), styles.hidden(styles.table.as_deref()).unwrap_or(false));
+    let (para_style, table_style) = (styles.vanish(styles.para.as_deref(), "paragraph").flatten(), styles.vanish(styles.table.as_deref(), "table").flatten());
     let mut reader = Reader::from_str(&xml);
     reader.config_mut().expand_empty_elements = true;
     let (mut out, mut lines, mut row, mut row_len, mut cell, mut para) = (String::new(), 0usize, Vec::<String>::new(), 0usize, String::new(), String::new());
     let (mut in_t, mut skip, mut deleted, mut runs, mut rows, mut cells) = (false, 0usize, 0usize, 0usize, 0usize, 0usize);
     // Hidden text is not shown by Word, so it is not read aloud: the run's own `w:vanish`, else its styles (see `Styles`).
-    let (mut tables, mut pstyle, mut rstyle, mut direct) = (Vec::<bool>::new(), para_style, false, None::<bool>);
+    let flips = |v: Option<bool>| v.is_some_and(|v| v != styles.defaults);
+    let (mut tables, mut pstyle, mut rstyle, mut direct) = (Vec::<Option<bool>>::new(), para_style, None::<bool>, None::<bool>);
     macro_rules! hidden {
         () => {
-            direct.unwrap_or(styles.defaults | (tables.last().copied().unwrap_or(false) ^ pstyle ^ rstyle))
+            direct.unwrap_or(styles.defaults ^ flips(tables.last().copied().flatten()) ^ flips(pstyle) ^ flips(rstyle))
         };
     }
     macro_rules! over {
@@ -213,19 +219,19 @@ pub fn docx_text(zip: &[u8]) -> Result<String, String> {
                     para.clear();
                     pstyle = para_style;
                 }
-                "w:pStyle" => pstyle = styles.hidden(val(&e).as_deref()).unwrap_or(para_style),
+                "w:pStyle" => pstyle = styles.vanish(val(&e).as_deref(), "paragraph").unwrap_or(para_style),
                 "w:tbl" => tables.push(table_style),
                 "w:tblStyle" => {
                     if let Some(t) = tables.last_mut() {
-                        *t = styles.hidden(val(&e).as_deref()).unwrap_or(table_style);
+                        *t = styles.vanish(val(&e).as_deref(), "table").unwrap_or(table_style);
                     }
                 }
                 "w:r" => {
                     runs += 1;
-                    (rstyle, direct) = (false, None);
+                    (rstyle, direct) = (None, None);
                 }
                 // a paragraph mark's own `w:rStyle` and `w:vanish` (in `w:pPr`, outside any run) only join lines in Word: its text stays
-                "w:rStyle" if runs > 0 => rstyle = styles.hidden(val(&e).as_deref()).unwrap_or(false),
+                "w:rStyle" if runs > 0 => rstyle = styles.vanish(val(&e).as_deref(), "character").flatten(),
                 "w:vanish" if runs > 0 => direct = Some(on(&e)),
                 "w:t" => in_t = true,
                 "w:tab" | "w:ptab" if runs > 0 && deleted == 0 && !hidden!() => para.push(' '),
@@ -252,7 +258,7 @@ pub fn docx_text(zip: &[u8]) -> Result<String, String> {
                 "w:del" | "w:moveFrom" => deleted = deleted.saturating_sub(1),
                 "w:r" => {
                     runs = runs.saturating_sub(1);
-                    (rstyle, direct) = (false, None);
+                    (rstyle, direct) = (None, None);
                 }
                 "w:tbl" => {
                     tables.pop();

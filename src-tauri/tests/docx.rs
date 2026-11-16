@@ -275,7 +275,7 @@ fn styles_hide_text_like_word_shows_it() {
 }
 
 #[test]
-fn hidden_document_defaults_hide_every_run_but_a_shown_one() {
+fn under_hidden_document_defaults_only_styles_that_show_text_flip_it() {
     let inner = [
         p("b01", "", ""),
         p("b02", &ps("PH"), ""),
@@ -284,9 +284,36 @@ fn hidden_document_defaults_hide_every_run_but_a_shown_one() {
         p("b05", &ps("PV"), ""),
         p("b06", &ps("PH"), &rs("CH")),
         table(r#"<w:tblStyle w:val="TH"/>"#, &[p("b07", "", "")]),
+        p("b08", &ps("PH0"), ""),
+        p("b09", "", &rs("CHF")),
+        p("b10", &ps("PH0"), &rs("CHF")),
+        table(r#"<w:tblStyle w:val="TH"/>"#, &[p("b11", &ps("PH0"), "")]),
     ]
     .concat();
-    shows(&styled(&word_styles(), true, &inner), &[("b01", false), ("b02", false), ("b03", false), ("b04", true), ("b05", false), ("b06", false), ("b07", false)]);
+    let shown = ["b04", "b08", "b09", "b11"];
+    let labels = (1..=11).map(|i| format!("b{i:02}")).collect::<Vec<_>>();
+    shows(&styled(&word_styles(), true, &inner), &labels.iter().map(|l| (l.as_str(), shown.contains(&l.as_str()))).collect::<Vec<_>>());
+}
+
+#[test]
+fn a_style_id_of_the_wrong_type_is_ignored_and_nested_tables_keep_their_own_style() {
+    let nested = format!("<w:tbl><w:tblPr/><w:tr><w:tc>{}{}</w:tc></w:tr></w:tbl>", table(r#"<w:tblStyle w:val="TH"/>"#, &[p("e04", "", "")]), p("e05", "", ""));
+    let inner = [
+        p("e01", &ps("CH"), ""),
+        p("e02", "", &rs("PH")),
+        table(r#"<w:tblStyle w:val="CH"/>"#, &[p("e03", "", "")]),
+        nested,
+        table(r#"<w:tblStyle w:val="PH"/>"#, &[p("e06", "", "")]),
+    ]
+    .concat();
+    shows(&styled(&word_styles(), false, &inner), &[("e01", true), ("e02", true), ("e03", true), ("e04", false), ("e05", true), ("e06", true)]);
+}
+
+#[test]
+fn a_text_box_style_stays_in_the_box_and_style_hidden_breaks_are_dropped() {
+    let boxed = format!(r#"<w:r><mc:AlternateContent xmlns:mc="m"><mc:Choice><w:drawing><w:txbxContent>{}</w:txbxContent></w:drawing></mc:Choice></mc:AlternateContent></w:r>"#, p("ẩn", &ps("PH"), ""));
+    let inner = format!(r#"<w:p><w:r><w:t>f01 </w:t></w:r>{boxed}<w:r><w:t>f02</w:t></w:r><w:r><w:rPr>{}</w:rPr><w:t>ẩn</w:t><w:tab/><w:br/><w:noBreakHyphen/></w:r><w:r><w:t>f03</w:t></w:r></w:p>"#, rs("CH"));
+    assert_eq!(styled(&word_styles(), false, &inner), "f01 f02f03");
 }
 
 #[test]

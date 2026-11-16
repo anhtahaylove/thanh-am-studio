@@ -120,9 +120,10 @@ Last updated 2026-11-14. Evidence below was observed, not inferred; anything not
 - On main after v1.0.12 (not released yet): Word import skips hidden text, with its tabs and breaks: a run's own
   `w:vanish` (unless `w:val` turns it off), and hiding set in `word/styles.xml` (document defaults, paragraph, character
   and table styles along `w:basedOn`, the default paragraph and table styles). Styles resolve the way Word 16 shows
-  them, checked case by case in Word: the nearest explicit value in a `w:basedOn` chain wins, the table, paragraph and
-  character styles of a run toggle each other, hidden document defaults hide every run without its own `w:val="0"`.
-  A paragraph whose mark alone is hidden keeps its text.
+  them, checked case by case in Word: the nearest explicit value in a `w:basedOn` chain wins; starting from the
+  document defaults, each of a run's table, paragraph and character styles whose value differs from them flips it (two
+  hidden styles cancel out); a style id of the wrong type counts as missing. A paragraph whose mark alone is hidden
+  keeps its text.
 
 ## Verification (2026-11-11)
 
