@@ -316,13 +316,18 @@ def probe(path, ffmpeg_path=None):
             'sample_rate': int(stream['sample_rate']), 'channels': int(stream.get('channels', 1))}
 
 
+EXPORT_CODECS = {'wav': ['-c:a', 'pcm_s24le'], 'mp3': ['-c:a', 'libmp3lame', '-b:a', '192k'],
+    'm4a': ['-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart'], 'flac': ['-c:a', 'flac', '-sample_fmt', 's32'],  # s32 = 24-bit FLAC
+    'opus': ['-c:a', 'libopus', '-b:a', '128k']}
+
+
 def render(payload, output_dir: Path, progress):
     clips = payload.get('clips')
     if not isinstance(clips, list) or not 1 <= len(clips) <= 10000:
         raise WorkerError('INVALID_RECIPE', 'Select at least one audio take to export.')
     fmt = payload.get('format', 'wav')
-    if fmt not in {'wav', 'mp3'}:
-        raise WorkerError('INVALID_RECIPE', 'Supported export formats: wav, mp3.')
+    if fmt not in EXPORT_CODECS:
+        raise WorkerError('INVALID_RECIPE', f"Supported export formats: {', '.join(EXPORT_CODECS)}.")
     ffmpeg = executable('ffmpeg', payload.get('ffmpeg_path'))
     # Subtitle timeline: each clip starts at its at_ms (silence fills the wait), sped up by its rate, and the output runs at least
     # to pad_to_ms; the gaps are not used. The places come from the app's dub plan; this only applies them.
@@ -369,7 +374,7 @@ def render(payload, output_dir: Path, progress):
             if payload.get('normalize', False):
                 args += ['-af', 'loudnorm=I=-16:TP=-1.5:LRA=11']
             args += ['-ar', '48000', '-ac', '1']
-            args += ['-c:a', 'pcm_s24le'] if fmt == 'wav' else ['-c:a', 'libmp3lame', '-b:a', '192k']
+            args += EXPORT_CODECS[fmt]
             run_process(args + [str(partial)])
             info = probe(partial, ffmpeg)
             replace_with_retry(partial, final)

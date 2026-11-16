@@ -113,12 +113,14 @@ async function newProject(prefix) {
 }
 async function exportSteps() {
   const wav = join(saves, `xuất thử ổn định ${Date.now()}.wav`);
+  let wavMs = 0;
   await step('render and export wav via save dialog', async () => {
     const before = await done('render');
     await page.getByRole('button', {name: 'Xuất audio'}).click();
     const [job] = await waitJobs('render', before + 1, 5 * 60000);
     await nav('Hàng đợi');
     await jobButton(job.id, 'Lưu audio').click();
+    wavMs = job.result.duration_ms;
     dialog(wav);
     await saved(wav);
     copyFileSync(wav, join(out, 'xuất thử ổn định.wav'));
@@ -146,6 +148,44 @@ async function exportSteps() {
     for (let i = 0; i < 20 && !existsSync(srt); i++) await page.waitForTimeout(500);
     copyFileSync(srt, join(out, 'phụ đề.srt'));
     return `${statSync(srt).size} bytes`;
+  });
+  // M4A, FLAC and Opus: same render as the WAV, saved to Unicode paths; the codec, 48 kHz and the length are read back with ffprobe.
+  const ffprobe = join(dirname(exe), 'runtime', 'ffmpeg', 'ffprobe.exe');
+  const formats = {m4a: {label: 'M4A', codec: 'aac'}, flac: {label: 'FLAC', codec: 'flac'}, opus: {label: 'Opus', codec: 'opus'}};
+  const files = {};
+  for (const [ext, {label, codec}] of Object.entries(formats)) {
+    await step(`render and export ${ext} via save dialog`, async () => {
+      await nav('Dự án');
+      await page.getByRole('button', {name: 'Mở dự án'}).first().click();
+      await page.getByRole('textbox', {name: 'Nội dung đoạn 1'}).waitFor();
+      await page.getByRole('combobox', {name: 'Định dạng audio'}).selectOption({label});
+      const before = await done('render');
+      await page.getByRole('button', {name: 'Xuất audio'}).click();
+      const [job] = await waitJobs('render', before + 1, 5 * 60000);
+      await nav('Hàng đợi');
+      await jobButton(job.id, 'Lưu audio').click();
+      const file = files[ext] = join(saves, `xuất thử định dạng ${Date.now()}.${ext}`);
+      dialog(file);
+      await saved(file);
+      copyFileSync(file, join(out, `xuất thử định dạng.${ext}`));
+      const {streams: [stream], format} = JSON.parse(execFileSync(ffprobe, ['-v', 'error', '-select_streams', 'a:0', '-show_entries', 'stream=codec_name,sample_rate,bits_per_raw_sample:format=duration', '-of', 'json', file], {encoding: 'utf8'}));
+      const ms = Math.round(Number(format.duration) * 1000);
+      if (stream.codec_name !== codec || stream.sample_rate !== '48000') throw Error(`unexpected stream: ${JSON.stringify(stream)}`);
+      if (ext === 'flac' && stream.bits_per_raw_sample !== '24') throw Error(`FLAC is not 24-bit: ${JSON.stringify(stream)}`);
+      if (Math.abs(ms - wavMs) > 50) throw Error(`${ext} is ${ms} ms, the WAV ${wavMs} ms`);
+      return `${statSync(file).size} bytes, ${stream.codec_name} ${stream.sample_rate} Hz, ${ms} ms vs WAV ${wavMs} ms`;
+    });
+  }
+  await step('stt from the exported m4a', async () => {
+    await nav('Chép lời');
+    await page.getByRole('combobox', {name: 'Model STT'}).selectOption('whisper-small');
+    const s0 = await done('stt');
+    await page.getByRole('button', {name: 'Chọn tệp & chép lời'}).click();
+    dialog(files.m4a);
+    const [job] = await waitJobs('stt', s0 + 1, 10 * 60000);
+    const text = job.result.transcript.map((s) => s.text).join(' ').trim();
+    if (!text) throw Error('no text from the m4a');
+    return text;
   });
   }
 

@@ -18,7 +18,7 @@ Fresh reference cloning is supported via `reference_path`; consent and asset acc
 
 ## Audio recipe
 
-Trim uses an exclusive end in milliseconds; null end means source duration. Fades clamp to trimmed duration. Gain range -60..24 dB. Gap is appended after each clip, including the final one, matching TTS subtitle recipe timing. Render streams each clip to 48 kHz mono PCM temporary chunks, then concatenates; this avoids a 500-input FFmpeg command and does not load all PCM in Python. Optional normalization targets -16 LUFS, -1.5 dBTP. Output WAV PCM24 or MP3 192 kb/s is finalized atomically. No input file is overwritten.
+Trim uses an exclusive end in milliseconds; null end means source duration. Fades clamp to trimmed duration. Gain range -60..24 dB. Gap is appended after each clip, including the final one, matching TTS subtitle recipe timing. Render streams each clip to 48 kHz mono PCM temporary chunks, then concatenates; this avoids a 500-input FFmpeg command and does not load all PCM in Python. Optional normalization targets -16 LUFS, -1.5 dBTP. Output WAV PCM24, MP3 192 kb/s, M4A (AAC) 192 kb/s, FLAC 24-bit or Opus 128 kb/s is finalized atomically. No input file is overwritten.
 
 ## Verification
 

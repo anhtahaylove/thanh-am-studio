@@ -34,7 +34,7 @@ with `sha256sum -c SHA256SUMS.txt` (or compare `Get-FileHash <file>` with the li
    silently, then runs `e2e/desktop/packaged.mjs` phases `full` (model download via UI, TTS,
    preview, new take, render + save dialog, STT + apply, SRT export), `reopen`, `turbo` (Whisper
    Turbo download, MP3 export, Turbo STT), `offline` (network adapters disabled) and `export`
-   (render, save dialog to a Unicode path, STT, SRT, still offline). `-Only full,clone,dpi` runs chosen
+   (render, save dialog to a Unicode path, STT, SRT, M4A/FLAC/Opus export checked with ffprobe, STT of the M4A, still offline). `-Only full,clone,dpi` runs chosen
    phases instead (`clone`: reference voice with consent and cloned takes; `dpi`: layout at high-DPI
    viewports; `longstt`: STT of `long.mp3` next to the installer, scored against `long.txt`; `ux`: drag and drop of a script and of `THANHAM_UX_AUDIO` (in the Sandbox: `dialogue.wav` next to the installer), then transcript follow-along during playback; `features`: pause mark, per-segment speed and Whisper self-check on a new take, waveform playback progress, diarization model download, speaker-labelled STT with a known speaker count, a row relabelled by hand and saved, turned into a script), and
    `-Gate 500` runs the long-project gate inside the Sandbox.
