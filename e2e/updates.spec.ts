@@ -51,6 +51,18 @@ test('a newer release downloads in the background, shows its notes and installs 
  await expect.poll(()=>commands(page,'update_install')).toEqual([{restart:false}]);
 });
 
+test('Escape closes the update dialogs after a click on their text moved focus to the page',async({page})=>{
+ await page.addInitScript(mock,{found:{version:next,notes:'- Sửa lỗi xuất phụ đề',date:null},seen:'1.0.9'});await page.goto('/');
+ const dialog=page.getByRole('dialog',{name:'Có gì mới'});await expect(dialog).toBeVisible();
+ await dialog.getByRole('listitem').first().click();await expect(page.locator('body')).toBeFocused();
+ await page.keyboard.press('Escape');await expect(dialog).toHaveCount(0);
+ await expect(page.getByText(`Bản ${next} đã tải xong`)).toBeVisible({timeout:10000});
+ await page.evaluate(()=>(window as any).__fire('tauri://close-requested',null));
+ const ask=page.getByRole('dialog',{name:`Cài bản ${next} rồi đóng?`});await expect(ask).toBeVisible();
+ await ask.getByText('Bản cập nhật đã tải xong').click();await expect(page.locator('body')).toBeFocused();
+ await page.keyboard.press('Escape');await expect(ask).toHaveCount(0);expect(await commands(page,'plugin:window|destroy')).toHaveLength(0);expect(await commands(page,'update_install')).toEqual([]);
+});
+
 test('install now saves the open project first, then restarts into the new version; download progress is shown',async({page})=>{
  await page.addInitScript(mock,{found:{version:next,notes:null,date:null},project:true});
  await page.addInitScript(()=>{const w=window as any;w.__hold=new Promise(r=>w.__release=r);});
