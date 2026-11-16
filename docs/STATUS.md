@@ -854,11 +854,33 @@ Evidence: `work\release-v1.0.12-sandbox` (`run1012`, `github-update`); the temp-
 
 Evidence: `work\release-v1.0.13-sandbox` (`run1013u`, `run1013s`, `script.docx`); the Word measurements in `work\docx-hidden-word-check`.
 
+### v1.0.15 release (built by `.github/workflows/release.yml` from tag `v1.0.15` at `1bc7dad`)
+
+v1.0.14 (tag at `038ae4f`) was built but never published: its Sandbox runs 1 and 3 failed "m4a is 6700 ms, the WAV 6601 ms"
+(and 6641). The decoded audio had the WAV's length; the MP4 (and Ogg) container length was rounded up to loudnorm's
+100 ms frames. #111 adds `asetpts=N/SR/TB` after loudnorm and a test over every format with and without normalising
+(it failed for M4A and Opus first). The 1.0.14 draft was deleted and its tag kept; 1.0.15 is that code plus #111.
+
+| Check | Result |
+|---|---|
+| Tests | CI green on #104 to #112 and the merge commit (88 unit, 64 Playwright, 61 Rust, 97 worker with 18 skipped); the `runtime` workflow runs the worker tests on the bundled runtime with FFmpeg and PyTorch (6 skipped) |
+| Installer SHA-256 | `02e002df4865e16aedeb57b048d55b71906fae60ea0b19aa49a29c44756e3530`; `sha256sum -c` OK after `gh release download` and after an anonymous download from `/releases/latest/download/` |
+| Notices | the tagged build's `THIRD-PARTY-NOTICES.txt` holds the Intel End User License Agreement for Developer Tools and the Intel Simplified Software License |
+| Update feed | the anonymous `/releases/latest/download/latest.json` names 1.0.15, points to the v1.0.15 installer, and its signature's trusted comment holds `version:1.0.15` |
+| Clean Sandbox 1, `-Only full,features,dub,scripts,ux` | install 111 s, 1312 MB installed; health ready, torch present and not loaded by the engines; WAV, M4A, FLAC and Opus exports (M4A and FLAC the WAV's length, Opus +7 ms), STT of the M4A; "Giữ nhạc nền" on a 16 s video with music: HTDemucs downloaded through the UI, separation 0.85x real time, stem lag 0 ms, the unnormalised export keeps the synthetic bed under the dub (gap -0.02 dB), cancel at 37 % leaves no process or partial: 48 PASS, 0 FAIL |
+| Clean Sandbox 2, default runner | `full`, `reopen`, `turbo` (MP3 + Whisper Large v3 Turbo), then with the network adapters disabled `offline` and `export`: 35 PASS, 0 FAIL |
+| Clean Sandbox 3, `-Only full,clone,dpi` | cleaned-sample preview skips 6 s of leading tone bursts (7797 ms, fits the padded reference at 8580 ms); clone WER 6.1 % (8.5 % on the 1.0.14 build); 4/4 layouts: 26 PASS, 0 FAIL |
+| Clean Sandbox 4, `-Only update -From` the published 1.0.13 | refused a package that does not match its signature, then updated itself to 1.0.15 through the local feed (passive install, no licence page) and reopened at 1.0.15 with its project; the installer copy in `%TEMP%` was removed: 4 PASS, 0 FAIL |
+| Interactive installer | started without `/S` in a fifth clean Sandbox: Welcome, then the licence page whose text box holds `src-tauri/installer-license.txt` in full (Vietnamese diacritics intact; read through UI Automation, screenshot of the top) and "I Agree" |
+| Not run | the update to 1.0.15 through GitHub itself; the interactive install past "I Agree"; the uninstaller; listening to the separated backgrounds |
+
+Evidence: `work\release-v1.0.15-sandbox` (`run1015a`, `run1015b`, `run1015c`, `run1015u`, `licence-page`; the failed 1.0.14 runs in `run1014*`).
+
 ## Not verified / known gaps
 
 - Self-update through GitHub was observed once, in a clean Sandbox (1.0.11 to 1.0.12, above); the per-release gate
   still uses a local copy of the feed (`THANHAM_UPDATE_MANIFEST`), because it runs before the release is published.
-  Each update downloads the whole installer (about 200 MB); from 1.0.12 the app removes the installer copy the updater
+  Each update downloads the whole installer (about 297 MB from 1.0.15, which adds PyTorch); from 1.0.12 the app removes the installer copy the updater
   leaves in `%TEMP%` shortly after it starts.
 - Listening quality has not been judged by a human; the clipping checks above are signal analysis.
   On 2026-11-13 the owner accepted the machine listening below in place of a human listening pass.
