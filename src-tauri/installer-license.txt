@@ -1,0 +1,15 @@
+Tóm tắt: Thanh Âm Studio dùng giấy phép Apache-2.0; thư viện Intel OpenMP và Intel oneMKL đi kèm theo điều khoản của Intel: không được dịch ngược, phân tích ngược hay sửa đổi chúng.
+
+THANH ÂM STUDIO
+Copyright 2026 Thanh Âm Studio contributors
+
+Thanh Âm Studio is licensed under the Apache License, Version 2.0. The full license (LICENSE.txt) and the licenses of the third-party components the application includes (THIRD-PARTY-NOTICES.txt) are installed in the application folder. Models are downloaded separately and keep their own licenses.
+
+INTEL COMPONENTS
+
+This product includes the following Intel software, in binary form only:
+
+- Intel OpenMP runtime (libiomp5md.dll, inside the bundled PyTorch and CTranslate2 packages), provided under the Intel End User License Agreement for Developer Tools.
+- Intel oneMKL, linked into the bundled PyTorch library, provided under the Intel Simplified Software License.
+
+By installing this product you agree that you may not reverse engineer, decompile or disassemble these Intel components, and may not modify them. Their full license terms, including Intel's disclaimers, are in THIRD-PARTY-NOTICES.txt.

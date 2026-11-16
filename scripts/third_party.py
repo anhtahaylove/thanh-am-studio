@@ -62,6 +62,13 @@ for info in sorted(site.glob('*.dist-info')):
     add('pypi', m['Name'], m['Version'], lic, f"pkg:pypi/{m['Name'].lower()}@{m['Version']}", files)
 add('runtime', 'CPython', '3.11.18', 'PSF-2.0', 'pkg:generic/cpython@3.11.18', [ROOT / 'runtime' / 'python' / 'LICENSE.txt'])
 add('runtime', 'Microsoft Visual C++ Redistributable CRT (app-local DLLs next to python.exe)', '14.x', 'LicenseRef-Microsoft-VC-Redist', 'pkg:generic/msvc-crt@14', [])
+# Intel binaries inside the torch and ctranslate2 wheels, whose dist-info carries no Intel text; the texts come from the
+# dist-info of the mkl 2026.2.1 and intel-openmp 2026.2.0 wheels (scripts/licenses/).
+licenses = ROOT / 'scripts' / 'licenses'
+add('runtime', 'Intel OpenMP runtime (libiomp5md.dll in torch and ctranslate2)', '20260828 (torch), 20250910 (ctranslate2)', 'LicenseRef-Intel-EULA-Developer-Tools',
+    'pkg:generic/intel-openmp@2026.2.0', [licenses / 'intel-openmp-runtime.txt'])
+add('runtime', 'Intel oneMKL (linked into torch)', '2026.2', 'LicenseRef-Intel-Simplified-Software-License', 'pkg:generic/intel-onemkl@2026.2',
+    [licenses / 'intel-simplified-software-license.txt'])
 ff = ROOT / 'runtime' / 'ffmpeg'
 add('runtime', 'FFmpeg (BtbN LGPL shared build)', '9.0.2', 'LGPL-2.1-or-later', 'pkg:generic/ffmpeg@9.0.2', [ff / 'LICENSE.txt', ff / 'SOURCE.txt'])
 

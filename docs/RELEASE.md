@@ -1,8 +1,9 @@
 # Release process
 
 The installer ships the app, the worker, a private CPython 3.11.18 runtime with the locked CPU
-inference closure and a pinned LGPL FFmpeg build. Models are not shipped; users download them
-in **Model & cài đặt** (pinned revisions and digests in `worker/models.json`).
+inference closure (including PyTorch 2.15.0+cpu and Demucs 4.1.0 for background separation) and a
+pinned LGPL FFmpeg build. Models are not shipped; users download them in **Model & cài đặt** (pinned
+revisions and digests in `worker/models.json`).
 
 ## Reproducible build (Windows x64)
 
@@ -71,4 +72,17 @@ project's updater key by the release workflow. Record the signing status in the 
 SBOM/notices; FFmpeg and python-soxr are LGPL and ship as separate replaceable files with their
 license and source pointer (`runtime/ffmpeg/SOURCE.txt`). Models (VieNeu v3 Turbo and the MOSS
 audio tokenizer: Apache-2.0; faster-whisper conversions: MIT) are downloaded by the user, not
-redistributed.
+redistributed. The optional HTDemucs weights (code MIT; the weights' license is unclear upstream:
+trained with MusDB, which is for research only) are also a user-started download; say so in the
+release notes.
+
+The runtime includes Intel binaries: the Intel OpenMP runtime (`libiomp5md.dll` in torch and in
+ctranslate2; Intel End User License Agreement for Developer Tools) and Intel oneMKL (linked into
+torch; Intel Simplified Software License). Their texts are in `scripts/licenses/` (from the
+`intel-openmp` 2026.2.0 and `mkl` 2026.2.1 wheels) and `scripts/third_party.py` adds them to the
+notices. The EULA lets a product redistribute the runtime only under a license agreement that forbids
+reverse engineering it, and makes the distributor responsible to its users and indemnify Intel; the
+owner accepted these terms on 2026-11-16. The installer therefore shows `src-tauri/installer-license.txt`
+as an "I agree" page (silent `/S` installs and the updater's passive install skip it) and installs
+`LICENSE.txt` and `THIRD-PARTY-NOTICES.txt`. Before publishing, check the tagged build's notices:
+`Select-String 'Intel Simplified Software License','Intel End User License Agreement for Developer Tools' release/THIRD-PARTY-NOTICES.txt`.
