@@ -170,3 +170,15 @@ fn alternate_content_fallback_is_skipped() {
     let inner = r#"<w:p><mc:AlternateContent xmlns:mc="m"><mc:Choice><w:r><w:t>Một</w:t></w:r></mc:Choice><mc:Fallback><w:r><w:t>Một</w:t></w:r></mc:Fallback></mc:AlternateContent><w:r><w:t>.</w:t></w:r></w:p>"#;
     assert_eq!(text(inner, false), "Một.");
 }
+
+#[test]
+fn hidden_runs_are_skipped_but_a_hidden_paragraph_mark_keeps_its_text() {
+    let inner = r#"<w:p><w:r><w:t xml:space="preserve">Hiện </w:t></w:r><w:r><w:rPr><w:vanish/></w:rPr><w:t xml:space="preserve">ẩn </w:t><w:tab/><w:br/></w:r><w:r><w:rPr><w:vanish w:val="false"/></w:rPr><w:t>vẫn hiện</w:t></w:r></w:p><w:p><w:pPr><w:rPr><w:vanish/></w:rPr></w:pPr><w:r><w:t>Dòng hai</w:t></w:r></w:p>"#;
+    assert_eq!(text(inner, false), "Hiện vẫn hiện\nDòng hai");
+}
+
+#[test]
+fn a_tracked_change_that_unhid_a_run_keeps_it() {
+    let inner = r#"<w:p><w:r><w:rPr><w:b/><w:rPrChange w:id="3" w:author="a"><w:rPr><w:vanish/></w:rPr></w:rPrChange></w:rPr><w:t>Hiện lại</w:t></w:r></w:p>"#;
+    assert_eq!(text(inner, false), "Hiện lại");
+}

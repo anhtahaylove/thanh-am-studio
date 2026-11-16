@@ -76,6 +76,9 @@ pub fn docx_text(zip: &[u8]) -> Result<String, String> {
     reader.config_mut().expand_empty_elements = true;
     let (mut out, mut lines, mut row, mut row_len, mut cell, mut para) = (String::new(), 0usize, Vec::<String>::new(), 0usize, String::new(), String::new());
     let (mut in_t, mut skip, mut deleted, mut runs, mut rows, mut cells) = (false, 0usize, 0usize, 0usize, 0usize, 0usize);
+    // Hidden runs (`w:vanish` in the run's own properties) are not shown by Word, so they are not read aloud.
+    // shortcut: hiding set through a character style lives in styles.xml, which is not read; read it if users hit that.
+    let mut hidden = false;
     macro_rules! over {
         ($extra:expr) => {
             if out.len() + para.len() + cell.len() + row_len + $extra > MAX_TEXT {
@@ -100,15 +103,21 @@ pub fn docx_text(zip: &[u8]) -> Result<String, String> {
         match reader.read_event().map_err(|_| INVALID.to_string())? {
             Event::Eof => break,
             Event::Start(e) => match e.name().as_ref() {
-                "w:txbxContent" | "mc:Fallback" => skip += 1,
+                // `w:rPrChange` holds a run's formatting before a tracked change (no text), so its `w:vanish` is not current
+                "w:txbxContent" | "mc:Fallback" | "w:rPrChange" => skip += 1,
                 _ if skip > 0 => {}
                 "w:del" | "w:moveFrom" => deleted += 1,
                 "w:p" => para.clear(),
-                "w:r" => runs += 1,
+                "w:r" => {
+                    runs += 1;
+                    hidden = false;
+                }
+                // a paragraph mark's own `w:vanish` (in `w:pPr`, outside any run) only joins lines in Word: its text stays
+                "w:vanish" if runs > 0 => hidden = !e.try_get_attribute("w:val").ok().flatten().is_some_and(|a| matches!(&*a.value, "0" | "false" | "off")),
                 "w:t" => in_t = true,
-                "w:tab" | "w:ptab" if runs > 0 && deleted == 0 => para.push(' '),
-                "w:noBreakHyphen" if runs > 0 && deleted == 0 => para.push('-'),
-                "w:br" | "w:cr" if runs > 0 && deleted == 0 => para.push(if cells > 0 { ' ' } else { '\n' }),
+                "w:tab" | "w:ptab" if runs > 0 && deleted == 0 && !hidden => para.push(' '),
+                "w:noBreakHyphen" if runs > 0 && deleted == 0 && !hidden => para.push('-'),
+                "w:br" | "w:cr" if runs > 0 && deleted == 0 && !hidden => para.push(if cells > 0 { ' ' } else { '\n' }),
                 "w:tr" => {
                     rows += 1;
                     if rows == 1 {
@@ -125,10 +134,13 @@ pub fn docx_text(zip: &[u8]) -> Result<String, String> {
                 _ => {}
             },
             Event::End(e) => match e.name().as_ref() {
-                "w:txbxContent" | "mc:Fallback" => skip = skip.saturating_sub(1),
+                "w:txbxContent" | "mc:Fallback" | "w:rPrChange" => skip = skip.saturating_sub(1),
                 _ if skip > 0 => {}
                 "w:del" | "w:moveFrom" => deleted = deleted.saturating_sub(1),
-                "w:r" => runs = runs.saturating_sub(1),
+                "w:r" => {
+                    runs = runs.saturating_sub(1);
+                    hidden = false;
+                }
                 "w:t" => in_t = false,
                 "w:p" if cells > 0 => {
                     if !para.trim().is_empty() {
@@ -163,11 +175,11 @@ pub fn docx_text(zip: &[u8]) -> Result<String, String> {
                 }
                 _ => {}
             },
-            Event::Text(t) if in_t && skip == 0 && deleted == 0 => {
+            Event::Text(t) if in_t && skip == 0 && deleted == 0 && !hidden => {
                 over!(t.len());
                 para.push_str(&t);
             }
-            Event::GeneralRef(r) if in_t && skip == 0 && deleted == 0 => {
+            Event::GeneralRef(r) if in_t && skip == 0 && deleted == 0 && !hidden => {
                 over!(4);
                 match (r.resolve_char_ref().map_err(|_| INVALID.to_string())?, &*r) {
                     (Some(c), _) => para.push(c),
