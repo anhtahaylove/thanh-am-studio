@@ -49,14 +49,19 @@ export function UpdateBanner({state,onInstall,onShowChanges,onDismiss}:{state:Up
  return null;
 }
 
+// Escape closes a dialog wherever focus is, also after a click on its text moved focus to the page.
+function useEscape(close:()=>void){useEffect(()=>{const key=(e:KeyboardEvent)=>{if(e.key==='Escape')close();};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[close]);}
+
 export function WhatsNew({entries,onClose}:{entries:ChangelogEntry[];onClose:()=>void}){
- return <div className="modal-backdrop"><section className="modal panel whats-new" role="dialog" aria-modal="true" aria-labelledby="whats-new-title" onKeyDown={e=>{if(e.key==='Escape')onClose();}}><div className="panel-toolbar"><h3 id="whats-new-title"><Sparkles size={17}/>Có gì mới</h3><button type="button" className="icon-button" aria-label="Đóng Có gì mới" title="Đóng Có gì mới" autoFocus onClick={onClose}><X size={17}/></button></div>
+ useEscape(onClose);
+ return <div className="modal-backdrop"><section className="modal panel whats-new" role="dialog" aria-modal="true" aria-labelledby="whats-new-title"><div className="panel-toolbar"><h3 id="whats-new-title"><Sparkles size={17}/>Có gì mới</h3><button type="button" className="icon-button" aria-label="Đóng Có gì mới" title="Đóng Có gì mới" autoFocus onClick={onClose}><X size={17}/></button></div>
   {entries.map(e=><article key={e.version}><h4>Bản {e.version}{e.date&&<span>{e.date.split('-').reverse().join('/')}</span>}</h4><ul>{e.changes.map(c=><li key={c}>{c}</li>)}</ul></article>)}
   <button className="primary" onClick={onClose}>Đã hiểu</button></section></div>;
 }
 
 export function InstallOnClose({version,onInstall,onLater,onCancel}:{version:string;onInstall:()=>void;onLater:()=>void;onCancel:()=>void}){
- return <div className="modal-backdrop"><section className="modal panel" role="dialog" aria-modal="true" aria-labelledby="install-close-title" onKeyDown={e=>{if(e.key==='Escape')onCancel();}}><div className="panel-toolbar"><h3 id="install-close-title">Cài bản {version} rồi đóng?</h3><button type="button" className="icon-button" aria-label="Quay lại app" title="Quay lại app" autoFocus onClick={onCancel}><X size={17}/></button></div>
+ useEscape(onCancel);
+ return <div className="modal-backdrop"><section className="modal panel" role="dialog" aria-modal="true" aria-labelledby="install-close-title"><div className="panel-toolbar"><h3 id="install-close-title">Cài bản {version} rồi đóng?</h3><button type="button" className="icon-button" aria-label="Quay lại app" title="Quay lại app" autoFocus onClick={onCancel}><X size={17}/></button></div>
   <p>Bản cập nhật đã tải xong và đã kiểm chữ ký. Trình cài đặt chạy vài giây; dự án, take và model được giữ nguyên.</p>
   <div className="modal-actions"><button className="outlined" onClick={onLater}>Đóng, để lần sau</button><button className="primary" onClick={onInstall}>Cài và đóng</button></div></section></div>;
 }
