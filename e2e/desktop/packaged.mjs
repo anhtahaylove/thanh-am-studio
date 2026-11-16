@@ -782,6 +782,7 @@ try {
       if (copies().length) throw Error(`installer copy still in ${tmpdir()}: ${copies().join(' | ')}`);
       const now = await invoke('plugin:app|version'), want = JSON.parse(readFileSync(process.env.THANHAM_UPDATE_FEED, 'utf8').replace(/^\uFEFF/, '')).version;
       if (now !== want) throw Error(`running ${now} after the update, the feed offers ${want}`);
+      if (process.env.THANHAM_UPDATE_FROM && from === now) throw Error(`-From installed ${from}, the version under test, so no earlier release was updated`);
       const after = (await invoke('list_projects')).length;
       if (after !== projects) throw Error(`projects ${projects} -> ${after}`);
       return `${from} -> ${now}, reopened; ${after} projects kept; installer copy ${left.join(' | ')} removed; requests ${served.join(' ')}`;
