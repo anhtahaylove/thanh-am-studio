@@ -264,6 +264,24 @@
           "sha256": "aa3cfc16963a10586a9393f5035d6d6b57e98d358b347f80c2a30bf4f00ceba2"
         }
       ]
+    },
+    {
+      "id": "htdemucs",
+      "name": "HTDemucs (vocals and background separation)",
+      "engine": "demucs",
+      "revision": "cbc8a9b1a87023b7fd74e7b3412e6321c0eab003",
+      "license": "Mã MIT; trọng số chưa rõ giấy phép (dữ liệu MusDB chỉ cho nghiên cứu)",
+      "description": "Local CPU model (PyTorch). Hybrid Transformer Demucs: code MIT; the weights' license is unclear upstream (trained with MusDB, which is for research only). Optional; download it before separating a background.",
+      "artifacts": [
+        {
+          "path": "955717e8.safetensors",
+          "repo": "adefossez/HTDemucs",
+          "revision": "cbc8a9b1a87023b7fd74e7b3412e6321c0eab003",
+          "filename": "955717e8.safetensors",
+          "size": 84025440,
+          "sha256": "d9fa14133cfcc034a6758923bb3a8ca9f8dfd0b582134643bbf83f72c17576dd"
+        }
+      ]
     }
   ]
 }

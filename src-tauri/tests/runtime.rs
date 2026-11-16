@@ -140,3 +140,24 @@ fn render_timeline_places_are_bounded_and_forwarded_only_when_asked(){
   assert_eq!(prepare_request(&s,&job(json!({"segments":[seg(at,rate)],"timeline":true,"pad_to_ms":pad})),None).unwrap_err(),"INVALID_TIMELINE");
  }
 }
+#[test]
+fn separate_resolves_the_asset_and_the_htdemucs_model_and_never_trusts_payload_paths(){
+ let t=tempfile::tempdir().unwrap();let s=Store::open(t.path()).unwrap();
+ let p=t.path().join("song.mp4");std::fs::write(&p,b"media").unwrap();let a=s.import_asset(&p).unwrap();
+ let j=s.enqueue("separate",None,json!({"asset_id":a["id"],"input_path":"C:/secret","model_path":"C:/x","output_name":"../x.flac"})).unwrap();
+ let r=prepare_request(&s,&j,Some(std::path::Path::new("C:/rt/ffmpeg.exe"))).unwrap();
+ assert_eq!((&r["operation"],&r["payload"]["input_path"],&r["payload"]["ffmpeg_path"]),(&json!("separate"),&a["path"],&json!("C:/rt/ffmpeg.exe")));
+ assert_eq!(r["payload"]["model_path"],json!(t.path().join("models").join("htdemucs")));
+ assert_eq!(r["payload"]["output_name"],json!(format!("{}.flac",j["id"].as_str().unwrap())));
+ assert_eq!(prepare_request(&s,&s.enqueue("separate",None,json!({})).unwrap(),None).unwrap_err(),"INVALID_PAYLOAD: asset_id");
+ // The Model page can download it.
+ assert!(prepare_request(&s,&s.enqueue("model_download",None,json!({"model_id":"htdemucs"})).unwrap(),None).is_ok());
+ assert_eq!(thanh_am_studio::model_description("separation"),"Tách giọng nói khỏi nhạc nền • CPU PyTorch • local");
+}
+#[test]
+fn a_separation_leaves_only_its_log_in_the_job_folder(){
+ let t=tempfile::tempdir().unwrap();for f in ["job.flac","job.partial.FLAC","worker.log"]{std::fs::write(t.path().join(f),b"x").unwrap();}
+ thanh_am_studio::runtime::remove_stems(t.path());
+ assert_eq!(std::fs::read_dir(t.path()).unwrap().map(|e|e.unwrap().file_name().into_string().unwrap()).collect::<Vec<_>>(),["worker.log"]);
+ thanh_am_studio::runtime::remove_stems(&t.path().join("missing")); // a job that never started has no folder
+}

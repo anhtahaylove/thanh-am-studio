@@ -51,6 +51,9 @@ try {
     $site = Join-Path $pythonDir 'Lib\site-packages'
     Get-ChildItem -LiteralPath $site -Directory -Recurse -Filter 'tests' | Sort-Object { $_.FullName.Length } -Descending | ForEach-Object { Remove-Item -LiteralPath $_.FullName -Recurse -Force }
     Remove-Item -LiteralPath (Join-Path $site 'onnxruntime\tools') -Recurse -Force -ErrorAction SilentlyContinue
+    # Torch's C++ headers, import libraries and build tools only serve compiling extensions.
+    foreach ($rel in @('include', 'bin', 'share')) { Remove-Item -LiteralPath (Join-Path $site "torch\$rel") -Recurse -Force -ErrorAction SilentlyContinue }
+    Remove-Item -Path (Join-Path $site 'torch\lib\*.lib') -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $managed -Recurse -Force
 
     $bin = Join-Path $destinationPath 'ffmpeg'

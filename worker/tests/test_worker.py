@@ -18,6 +18,9 @@ import main as worker
 # The VieNeu commit test_clone_preview_matches_what_synthesis_enrolls last passed against with the real model.
 VIENEU_VERIFIED = '22dd2ef2a89bba24a77da6dbc84c75f7f4fda05b'
 
+# Real-model separation tests: an installed models/htdemucs folder. Skipped when absent.
+DEMUCS_MODELS = Path(os.environ.get('THANHAM_DEMUCS_MODELS', ''))
+
 
 def diarize_child_here(calls):
     """Stand-in for subprocess.run in diarize_isolated(): does the child's work in this process, where the sherpa_onnx mock is."""
@@ -69,6 +72,7 @@ class WorkerTests(unittest.TestCase):
         events = [json.loads(line) for line in p.stdout.splitlines()]
         self.assertEqual(events[-1]['event'], 'result')
         self.assertEqual(events[-1]['id'], 'test')
+        self.assertIs(events[-1]['result']['torch_imported_by_engines'], False)
 
     def test_missing_model_reports_error_not_audio(self):
         with tempfile.TemporaryDirectory() as td:
@@ -690,6 +694,157 @@ class WorkerTests(unittest.TestCase):
             with self.assertRaises(FileNotFoundError):
                 worker.replace_with_retry('a', 'b')
             self.assertEqual(rep.call_count, 1); sleep.assert_not_called()
+
+    def test_crossfade_windows_give_an_identity_separator_its_input_back_exactly(self):
+        import numpy as np
+        size, overlap = 1000, 100
+        def reader(audio):
+            pos = [0]
+            def read(n):
+                pos[0] += n
+                return audio[pos[0] - n:pos[0]]
+            return read
+        for frames in (500, 1000, 1001, 2300):  # half a window, one, one and a sample, 2.3
+            with self.subTest(frames=frames):
+                audio, out, starts = np.random.default_rng(frames).standard_normal((frames, 2)).astype(np.float32), [], []
+                worker.crossfade_windows(reader(audio), lambda chunk, start: starts.append(start) or chunk, out.append, size, overlap)
+                self.assertTrue(np.array_equal(np.concatenate(out), audio))
+                self.assertEqual(starts, list(range(0, frames - overlap, size - overlap)))
+        out = []  # each window's output fades into the next one's over the shared frames
+        worker.crossfade_windows(reader(np.zeros((2300, 2), np.float32)), lambda chunk, start: np.full_like(chunk, start), out.append, size, overlap)
+        out = np.concatenate(out)[:, 0]
+        self.assertTrue((out[:900] == 0).all() and (out[1000:1800] == 900).all() and (out[1900:] == 1800).all())
+        self.assertTrue((np.diff(out[899:1001]) > 0).all() and (np.diff(out[1799:1901]) > 0).all())
+        for bad in (0, size, size + 1):
+            with self.subTest(overlap=bad), self.assertRaisesRegex(ValueError, 'shorter than the window'):
+                worker.crossfade_windows(reader(np.zeros((10, 2), np.float32)), lambda chunk, start: chunk, print, size, bad)
+
+    def test_background_is_the_mix_without_the_vocals_and_progress_never_goes_back(self):
+        import numpy as np
+        calls, progress = [], []
+        def run(mix, callback):  # a four-source separator that segments like Demucs: every 300 frames, start and end
+            calls.append(mix)
+            for offset in range(0, mix.shape[1], 300):
+                callback({'segment_offset': offset, 'state': 'start'}); callback({'segment_offset': offset, 'state': 'end'})
+            return np.stack([mix * 0.5, mix * 0.25, mix * 0.25, mix * 9])
+        audio = np.tile(np.array([[0.5, -0.25], [-0.5, 0.25]], np.float32), (1150, 1))  # every window's mono mix has mean 0
+        pos, out = [0], []
+        def read(n):
+            pos[0] += n
+            return audio[pos[0] - n:pos[0]]
+        separator = worker.background_separator(['drums', 'bass', 'other', 'vocals'], run, len(audio), lambda value, message: progress.append(value))
+        worker.crossfade_windows(read, separator, out.append, 1000, 100)
+        np.testing.assert_allclose(np.concatenate(out), audio, atol=1e-6)
+        self.assertAlmostEqual(float(np.abs(calls[0]).max()), 4.0, places=5)  # the model gets the window at unit deviation
+        self.assertEqual(progress, sorted(set(progress)))
+        self.assertEqual(progress[-1], 2100 / 2300)
+
+    def test_background_keeps_the_mix_dc_once(self):
+        import numpy as np
+        voice = 0.5 * np.sin(2 * np.pi * 100 * np.arange(4410) / 44100)  # 10 whole periods: no DC
+        mix = np.stack([voice + 0.1, voice + 0.1], axis=1).astype(np.float32)
+        ideal = lambda norm, callback: np.stack([norm * 0, norm * 0, norm * 0, norm])  # all but the DC is the voice
+        background = worker.background_separator(['drums', 'bass', 'other', 'vocals'], ideal, len(mix), lambda *a: None)(mix, 0)
+        np.testing.assert_allclose(background, 0.1, atol=1e-5)  # the input's DC, not once per kept source
+
+    def test_separation_refuses_short_memory_or_disk_before_loading_the_model(self):
+        from unittest import mock
+        gib = 2**30
+        with tempfile.TemporaryDirectory() as td, mock.patch.object(worker, 'verify_model', return_value={'artifacts': [{'path': 'm.safetensors'}]}), \
+                mock.patch.object(worker, 'executable', return_value='ffmpeg'), mock.patch.object(worker, 'probe', return_value={'path': 'in.wav', 'duration_ms': 600_000}), \
+                mock.patch.object(worker, 'demucs_model', side_effect=AssertionError('model loaded')):
+            # 10 min of stem: 2 x 151 MiB (job file and asset copy) + 256 MiB to spare = 559 MiB.
+            for memory, free, expected in [((1.4 * gib, 8 * gib), 99 * gib, 'LOW_MEMORY'), ((8 * gib, 2.4 * gib), 99 * gib, 'LOW_MEMORY'),
+                                           ((8 * gib, 8 * gib), 550 * 2**20, 'DISK_FULL'), ((1.5 * gib, 2.5 * gib), 570 * 2**20, None)]:
+                with self.subTest(memory=memory, free=free), mock.patch.object(worker, 'memory_status', return_value=memory), \
+                        mock.patch.object(worker.shutil, 'disk_usage', return_value=shutil._ntuple_diskusage(2 * free, free, free)):
+                    with self.assertRaises(AssertionError if expected is None else worker.WorkerError) as ctx:
+                        worker.separate({'input_path': 'in.wav', 'model_path': td}, Path(td) / 'out', lambda *a: None)
+                    self.assertEqual(getattr(ctx.exception, 'code', None), expected)
+        if sys.platform == 'win32':
+            self.assertTrue(all(value > 0 for value in worker.memory_status()))
+
+    @unittest.skipUnless(importlib.util.find_spec('demucs') and shutil.which('ffmpeg'), 'torch, demucs and FFmpeg required (the CPU runtime)')
+    def test_separate_runs_a_random_htdemucs_end_to_end(self):
+        from fractions import Fraction
+        from unittest import mock
+        import numpy as np
+        import soundfile as sf
+        import torch
+        from demucs.htdemucs import HTDemucs
+        from safetensors.torch import save_file
+        with tempfile.TemporaryDirectory() as td:
+            td = Path(td)
+            # Saved as demucs' Hugging Face export does, with untrained weights: the real class and code path, small and no download.
+            kwargs = {'sources': ['drums', 'bass', 'other', 'vocals'], 'samplerate': 44100, 'channels': 8, 't_layers': 1,
+                      'segment': {'_type': 'fraction', 'numerator': 39, 'denominator': 5}}
+            torch.manual_seed(0)
+            save_file(HTDemucs(**{**kwargs, 'segment': Fraction(39, 5)}).state_dict(), str(td / 'm.safetensors'),
+                      metadata={'klass': 'demucs.htdemucs.HTDemucs', 'args': '[]', 'kwargs': json.dumps(kwargs)})
+            sf.write(str(td / 'noise.wav'), np.random.default_rng(0).uniform(-0.5, 0.5, (3 * 44100, 2)), 44100, subtype='PCM_16')
+            progress = []
+            with mock.patch.object(worker, 'verify_model', return_value={'artifacts': [{'path': 'm.safetensors'}]}), \
+                    mock.patch.object(worker, 'SEPARATE_WINDOW_S', 1.0), mock.patch.object(worker, 'SEPARATE_CROSSFADE_S', 0.25):
+                result = worker.separate({'input_path': str(td / 'noise.wav'), 'model_path': str(td), 'output_name': 'bg.flac'},
+                                         td / 'out', lambda value, message: progress.append(value))
+            info, audio = sf.info(result['path']), sf.read(result['path'], dtype='float32')[0]
+            self.assertEqual((info.format, info.subtype, info.samplerate, info.channels, info.frames), ('FLAC', 'PCM_24', 44100, 2, 3 * 44100))
+            self.assertEqual((result['duration_ms'], result['sample_rate']), (3000, 44100))
+            self.assertTrue(np.isfinite(audio).all() and np.abs(audio).max() > 0)
+            self.assertEqual(progress, sorted(progress))
+            self.assertEqual([p.name for p in (td / 'out').iterdir()], ['bg.flac'])
+            # Any other class in the metadata is refused before it is built, and so is a `structure` (it names classes to import).
+            for i, metadata in enumerate([{'klass': 'demucs.demucs.Demucs'}, {'klass': 'demucs.htdemucs.HTDemucs', 'structure': '{"_class": "collections.OrderedDict"}'}]):
+                save_file({'x': torch.zeros(1)}, str(td / f'other{i}.safetensors'), metadata={**metadata, 'args': '[]', 'kwargs': '{}'})
+                with self.subTest(metadata=metadata), self.assertRaises(worker.WorkerError) as ctx:
+                    worker.demucs_model(td / f'other{i}.safetensors')
+                self.assertEqual(ctx.exception.code, 'MODEL_UNKNOWN')
+
+
+def tone_bed(seconds, seed=0):
+    """Stereo 44.1 kHz music without a voice at -18 dBFS RMS: irregular plucked tones (three harmonics, decaying)."""
+    import numpy as np
+    rng, rate = np.random.default_rng(seed), 44100
+    bed, t, at = np.zeros((int(seconds * rate), 2)), np.arange(int(0.6 * rate)) / rate, 0
+    while at < len(bed):
+        f = rng.choice([110, 147, 196, 220, 262, 330, 392, 440])
+        note = sum(np.sin(2 * np.pi * f * k * t) / k for k in (1, 2, 3)) * np.exp(-5 * t)
+        n = min(len(t), len(bed) - at)
+        bed[at:at + n] += note[:n, None] * [1, rng.uniform(0.5, 1)]
+        at += int(rng.uniform(0.12, 0.45) * rate)
+    return (bed * 10 ** (-18 / 20) / np.sqrt(np.mean(bed ** 2))).astype(np.float32)
+
+
+@unittest.skipUnless((DEMUCS_MODELS / 'installed.json').is_file(), 'set THANHAM_DEMUCS_MODELS to an installed models/htdemucs folder')
+class RealSeparationTests(unittest.TestCase):
+    def separate(self, audio, td, window_s=worker.SEPARATE_WINDOW_S):
+        from unittest import mock
+        import soundfile as sf
+        sf.write(str(Path(td) / 'in.wav'), audio, 44100, subtype='FLOAT')
+        with mock.patch.object(worker, 'SEPARATE_WINDOW_S', window_s):
+            result = worker.separate({'input_path': str(Path(td) / 'in.wav'), 'model_path': str(DEMUCS_MODELS)}, Path(td) / 'out', lambda *a: None)
+        return sf.read(result['path'], dtype='float32')[0]
+
+    def test_a_tone_bed_without_a_voice_keeps_its_level(self):
+        import numpy as np
+        bed = tone_bed(20)
+        with tempfile.TemporaryDirectory() as td:
+            stem = self.separate(bed, td)
+        self.assertEqual(stem.shape, bed.shape)
+        for at in range(0, len(bed), 5 * 44100):  # every 5 s within +-3 dB of the bed
+            level = 10 * np.log10(np.mean(stem[at:at + 5 * 44100] ** 2) / np.mean(bed[at:at + 5 * 44100] ** 2))
+            self.assertLess(abs(level), 3, f'{at / 44100:.0f} s: {level:+.1f} dB')
+
+    def test_60_s_windows_match_the_whole_track(self):
+        import numpy as np
+        audio = tone_bed(150) + np.random.default_rng(1).normal(0, 0.01, (150 * 44100, 2)).astype(np.float32)
+        with tempfile.TemporaryDirectory() as td:
+            windowed = self.separate(audio, td)
+        with tempfile.TemporaryDirectory() as td:
+            whole = self.separate(audio, td, window_s=200.0)
+        windowed, whole = windowed.ravel().astype(np.float64), whole.ravel().astype(np.float64)
+        target = whole * (windowed @ whole) / (whole @ whole)
+        self.assertGreaterEqual(10 * np.log10((target @ target) / np.sum((windowed - target) ** 2)), 30)
 
 
 if __name__ == '__main__':
