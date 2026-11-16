@@ -2,7 +2,7 @@
 //! The updater plugin verifies every package against the public key in tauri.conf.json before running it. Workers
 //! need no stopping first: they sit in a kill-on-close job object, so they end with the app when the installer starts.
 use serde_json::{json,Value};
-use std::{path::PathBuf,sync::Mutex,time::Duration};
+use std::{path::{Path,PathBuf},sync::Mutex,time::Duration};
 use tauri::{AppHandle,Emitter,Manager,State};
 use tauri_plugin_updater::{Update,UpdaterBuilder,UpdaterExt};
 use crate::store::Result;
@@ -59,7 +59,15 @@ pub async fn update_install(app:AppHandle,restart:bool,u:State<'_,Updates>)->Res
  update.restart_after_install(restart).install(bytes).map_err(|e|{let _=std::fs::remove_file(&marker);e.to_string()})
 }
 
+/// The updater copies the installer to `%TEMP%\<app>-<version>-updater-<random>\` and exits without removing it.
+/// Removes those copies of this app and returns how many are left (the one a still running installer holds stays).
+pub fn remove_installer_copies(temp:&Path,app:&str)->usize{
+ let prefix=format!("{app}-");
+ std::fs::read_dir(temp).map(|d|d.flatten().filter(|e|{let n=e.file_name().to_string_lossy().into_owned();n.starts_with(&prefix)&&n.contains("-updater-")&&e.file_type().is_ok_and(|t|t.is_dir())}).filter(|e|std::fs::remove_dir_all(e.path()).is_err()).count()).unwrap_or(0)
+}
+
 /// The version the last install was meant to bring, once: the installer runs after the app exits, so only the next start can tell.
-/// When that install took, its kept installer goes too.
+/// When that install took, its kept installer goes too. Installer copies left in the temp folder are removed on every start,
+/// retried for a minute because the installer that reopened the app may still be running from one.
 #[tauri::command]
-pub fn update_last_install(app:AppHandle)->Result<Option<String>>{let dir=dir(&app)?;let v=std::fs::read_to_string(dir.join("installing")).ok();let _=std::fs::remove_file(dir.join("installing"));if v.as_deref()==Some(app.package_info().version.to_string().as_str()){let _=std::fs::remove_dir_all(&dir);}Ok(v)}
+pub fn update_last_install(app:AppHandle)->Result<Option<String>>{let (temp,name)=(std::env::temp_dir(),app.package_info().name.clone());std::thread::spawn(move||{for _ in 0..30{if remove_installer_copies(&temp,&name)==0{break}std::thread::sleep(Duration::from_secs(2));}});let dir=dir(&app)?;let v=std::fs::read_to_string(dir.join("installing")).ok();let _=std::fs::remove_file(dir.join("installing"));if v.as_deref()==Some(app.package_info().version.to_string().as_str()){let _=std::fs::remove_dir_all(&dir);}Ok(v)}
