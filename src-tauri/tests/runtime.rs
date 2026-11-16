@@ -101,6 +101,16 @@ fn worker_keeps_the_machine_awake_until_it_ends(){
  assert_eq!(unsafe{SetThreadExecutionState(ES_CONTINUOUS)}&ES_SYSTEM_REQUIRED,0);
 }
 #[test]
+fn render_format_is_allowlisted_to_the_five_export_formats(){
+ let t=tempfile::tempdir().unwrap();let s=Store::open(t.path()).unwrap();
+ let p=t.path().join("take.wav");std::fs::write(&p,b"RIFF0000WAVE").unwrap();let a=s.import_asset(&p).unwrap();
+ let seg=json!({"selected_take_id":"t1","takes":[{"id":"t1","asset_id":a["id"]}],"gap_ms":300});
+ let job=|f:serde_json::Value|s.enqueue("render",None,json!({"segments":[seg],"format":f})).unwrap();
+ for f in ["wav","mp3","m4a","flac","opus"]{assert_eq!(prepare_request(&s,&job(json!(f)),None).unwrap()["payload"]["format"],f)}
+ for f in ["aac","ogg","wma"]{assert_eq!(prepare_request(&s,&job(json!(f)),None).unwrap_err(),"INVALID_FORMAT")}
+ assert_eq!(prepare_request(&s,&s.enqueue("render",None,json!({"segments":[seg]})).unwrap(),None).unwrap()["payload"]["format"],"wav"); // no format: WAV as before
+}
+#[test]
 fn render_timeline_places_are_bounded_and_forwarded_only_when_asked(){
  let t=tempfile::tempdir().unwrap();let s=Store::open(t.path()).unwrap();
  let p=t.path().join("take.wav");std::fs::write(&p,b"RIFF0000WAVE").unwrap();let a=s.import_asset(&p).unwrap();

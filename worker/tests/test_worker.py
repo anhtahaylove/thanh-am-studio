@@ -530,6 +530,43 @@ class WorkerTests(unittest.TestCase):
             self.assertEqual(result['sample_rate'], 48000)
             self.assertEqual(list(Path(td).glob('*.partial*')), [])
 
+    @unittest.skipUnless(shutil.which('ffmpeg') and shutil.which('ffprobe'), 'FFmpeg required for actual render test')
+    def test_actual_render_writes_every_export_format_with_its_codec(self):
+        import numpy as np
+        import soundfile as sf
+        # codec, duration tolerance in ms (lossy encoders pad frames), bits per raw sample (FLAC only), container
+        expected = {'wav': ('pcm_s24le', 2, None, 'wav'), 'mp3': ('mp3', 60, None, 'mp3'), 'm4a': ('aac', 30, None, 'mov,mp4,m4a,3gp,3g2,mj2'),
+            'flac': ('flac', 2, '24', 'flac'), 'opus': ('opus', 30, None, 'ogg')}
+        self.assertEqual(set(expected), set(worker.EXPORT_CODECS))
+        with tempfile.TemporaryDirectory() as td:
+            source = Path(td) / 'câu.wav'
+            sf.write(str(source), (0.25 * np.sin(np.arange(48000) * 2 * np.pi * 220 / 48000)).astype(np.float32), 48000)
+            for fmt, (codec, tolerance, bits, container) in expected.items():
+                with self.subTest(fmt=fmt):
+                    result = worker.render({'clips': [{'path': str(source), 'trim_start_ms': 0, 'trim_end_ms': None, 'gap_ms': 250}],
+                        'normalize': False, 'format': fmt}, Path(td), lambda *_: None)
+                    self.assertEqual(Path(result['path']).suffix, '.' + fmt)
+                    probed = json.loads(subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'a:0', '-show_entries',
+                        'stream=codec_name,sample_rate,channels,bits_per_raw_sample,bit_rate:format=format_name', '-of', 'json', result['path']], capture_output=True, check=True).stdout)
+                    stream, name = probed['streams'][0], probed['format']['format_name']
+                    self.assertEqual((stream['codec_name'], stream['sample_rate'], stream['channels'], name), (codec, '48000', 1, container))
+                    if bits:
+                        self.assertEqual(stream['bits_per_raw_sample'], bits)
+                    if fmt == 'mp3':
+                        self.assertEqual(int(stream['bit_rate']), 192000)
+                    if fmt == 'm4a':  # +faststart: the index (moov) is written before the audio data (mdat)
+                        data = Path(result['path']).read_bytes()
+                        self.assertTrue(0 <= data.find(b'moov') < data.find(b'mdat'))
+                    self.assertAlmostEqual(result['duration_ms'], 1250, delta=tolerance)
+                    self.assertEqual(result['sample_rate'], 48000)
+            self.assertEqual(list(Path(td).glob('*.partial*')), [])
+
+    def test_render_rejects_a_format_it_cannot_write_and_lists_the_five(self):
+        for bad in ['ogg', 'aac', 'wma']:
+            with self.subTest(fmt=bad), self.assertRaisesRegex(worker.WorkerError, r'wav, mp3, m4a, flac, opus') as ctx:
+                worker.render({'clips': [{'path': 'x.wav'}], 'format': bad}, Path('.'), lambda *_: None)
+            self.assertEqual(ctx.exception.code, 'INVALID_RECIPE')
+
     def test_replace_retries_a_file_an_antivirus_scan_holds_briefly(self):
         from unittest import mock
         real, calls = worker.os.replace, []
