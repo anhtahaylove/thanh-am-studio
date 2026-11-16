@@ -853,8 +853,9 @@ Evidence: `work\release-v1.0.11-sandbox` (`run45*` first pass, `run46`, `run46b`
   and reading speeds other than 1 were not part of that run.
 - The 0.5 temperature was measured on a preset voice only; cloned voices keep the engine's default.
   Reading speed was checked for length and pitch on a test tone and end to end on one take, not by listening.
-- Installers are unsigned (SmartScreen warning); the SignPath Foundation application was submitted
-  on 2026-11-13 and awaits their reply ([SIGNING.md](SIGNING.md)). CUDA is not enabled.
+- Installers are not Authenticode-signed (SmartScreen warning); SignPath Foundation declined the
+  application on 2026-11-13 and no signing is planned ([SIGNING.md](SIGNING.md)). Update packages are
+  signed with the project's updater key. CUDA is not enabled.
 - Preview does not apply loudness normalization; export does when "Chuẩn hóa" is on.
 - TTS subtitle cues inside one segment are timed from heard words only for takes made with the self-check on;
   without it, cue edges inside a segment fall by character count (median 188 ms, p90 581 ms off in the measurement

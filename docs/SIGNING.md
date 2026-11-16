@@ -1,8 +1,12 @@
-# Code signing (SignPath Foundation, planned)
+# Code signing (SignPath Foundation, declined)
 
-Installers are unsigned today. This page is the checklist for the free open source program of
-[SignPath Foundation](https://signpath.org/terms); the policy users see is in the
-[README](../README.md#code-signing-policy).
+Installers are unsigned. SignPath Foundation declined the application on 2026-11-13: the program
+looks for public signs of trust (stars, forks, contributors, articles, institutional backing) that
+the project does not have yet, and pointed to its paid subscription instead. The owner decided not
+to sign installers for now, since the app is shared with friends and family; draft PR #40 (the
+signing step in the release workflow) was closed. Update packages are signed with the project's
+updater key regardless. This page is kept as the checklist in case the project reapplies; the policy
+users see is in the [README](../README.md#code-signing-policy).
 
 ## Eligibility (checked 2026-11-13)
 

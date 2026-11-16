@@ -46,8 +46,9 @@ with `sha256sum -c SHA256SUMS.txt` (or compare `Get-FileHash <file>` with the li
 
 ## Signing and licenses
 
-Installers are currently **unsigned**; Windows SmartScreen will warn. Record the signing status
-in the release notes. Third-party components and their licenses are listed in the generated
+Installers are **not Authenticode-signed** (SignPath Foundation declined the application, see
+[SIGNING.md](SIGNING.md)); Windows SmartScreen will warn. Update packages are signed with the
+project's updater key by the release workflow. Record the signing status in the release notes. Third-party components and their licenses are listed in the generated
 SBOM/notices; FFmpeg and python-soxr are LGPL and ship as separate replaceable files with their
 license and source pointer (`runtime/ffmpeg/SOURCE.txt`). Models (VieNeu v3 Turbo and the MOSS
 audio tokenizer: Apache-2.0; faster-whisper conversions: MIT) are downloaded by the user, not

@@ -12,7 +12,7 @@ Download the installer from the GitHub release page and run it (per-user install
 administrator rights). It includes its own Python runtime and FFmpeg, so nothing else is
 needed. On first start open **Model & cài đặt** and download the models you need (VieNeu v3
 Turbo for TTS ≈ 640 MB, Whisper Small ≈ 490 MB or Whisper Large v3 Turbo ≈ 1.6 GB for STT).
-After that the app works offline. Installers are not code-signed yet, so SmartScreen may warn
+After that the app works offline. Installers are not code-signed, so SmartScreen may warn
 (see [Code signing policy](#code-signing-policy)).
 
 From 1.0.11 the app updates itself: it checks GitHub for a newer release, downloads it in the
@@ -35,10 +35,10 @@ disclosed. Two upstream issues asking the maintainer to confirm this are still o
 
 ## Troubleshooting
 
-- **"Windows protected your PC" (SmartScreen).** The installer is not code-signed yet. Check its
+- **"Windows protected your PC" (SmartScreen).** The installer is not code-signed. Check its
   SHA-256 against `SHA256SUMS.txt` on the release page first, then choose **More info** and **Run anyway**.
 - **Smart App Control blocks the installer.** Smart App Control has no per-app exception for unsigned
-  programs, so the app cannot be installed while it is on. Signed releases are planned
+  programs, so the app cannot be installed while it is on, and no signed installer is planned
   (see [Code signing policy](#code-signing-policy)).
 - **A model download stops.** Start it again on the models page; it resumes where it stopped and
   checks every file against its pinned digest. A `NETWORK` error means the download host was not
@@ -65,18 +65,20 @@ Building and verifying a release: [docs/RELEASE.md](docs/RELEASE.md). Cross-laye
 
 ## Code signing policy
 
-Installers are not signed yet. The project is applying for free code signing for open source
-projects; once accepted, releases will carry:
-Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+Installers are not Authenticode-signed, so SmartScreen warns before the first install and Smart App
+Control, when it is on, blocks it. SignPath Foundation declined the project's application for free
+open source code signing on 2026-11-13, because the project does not yet have the public visibility
+the program asks for. A paid certificate is not planned for an app shared with friends and family.
 
-- Only the installer is signed: the file users download and Windows checks, built by
-  [the release workflow](.github/workflows/release.yml) from this repository. The files it installs
-  (the app executable and bundled third-party files such as the Python runtime, FFmpeg and
-  libraries) are not signed again and keep their upstream signatures or none.
-- Committers and reviewers: [@anhtahaylove](https://github.com/anhtahaylove) (maintainer). Changes
-  from anyone else are reviewed before merge.
-- Approvers: [@anhtahaylove](https://github.com/anhtahaylove). Every release is approved for
-  signing by hand after the checks in [docs/RELEASE.md](docs/RELEASE.md) pass on the exact build.
+What is signed or checkable:
+
+- Each update package is signed with the project's own update key (minisign, through the Tauri
+  updater). From 1.0.11 on, the app installs an update only when its signature matches the public
+  key built into the app and names the version the update claims to be.
+- Every release page lists the SHA-256 of its files in `SHA256SUMS.txt`.
+- Releases are built by [the release workflow](.github/workflows/release.yml) from this repository
+  and published by [@anhtahaylove](https://github.com/anhtahaylove) (maintainer) after the checks in
+  [docs/RELEASE.md](docs/RELEASE.md) pass on the exact build.
 
 ## Privacy
 
