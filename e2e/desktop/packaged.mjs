@@ -151,9 +151,9 @@ async function exportSteps() {
   });
   // M4A, FLAC and Opus: same render as the WAV, saved to Unicode paths; the codec, 48 kHz and the length are read back with ffprobe.
   const ffprobe = join(dirname(exe), 'runtime', 'ffmpeg', 'ffprobe.exe');
-  const formats = {m4a: {label: 'M4A', codec: 'aac'}, flac: {label: 'FLAC', codec: 'flac'}, opus: {label: 'Opus', codec: 'opus'}};
+  const formats = {m4a: {label: 'M4A', codec: 'aac', container: 'mov,mp4,m4a,3gp,3g2,mj2'}, flac: {label: 'FLAC', codec: 'flac', container: 'flac'}, opus: {label: 'Opus', codec: 'opus', container: 'ogg'}};
   const files = {};
-  for (const [ext, {label, codec}] of Object.entries(formats)) {
+  for (const [ext, {label, codec, container}] of Object.entries(formats)) {
     await step(`render and export ${ext} via save dialog`, async () => {
       await nav('Dự án');
       await page.getByRole('button', {name: 'Mở dự án'}).first().click();
@@ -168,9 +168,9 @@ async function exportSteps() {
       dialog(file);
       await saved(file);
       copyFileSync(file, join(out, `xuất thử định dạng.${ext}`));
-      const {streams: [stream], format} = JSON.parse(execFileSync(ffprobe, ['-v', 'error', '-select_streams', 'a:0', '-show_entries', 'stream=codec_name,sample_rate,bits_per_raw_sample:format=duration', '-of', 'json', file], {encoding: 'utf8'}));
+      const {streams: [stream], format} = JSON.parse(execFileSync(ffprobe, ['-v', 'error', '-select_streams', 'a:0', '-show_entries', 'stream=codec_name,sample_rate,channels,bits_per_raw_sample:format=duration,format_name', '-of', 'json', file], {encoding: 'utf8'}));
       const ms = Math.round(Number(format.duration) * 1000);
-      if (stream.codec_name !== codec || stream.sample_rate !== '48000') throw Error(`unexpected stream: ${JSON.stringify(stream)}`);
+      if (stream.codec_name !== codec || stream.sample_rate !== '48000' || stream.channels !== 1 || format.format_name !== container) throw Error(`unexpected stream: ${JSON.stringify({stream, format})}`);
       if (ext === 'flac' && stream.bits_per_raw_sample !== '24') throw Error(`FLAC is not 24-bit: ${JSON.stringify(stream)}`);
       if (Math.abs(ms - wavMs) > 50) throw Error(`${ext} is ${ms} ms, the WAV ${wavMs} ms`);
       return `${statSync(file).size} bytes, ${stream.codec_name} ${stream.sample_rate} Hz, ${ms} ms vs WAV ${wavMs} ms`;

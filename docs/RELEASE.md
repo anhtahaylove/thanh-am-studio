@@ -32,7 +32,7 @@ with `sha256sum -c SHA256SUMS.txt` (or compare `Get-FileHash <file>` with the li
    to a folder, adjust and open a `.wsb` that maps the repo, `C:\Program Files\nodejs`, the installer folder and
    a writable output folder, with `e2e/desktop/sandbox-run.ps1` as the logon command. It installs
    silently, then runs `e2e/desktop/packaged.mjs` phases `full` (model download via UI, TTS,
-   preview, new take, render + save dialog, STT + apply, SRT export), `reopen`, `turbo` (Whisper
+   preview, new take, render + save dialog, STT + apply, SRT export, then the same export steps as `export`: M4A/FLAC/Opus renders checked with ffprobe and STT of the M4A), `reopen`, `turbo` (Whisper
    Turbo download, MP3 export, Turbo STT), `offline` (network adapters disabled) and `export`
    (render, save dialog to a Unicode path, STT, SRT, M4A/FLAC/Opus export checked with ffprobe, STT of the M4A, still offline). `-Only full,clone,dpi` runs chosen
    phases instead (`clone`: reference voice with consent and cloned takes; `dpi`: layout at high-DPI
