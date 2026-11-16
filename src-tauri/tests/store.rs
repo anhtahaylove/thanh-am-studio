@@ -73,6 +73,16 @@ fn first_take_keeps_the_whole_take_when_the_segment_fades_would_not_fit_its_spee
 }
 
 #[test]
+fn a_clone_preview_is_claimed_before_earlier_queued_work_and_the_rest_stays_in_order() {
+    let tmp = tempfile::tempdir().unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    let tts = s.enqueue("tts", None, json!({})).unwrap();
+    let render = s.enqueue("render", None, json!({})).unwrap();
+    let preview = s.enqueue("clone_preview", None, json!({})).unwrap();
+    for want in [&preview, &tts, &render] { assert_eq!(s.claim_next().unwrap().unwrap()["id"], want["id"]); }
+}
+
+#[test]
 fn claim_queued_batches_only_queued_jobs_of_one_kind() {
     let tmp = tempfile::tempdir().unwrap();
     let s = Store::open(tmp.path()).unwrap();

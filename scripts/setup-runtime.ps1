@@ -83,6 +83,8 @@ try {
     $request = @{protocol=1;id='setup';operation='health';payload=@{}} | ConvertTo-Json -Compress
     $health = $request | & $python -I -X utf8 (Join-Path $root 'worker\main.py')
     if ($LASTEXITCODE -ne 0) { throw "Worker health failed: $health" }
+    # The worker exits 0 with ready:false when a module does not import (e.g. a native DLL that fails to load).
+    if (-not ($health | Select-Object -Last 1 | ConvertFrom-Json).result.ready) { throw "Worker health is not ready: $health" }
     Write-Output $health
     Write-Output "Runtime ready at $destinationPath. Tauri bundles it as resources/runtime. Models are downloaded separately in the app."
 } finally {

@@ -1,0 +1,40 @@
+name: runtime
+# Builds the private runtime as release.yml does and runs the worker tests on it, so a worker or lock change
+# meets the real packages (soundfile, VieNeu, FFmpeg) on every PR instead of first at tag time.
+on:
+  push:
+    branches: [main]
+    paths: ['worker/**', 'scripts/setup-runtime.ps1', '.github/workflows/runtime.yml']
+  pull_request:
+    paths: ['worker/**', 'scripts/setup-runtime.ps1', '.github/workflows/runtime.yml']
+permissions:
+  contents: read
+jobs:
+  worker:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: worker/requirements-cpu.lock
+      # setup-runtime.ps1 reuses a FFmpeg zip in %TEMP% whose SHA-256 matches its pin.
+      - name: FFmpeg archive location
+        id: ffmpeg
+        shell: pwsh
+        run: |
+          $s = Get-Content scripts/setup-runtime.ps1 -Raw
+          "path=$([IO.Path]::GetTempPath())$([regex]::Match($s, "FfmpegAsset = '([^']+)'").Groups[1].Value).zip" >> $env:GITHUB_OUTPUT
+          "key=ffmpeg-$([regex]::Match($s, "FfmpegSha256 = '([^']+)'").Groups[1].Value)" >> $env:GITHUB_OUTPUT
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.ffmpeg.outputs.path }}
+          key: ${{ steps.ffmpeg.outputs.key }}
+      - name: Build private runtime (Python + FFmpeg)
+        shell: pwsh
+        run: ./scripts/setup-runtime.ps1
+      - name: Worker tests on the private runtime
+        shell: pwsh
+        run: |
+          $env:Path = "$PWD\runtime\ffmpeg;$env:Path"
+          .\runtime\python\python.exe -m unittest discover -s worker/tests -v

@@ -1,7 +1,9 @@
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -12,6 +14,9 @@ import wave
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 import main as worker
+
+# The VieNeu commit test_clone_preview_matches_what_synthesis_enrolls last passed against with the real model.
+VIENEU_VERIFIED = '22dd2ef2a89bba24a77da6dbc84c75f7f4fda05b'
 
 
 def diarize_child_here(calls):
@@ -276,6 +281,98 @@ class WorkerTests(unittest.TestCase):
                 np.testing.assert_array_equal(data, audio[5 * sr - 960:13 * sr - 960])
                 self.assertFalse(Path(path).exists())
             self.assertTrue(Path(long).exists())  # the user's sample stays
+
+    @unittest.skipUnless(importlib.util.find_spec('soundfile'), 'soundfile required')  # CI has numpy only; runtime.yml runs it
+    def test_preview_and_synthesis_hand_vieneu_the_same_crop(self):
+        import numpy as np
+        import soundfile as sf
+        from types import SimpleNamespace
+        from unittest import mock
+        sr = 24000
+        audio = np.concatenate([np.zeros(5 * sr), 0.3 * np.sin(2 * np.pi * 220 * np.arange(10 * sr) / sr)]).astype(np.float32)
+        engine_got, precleaned, denoised = [], [], []
+        def infer(text, **kw):
+            engine_got.append(sf.read(kw['ref_audio'], dtype='float32')[0])
+            return np.full(4800, 0.3, dtype=np.float32)
+        def preclean(ref_audio, *, top_db=30, out_path=None):  # identity, recording what it was handed
+            data, rate = sf.read(ref_audio, dtype='float32')
+            precleaned.append(data)
+            sf.write(out_path, data, rate, subtype='FLOAT')
+            return str(out_path)
+        class Denoiser:
+            def __init__(self, path):
+                self.path = path
+            def denoise(self, wav, rate):
+                denoised.append((self.path, wav, rate))
+                return wav
+        fakes = {'vieneu': SimpleNamespace(Vieneu=lambda **k: SimpleNamespace(infer=infer)),
+                 'vieneu.v3turbo': SimpleNamespace(phonemize_text_with_emotions=lambda text: text,
+                                                   V3TurboVieNeuTTS=SimpleNamespace(_preclean_reference_audio=preclean)),
+                 'vieneu._v3_turbo_engine': mock.Mock(),
+                 'vieneu._v3_turbo_engine.onnx_runtime_lite': SimpleNamespace(OnnxV3LiteEngine=mock.Mock(), _MAX_REF_SECONDS=8.0),
+                 'vieneu._v3_turbo_engine.onnx_denoiser': SimpleNamespace(OnnxDenoiser=Denoiser)}
+        with tempfile.TemporaryDirectory() as td, tempfile.TemporaryDirectory() as temp, mock.patch.object(tempfile, 'tempdir', temp), \
+                mock.patch.object(worker, 'verify_model'), mock.patch.object(worker, 'offline_mode'), mock.patch.dict(sys.modules, fakes):
+            reference = str(Path(td) / 'mẫu.wav')
+            sf.write(reference, audio, sr, subtype='FLOAT')
+            worker.tts({'model_path': td, 'text': 'Xin chào.', 'reference_path': reference, 'output_name': 'take.wav'}, Path(td) / 'out', lambda *a: None)
+            result = worker.clone_preview({'model_path': td, 'reference_path': reference, 'output_name': 'preview.wav'}, Path(td) / 'out', lambda *a: None)
+            np.testing.assert_array_equal(precleaned[0], engine_got[0])  # the preview cleans what synthesis hands VieNeu
+            self.assertEqual(len(precleaned[0]), 8 * sr)
+            path, wav, rate = denoised[0]
+            self.assertEqual((Path(path), rate), (Path(td) / 'backbone' / 'denoiser.onnx', sr))
+            np.testing.assert_array_equal(wav, precleaned[0][:8 * sr])
+            self.assertEqual((sf.info(result['path']).samplerate, sf.info(result['path']).subtype, result['sample_rate']), (44100, 'PCM_24', 44100))
+            self.assertEqual(sorted(p.name for p in (Path(td) / 'out').iterdir()), ['preview.wav', 'take.wav'])
+            self.assertEqual(list(Path(temp).iterdir()), [])  # crop and trimmed copy deleted
+            # A failure right after the crop is cut (here: no room for the trimmed copy) still deletes the crop.
+            real_mkstemp = tempfile.mkstemp
+            def no_trim_file(*a, **k):
+                if k.get('prefix') == 'clone-trim-':
+                    raise OSError('disk full')
+                return real_mkstemp(*a, **k)
+            with mock.patch.object(tempfile, 'mkstemp', no_trim_file), self.assertRaises(OSError):
+                worker.clone_preview({'model_path': td, 'reference_path': reference, 'output_name': 'again.wav'}, Path(td) / 'out', lambda *a: None)
+            self.assertEqual(list(Path(temp).iterdir()), [])
+
+    def test_clone_preview_needs_the_reference_file(self):
+        from unittest import mock
+        worker.validate_request({'protocol': 1, 'id': 'one', 'operation': 'clone_preview', 'payload': {}})
+        with tempfile.TemporaryDirectory() as td, mock.patch.object(worker, 'verify_model'), self.assertRaises(worker.WorkerError) as caught:
+            worker.clone_preview({'model_path': td, 'reference_path': str(Path(td) / 'gone.wav')}, Path(td) / 'out', lambda *a: None)
+        self.assertEqual(caught.exception.code, 'INPUT_MISSING')
+
+    def test_vieneu_pin_was_verified(self):
+        pin = re.search(r'VieNeu-TTS\.git@([0-9a-f]{40})', (ROOT / 'requirements-cpu.lock').read_text(encoding='utf-8')).group(1)
+        self.assertEqual(pin, VIENEU_VERIFIED, 'The vieneu pin changed: run test_clone_preview_matches_what_synthesis_enrolls with '
+                         'THANHAM_VIENEU_MODELS set to an installed vieneu-v3 folder, then update VIENEU_VERIFIED.')
+
+    @unittest.skipUnless(os.environ.get('THANHAM_VIENEU_MODELS'), 'needs THANHAM_VIENEU_MODELS = an installed vieneu-v3 model folder')
+    def test_clone_preview_matches_what_synthesis_enrolls(self):
+        import numpy as np
+        import soundfile as sf
+        from unittest import mock
+        from vieneu._v3_turbo_engine.onnx_denoiser import OnnxDenoiser
+        models = os.environ['THANHAM_VIENEU_MODELS']
+        sr = 24000
+        t = np.arange(12 * sr) / sr
+        # A noisy, syllable-gated harmonic tone after 1 s of near silence: something to trim, crop and denoise.
+        voiced = (np.sin(2 * np.pi * 3 * t) > -0.3) * (t > 1)
+        tone = sum(np.sin(2 * np.pi * 180 * k * t) / k for k in range(1, 6))
+        audio = (0.2 * voiced * tone + 0.01 * np.random.default_rng(0).standard_normal(len(t))).astype(np.float32)
+        captured, original = [], OnnxDenoiser.denoise
+        def capture(self, wav, rate):
+            captured.append(original(self, wav, rate))
+            return captured[-1]
+        with tempfile.TemporaryDirectory() as td, mock.patch.object(OnnxDenoiser, 'denoise', capture):
+            reference = str(Path(td) / 'reference.wav')
+            sf.write(reference, audio, sr, subtype='PCM_16')
+            worker.tts({'model_path': models, 'text': 'Xin chào.', 'reference_path': reference, 'output_name': 'take.wav'}, Path(td) / 'out', lambda *a: None)
+            preview = worker.clone_preview({'model_path': models, 'reference_path': reference, 'output_name': 'preview.wav'}, Path(td) / 'out', lambda *a: None)
+            data, rate = sf.read(preview['path'], dtype='float32')
+        self.assertEqual((rate, len(captured)), (44100, 2))
+        self.assertEqual(len(data), len(captured[0]))
+        self.assertTrue(np.allclose(data, captured[0], atol=1e-4), float(np.abs(data - captured[0]).max()))
 
     def test_tts_reports_speech_edges_but_keeps_pause_marks_at_the_edges(self):
         import numpy as np

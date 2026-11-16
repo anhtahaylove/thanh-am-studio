@@ -44,7 +44,7 @@ def validate_request(request):
         raise WorkerError('INVALID_REQUEST', 'A request id is required.')
     if not isinstance(request.get('payload'), dict):
         raise WorkerError('INVALID_REQUEST', 'payload must be an object.')
-    if request.get('operation') not in {'health', 'probe', 'tts', 'stt', 'render', 'download'}:
+    if request.get('operation') not in {'health', 'probe', 'tts', 'stt', 'render', 'download', 'clone_preview'}:
         raise WorkerError('INVALID_REQUEST', 'Unknown operation.')
 
 
@@ -232,6 +232,41 @@ def clone_reference(path):
             Path(crop).unlink()
         return path
     return crop
+
+
+def clone_preview(payload, output_dir: Path, progress):
+    """The reference as VieNeu enrolls it in a cloned tts(), to listen to: the clone_reference crop, VieNeu's own silence trim,
+    its first _MAX_REF_SECONDS and its denoiser, saved as a 44.1 kHz WAV."""
+    model_dir = Path(payload.get('model_path', ''))
+    verify_model(model_dir, 'vieneu-v3')
+    reference = Path(payload.get('reference_path') or '')
+    if not reference.is_file():
+        raise WorkerError('INPUT_MISSING', 'Reference voice file is missing.')
+    offline_mode()
+    import soundfile as sf
+    from vieneu.v3turbo import V3TurboVieNeuTTS
+    from vieneu._v3_turbo_engine.onnx_runtime_lite import _MAX_REF_SECONDS
+    from vieneu._v3_turbo_engine.onnx_denoiser import OnnxDenoiser
+    output_dir.mkdir(parents=True, exist_ok=True)
+    final = contained_path(output_dir, payload.get('output_name') or f'{uuid.uuid4()}.wav')
+    partial = final.with_name(final.stem + '.partial.wav')
+    progress(0.1, 'Cleaning the voice sample')
+    fd, trimmed = tempfile.mkstemp(prefix='clone-trim-', suffix='.wav')
+    os.close(fd)
+    crop = None
+    try:
+        crop = clone_reference(str(reference))  # the same call as tts()
+        V3TurboVieNeuTTS._preclean_reference_audio(crop, out_path=trimmed)
+        wav, sr = sf.read(trimmed, dtype='float32', always_2d=True)  # as the engine's _load_mono reads it
+        clean = OnnxDenoiser(str(model_dir / 'backbone' / 'denoiser.onnx')).denoise(wav.mean(axis=1)[:int(_MAX_REF_SECONDS * sr)], sr)
+        sf.write(str(partial), clean, 44100, subtype='PCM_24')
+        replace_with_retry(partial, final)
+    finally:
+        partial.unlink(missing_ok=True)
+        Path(trimmed).unlink(missing_ok=True)
+        if crop not in (None, str(reference)):
+            Path(crop).unlink(missing_ok=True)
+    return {'path': str(final), 'duration_ms': round(len(clean) / 44.1), 'sample_rate': 44100}
 
 
 def speech_edges(audio, keep_start=False, keep_end=False):
@@ -736,6 +771,7 @@ def main():
             elif operation == 'render': result = render(payload, output_dir, progress)
             elif operation == 'download': result = download(payload, models_dir, progress)
             elif operation == 'tts': result = tts(payload, output_dir, progress, lambda index, **v: emit('item', index=index, **v))
+            elif operation == 'clone_preview': result = clone_preview(payload, output_dir, progress)
             else: result = stt(payload, progress)
         emit('result', result=result)
         return 0

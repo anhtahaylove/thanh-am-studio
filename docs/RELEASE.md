@@ -27,7 +27,9 @@ with `sha256sum -c SHA256SUMS.txt` (or compare `Get-FileHash <file>` with the li
 ## Acceptance gates (on the installer built from the tagged revision)
 
 1. Unit/integration: `npm test`, `npm run test:e2e`, `cargo test --manifest-path src-tauri/Cargo.toml --tests`,
-   `python -m unittest discover -s worker/tests`.
+   `python -m unittest discover -s worker/tests`. A release that changes the `vieneu` pin, `clone_window` or the
+   denoiser also runs `test_clone_preview_matches_what_synthesis_enrolls` locally (CI has no model) with
+   `THANHAM_VIENEU_MODELS` set to an installed `vieneu-v3` folder, then updates `VIENEU_VERIFIED`.
 2. Packaged desktop flow on a clean Windows Sandbox (no Python/FFmpeg on PATH): copy the installer
    to a folder, adjust and open a `.wsb` that maps the repo, `C:\Program Files\nodejs`, the installer folder and
    a writable output folder, with `e2e/desktop/sandbox-run.ps1` as the logon command. It installs
@@ -35,7 +37,7 @@ with `sha256sum -c SHA256SUMS.txt` (or compare `Get-FileHash <file>` with the li
    preview, new take, render + save dialog, STT + apply, SRT export, then the same export steps as `export`: M4A/FLAC/Opus renders checked with ffprobe and STT of the M4A), `reopen`, `turbo` (Whisper
    Turbo download, MP3 export, Turbo STT), `offline` (network adapters disabled) and `export`
    (render, save dialog to a Unicode path, STT, SRT, M4A/FLAC/Opus export checked with ffprobe, STT of the M4A, still offline). `-Only full,clone,dpi` runs chosen
-   phases instead (`clone`: reference voice with consent and cloned takes; `dpi`: layout at high-DPI
+   phases instead (`clone`: cleaned-sample preview of a reference padded with 6 s of tone bursts, reference voice with consent and cloned takes; `dpi`: layout at high-DPI
    viewports; `longstt`: STT of `long.mp3` next to the installer, scored against `long.txt`; `ux`: drag and drop of a script and of `THANHAM_UX_AUDIO` (in the Sandbox: `dialogue.wav` next to the installer), then transcript follow-along during playback; `features`: pause mark, per-segment speed and Whisper self-check on a new take, waveform playback progress, diarization model download, speaker-labelled STT with a known speaker count, a row relabelled by hand and saved, turned into a script), and
    `-Gate 500` runs the long-project gate inside the Sandbox.
    `update` serves the release's own `latest.json` and installer (both next to the installer) from a local

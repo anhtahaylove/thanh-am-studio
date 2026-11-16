@@ -22,4 +22,4 @@ Trim uses an exclusive end in milliseconds; null end means source duration. Fade
 
 ## Verification
 
-`python -m unittest discover -s worker/tests -v` runs protocol, validation, checksum, missing-model and real FFmpeg render tests. Engine synthesis requires downloaded models and private dependencies; ordinary tests do not substitute fake successful audio. See `SMOKE.md` for measured runtime status.
+`python -m unittest discover -s worker/tests -v` runs protocol, validation, checksum, missing-model and real FFmpeg render tests. Engine synthesis requires downloaded models and private dependencies; ordinary tests do not substitute fake successful audio. `.github/workflows/runtime.yml` runs them with the private runtime on every worker change; with `THANHAM_VIENEU_MODELS` set to an installed `vieneu-v3` folder, the clone preview is also compared with what a cloned synthesis enrolls. See `SMOKE.md` for measured runtime status.

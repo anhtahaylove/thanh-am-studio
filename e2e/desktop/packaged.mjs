@@ -61,8 +61,8 @@ const saved = async (path) => {
 // a stale list would offer an earlier render whose format the save dialog then rejects.
 const jobButton = (text, name) => page.locator('article', {hasText: text}).getByRole('button', {name});
 const done = async (kind) => (await invoke('list_jobs')).filter((j) => j.kind === kind && j.status === 'succeeded').length;
-// Peak level of each 10 ms frame of a PCM or float WAV (first channel).
-function framePeaks(path) {
+// First channel of a PCM or float WAV, with its sample rate.
+function readWav(path) {
   const b = readFileSync(path);
   let fmt, ch, rate, bits, data;
   for (let off = 12; off + 8 <= b.length && !data; ) {
@@ -72,10 +72,24 @@ function framePeaks(path) {
     if (id === 'data') data = b.subarray(off + 8, off + 8 + size);
     off += 8 + size + (size & 1);
   }
-  const block = (bits / 8) * ch, n = Math.floor(data.length / block), per = rate / 100;
+  const block = (bits / 8) * ch;
   const at = (i) => (fmt === 3 ? data.readFloatLE(i * block) : data.readIntLE(i * block, bits / 8) / 2 ** (bits - 1));
+  return {rate, samples: Float32Array.from({length: Math.floor(data.length / block)}, (_, i) => at(i))};
+}
+// Mono 32-bit float WAV.
+function writeWav(path, rate, samples) {
+  const b = Buffer.alloc(44 + 4 * samples.length);
+  b.write('RIFF', 0, 'ascii'); b.writeUInt32LE(36 + 4 * samples.length, 4); b.write('WAVEfmt ', 8, 'ascii'); b.writeUInt32LE(16, 16);
+  b.writeUInt16LE(3, 20); b.writeUInt16LE(1, 22); b.writeUInt32LE(rate, 24); b.writeUInt32LE(4 * rate, 28); b.writeUInt16LE(4, 32); b.writeUInt16LE(32, 34);
+  b.write('data', 36, 'ascii'); b.writeUInt32LE(4 * samples.length, 40);
+  samples.forEach((v, i) => b.writeFloatLE(v, 44 + 4 * i));
+  writeFileSync(path, b);
+}
+// Peak level of each 10 ms frame of a PCM or float WAV (first channel).
+function framePeaks(path) {
+  const {rate, samples} = readWav(path), n = samples.length, per = rate / 100;
   const peaks = [];
-  for (let f = 0; f * per < n; f++) { let m = 0; for (let i = f * per; i < Math.min(n, (f + 1) * per); i++) m = Math.max(m, Math.abs(at(i))); peaks.push(m); }
+  for (let f = 0; f * per < n; f++) { let m = 0; for (let i = f * per; i < Math.min(n, (f + 1) * per); i++) m = Math.max(m, Math.abs(samples[i])); peaks.push(m); }
   return peaks;
 }
 // [first, last] ms of the frames between from and to ms that reach 10 % of that stretch's peak.
@@ -92,6 +106,16 @@ function lag(a, b) {
     let s = 0;
     for (let i = Math.max(0, -d); i < Math.min(a.length, b.length - d); i++) s += Math.sqrt(a[i] * b[i + d]);
     if (s > best[1]) best = [d, s];
+  }
+  return best[0] * 10;
+}
+// Where in a (ms, 10 ms steps) b's level envelope fits best: cosine of the 10 ms peaks, so the two levels may differ.
+function bestMatch(a, b) {
+  let best = [0, -Infinity];
+  for (let d = 0; d + b.length <= a.length; d++) {
+    let s = 0, n = 0;
+    for (let i = 0; i < b.length; i++) { s += a[d + i] * b[i]; n += a[d + i] ** 2; }
+    if (s / Math.sqrt(n || 1) > best[1]) best = [d, s / Math.sqrt(n || 1)];
   }
   return best[0] * 10;
 }
@@ -321,9 +345,11 @@ try {
       return (await waitJobs('tts', before + n, 15 * 60000)).slice(0, n);
     };
     await step('reference clip from preset voice', async () => {
-      const pid = await project('Mẫu giọng kiểm thử', ['Xin chào các bạn, tôi là người dẫn chương trình. Hôm nay trời rất đẹp, chúng ta cùng nhau đi dạo quanh hồ Gươm và nghe kể về những câu chuyện xưa của thành phố.'], 'Trúc Ly');
+      const pid = await project('Mẫu giọng kiểm thử', ['Xin chào các bạn, tôi là người dẫn chương trình. Hôm nay trời rất đẹp, chúng ta cùng nhau đi dạo quanh hồ Gươm và nghe kể về những câu chuyện xưa của thành phố. Những câu chuyện ấy đã được người Hà Nội kể lại qua nhiều thế hệ.'], 'Trúc Ly');
       await generateAll(1);
       const take = (await invoke('load_project', {id: pid})).segments[0].takes[0];
+      // The preview step needs a full 8 s of speech behind its 6 s of bursts.
+      if (take.duration_ms < 8500) throw Error(`reference take is ${take.duration_ms} ms, needs >= 8500 ms`);
       copyFileSync(take.path, ref); copyFileSync(take.path, join(clip, 'reference.wav'));
       return `${take.duration_ms} ms`;
     });
@@ -342,6 +368,30 @@ try {
       if (v?.kind !== 'reference' || !v.consent || !v.reference_asset_id) throw Error(JSON.stringify(v));
       voiceId = v.id;
       await shot('clone-voice-library');
+    });
+    await step('cleaned-sample preview skips 6 s of leading tone bursts', async () => {
+      // 80 ms bursts at the reference's peak every 600 ms: too sparse to win the best-8 s window, too loud for VieNeu's
+      // edge trim. A preview of the first 8 s would match the padded reference at 0 ms.
+      const {rate, samples} = readWav(ref), peak = samples.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
+      const lead = Float32Array.from({length: 6 * rate}, (_, i) => (i % (0.6 * rate) < 0.08 * rate ? peak * Math.sin(2 * Math.PI * 440 * i / rate) : 0));
+      const padded = join(saves, `mẫu có tiếng bíp ${Date.now()}.wav`);
+      writeWav(padded, rate, [...lead, ...samples]); copyFileSync(padded, join(clip, 'reference-padded.wav'));
+      await nav('Thư viện giọng');
+      await page.getByRole('button', {name: 'Chọn mẫu audio'}).click();
+      dialog(padded);
+      await page.getByRole('button', {name: 'Chọn mẫu audio'}).waitFor({state: 'detached', timeout: 30000});
+      if (!await page.getByText('Chỉ dùng 8 giây có nhiều tiếng nói nhất của mẫu, đã lọc ồn.').isVisible()) throw Error('hint not visible');
+      const before = await done('clone_preview');
+      await page.getByRole('button', {name: 'Nghe mẫu đã làm sạch'}).click();
+      const [job] = await waitJobs('clone_preview', before + 1, 10 * 60000);
+      copyFileSync(job.result.path, join(clip, 'preview.wav'));
+      const preview = readWav(job.result.path), ms = Math.round(1000 * preview.samples.length / preview.rate);
+      if (preview.rate !== 44100 || ms > 8000) throw Error(`preview is ${preview.rate} Hz, ${ms} ms`);
+      const at = bestMatch(framePeaks(padded), framePeaks(job.result.path));
+      if (at < 6000 - 50) throw Error(`preview fits the padded reference at ${at} ms, inside the bursts`);
+      await page.waitForFunction(() => document.querySelector('audio[aria-label="Mẫu đã làm sạch"]')?.currentTime > 0.3, null, {timeout: 15000});
+      await shot('clone-preview');
+      return `${ms} ms at 44.1 kHz, fits the padded reference at ${at} ms; playback advanced`;
     });
     await step('clone 5 sentences and the same with the default voice', async () => {
       const pid = await project('Nhân bản giọng', lines, null);
