@@ -9,6 +9,16 @@ fn stt_resolves_asset_id_and_never_trusts_payload_path(){
  assert_eq!(r["protocol"],1);assert_eq!(r["operation"],"stt");
 }
 #[test]
+fn clone_preview_resolves_the_sample_and_the_voice_model_and_never_trusts_payload_paths(){
+ let t=tempfile::tempdir().unwrap();let s=Store::open(t.path()).unwrap();
+ let p=t.path().join("mẫu.wav");std::fs::write(&p,b"RIFF0000WAVE").unwrap();let a=s.import_asset(&p).unwrap();
+ let j=s.enqueue("clone_preview",None,json!({"asset_id":a["id"],"reference_path":"C:/secret","model_path":"C:/elsewhere"})).unwrap();
+ let r=prepare_request(&s,&j,None).unwrap();assert_eq!(r["operation"],"clone_preview");
+ assert_eq!(r["payload"]["reference_path"],a["path"]);assert_eq!(r["payload"]["model_path"],json!(t.path().join("models").join("vieneu-v3")));
+ assert_eq!(r["payload"]["output_name"],json!(format!("{}.wav",j["id"].as_str().unwrap())));
+ let gone=s.enqueue("clone_preview",None,json!({"asset_id":"missing"})).unwrap();assert_eq!(prepare_request(&s,&gone,None).unwrap_err(),"ASSET_NOT_FOUND");
+}
+#[test]
 fn model_id_is_allowlisted(){
  let t=tempfile::tempdir().unwrap();let s=Store::open(t.path()).unwrap();
  let j=s.enqueue("model_download",None,json!({"model_id":"../../secrets"})).unwrap();

@@ -69,7 +69,7 @@ impl Store {
  }
  pub fn delete_project(&self,id:&str)->Result<()> { let db=self.db.lock().map_err(err)?; let n:i64=db.query_row("SELECT count(*) FROM jobs WHERE project_id=?1 AND status IN ('queued','running')",[id],|r|r.get(0)).map_err(err)?;if n>0{return Err("PROJECT_BUSY: Hủy công việc trước khi xóa.".into())}db.execute("DELETE FROM projects WHERE id=?1",[id]).map_err(err)?;Ok(()) }
  pub fn enqueue(&self,kind:&str,project:Option<&str>,payload:Value)->Result<Value>{
-  if !["tts","stt","render","model_download"].contains(&kind){return Err("INVALID_JOB_KIND".into())}
+  if !["tts","stt","render","model_download","clone_preview"].contains(&kind){return Err("INVALID_JOB_KIND".into())}
   if let Some(id)=project {self.load_project(id)?;}
   let j=json!({"id":Uuid::new_v4().to_string(),"kind":kind,"project_id":project,"payload":payload,"status":"queued","progress":0.0,"error":null,"result":null,"created_at":now(),"updated_at":now()});
   self.db.lock().map_err(err)?.execute("INSERT INTO jobs VALUES(?1,?2,?3,'queued',?4,?5)",params![j["id"].as_str(),kind,project,j["created_at"].as_str(),j.to_string()]).map_err(err)?;Ok(j)
