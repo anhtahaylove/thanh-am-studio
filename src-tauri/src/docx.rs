@@ -77,7 +77,8 @@ pub fn docx_text(zip: &[u8]) -> Result<String, String> {
     let (mut out, mut lines, mut row, mut row_len, mut cell, mut para) = (String::new(), 0usize, Vec::<String>::new(), 0usize, String::new(), String::new());
     let (mut in_t, mut skip, mut deleted, mut runs, mut rows, mut cells) = (false, 0usize, 0usize, 0usize, 0usize, 0usize);
     // Hidden runs (`w:vanish` in the run's own properties) are not shown by Word, so they are not read aloud.
-    // shortcut: hiding set through a character style lives in styles.xml, which is not read; read it if users hit that.
+    // shortcut: hiding set through a style (character, paragraph, table) or the document defaults lives in styles.xml,
+    // which is not read, so that text is still read aloud; read styles.xml if users hit that.
     let mut hidden = false;
     macro_rules! over {
         ($extra:expr) => {
@@ -113,7 +114,7 @@ pub fn docx_text(zip: &[u8]) -> Result<String, String> {
                     hidden = false;
                 }
                 // a paragraph mark's own `w:vanish` (in `w:pPr`, outside any run) only joins lines in Word: its text stays
-                "w:vanish" if runs > 0 => hidden = !e.try_get_attribute("w:val").ok().flatten().is_some_and(|a| matches!(&*a.value, "0" | "false" | "off")),
+                "w:vanish" if runs > 0 => hidden = !e.try_get_attribute("w:val").ok().flatten().is_some_and(|a| matches!(a.value.trim(), "0" | "false" | "off")),
                 "w:t" => in_t = true,
                 "w:tab" | "w:ptab" if runs > 0 && deleted == 0 && !hidden => para.push(' '),
                 "w:noBreakHyphen" if runs > 0 && deleted == 0 && !hidden => para.push('-'),

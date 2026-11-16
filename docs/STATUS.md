@@ -895,5 +895,5 @@ Evidence: `work\release-v1.0.12-sandbox` (`run1012`, `github-update`); the temp-
   for a laugh or a throat clearing, so "not heard" may partly be the tagger. An unaccented chunk that also
   carries a cue (for example "Cam on ban [cuoi]") is still read with English phonemes. Word import reads only
   `word/document.xml` with the `w:` prefix; v1.0.12 and older read hidden (`w:vanish`) text, and text hidden through a
-  character style is still read. Per-chapter export cannot be
+  style (character, paragraph or table) or the document defaults is still read. Per-chapter export cannot be
   combined with the subtitle timing, and the save-all button offers only the newest batch.
