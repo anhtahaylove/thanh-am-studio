@@ -27,7 +27,9 @@ with `sha256sum -c SHA256SUMS.txt` (or compare `Get-FileHash <file>` with the li
 ## Acceptance gates (on the installer built from the tagged revision)
 
 1. Unit/integration: `npm test`, `npm run test:e2e`, `cargo test --manifest-path src-tauri/Cargo.toml --tests`,
-   `python -m unittest discover -s worker/tests`.
+   `python -m unittest discover -s worker/tests`. A release that changes the `vieneu` pin, `clone_window` or the
+   denoiser also runs `test_clone_preview_matches_what_synthesis_enrolls` locally (CI has no model) with
+   `THANHAM_VIENEU_MODELS` set to an installed `vieneu-v3` folder, then updates `VIENEU_VERIFIED`.
 2. Packaged desktop flow on a clean Windows Sandbox (no Python/FFmpeg on PATH): copy the installer
    to a folder, adjust and open a `.wsb` that maps the repo, `C:\Program Files\nodejs`, the installer folder and
    a writable output folder, with `e2e/desktop/sandbox-run.ps1` as the logon command. It installs

@@ -325,6 +325,15 @@ class WorkerTests(unittest.TestCase):
             self.assertEqual((sf.info(result['path']).samplerate, sf.info(result['path']).subtype, result['sample_rate']), (44100, 'PCM_24', 44100))
             self.assertEqual(sorted(p.name for p in (Path(td) / 'out').iterdir()), ['preview.wav', 'take.wav'])
             self.assertEqual(list(Path(temp).iterdir()), [])  # crop and trimmed copy deleted
+            # A failure right after the crop is cut (here: no room for the trimmed copy) still deletes the crop.
+            real_mkstemp = tempfile.mkstemp
+            def no_trim_file(*a, **k):
+                if k.get('prefix') == 'clone-trim-':
+                    raise OSError('disk full')
+                return real_mkstemp(*a, **k)
+            with mock.patch.object(tempfile, 'mkstemp', no_trim_file), self.assertRaises(OSError):
+                worker.clone_preview({'model_path': td, 'reference_path': reference, 'output_name': 'again.wav'}, Path(td) / 'out', lambda *a: None)
+            self.assertEqual(list(Path(temp).iterdir()), [])
 
     def test_clone_preview_needs_the_reference_file(self):
         from unittest import mock

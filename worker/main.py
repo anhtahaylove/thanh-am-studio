@@ -251,10 +251,11 @@ def clone_preview(payload, output_dir: Path, progress):
     final = contained_path(output_dir, payload.get('output_name') or f'{uuid.uuid4()}.wav')
     partial = final.with_name(final.stem + '.partial.wav')
     progress(0.1, 'Cleaning the voice sample')
-    crop = clone_reference(str(reference))  # the same call as tts()
     fd, trimmed = tempfile.mkstemp(prefix='clone-trim-', suffix='.wav')
     os.close(fd)
+    crop = None
     try:
+        crop = clone_reference(str(reference))  # the same call as tts()
         V3TurboVieNeuTTS._preclean_reference_audio(crop, out_path=trimmed)
         wav, sr = sf.read(trimmed, dtype='float32', always_2d=True)  # as the engine's _load_mono reads it
         clean = OnnxDenoiser(str(model_dir / 'backbone' / 'denoiser.onnx')).denoise(wav.mean(axis=1)[:int(_MAX_REF_SECONDS * sr)], sr)
@@ -263,7 +264,7 @@ def clone_preview(payload, output_dir: Path, progress):
     finally:
         partial.unlink(missing_ok=True)
         Path(trimmed).unlink(missing_ok=True)
-        if crop != str(reference):
+        if crop not in (None, str(reference)):
             Path(crop).unlink(missing_ok=True)
     return {'path': str(final), 'duration_ms': round(len(clean) / 44.1), 'sample_rate': 44100}
 
