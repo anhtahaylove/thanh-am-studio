@@ -1,5 +1,6 @@
 import hashlib
 import importlib.util
+import itertools
 import json
 import os
 from pathlib import Path
@@ -641,11 +642,12 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual(set(expected), set(worker.EXPORT_CODECS))
         with tempfile.TemporaryDirectory() as td:
             source = Path(td) / 'câu.wav'
-            sf.write(str(source), (0.25 * np.sin(np.arange(48000) * 2 * np.pi * 220 / 48000)).astype(np.float32), 48000)
-            for fmt, (codec, tolerance, bits, container) in expected.items():
-                with self.subTest(fmt=fmt):
+            # 3 s: loudnorm treats shorter input as one block, so only a longer one shows the 100 ms frames
+            sf.write(str(source), (0.25 * np.sin(np.arange(3 * 48000) * 2 * np.pi * 220 / 48000)).astype(np.float32), 48000)
+            for (fmt, (codec, tolerance, bits, container)), normalize in itertools.product(expected.items(), (False, True)):
+                with self.subTest(fmt=fmt, normalize=normalize):  # loudnorm emits 100 ms frames; the container must not round up to them
                     result = worker.render({'clips': [{'path': str(source), 'trim_start_ms': 0, 'trim_end_ms': None, 'gap_ms': 250}],
-                        'normalize': False, 'format': fmt}, Path(td), lambda *_: None)
+                        'normalize': normalize, 'format': fmt}, Path(td), lambda *_: None)
                     self.assertEqual(Path(result['path']).suffix, '.' + fmt)
                     probed = json.loads(subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'a:0', '-show_entries',
                         'stream=codec_name,sample_rate,channels,bits_per_raw_sample,bit_rate:format=format_name', '-of', 'json', result['path']], capture_output=True, check=True).stdout)
@@ -658,7 +660,7 @@ class WorkerTests(unittest.TestCase):
                     if fmt == 'm4a':  # +faststart: the index (moov) is written before the audio data (mdat)
                         data = Path(result['path']).read_bytes()
                         self.assertTrue(0 <= data.find(b'moov') < data.find(b'mdat'))
-                    self.assertAlmostEqual(result['duration_ms'], 1250, delta=tolerance)
+                    self.assertAlmostEqual(result['duration_ms'], 3250, delta=tolerance)
                     self.assertEqual(result['sample_rate'], 48000)
             self.assertEqual(list(Path(td).glob('*.partial*')), [])
 

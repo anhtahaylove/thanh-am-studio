@@ -437,7 +437,8 @@ def render(payload, output_dir: Path, progress):
                 args += ['-filter_complex', f'{mix},volume={gain:.3f}dB,alimiter=limit=0.98:level=0:latency=1', '-ar', '48000', '-ac', '2']
             else:
                 if payload.get('normalize', False):
-                    args += ['-af', 'loudnorm=I=-16:TP=-1.5:LRA=11']
+                    # asetpts: loudnorm emits 100 ms frames, so M4A and Opus would report a length rounded up to them
+                    args += ['-af', 'loudnorm=I=-16:TP=-1.5:LRA=11,asetpts=N/SR/TB']
                 args += ['-ar', '48000', '-ac', '1']
             args += EXPORT_CODECS[fmt]
             run_process(args + [str(partial)])
