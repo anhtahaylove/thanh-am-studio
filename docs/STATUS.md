@@ -117,7 +117,7 @@ Last updated 2026-11-14. Evidence below was observed, not inferred; anything not
   dispatched misses that key, and a dialog covered by another one does not take it). Text typed in "Thêm nội dung" is
   kept. The app removes `%TEMP%\<productName>-*-updater-*` (the installer copy the updater keeps before it exits)
   shortly after every start, retrying for a minute while a running installer holds one.
-- On main after v1.0.12 (not released yet): Word import skips hidden text, with its tabs and breaks: a run's own
+- Added for v1.0.13: Word import skips hidden text, with its tabs and breaks: a run's own
   `w:vanish` (unless `w:val` turns it off), and hiding set in `word/styles.xml` (document defaults, paragraph, character
   and table styles along `w:basedOn`, the default paragraph and table styles). Styles resolve the way Word 16 shows
   them, checked case by case in Word: the nearest explicit value in a `w:basedOn` chain wins; starting from the
