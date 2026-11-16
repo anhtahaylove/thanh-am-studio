@@ -755,7 +755,7 @@ try {
     });
     await step('update downloads, verifies, installs and reopens the signed release, keeping projects', async () => {
       if (!(await invoke('list_projects')).length) await invoke('create_project', {name: 'Giữ qua bản cập nhật'}); // run alone, the phase brings its own project
-      const projects = (await invoke('list_projects')).length, sentinel = join(dirname(exe), 'uninstall.exe');
+      const projects = (await invoke('list_projects')).length, sentinel = join(dirname(exe), 'uninstall.exe'), from = await invoke('plugin:app|version');
       rmSync(sentinel, {force: true}); // the installer writes it again near its end (Sandbox only: a failed install would leave no uninstaller)
       feed('/good');
       await page.getByRole('button', {name: 'Kiểm tra ngay'}).click();
@@ -780,9 +780,11 @@ try {
       if (await page.getByText(/Chưa cài được bản/).count()) throw Error('reported a failed install');
       for (let i = 0; i < 120 && copies().length; i++) await page.waitForTimeout(500);
       if (copies().length) throw Error(`installer copy still in ${tmpdir()}: ${copies().join(' | ')}`);
+      const now = await invoke('plugin:app|version'), want = JSON.parse(readFileSync(process.env.THANHAM_UPDATE_FEED, 'utf8').replace(/^\uFEFF/, '')).version;
+      if (now !== want) throw Error(`running ${now} after the update, the feed offers ${want}`);
       const after = (await invoke('list_projects')).length;
       if (after !== projects) throw Error(`projects ${projects} -> ${after}`);
-      return `reinstalled and reopened; ${after} projects kept; installer copy ${left.join(' | ')} removed; requests ${served.join(' ')}`;
+      return `${from} -> ${now}, reopened; ${after} projects kept; installer copy ${left.join(' | ')} removed; requests ${served.join(' ')}`;
     });
   }
   if (phase === 'export') {

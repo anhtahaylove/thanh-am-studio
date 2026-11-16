@@ -44,9 +44,10 @@ with `sha256sum -c SHA256SUMS.txt` (or compare `Get-FileHash <file>` with the li
 
    Which Sandbox runs a release needs (owner decision 2026-11-16; one Sandbox holds 8 GB of RAM and the
    full set takes 1-1.5 h):
-   - Every release: one Sandbox with `-Only update` (about 10 minutes, no model download). Each release
-     reaches every installed copy through the updater, and a release with a broken updater cannot
-     replace itself.
+   - Every release: one Sandbox with `-Only update -From C:\installer\from\<previous release installer>`
+     (about 10 minutes, no model download). The previous release is installed first and updates itself
+     to this one through the local feed, as installed copies will. Each release reaches every installed
+     copy through the updater, and a release with a broken updater cannot replace itself.
    - Changes to the worker, export, TTS/STT or the Rust job code: add `full` and the phase that covers
      the change (`features`, `dub`, `scripts`, `ux`, `clone`).
    - New Python, FFmpeg, Tauri or NSIS versions, or a changed installer configuration: the full set in
