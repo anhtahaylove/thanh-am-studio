@@ -1,4 +1,8 @@
 [
+ {"version": "1.0.12", "date": "2026-11-16", "changes": [
+  "Phím Escape đóng các hộp thoại “Có gì mới”, “Cài bản … rồi đóng?” và “Thêm nội dung” cả khi vừa bấm vào chữ trong hộp. Chữ đang gõ trong “Thêm nội dung” vẫn còn khi mở lại.",
+  "Sau khi cài bản cập nhật, app tự xóa bản sao trình cài đặt (khoảng 200 MB) mà bộ cập nhật để lại trong thư mục tạm của Windows."
+ ]},
  {"version": "1.0.11", "date": "2026-11-15", "changes": [
   "App tự kiểm tra bản mới, tải sẵn ở chế độ nền và cài khi bạn đóng cửa sổ. Mỗi bản cập nhật được kiểm chữ ký trước khi cài; dự án, take và model được giữ nguyên. Tắt được trong Model & cài đặt.",
   "Mục “Có gì mới” tự mở một lần sau mỗi lần cập nhật và xem lại được trong Model & cài đặt.",
