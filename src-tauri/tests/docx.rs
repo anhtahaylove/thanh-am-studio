@@ -9,9 +9,13 @@ fn body(inner: &str) -> Vec<u8> {
 
 /// Builds a zip with `[Content_Types].xml` (stored) first and `word/document.xml` (stored or deflated) second.
 fn zip(xml: &[u8], deflate: bool) -> Vec<u8> {
-    let entries: [(&str, &[u8], bool); 2] = [("[Content_Types].xml", b"<Types/>", false), ("word/document.xml", xml, deflate)];
+    zip_parts(&[("[Content_Types].xml", b"<Types/>", false), ("word/document.xml", xml, deflate)])
+}
+
+/// Builds a zip of `(name, data, deflate)` entries in that order.
+fn zip_parts(entries: &[(&str, &[u8], bool)]) -> Vec<u8> {
     let (mut out, mut central) = (Vec::new(), Vec::new());
-    for (name, data, packed) in entries {
+    for &(name, data, packed) in entries {
         let body = if packed { compress_to_vec(data, 6) } else { data.to_vec() };
         let method: u16 = if packed { 8 } else { 0 };
         let offset = out.len() as u32;
@@ -25,7 +29,7 @@ fn zip(xml: &[u8], deflate: bool) -> Vec<u8> {
     }
     let cd_offset = out.len() as u32;
     out.extend(&central);
-    out.extend([b"PK\x05\x06".as_slice(), &[0; 4], &2u16.to_le_bytes(), &2u16.to_le_bytes(), &(central.len() as u32).to_le_bytes(), &cd_offset.to_le_bytes(), &0u16.to_le_bytes()].concat());
+    out.extend([b"PK\x05\x06".as_slice(), &[0; 4], &(entries.len() as u16).to_le_bytes(), &(entries.len() as u16).to_le_bytes(), &(central.len() as u32).to_le_bytes(), &cd_offset.to_le_bytes(), &0u16.to_le_bytes()].concat());
     out
 }
 
@@ -189,4 +193,180 @@ fn val_zero_shows_a_run_and_a_wholly_hidden_paragraph_is_not_read() {
     let inner = r#"<w:p><w:r><w:rPr><w:vanish w:val="0"/></w:rPr><w:t>A</w:t></w:r></w:p><w:p><w:pPr><w:rPr><w:vanish/></w:rPr></w:pPr><w:r><w:rPr><w:vanish/></w:rPr><w:t>bí mật</w:t></w:r></w:p><w:p><w:r><w:t>B</w:t></w:r></w:p>"#;
     // the empty line left by the hidden paragraph is harmless: script lines split on runs of newlines
     assert_eq!(text(inner, false).lines().filter(|l| !l.is_empty()).collect::<Vec<_>>(), ["A", "B"]);
+}
+
+/// docx_text of a body with `word/styles.xml` holding `styles` (whole `w:style` elements) and the document defaults.
+fn styled(styles: &str, hidden_defaults: bool, inner: &str) -> String {
+    let defaults = if hidden_defaults { "<w:vanish/>" } else { "" };
+    let xml = format!(r#"<w:styles {NS}><w:docDefaults><w:rPrDefault><w:rPr>{defaults}</w:rPr></w:rPrDefault></w:docDefaults>{styles}</w:styles>"#);
+    docx_text(&zip_parts(&[("word/document.xml", &body(inner), true), ("word/styles.xml", xml.as_bytes(), true)])).unwrap()
+}
+
+/// `<w:style>` of `kind` with id `id`; `inner` follows its name (`w:basedOn`, `w:rPr`).
+fn style(kind: &str, id: &str, inner: &str) -> String {
+    format!(r#"<w:style w:type="{kind}" w:styleId="{id}"><w:name w:val="{id}"/>{inner}</w:style>"#)
+}
+
+/// A one-run paragraph with text `label`, paragraph properties `ppr` and run properties `rpr`.
+fn p(label: &str, ppr: &str, rpr: &str) -> String {
+    format!("<w:p><w:pPr>{ppr}</w:pPr><w:r><w:rPr>{rpr}</w:rPr><w:t>{label}</w:t></w:r></w:p>")
+}
+
+fn table(tblpr: &str, cells: &[String]) -> String {
+    format!("<w:tbl><w:tblPr>{tblpr}</w:tblPr>{}</w:tbl>", cells.iter().map(|c| format!("<w:tr><w:tc>{c}</w:tc></w:tr>")).collect::<String>())
+}
+
+fn ps(id: &str) -> String {
+    format!(r#"<w:pStyle w:val="{id}"/>"#)
+}
+
+fn rs(id: &str) -> String {
+    format!(r#"<w:rStyle w:val="{id}"/>"#)
+}
+
+/// Asserts which labels docx_text keeps. The expected values are what Word 16 showed for the same markup (checked in Word itself).
+fn shows(out: &str, cases: &[(&str, bool)]) {
+    for &(label, shown) in cases {
+        assert_eq!(out.contains(label), shown, "{label} in {out:?}");
+    }
+}
+
+const HIDE: &str = "<w:rPr><w:vanish/></w:rPr>";
+const SHOW: &str = r#"<w:rPr><w:vanish w:val="0"/></w:rPr>"#;
+
+fn word_styles() -> String {
+    [
+        style("paragraph", "PH", HIDE),
+        style("paragraph", "PH2", r#"<w:basedOn w:val="PH"/>"#),
+        style("paragraph", "PH0", &format!(r#"<w:basedOn w:val="PH"/>{SHOW}"#)),
+        style("paragraph", "PH1", &format!(r#"<w:basedOn w:val="PH"/>{HIDE}"#)),
+        style("paragraph", "PV", ""),
+        style("character", "CH", HIDE),
+        style("character", "CH2", &format!(r#"<w:basedOn w:val="CH"/>{HIDE}"#)),
+        style("character", "CHF", SHOW),
+        style("table", "TH", HIDE),
+    ]
+    .concat()
+}
+
+#[test]
+fn styles_hide_text_like_word_shows_it() {
+    let (d0, d1) = (r#"<w:vanish w:val="0"/>"#, "<w:vanish/>");
+    let inner = [
+        p("a01", "", ""),
+        p("a02", &ps("PH"), ""),
+        p("a03", &ps("PH2"), ""),
+        p("a04", &ps("PH0"), ""),
+        p("a05", &ps("PH1"), ""),
+        p("a06", "", &rs("CH")),
+        p("a07", &ps("PH"), &rs("CH")),
+        p("a08", &ps("PH"), d0),
+        p("a09", &ps("PH"), d1),
+        p("a10", "", &(rs("CH") + d0)),
+        p("a11", "", &rs("CH2")),
+        p("a12", &ps("PH"), &rs("CHF")),
+        table(r#"<w:tblStyle w:val="TH"/>"#, &[p("a13", "", ""), p("a14", &ps("PH"), ""), p("a15", "", &rs("CH")), p("a16", &ps("PH"), &rs("CH"))]),
+        p("a17", "", &rs("CHF")),
+    ]
+    .concat();
+    let shown = ["a01", "a04", "a07", "a08", "a10", "a14", "a15", "a17"];
+    let labels = (1..=17).map(|i| format!("a{i:02}")).collect::<Vec<_>>();
+    shows(&styled(&word_styles(), false, &inner), &labels.iter().map(|l| (l.as_str(), shown.contains(&l.as_str()))).collect::<Vec<_>>());
+}
+
+#[test]
+fn under_hidden_document_defaults_only_styles_that_show_text_flip_it() {
+    let inner = [
+        p("b01", "", ""),
+        p("b02", &ps("PH"), ""),
+        p("b03", "", &rs("CH")),
+        p("b04", "", r#"<w:vanish w:val="0"/>"#),
+        p("b05", &ps("PV"), ""),
+        p("b06", &ps("PH"), &rs("CH")),
+        table(r#"<w:tblStyle w:val="TH"/>"#, &[p("b07", "", "")]),
+        p("b08", &ps("PH0"), ""),
+        p("b09", "", &rs("CHF")),
+        p("b10", &ps("PH0"), &rs("CHF")),
+        table(r#"<w:tblStyle w:val="TH"/>"#, &[p("b11", &ps("PH0"), "")]),
+    ]
+    .concat();
+    let shown = ["b04", "b08", "b09", "b11"];
+    let labels = (1..=11).map(|i| format!("b{i:02}")).collect::<Vec<_>>();
+    shows(&styled(&word_styles(), true, &inner), &labels.iter().map(|l| (l.as_str(), shown.contains(&l.as_str()))).collect::<Vec<_>>());
+}
+
+#[test]
+fn a_style_id_of_the_wrong_type_is_ignored_and_nested_tables_keep_their_own_style() {
+    let nested = format!("<w:tbl><w:tblPr/><w:tr><w:tc>{}{}</w:tc></w:tr></w:tbl>", table(r#"<w:tblStyle w:val="TH"/>"#, &[p("e04", "", "")]), p("e05", "", ""));
+    let inner = [
+        p("e01", &ps("CH"), ""),
+        p("e02", "", &rs("PH")),
+        table(r#"<w:tblStyle w:val="CH"/>"#, &[p("e03", "", "")]),
+        nested,
+        table(r#"<w:tblStyle w:val="PH"/>"#, &[p("e06", "", "")]),
+    ]
+    .concat();
+    shows(&styled(&word_styles(), false, &inner), &[("e01", true), ("e02", true), ("e03", true), ("e04", false), ("e05", true), ("e06", true)]);
+}
+
+#[test]
+fn a_text_box_style_stays_in_the_box_and_style_hidden_breaks_are_dropped() {
+    let boxed = format!(r#"<w:r><mc:AlternateContent xmlns:mc="m"><mc:Choice><w:drawing><w:txbxContent>{}</w:txbxContent></w:drawing></mc:Choice></mc:AlternateContent></w:r>"#, p("ẩn", &ps("PH"), ""));
+    let inner = format!(r#"<w:p><w:r><w:t>f01 </w:t></w:r>{boxed}<w:r><w:t>f02</w:t></w:r><w:r><w:rPr>{}</w:rPr><w:t>ẩn</w:t><w:tab/><w:br/><w:noBreakHyphen/></w:r><w:r><w:t>f03</w:t></w:r></w:p>"#, rs("CH"));
+    assert_eq!(styled(&word_styles(), false, &inner), "f01 f02f03");
+}
+
+#[test]
+fn default_and_unknown_styles_fall_back_like_word() {
+    let styles = [
+        format!(r#"<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/>{HIDE}</w:style>"#),
+        format!(r#"<w:style w:type="table" w:default="1" w:styleId="TableNormal"><w:name w:val="Normal Table"/>{HIDE}</w:style>"#),
+        style("paragraph", "PV", ""),
+        style("paragraph", "PB", r#"<w:basedOn w:val="Normal"/>"#),
+        style("paragraph", "PH", HIDE),
+        style("character", "CH", HIDE),
+    ]
+    .concat();
+    let inner = [
+        p("c01", "", ""),
+        p("c02", &ps("PV"), ""),
+        p("c03", &ps("PB"), ""),
+        p("c04", "", &rs("CH")),
+        p("c05", &ps("PH"), ""),
+        table("", &[p("c06", &ps("PV"), "")]),
+        p("c07", &ps("Missing"), ""),
+        p("c08", &ps("PV"), &rs("Missing")),
+        table(r#"<w:tblStyle w:val="Missing"/>"#, &[p("c09", &ps("PV"), "")]),
+    ]
+    .concat();
+    let out = styled(&styles, false, &inner);
+    shows(&out, &[("c01", false), ("c02", true), ("c03", false), ("c04", true), ("c05", false), ("c06", false), ("c07", false), ("c08", true), ("c09", false)]);
+}
+
+#[test]
+fn styles_before_a_tracked_change_and_conditional_table_formatting_are_not_current() {
+    let styles = [
+        style("paragraph", "PH", HIDE),
+        style("paragraph", "PV", ""),
+        style("table", "TH", HIDE),
+        // a character style that was hidden before a tracked change, and a table style that hides only its first row
+        style("character", "CV", r#"<w:rPr><w:rPrChange w:id="1"><w:rPr><w:vanish/></w:rPr></w:rPrChange></w:rPr>"#),
+        style("table", "TF", r#"<w:tblStylePr w:type="firstRow"><w:rPr><w:vanish/></w:rPr></w:tblStylePr>"#),
+    ]
+    .concat();
+    let inner = [
+        p("d01", &format!(r#"{}<w:pPrChange w:id="2"><w:pPr>{}</w:pPr></w:pPrChange>"#, ps("PV"), ps("PH")), ""),
+        p("d02", "", &rs("CV")),
+        table(r#"<w:tblStyle w:val="TF"/><w:tblPrChange w:id="3"><w:tblPr><w:tblStyle w:val="TH"/></w:tblPr></w:tblPrChange>"#, &[p("d03", "", "")]),
+    ]
+    .concat();
+    shows(&styled(&styles, false, &inner), &[("d01", true), ("d02", true), ("d03", true)]);
+}
+
+#[test]
+fn a_based_on_loop_ends_and_broken_styles_are_rejected() {
+    let styles = [style("paragraph", "A", r#"<w:basedOn w:val="B"/>"#), style("paragraph", "B", r#"<w:basedOn w:val="A"/>"#)].concat();
+    assert_eq!(styled(&styles, false, &p("e01", &ps("A"), "")), "e01");
+    let broken = zip_parts(&[("word/document.xml", &body(&p("e02", "", "")), false), ("word/styles.xml", b"<w:styles><w:style></w:styles>", false)]);
+    assert_eq!(docx_text(&broken), Err("INVALID_DOCX".to_string()));
 }

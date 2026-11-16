@@ -1,7 +1,8 @@
 //! Plain-text reader for Word (.docx) scripts: std zip walking plus miniz_oxide and quick-xml.
-use quick_xml::{events::Event, Reader};
+use quick_xml::{events::{BytesStart, Event}, Reader};
+use std::collections::HashMap;
 
-/// Cap on the uncompressed size of `word/document.xml`, enforced while inflating (zip bomb guard).
+/// Cap on the uncompressed size of each part read (`word/document.xml`, `word/styles.xml`), enforced while inflating (zip bomb guard).
 pub const MAX_DOCUMENT_XML: usize = 64 * 1024 * 1024;
 /// Same limit as TXT files in `read_text_file`.
 pub const MAX_TEXT: usize = 10_000_000;
@@ -15,8 +16,8 @@ fn u32_at(b: &[u8], i: usize) -> Result<usize, String> {
     b.get(i..i + 4).map(|s| u32::from_le_bytes([s[0], s[1], s[2], s[3]]) as usize).ok_or(INVALID.into())
 }
 
-/// Returns the uncompressed bytes of `word/document.xml`.
-fn document_xml(zip: &[u8]) -> Result<Vec<u8>, String> {
+/// Returns the uncompressed bytes of the part `want`, or None when the zip has no such entry.
+fn part(zip: &[u8], want: &str) -> Result<Option<Vec<u8>>, String> {
     // End-of-central-directory record: 22 bytes plus a comment of up to 65535 bytes.
     let eocd = (0..=zip.len().saturating_sub(22))
         .rev()
@@ -42,7 +43,7 @@ fn document_xml(zip: &[u8]) -> Result<Vec<u8>, String> {
         let (name_len, extra_len, comment_len, local) = (u16_at(zip, at + 28)?, u16_at(zip, at + 30)?, u16_at(zip, at + 32)?, u32_at(zip, at + 42)?);
         let name = zip.get(at + 46..at + 46 + name_len).ok_or(INVALID)?;
         at += 46 + name_len + extra_len + comment_len;
-        if name != b"word/document.xml" {
+        if name != want.as_bytes() {
             continue;
         }
         if flags & 0x41 != 0 || packed == 0xFFFF_FFFF || size == 0xFFFF_FFFF || local == 0xFFFF_FFFF {
@@ -63,23 +64,128 @@ fn document_xml(zip: &[u8]) -> Result<Vec<u8>, String> {
             })?,
             _ => return Err(INVALID.into()),
         };
-        return if xml.len() == size { Ok(xml) } else { Err(INVALID.into()) };
+        return if xml.len() == size { Ok(Some(xml)) } else { Err(INVALID.into()) };
     }
-    Err(INVALID.into())
+    Ok(None)
+}
+
+/// A toggle property such as `w:vanish` is on unless its `w:val` is 0, false or off.
+fn on(e: &BytesStart) -> bool {
+    !e.try_get_attribute("w:val").ok().flatten().is_some_and(|a| matches!(a.value.trim(), "0" | "false" | "off"))
+}
+
+fn val(e: &BytesStart) -> Option<String> {
+    e.try_get_attribute("w:val").ok().flatten().map(|a| a.value.into_owned())
+}
+
+/// Hidden text set in `word/styles.xml`, resolved the way Word 16 shows it (each rule checked case by case in Word):
+/// a style without its own `w:vanish` takes its `w:basedOn` style's, the closest explicit value winning. The document
+/// defaults are the starting value, and each of a run's table, paragraph and character styles whose value differs from
+/// them flips it: two hidden styles cancel out, and under hidden defaults a `w:val="0"` style shows its text. A style id
+/// of the wrong type counts as missing. The run's own `w:vanish` overrides all of that.
+// shortcut: a table style's conditional formatting (`w:tblStylePr`, e.g. first row) is not applied; apply it if users hit that.
+#[derive(Default)]
+struct Styles {
+    defaults: bool,
+    /// styleId -> (type, basedOn, own vanish)
+    all: HashMap<String, (String, Option<String>, Option<bool>)>,
+    para: Option<String>,
+    table: Option<String>,
+}
+
+impl Styles {
+    fn parse(xml: &str) -> Result<Self, String> {
+        let mut reader = Reader::from_str(xml);
+        reader.config_mut().expand_empty_elements = true;
+        let (mut out, mut skip, mut style) = (Styles::default(), 0usize, None::<(String, String, Option<String>, Option<bool>)>);
+        loop {
+            match reader.read_event().map_err(|_| INVALID.to_string())? {
+                Event::Eof => return Ok(out),
+                Event::Start(e) => match e.name().as_ref() {
+                    "w:tblStylePr" | "w:rPrChange" => skip += 1,
+                    _ if skip > 0 => {}
+                    "w:style" => {
+                        let attr = |name| e.try_get_attribute(name).ok().flatten().map(|a| a.value.into_owned());
+                        // a style without `w:type` is a paragraph style
+                        let (id, kind) = (attr("w:styleId").unwrap_or_default(), attr("w:type").unwrap_or_else(|| "paragraph".into()));
+                        if attr("w:default").is_some_and(|d| matches!(d.trim(), "1" | "true" | "on")) {
+                            match kind.as_str() {
+                                "paragraph" => out.para = Some(id.clone()),
+                                "table" => out.table = Some(id.clone()),
+                                _ => {}
+                            }
+                        }
+                        style = Some((id, kind, None, None));
+                    }
+                    "w:basedOn" => {
+                        if let Some(s) = style.as_mut() {
+                            s.2 = val(&e);
+                        }
+                    }
+                    // outside a style, the only run properties are the document defaults (`w:rPrDefault`)
+                    "w:vanish" => match style.as_mut() {
+                        Some(s) => s.3 = Some(on(&e)),
+                        None => out.defaults = on(&e),
+                    },
+                    _ => {}
+                },
+                Event::End(e) => match e.name().as_ref() {
+                    "w:tblStylePr" | "w:rPrChange" => skip = skip.saturating_sub(1),
+                    "w:style" if skip == 0 => {
+                        if let Some((id, kind, based, vanish)) = style.take() {
+                            out.all.insert(id, (kind, based, vanish));
+                        }
+                    }
+                    _ => {}
+                },
+                _ => {}
+            }
+        }
+    }
+
+    /// The `w:vanish` that style `id` of type `kind` sets itself or through its `w:basedOn` styles (inner None: none sets
+    /// one), or None when no style of that type has that id.
+    fn vanish(&self, id: Option<&str>, kind: &str) -> Option<Option<bool>> {
+        let get = |id: &str| self.all.get(id).filter(|s| s.0 == kind);
+        let mut at = get(id?)?;
+        // a broken file can loop its basedOn chain; 64 steps bound it
+        for _ in 0..64 {
+            match at {
+                (_, _, Some(v)) => return Some(Some(*v)),
+                (_, Some(base), None) => match get(base) {
+                    Some(next) => at = next,
+                    None => break,
+                },
+                (_, None, None) => break,
+            }
+        }
+        Some(None)
+    }
 }
 
 /// Plain text of a .docx: one line per paragraph, a table row joined with ", " into one line.
 /// Stops with `TEXT_FILE_TOO_LARGE` once the text passes `MAX_TEXT` (same limit as TXT files).
 pub fn docx_text(zip: &[u8]) -> Result<String, String> {
-    let xml = String::from_utf8(document_xml(zip)?).map_err(|_| INVALID.to_string())?;
+    let utf8 = |b: Vec<u8>| String::from_utf8(b).map_err(|_| INVALID.to_string());
+    let xml = utf8(part(zip, "word/document.xml")?.ok_or(INVALID)?)?;
+    // shortcut: Word always names the styles part word/styles.xml; read document.xml.rels if another producer names it otherwise
+    let styles = match part(zip, "word/styles.xml")? {
+        Some(s) => Styles::parse(&utf8(s)?)?,
+        None => Styles::default(),
+    };
+    let (para_style, table_style) = (styles.vanish(styles.para.as_deref(), "paragraph").flatten(), styles.vanish(styles.table.as_deref(), "table").flatten());
     let mut reader = Reader::from_str(&xml);
     reader.config_mut().expand_empty_elements = true;
     let (mut out, mut lines, mut row, mut row_len, mut cell, mut para) = (String::new(), 0usize, Vec::<String>::new(), 0usize, String::new(), String::new());
     let (mut in_t, mut skip, mut deleted, mut runs, mut rows, mut cells) = (false, 0usize, 0usize, 0usize, 0usize, 0usize);
-    // Hidden runs (`w:vanish` in the run's own properties) are not shown by Word, so they are not read aloud.
-    // shortcut: hiding set through a style (character, paragraph, table) or the document defaults lives in styles.xml,
-    // which is not read, so that text is still read aloud; read styles.xml if users hit that.
-    let mut hidden = false;
+    // Hidden text is not shown by Word, so it is not read aloud: the run's own `w:vanish`, else its styles (see `Styles`).
+    let flips = |v: Option<bool>| v.is_some_and(|v| v != styles.defaults);
+    let (mut tables, mut pstyle, mut rstyle, mut direct) = (Vec::<Option<bool>>::new(), para_style, None::<bool>, None::<bool>);
+    macro_rules! hidden {
+        () => {
+            direct.unwrap_or(styles.defaults ^ flips(tables.last().copied().flatten()) ^ flips(pstyle) ^ flips(rstyle))
+        };
+    }
     macro_rules! over {
         ($extra:expr) => {
             if out.len() + para.len() + cell.len() + row_len + $extra > MAX_TEXT {
@@ -104,21 +210,33 @@ pub fn docx_text(zip: &[u8]) -> Result<String, String> {
         match reader.read_event().map_err(|_| INVALID.to_string())? {
             Event::Eof => break,
             Event::Start(e) => match e.name().as_ref() {
-                // `w:rPrChange` holds a run's formatting before a tracked change (no text), so its `w:vanish` is not current
-                "w:txbxContent" | "mc:Fallback" | "w:rPrChange" => skip += 1,
+                // `w:rPrChange`, `w:pPrChange` and `w:tblPrChange` hold formatting before a tracked change (no text), so their
+                // `w:vanish` and styles are not current
+                "w:txbxContent" | "mc:Fallback" | "w:rPrChange" | "w:pPrChange" | "w:tblPrChange" => skip += 1,
                 _ if skip > 0 => {}
                 "w:del" | "w:moveFrom" => deleted += 1,
-                "w:p" => para.clear(),
+                "w:p" => {
+                    para.clear();
+                    pstyle = para_style;
+                }
+                "w:pStyle" => pstyle = styles.vanish(val(&e).as_deref(), "paragraph").unwrap_or(para_style),
+                "w:tbl" => tables.push(table_style),
+                "w:tblStyle" => {
+                    if let Some(t) = tables.last_mut() {
+                        *t = styles.vanish(val(&e).as_deref(), "table").unwrap_or(table_style);
+                    }
+                }
                 "w:r" => {
                     runs += 1;
-                    hidden = false;
+                    (rstyle, direct) = (None, None);
                 }
-                // a paragraph mark's own `w:vanish` (in `w:pPr`, outside any run) only joins lines in Word: its text stays
-                "w:vanish" if runs > 0 => hidden = !e.try_get_attribute("w:val").ok().flatten().is_some_and(|a| matches!(a.value.trim(), "0" | "false" | "off")),
+                // a paragraph mark's own `w:rStyle` and `w:vanish` (in `w:pPr`, outside any run) only join lines in Word: its text stays
+                "w:rStyle" if runs > 0 => rstyle = styles.vanish(val(&e).as_deref(), "character").flatten(),
+                "w:vanish" if runs > 0 => direct = Some(on(&e)),
                 "w:t" => in_t = true,
-                "w:tab" | "w:ptab" if runs > 0 && deleted == 0 && !hidden => para.push(' '),
-                "w:noBreakHyphen" if runs > 0 && deleted == 0 && !hidden => para.push('-'),
-                "w:br" | "w:cr" if runs > 0 && deleted == 0 && !hidden => para.push(if cells > 0 { ' ' } else { '\n' }),
+                "w:tab" | "w:ptab" if runs > 0 && deleted == 0 && !hidden!() => para.push(' '),
+                "w:noBreakHyphen" if runs > 0 && deleted == 0 && !hidden!() => para.push('-'),
+                "w:br" | "w:cr" if runs > 0 && deleted == 0 && !hidden!() => para.push(if cells > 0 { ' ' } else { '\n' }),
                 "w:tr" => {
                     rows += 1;
                     if rows == 1 {
@@ -135,12 +253,15 @@ pub fn docx_text(zip: &[u8]) -> Result<String, String> {
                 _ => {}
             },
             Event::End(e) => match e.name().as_ref() {
-                "w:txbxContent" | "mc:Fallback" | "w:rPrChange" => skip = skip.saturating_sub(1),
+                "w:txbxContent" | "mc:Fallback" | "w:rPrChange" | "w:pPrChange" | "w:tblPrChange" => skip = skip.saturating_sub(1),
                 _ if skip > 0 => {}
                 "w:del" | "w:moveFrom" => deleted = deleted.saturating_sub(1),
                 "w:r" => {
                     runs = runs.saturating_sub(1);
-                    hidden = false;
+                    (rstyle, direct) = (None, None);
+                }
+                "w:tbl" => {
+                    tables.pop();
                 }
                 "w:t" => in_t = false,
                 "w:p" if cells > 0 => {
@@ -176,11 +297,11 @@ pub fn docx_text(zip: &[u8]) -> Result<String, String> {
                 }
                 _ => {}
             },
-            Event::Text(t) if in_t && skip == 0 && deleted == 0 && !hidden => {
+            Event::Text(t) if in_t && skip == 0 && deleted == 0 && !hidden!() => {
                 over!(t.len());
                 para.push_str(&t);
             }
-            Event::GeneralRef(r) if in_t && skip == 0 && deleted == 0 && !hidden => {
+            Event::GeneralRef(r) if in_t && skip == 0 && deleted == 0 && !hidden!() => {
                 over!(4);
                 match (r.resolve_char_ref().map_err(|_| INVALID.to_string())?, &*r) {
                     (Some(c), _) => para.push(c),
