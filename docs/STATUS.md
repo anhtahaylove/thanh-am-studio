@@ -818,16 +818,17 @@ Evidence: `work\release-v1.0.11-sandbox` (`run45*` first pass, `run46`, `run46b`
 | Installer SHA-256 | `99521bf565af5c428d8c1f84bab1e9ea225a9940fb38425b933ab055290ae5a1`; `sha256sum -c` OK after `gh release download` and after an anonymous download from `/releases/latest/download/` |
 | Update feed | the anonymous `/releases/latest/download/latest.json` names 1.0.12, points to the v1.0.12 installer, and its signature's trusted comment holds `version:1.0.12` |
 | Clean Sandbox, `-Only update -From` the published 1.0.11 installer (the per-release tier, docs/RELEASE.md) | 1.0.11 refused a cut-off package, then updated itself to 1.0.12 through the local feed and reopened at 1.0.12 with its project; 1.0.12 removed the installer copy 1.0.11's updater left in `%TEMP%`: 4 PASS, 0 FAIL |
-| Not run | TTS, STT, export and Escape in the installed app (Escape: Playwright only); the update through GitHub itself |
+| Clean Sandbox, update through GitHub after publishing | the published 1.0.11, with no local feed, found 1.0.12 through its automatic check of `/releases/latest/download/latest.json` (nobody clicked "Kiểm tra ngay"), downloaded and verified it, installed it and reopened at 1.0.12 with its project; the installer copy was removed: 3 PASS, 0 FAIL. A scratch copy of the harness skipped the local feed (its diff is kept with the evidence) |
+| Not run | TTS, STT, export and Escape in the installed app (Escape: Playwright only) |
 
-Evidence: `work\release-v1.0.12-sandbox` (`run1012`); the temp-copy fix before and after in `work\updater-temp-copy`.
+Evidence: `work\release-v1.0.12-sandbox` (`run1012`, `github-update`); the temp-copy fix before and after in `work\updater-temp-copy`.
 
 ## Not verified / known gaps
 
-- Self-update was checked in clean Sandboxes through a local copy of the feed (`THANHAM_UPDATE_MANIFEST`), for 1.0.12
-  from the published 1.0.11, not through GitHub: the first updates through GitHub are installed 1.0.11 copies moving to
-  1.0.12, which the project does not observe. Each update downloads the whole installer (about 200 MB); from 1.0.12 the
-  app removes the installer copy the updater leaves in `%TEMP%` shortly after it starts.
+- Self-update through GitHub was observed once, in a clean Sandbox (1.0.11 to 1.0.12, above); the per-release gate
+  still uses a local copy of the feed (`THANHAM_UPDATE_MANIFEST`), because it runs before the release is published.
+  Each update downloads the whole installer (about 200 MB); from 1.0.12 the app removes the installer copy the updater
+  leaves in `%TEMP%` shortly after it starts.
 - Listening quality has not been judged by a human; the clipping checks above are signal analysis.
   On 2026-11-13 the owner accepted the machine listening below in place of a human listening pass.
   The listening pack (first 20 sentences as separate files in script order, plus the full render) is
