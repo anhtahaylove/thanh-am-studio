@@ -368,6 +368,12 @@ def render(payload, output_dir: Path, progress):
     # to pad_to_ms; the gaps are not used. The places come from the app's dub plan; this only applies them.
     timeline = payload.get('timeline') is True
     pad_to = round(number(payload.get('pad_to_ms', 0), 'pad_to_ms', 0, 86400000) * 48) if timeline else 0
+    # The source's background (a separate job's stem) under the dub: both start at sample 0 of the same media.
+    background = payload.get('background_path')
+    if background and not timeline:
+        raise WorkerError('INVALID_BACKGROUND', 'A background is mixed only under the subtitle timeline.')
+    if background:
+        probe(background, ffmpeg)  # a missing stem fails before the clips are rendered
     written = 0  # samples of the clips rendered so far, at 48 kHz
     output_dir.mkdir(parents=True, exist_ok=True)
     final = output_dir / f'{uuid.uuid4()}.{fmt}'
@@ -406,9 +412,17 @@ def render(payload, output_dir: Path, progress):
             listing = temp / 'concat.txt'
             listing.write_text(''.join(f"file '{i:06d}.wav'\n" for i in range(len(clips))), encoding='utf-8')
             args = [ffmpeg, '-nostdin', '-hide_banner', '-loglevel', 'error', '-y', '-f', 'concat', '-safe', '1', '-i', str(listing)]
-            if payload.get('normalize', False):
-                args += ['-af', 'loudnorm=I=-16:TP=-1.5:LRA=11']
-            args += ['-ar', '48000', '-ac', '1']
+            if background:
+                # pan, not aformat: aformat's stereo upmix lowers each channel by 3 dB. amix at 0 dB each (normalize=0), as long as
+                # the longer input; no loop, stretch or fade. Unnormalised, a latency-compensated limiter keeps the sum below full scale.
+                tail = 'loudnorm=I=-16:TP=-1.5:LRA=11' if payload.get('normalize', False) else 'alimiter=limit=0.98:level=0:latency=1'
+                args += ['-i', background, '-filter_complex', '[0:a]pan=stereo|c0=c0|c1=c0[v];[1:a]aresample=48000,'
+                    f'aformat=sample_fmts=flt:channel_layouts=stereo[b];[v][b]amix=inputs=2:duration=longest:normalize=0,{tail}',
+                    '-ar', '48000', '-ac', '2']
+            else:
+                if payload.get('normalize', False):
+                    args += ['-af', 'loudnorm=I=-16:TP=-1.5:LRA=11']
+                args += ['-ar', '48000', '-ac', '1']
             args += EXPORT_CODECS[fmt]
             run_process(args + [str(partial)])
             info = probe(partial, ffmpeg)
