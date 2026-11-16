@@ -763,6 +763,10 @@ try {
       const exited = new Promise((ok) => app.once('exit', ok));
       await page.getByRole('button', {name: 'Cài ngay và mở lại'}).click();
       await exited;
+      // The updater copies the installer to %TEMP%\<app>-<version>-updater-*\ and exits; the next start must remove it.
+      const copies = () => readdirSync(tmpdir()).filter((n) => n.normalize('NFC').startsWith('Thanh Âm Studio-') && n.includes('-updater-'));
+      const left = copies();
+      if (!left.length) throw Error(`no installer copy in ${tmpdir()} to check`);
       for (let i = 0; i < 360 && !existsSync(sentinel); i++) await new Promise((r) => setTimeout(r, 500));
       if (!existsSync(sentinel)) throw Error('installer did not finish within 3 min');
       let reopened = false;
@@ -774,9 +778,11 @@ try {
       await new Promise((r) => setTimeout(r, 2000));
       await launch(); await page.waitForTimeout(2000);
       if (await page.getByText(/Chưa cài được bản/).count()) throw Error('reported a failed install');
+      for (let i = 0; i < 120 && copies().length; i++) await page.waitForTimeout(500);
+      if (copies().length) throw Error(`installer copy still in ${tmpdir()}: ${copies().join(' | ')}`);
       const after = (await invoke('list_projects')).length;
       if (after !== projects) throw Error(`projects ${projects} -> ${after}`);
-      return `reinstalled and reopened; ${after} projects kept; requests ${served.join(' ')}`;
+      return `reinstalled and reopened; ${after} projects kept; installer copy ${left.join(' | ')} removed; requests ${served.join(' ')}`;
     });
   }
   if (phase === 'export') {

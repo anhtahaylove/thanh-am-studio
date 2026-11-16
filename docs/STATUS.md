@@ -809,7 +809,8 @@ Evidence: `work\release-v1.0.11-sandbox` (`run45*` first pass, `run46`, `run46b`
 
 - Self-update was checked against a local copy of the 1.0.11 feed (`THANHAM_UPDATE_MANIFEST`), not against GitHub with a
   newer release: the first real update from GitHub happens when 1.0.12 is published. Each update downloads the whole
-  installer (about 200 MB), and the updater leaves a copy of it in `%TEMP%`.
+  installer (about 200 MB). The copy of the installer that the updater leaves in `%TEMP%` is removed at the next start
+  by versions after 1.0.11 (Sandbox `update` phase).
 - Listening quality has not been judged by a human; the clipping checks above are signal analysis.
   On 2026-11-13 the owner accepted the machine listening below in place of a human listening pass.
   The listening pack (first 20 sentences as separate files in script order, plus the full render) is
