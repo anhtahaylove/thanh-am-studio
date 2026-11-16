@@ -10,7 +10,7 @@ import {mergeSpeaker,speakerPayload,speakerStats,speakingTime} from './speakers'
 import type {SpeakerStat} from './speakers';
 import {addTranscriptRow,jobProgressLabel,exportSubtitles,makeSegment,mergeSegments,scriptChunks,mergeTranscript,normalizeText,parseSubtitles,checkSummary,replaceInTranscript,speakerSlots,barState,transcriptToScript,restoreSnapshot,rowAt,splitSegment,splitTranscript,insertAtCursor,takeTrim,timestamp,ttsTranscript,chapterFileName,chapterGroups,chapterOf,dubPlan,dubSummary,uid,validateRecipe,validRange} from './domain';
 import {EmotionBar} from './EmotionBar';
-import {InstallOnClose,UpdateBanner,UpdateSettings,WhatsNew,feedEntry,useUpdates} from './Updates';
+import {InstallOnClose,UpdateBanner,UpdateSettings,WhatsNew,feedEntry,useEscape,useUpdates} from './Updates';
 import {CHANGELOG} from './changelog';
 import type {ChangelogEntry} from './changelog';
 import {preview,stopPreview} from './audio';
@@ -37,6 +37,7 @@ export default function App(){
  const [playingRow,setPlayingRow]=useState<string|null>(null),[replaceWith,setReplaceWith]=useState(''),[diarize,setDiarize]=useState(false),[speakerChoice,setSpeakerChoice]=useState('0'),[autoCheck,setAutoCheck]=useState(()=>localStorage.getItem('thanh-am-check')==='1'),[codeSwitch,setCodeSwitch]=useState(()=>localStorage.getItem('thanh-am-codeswitch')==='1'),[dragging,setDragging]=useState(false),searchRef=useRef<HTMLInputElement>(null),[playMs,setPlayMs]=useState<number|null>(null),playTimer=useRef<number>(undefined);
  const [search,setSearch]=useState(''),[model,setModel]=useState('whisper-small'),[language,setLanguage]=useState('vi'),[source,setSource]=useState<Asset|null>(null),[format,setFormat]=useState<'wav'|'mp3'>('wav'),[normalize,setNormalize]=useState(true),[dub,setDub]=useState(false),[perChapter,setPerChapter]=useState(false),[playing,setPlaying]=useState(false),[peaks,setPeaks]=useState<number[]>([]),[showDictionary,setShowDictionary]=useState(false),[appDictionary,setAppDictionary]=useState<Record<string,string>>({}),[activeRow,setActiveRow]=useState<string|null>(null),[hist,setHist]=useState({u:0,r:0});
  const [voiceName,setVoiceName]=useState(''),[voiceRef,setVoiceRef]=useState<Asset|null>(null),[consent,setConsent]=useState(false),[newName,setNewName]=useState('Dự án mới'),[importText,setImportText]=useState(''),[showImport,setShowImport]=useState(false),[sample,setSample]=useState<{speaker:number;end:number}|null>(null),[mergeTo,setMergeTo]=useState<Record<number,number>>({});
+ useEscape(()=>setShowImport(false),showImport&&!askInstall); // what was typed stays for the next open, as with the close button; the install question on top takes Escape first
  const projectRef=useRef(project),dirtyRef=useRef(false),savingRef=useRef<Promise<Project>|null>(null),versionRef=useRef(0),sourcePlayer=useRef<HTMLAudioElement>(null),mounted=useRef(true),completedTtsRef=useRef(''),undoRef=useRef<Project[]>([]),redoRef=useRef<Project[]>([]),lastMutRef=useRef<{key?:string;at:number}>({at:0}),cursorRef=useRef({id:'',pos:0,end:0}),caretRef=useRef<{id:string;pos:number}|null>(null);
  projectRef.current=project;dirtyRef.current=dirty;
  const dictionary={...appDictionary,...project?.dictionary};

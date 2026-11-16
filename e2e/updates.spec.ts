@@ -63,6 +63,16 @@ test('Escape closes the update dialogs after a click on their text moved focus t
  await page.keyboard.press('Escape');await expect(ask).toHaveCount(0);expect(await commands(page,'plugin:window|destroy')).toHaveLength(0);expect(await commands(page,'update_install')).toEqual([]);
 });
 
+test('Escape closes only the top dialog when the install question opens over the add-content dialog',async({page})=>{
+ await page.addInitScript(mock,{found:{version:next,notes:'- Sửa lỗi',date:null}});await page.goto('/');
+ await expect(page.getByText(`Bản ${next} đã tải xong`)).toBeVisible({timeout:10000});
+ await page.getByRole('button',{name:'Thêm nội dung',exact:true}).click();const content=page.getByRole('dialog',{name:'Thêm nội dung'});await expect(content).toBeVisible();
+ await page.evaluate(()=>(window as any).__fire('tauri://close-requested',null));
+ const ask=page.getByRole('dialog',{name:`Cài bản ${next} rồi đóng?`});await expect(ask).toBeVisible();
+ await page.keyboard.press('Escape');await expect(ask).toHaveCount(0);await expect(content).toBeVisible();
+ await page.keyboard.press('Escape');await expect(content).toHaveCount(0);expect(await commands(page,'update_install')).toEqual([]);
+});
+
 test('install now saves the open project first, then restarts into the new version; download progress is shown',async({page})=>{
  await page.addInitScript(mock,{found:{version:next,notes:null,date:null},project:true});
  await page.addInitScript(()=>{const w=window as any;w.__hold=new Promise(r=>w.__release=r);});

@@ -16,6 +16,12 @@ test('script import, dictionary and segment controls remain functional',async({p
  await page.getByText('Văn bản sau chuẩn hóa',{exact:true}).click();await expect(page.getByText('Xin chào Thành phố Hồ Chí Minh',{exact:true})).toBeVisible();
  await page.getByRole('button',{name:'Đưa đoạn xuống',exact:true}).first().click();await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toHaveValue('Chúng ta kể chuyện.');
 });
+test('Escape closes the add-content dialog and keeps what was typed',async({page})=>{
+ await page.goto('/');const open=page.getByRole('button',{name:'Thêm nội dung',exact:true}),dialog=page.getByRole('dialog',{name:'Thêm nội dung'}),box=page.getByRole('textbox',{name:'Nội dung cần thêm'});
+ await open.click();await box.fill('Một câu chưa thêm.');await page.keyboard.press('Escape');await expect(dialog).toHaveCount(0);
+ await open.click();await expect(box).toHaveValue('Một câu chưa thêm.');
+ await dialog.getByText('Mỗi dòng là một đoạn',{exact:false}).click();await expect(page.locator('body')).toBeFocused();await page.keyboard.press('Escape');await expect(dialog).toHaveCount(0);
+});
 test('navigation, theme and screen sizes have no overflow',async({page})=>{
  await page.goto('/');for(const name of ['Chép lời','Thư viện giọng','Hàng đợi','Dự án','Model & cài đặt']){await page.getByRole('button',{name,exact:true}).click();await expect(page.getByRole('heading',{level:1})).toContainText(name);}
  await page.getByRole('button',{name:'Chuyển giao diện tối'}).click();await expect(page.locator('html')).toHaveAttribute('data-theme','dark');

@@ -49,8 +49,9 @@ export function UpdateBanner({state,onInstall,onShowChanges,onDismiss}:{state:Up
  return null;
 }
 
-// Escape closes a dialog wherever focus is, also after a click on its text moved focus to the page.
-function useEscape(close:()=>void){useEffect(()=>{const key=(e:KeyboardEvent)=>{if(e.key==='Escape')close();};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[close]);}
+// Escape closes a dialog wherever focus is, also after a click on its text moved focus to the page; `active` is false while it is
+// closed or covered. The listener stays put across renders: one re-added while an Escape is being dispatched would miss that key.
+export function useEscape(close:()=>void,active=true){const latest=useRef(close);latest.current=close;useEffect(()=>{if(!active)return;const key=(e:KeyboardEvent)=>{if(e.key==='Escape'&&!e.isComposing)latest.current();};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[active]);}
 
 export function WhatsNew({entries,onClose}:{entries:ChangelogEntry[];onClose:()=>void}){
  useEscape(onClose);
