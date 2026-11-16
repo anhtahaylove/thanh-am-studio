@@ -662,6 +662,87 @@ class WorkerTests(unittest.TestCase):
                     self.assertEqual(result['sample_rate'], 48000)
             self.assertEqual(list(Path(td).glob('*.partial*')), [])
 
+    @unittest.skipUnless(shutil.which('ffmpeg') and shutil.which('ffprobe'), 'FFmpeg required for actual render test')
+    def test_actual_render_mixes_the_background_under_the_dub_at_0_db(self):
+        import numpy as np
+        import soundfile as sf
+        db = lambda a: 20 * np.log10(np.sqrt(np.mean(np.square(a, dtype=np.float64))))
+        with tempfile.TemporaryDirectory() as td:
+            voice = Path(td) / 'câu.wav'
+            sf.write(str(voice), (0.5 * np.sin(2 * np.pi * 1000 * np.arange(48000) / 48000)).astype(np.float32), 48000)  # 1 s
+            t = np.arange(6 * 44100) / 44100  # a 6 s stem as separate writes it: 44.1 kHz stereo 24-bit FLAC, peaks at -18 dBFS
+            bed = (0.126 * np.stack([np.sin(2 * np.pi * 110 * t), np.sin(2 * np.pi * 165 * t)], axis=1)).astype(np.float32)
+            sf.write(str(Path(td) / 'nền dài.flac'), bed, 44100, subtype='PCM_24')
+            sf.write(str(Path(td) / 'nền lặng.flac'), np.zeros((2 * 44100, 2), np.float32), 44100, subtype='PCM_24')  # 2 s
+            loudness = []  # of the normalised render, by loudnorm's meter as the plain path's target (ebur128 reads this signal 0.9 LU higher)
+            def render(background=None, normalize=False):
+                result = worker.render({'clips': [{'path': str(voice), 'at_ms': 500, 'rate': 1}, {'path': str(voice), 'at_ms': 2500, 'rate': 1}],
+                    'normalize': normalize, 'format': 'wav', 'timeline': True, 'pad_to_ms': 4000,
+                    **({'background_path': str(Path(td) / background)} if background else {})}, Path(td), lambda *_: None)
+                audio, rate = sf.read(result['path'], dtype='float32', always_2d=True)
+                self.assertEqual(rate, 48000)
+                if normalize:
+                    loudness.append(worker.loudness(shutil.which('ffmpeg'), ['-i', result['path']], '[0:a]anull'))
+                return audio
+            plain, silent, bedded, normalised = render(), render('nền lặng.flac'), render('nền dài.flac'), render('nền dài.flac', True)
+            self.assertEqual(list(Path(td).glob('*.partial*')), [])
+        self.assertEqual([a.shape[1] for a in (plain, silent, bedded, normalised)], [1, 2, 2, 2])
+        # A shorter background stops and the dub runs on to pad_to_ms; a longer one runs to its own end.
+        self.assertAlmostEqual(len(silent) / 48, 4000, delta=2)
+        self.assertAlmostEqual(len(bedded) / 48, 6000, delta=2)
+        self.assertAlmostEqual(len(normalised) / 48, 6000, delta=2)
+        self.assertTrue(np.isfinite(normalised).all() and np.abs(normalised).max() <= 1)
+        for at in (500, 2500):
+            take = slice(at * 48, (at + 1000) * 48)
+            # The first sample above half the peak around the take's start (half: the bed alone, at a quarter, never reaches it).
+            onset = lambda a, ch: (lambda w: int(np.argmax(w > 0.5 * w.max())))(np.abs(a[(at - 100) * 48:(at + 100) * 48, ch]))
+            for ch in (0, 1):
+                # Both channels carry the voice at its own level (pan, not aformat's -3 dB upmix) and at the same place (limiter delay compensated).
+                self.assertAlmostEqual(db(silent[take, ch]), db(plain[take, 0]), delta=0.5)
+                self.assertLessEqual(abs(onset(bedded, ch) - onset(plain, 0)), 48)
+                self.assertLessEqual(abs(onset(normalised, ch) - onset(plain, 0)), 48)
+        for ch in (0, 1):  # between the takes only the background plays, at its own level
+            self.assertAlmostEqual(db(bedded[1600 * 48:2400 * 48, ch]), db(bed[:, ch]), delta=0.5)
+        # Normalised, the mix gets one gain: each line stands as far above the bed as unnormalised, and the bed does not swell
+        # through a gap (late in it vs right after a line), unlike loudnorm's dynamic single pass.
+        span = lambda a, ch, a_ms, z_ms: db(a[a_ms * 48:z_ms * 48, ch])
+        shape = lambda a, ch: [span(a, ch, 600, 1400) - span(a, ch, 1600, 2400), span(a, ch, 2600, 3400) - span(a, ch, 3600, 5900),
+            span(a, ch, 2200, 2400) - span(a, ch, 1520, 1720), span(a, ch, 5500, 5900) - span(a, ch, 3520, 3820)]
+        for ch in (0, 1):
+            for got, want in zip(shape(normalised, ch), shape(bedded, ch)):
+                self.assertAlmostEqual(got, want, delta=0.5)
+        self.assertAlmostEqual(loudness[0], -16, delta=0.5)
+
+    @unittest.skipUnless(shutil.which('ffmpeg') and shutil.which('ffprobe'), 'FFmpeg required for actual render test')
+    def test_actual_render_limits_a_loud_background_mix_below_full_scale_in_place(self):
+        import numpy as np
+        import soundfile as sf
+        t = np.arange(48000) / 48000
+        voice = (0.9 * np.sin(2 * np.pi * (300 + 1350 * t) * t)).astype(np.float32)  # a 1 s chirp: no period, so one lag fits it
+        tb = np.arange(3 * 44100) / 44100
+        with tempfile.TemporaryDirectory() as td:
+            sf.write(str(Path(td) / 'câu.wav'), voice, 48000, subtype='FLOAT')
+            sf.write(str(Path(td) / 'nền.flac'), np.repeat(0.5 * np.sin(2 * np.pi * 110 * tb)[:, None], 2, axis=1).astype(np.float32), 44100, subtype='PCM_24')
+            def render(**extra):
+                result = worker.render({'clips': [{'path': str(Path(td) / 'câu.wav'), 'at_ms': 1000, 'rate': 1}], 'normalize': False, 'format': 'wav',
+                    'timeline': True, 'pad_to_ms': 0, **extra}, Path(td), lambda *_: None)
+                return sf.read(result['path'], dtype='float32', always_2d=True)[0]
+            plain, mixed = render(), render(background_path=str(Path(td) / 'nền.flac'))
+        # Voice 0.9 over a bed of 0.5 would reach 1.4: the limiter holds it at 0.98 (a little more allowed for its lookahead).
+        self.assertLessEqual(float(np.abs(mixed).max()), 0.99)
+        voice_at = np.zeros(len(mixed))
+        voice_at[:len(plain)] = plain[:, 0]
+        edge = slice(980 * 48, 1200 * 48)  # the line's start, where the limiter's gain moves most
+        lag = lambda ch: int(np.argmax([np.dot(mixed[edge, ch], np.roll(voice_at, d)[edge]) for d in range(-480, 481)])) - 480
+        lags = [lag(0), lag(1)]
+        self.assertTrue(all(abs(d) <= 48 for d in lags), f'lag in samples {lags}')
+
+    def test_render_refuses_a_background_without_the_subtitle_timeline(self):
+        from unittest import mock
+        with mock.patch.object(worker, 'executable', return_value='ffmpeg'), self.assertRaises(worker.WorkerError) as ctx:
+            worker.render({'clips': [{'path': 'x.wav'}], 'format': 'wav', 'background_path': 'nền.flac'}, Path('.'), lambda *_: None)
+        self.assertEqual(ctx.exception.code, 'INVALID_BACKGROUND')
+
     def test_render_rejects_a_format_it_cannot_write_and_lists_the_five(self):
         for bad in ['ogg', 'aac', 'wma']:
             with self.subTest(fmt=bad), self.assertRaisesRegex(worker.WorkerError, r'wav, mp3, m4a, flac, opus') as ctx:

@@ -2,7 +2,8 @@
 
 Windows local-first Vietnamese text-to-speech and speech-to-text studio. Write or import a
 script (TXT, Word, SRT/VTT), assign voices per speaker, generate and compare takes, trim/fade/gain,
-export WAV/MP3/M4A/FLAC/Opus (one file per chapter, or with each take at its subtitle time); or transcribe
+export WAV/MP3/M4A/FLAC/Opus (one file per chapter, or with each take at its subtitle time, optionally over the
+source video's own background with its voices removed); or transcribe
 audio/video, edit the transcript and export TXT/SRT/VTT. Everything runs
 on the CPU of your machine; nothing is sent to a cloud service. Original source is Apache-2.0.
 

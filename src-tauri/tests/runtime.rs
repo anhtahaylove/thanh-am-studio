@@ -141,6 +141,21 @@ fn render_timeline_places_are_bounded_and_forwarded_only_when_asked(){
  }
 }
 #[test]
+fn render_background_is_forwarded_only_with_the_timeline_and_an_existing_asset(){
+ let t=tempfile::tempdir().unwrap();let s=Store::open(t.path()).unwrap();
+ let p=t.path().join("take.wav");std::fs::write(&p,b"RIFF0000WAVE").unwrap();let a=s.import_asset(&p).unwrap();
+ let stem=t.path().join("nền.flac");std::fs::write(&stem,b"fLaC").unwrap();let b=s.import_asset(&stem).unwrap();
+ let seg=json!({"selected_take_id":"t1","takes":[{"id":"t1","asset_id":a["id"]}],"gap_ms":0,"dub_at_ms":0,"dub_rate":1});
+ let job=|v:serde_json::Value|prepare_request(&s,&s.enqueue("render",None,v).unwrap(),None);
+ let r=job(json!({"segments":[seg],"timeline":true,"pad_to_ms":1000,"background_asset_id":b["id"],"background_path":"C:/secret"})).unwrap();
+ assert_eq!(r["payload"]["background_path"],b["path"]);
+ assert!(job(json!({"segments":[seg],"timeline":true,"pad_to_ms":1000})).unwrap()["payload"]["background_path"].is_null());
+ assert!(job(json!({"segments":[seg],"background_path":"C:/secret"})).unwrap()["payload"]["background_path"].is_null()); // a payload path is never used
+ for v in [json!({"segments":[seg],"background_asset_id":b["id"]}),json!({"segments":[seg],"timeline":true,"pad_to_ms":1000,"background_asset_id":"missing"}),json!({"segments":[seg],"timeline":true,"pad_to_ms":1000,"background_asset_id":7})]{
+  assert_eq!(job(v).unwrap_err(),"INVALID_BACKGROUND");
+ }
+}
+#[test]
 fn separate_resolves_the_asset_and_the_htdemucs_model_and_never_trusts_payload_paths(){
  let t=tempfile::tempdir().unwrap();let s=Store::open(t.path()).unwrap();
  let p=t.path().join("song.mp4");std::fs::write(&p,b"media").unwrap();let a=s.import_asset(&p).unwrap();

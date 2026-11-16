@@ -785,7 +785,7 @@ try {
       await shot('dub-export-bar');
       return text;
     });
-    const render = async (normalize, name) => {
+    const render = async (normalize, name, length) => { // length: a longer background runs the output past pad_to_ms
       await nav('Tạo giọng đọc');
       await page.getByRole('checkbox', {name: 'Chuẩn hóa'}).setChecked(normalize);
       const before = await done('render');
@@ -795,7 +795,7 @@ try {
       const sent = payload.segments.map((s) => [s.dub_at_ms, s.dub_rate]);
       if (payload.timeline !== true || payload.normalize !== normalize || Math.abs(payload.pad_to_ms - pad) > 1 || sent.some(([at, rate], i) => Math.abs(at - plan[i].at) > 1 || Math.abs(rate - plan[i].rate) > 1e-9))
         throw Error(`payload ${JSON.stringify({timeline: payload.timeline, normalize: payload.normalize, pad_to_ms: payload.pad_to_ms, sent})}, spec ${JSON.stringify({pad, plan: plan.map(({at, rate}) => [at, rate])})}`);
-      if (Math.abs(rendered.result.duration_ms - payload.pad_to_ms) > 25) throw Error(`rendered ${rendered.result.duration_ms} ms, padded to ${payload.pad_to_ms} ms`);
+      if (Math.abs(rendered.result.duration_ms - (length ?? payload.pad_to_ms)) > 25) throw Error(`rendered ${rendered.result.duration_ms} ms, padded to ${payload.pad_to_ms} ms, expected ${length ?? payload.pad_to_ms} ms`);
       copyFileSync(rendered.result.path, join(out, name));
       return rendered;
     };
@@ -835,6 +835,99 @@ try {
       const missing = plan.filter((p) => !starts.includes(Math.round(p.at)));
       if (missing.length) throw Error(`cue starts ${starts.join(', ')} miss ${missing.map((p) => Math.round(p.at)).join(', ')}`);
       return `${starts.length} cues starting at ${starts.join(', ')} ms`;
+    });
+    // "Giữ nhạc nền": a source video whose audio is a known bed with the four takes at their cue starts is picked when the box is
+    // checked (the project has no source yet), separated by HTDemucs, and its background goes under the dub at 0 dB.
+    const tools = join(dirname(exe), 'runtime', 'ffmpeg'), mediaMs = 16000, media = join(saves, `nguồn có nhạc ${Date.now()}.mp4`);
+    const toWav = (from, name) => { const to = join(out, name); execFileSync(join(tools, 'ffmpeg.exe'), ['-nostdin', '-v', 'error', '-y', '-i', from, '-c:a', 'pcm_f32le', to]); return to; };
+    const probeAudio = (file) => { const {streams: [s], format} = JSON.parse(execFileSync(join(tools, 'ffprobe.exe'), ['-v', 'error', '-select_streams', 'a:0', '-show_entries', 'stream=codec_name,sample_rate,channels:format=duration', '-of', 'json', file], {encoding: 'utf8'})); return {...s, ms: Math.round(Number(format.duration) * 1000)}; };
+    // Mean power in dB of the first channel over [from, to] ms ranges.
+    const level = (path, ranges) => { const {rate, samples} = readWav(path); let sum = 0, n = 0; for (const [a, z] of ranges) for (let i = Math.round(a * rate / 1000); i < Math.min(samples.length, Math.round(z * rate / 1000)); i++, n++) sum += samples[i] ** 2; return 10 * Math.log10(sum / n); };
+    const bedWav = join(out, 'nhạc nền gốc.wav');
+    let stem;
+    await step('separation model ready', async () => {
+      if ((await invoke('list_models')).find((m) => m.id === 'htdemucs')?.installed) return 'already installed';
+      const before = await done('model_download');
+      await nav('Model & cài đặt');
+      await page.locator('article', {has: page.getByRole('heading', {name: 'Tách giọng và nhạc nền (HTDemucs)', exact: true})}).getByRole('button', {name: 'Tải model'}).click();
+      await waitJobs('model_download', before + 1, 20 * 60000);
+      return 'downloaded through the UI';
+    });
+    await step('a source video with music under the takes', async () => {
+      // Irregular plucked tones (three harmonics, decaying) at -18 dBFS RMS, as worker/tests tone_bed(); seeded, so every run is alike.
+      let seed = 7; const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647, rate = 48000, n = mediaMs * rate / 1000, bed = new Float32Array(n);
+      for (let at = 0; at < n; at += Math.round((0.12 + 0.33 * rnd()) * rate)) {
+        const f = [110, 147, 196, 220, 262, 330, 392, 440][Math.floor(rnd() * 8)];
+        for (let i = 0; i < 0.6 * rate && at + i < n; i++) bed[at + i] += [1, 2, 3].reduce((s, k) => s + Math.sin(2 * Math.PI * f * k * i / rate) / k, 0) * Math.exp(-5 * i / rate);
+      }
+      const scale = 10 ** (-18 / 20) / Math.sqrt(bed.reduce((s, v) => s + v * v, 0) / n);
+      writeWav(bedWav, rate, bed.map((v) => v * scale));
+      const takes = plan.map((p) => p.take.path);
+      execFileSync(join(tools, 'ffmpeg.exe'), ['-nostdin', '-v', 'error', '-y', '-f', 'lavfi', '-i', `color=c=black:s=320x240:r=25:d=${mediaMs / 1000}`, '-i', bedWav, ...takes.flatMap((t) => ['-i', t]),
+        '-filter_complex', `${takes.map((_, i) => `[${i + 2}:a]adelay=${cues[i][0]}:all=1[t${i}]`).join(';')};[1:a]${takes.map((_, i) => `[t${i}]`).join('')}amix=inputs=${takes.length + 1}:duration=first:normalize=0,pan=stereo|c0=c0|c1=c0[a]`,
+        '-map', '0:v', '-map', '[a]', '-c:v', 'mpeg4', '-c:a', 'aac', '-b:a', '192k', '-ar', '44100', media]);
+      copyFileSync(media, join(out, 'nguồn có nhạc.mp4'));
+      const a = probeAudio(media);
+      return `${statSync(media).size} bytes, ${a.codec_name} ${a.sample_rate} Hz ${a.channels} ch, ${a.ms} ms`;
+    });
+    await step('checking "Giữ nhạc nền" picks the source and separates it', async () => {
+      await nav('Tạo giọng đọc');
+      await page.getByRole('checkbox', {name: 'Theo mốc phụ đề'}).check();
+      const before = await done('separate'), keep = page.getByRole('checkbox', {name: 'Giữ nhạc nền'});
+      await keep.click();
+      dialog(media); // the project has no source yet, so the file picker opens
+      await page.getByRole('status').filter({hasText: 'Đang tách nhạc nền từ'}).waitFor({timeout: 30000});
+      if (!(await keep.isChecked())) throw Error('the box did not stay checked');
+      await shot('dub-keep-background');
+      [stem] = await waitJobs('separate', before + 1, 10 * 60000);
+      project = await invoke('load_project', {id: project.id});
+      if (!project.source_asset_id || stem.payload.asset_id !== project.source_asset_id) throw Error(`source ${project.source_asset_id}, separated ${stem.payload.asset_id}`);
+      const s = probeAudio(stem.result.path), stemWav = toWav(stem.result.path, 'nhạc nền tách.wav'), shift = lag(framePeaks(bedWav), framePeaks(stemWav));
+      // Where the takes speak in the source: their speech (inside the trims) from their cue starts.
+      const speech = plan.map((p, i) => [cues[i][0] + p.trim[0], cues[i][0] + p.trim[1]]), diff = level(stemWav, speech) - level(bedWav, speech);
+      const rtf = (Date.parse(stem.updated_at) - Date.parse(stem.created_at)) / mediaMs;
+      if (s.codec_name !== 'flac' || s.sample_rate !== '44100' || s.channels !== 2 || Math.abs(s.ms - mediaMs) > 25 || shift || Math.abs(diff) > 3)
+        throw Error(`stem ${JSON.stringify(s)}, envelope lag ${shift} ms, level in speech ${diff.toFixed(2)} dB vs the bed`);
+      return `RTF ${rtf.toFixed(2)}; stem flac 44100 Hz 2 ch ${s.ms} ms; envelope lag ${shift} ms; level where the takes speak ${diff >= 0 ? '+' : ''}${diff.toFixed(2)} dB vs the bed`;
+    });
+    await step('the stem has no words the music alone does not', async () => {
+      if (!(await invoke('list_models')).find((m) => m.id === 'whisper-small')?.installed) return 'skipped: Whisper Small is not installed';
+      // Whisper makes words up on music without a voice (the bed alone gave a whole "subscribe" sentence), so the stem is
+      // compared with the bed it came from: a voice left in the stem shows up as words the bed does not give.
+      const heard = async (asset_id) => {
+        const before = await done('stt');
+        await invoke('enqueue_job', {kind: 'stt', projectId: null, payload: {asset_id, model_id: 'whisper-small', language: 'vi'}});
+        const [j] = await waitJobs('stt', before + 1, 10 * 60000);
+        return j.result.transcript.map((r) => r.text).join(' ').toLowerCase().normalize('NFC').split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+      };
+      const bed = await heard((await invoke('import_asset', {path: bedWav})).id), words = await heard(stem.result.asset_id), extra = words.filter((w) => !bed.includes(w));
+      if (extra.length > 1) throw Error(`the stem gives ${extra.length} words the bed does not: ${extra.join(' ')} (stem "${words.join(' ')}", bed "${bed.join(' ')}")`);
+      return `stem "${words.join(' ')}"; bed alone "${bed.join(' ')}"; ${extra.length} words only in the stem`;
+    });
+    await step('render keeps the background under the dub', async () => {
+      const mixed = await render(false, 'lồng tiếng giữ nhạc nền.wav', mediaMs), a = probeAudio(mixed.result.path);
+      if (mixed.payload.background_asset_id !== stem.result.asset_id || a.channels !== 2) throw Error(`background ${mixed.payload.background_asset_id}, stem ${stem.result.asset_id}, ${a.channels} channels`);
+      const shift = lag(framePeaks(job.result.path), framePeaks(mixed.result.path)), gap = [plan[2].end + 200, plan[3].at - 200];
+      if (gap[1] - gap[0] < 1000) throw Error(`the gap ${gap.map(Math.round).join('-')} ms is shorter than 1 s`);
+      const diff = level(mixed.result.path, [gap]) - level(bedWav, [gap]);
+      if (shift || Math.abs(diff) > 1) throw Error(`envelope lag ${shift} ms vs the voice-only render, gap level ${diff.toFixed(2)} dB vs the bed`);
+      return `stereo ${mixed.result.duration_ms} ms; envelope lag ${shift} ms; gap ${gap.map(Math.round).join('-')} ms at ${diff >= 0 ? '+' : ''}${diff.toFixed(2)} dB vs the bed`;
+    });
+    await step('a separation can be cancelled and leaves no process or partial behind', async () => {
+      const again = await invoke('enqueue_job', {kind: 'separate', projectId: project.id, payload: {asset_id: project.source_asset_id}});
+      let j;
+      for (const end = Date.now() + 5 * 60000; ; await page.waitForTimeout(250)) {
+        j = (await invoke('list_jobs')).find((x) => x.id === again.id);
+        if (!['queued', 'running'].includes(j.status) || Date.now() > end) throw Error(`separation ${j.status} at ${j.progress} before it could be cancelled ${j.error ?? ''}`);
+        if (j.status === 'running' && j.progress > 0.05) break;
+      }
+      await invoke('cancel_job', {id: again.id});
+      await page.waitForTimeout(10000);
+      j = (await invoke('list_jobs')).find((x) => x.id === again.id);
+      const workers = [JSON.parse(execFileSync('powershell', ['-NoProfile', '-Command', `@(Get-Process python,ffmpeg -EA SilentlyContinue | Where-Object { $_.Path -like '${dirname(exe)}\\*' } | Select-Object ProcessName,Id) | ConvertTo-Json -Compress`], {encoding: 'utf8'}) || '[]')].flat();
+      const folder = join(process.env.LOCALAPPDATA, 'studio.thanham.desktop', 'jobs', again.id), files = existsSync(folder) ? readdirSync(folder) : [];
+      if (j.status !== 'cancelled' || workers.length || files.some((f) => /\.flac$/i.test(f))) throw Error(JSON.stringify({status: j.status, workers, files}));
+      return `cancelled at ${Math.round(j.progress * 100)} %; no worker python or ffmpeg after 10 s; job folder: ${files.join(', ') || 'none'}`;
     });
   }
   if (phase === 'update') {
