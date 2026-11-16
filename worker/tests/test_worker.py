@@ -216,6 +216,67 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual(worker.speech_edges(np.full(4800, 0.5, dtype=np.float32)), (0, None))  # no silence to cut
         self.assertEqual(worker.speech_edges(np.zeros(4800, dtype=np.float32)), (0, None))
 
+    def test_clone_window_keeps_the_8_seconds_with_the_most_speech(self):
+        import numpy as np
+        sr = 16000
+        tone = lambda s: (0.3 * np.sin(2 * np.pi * 220 * np.arange(int(s * sr)) / sr)).astype(np.float32)
+        quiet = lambda s: np.zeros(int(s * sr), dtype=np.float32)
+        self.assertEqual(worker.clone_window(tone(7.5), sr), (0, int(7.5 * sr)))  # not longer: all of it
+        self.assertEqual(worker.clone_window(tone(12), sr), (0, 8 * sr))  # speech all through: the first 8 s, as before
+        # Speech from the first sample keeps its first word even with a short pause right after it.
+        self.assertEqual(worker.clone_window(np.concatenate([tone(0.3), quiet(0.1), tone(7.8), quiet(0.3)]), sr), (0, 8 * sr))
+        self.assertEqual(worker.clone_window(np.concatenate([quiet(1), tone(10)]), sr), (int(0.96 * sr), int(8.96 * sr)))
+        # The first best window starts 0.5 s into a pause; the start moves on to 40 ms before the next word.
+        self.assertEqual(worker.clone_window(np.concatenate([tone(2), quiet(1), tone(7.5), quiet(0.7)]), sr),
+                         (int(2.96 * sr), int(10.96 * sr)))
+        # At 11025 Hz 20 ms frames do not divide 8 s; the last window wins here and still ends inside the clip at full length.
+        r = 11025
+        odd = np.concatenate([np.zeros(2 * r), 0.3 * np.sin(2 * np.pi * 220 * np.arange(7 * r) / r)]).astype(np.float32)
+        self.assertEqual(worker.clone_window(odd, r), (len(odd) - 8 * r, len(odd)))
+        # 5 s of speech, 3 s of silence, then 14 words of 0.6 s after 0.1 s pauses: more speech than the first 8 s.
+        audio = np.concatenate([tone(5), quiet(3)] + [np.concatenate([quiet(0.1), tone(0.6)]) for _ in range(14)])
+        start, end = worker.clone_window(audio, sr)
+        self.assertEqual(end - start, 8 * sr)
+        self.assertLessEqual(end, len(audio))
+        # It starts 40 ms before a word, not inside one.
+        self.assertLessEqual(min(abs(start + 0.04 * sr - (8.1 + 0.7 * k) * sr) for k in range(14)), 1)
+
+    @unittest.skipUnless(importlib.util.find_spec('soundfile'), 'soundfile required')  # CI has numpy only
+    def test_a_long_voice_sample_is_cloned_from_its_best_8_seconds_and_the_cut_is_removed(self):
+        import numpy as np
+        import soundfile as sf
+        from types import SimpleNamespace
+        from unittest import mock
+        sr = 24000
+        tone = (0.3 * np.sin(2 * np.pi * 220 * np.arange(10 * sr) / sr)).astype(np.float32)
+        audio = np.stack([np.concatenate([np.zeros(5 * sr, np.float32), tone])] * 2, axis=1)  # stereo, speech from 5 s
+        seen = []
+        def infer(text, **kw):
+            data, rate = sf.read(kw['ref_audio'], dtype='float32', always_2d=True)
+            seen.append((kw['ref_audio'], rate, data))
+            return np.full(4800, 0.3, dtype=np.float32)
+        fakes = {'vieneu': SimpleNamespace(Vieneu=lambda **k: SimpleNamespace(infer=infer)),
+                 'vieneu.v3turbo': SimpleNamespace(phonemize_text_with_emotions=lambda text: text),
+                 'vieneu._v3_turbo_engine': mock.Mock(),
+                 'vieneu._v3_turbo_engine.onnx_runtime_lite': SimpleNamespace(OnnxV3LiteEngine=mock.Mock())}
+        with tempfile.TemporaryDirectory() as td, mock.patch.object(worker, 'verify_model'), \
+                mock.patch.object(worker, 'offline_mode'), mock.patch.dict(sys.modules, fakes):
+            long, short, broken = (str(Path(td) / name) for name in ['long.wav', 'short.wav', 'broken.wav'])
+            sf.write(long, audio, sr, subtype='FLOAT')
+            sf.write(short, audio[:7 * sr], sr, subtype='FLOAT')
+            Path(broken).write_bytes(b'not audio')
+            self.assertEqual(worker.clone_reference(short), short)
+            self.assertEqual(worker.clone_reference(broken), broken)  # VieNeu reports it as before
+            items = [{'text': 'Xin chào.', 'reference_path': long, 'output_name': f'{i}.wav'} for i in range(2)]
+            worker.tts({'model_path': td, 'items': items}, Path(td) / 'out', lambda *a: None, lambda i, **k: self.assertIn('result', k))
+            # Cut once for the batch: the 8 s from 40 ms before the speech, both channels, same rate; deleted afterwards.
+            self.assertEqual(len({path for path, _, _ in seen}), 1)
+            for path, rate, data in seen:
+                self.assertEqual(rate, sr)
+                np.testing.assert_array_equal(data, audio[5 * sr - 960:13 * sr - 960])
+                self.assertFalse(Path(path).exists())
+            self.assertTrue(Path(long).exists())  # the user's sample stays
+
     def test_tts_reports_speech_edges_but_keeps_pause_marks_at_the_edges(self):
         import numpy as np
         from types import SimpleNamespace
