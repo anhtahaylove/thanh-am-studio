@@ -33,6 +33,13 @@ disclosed. Two upstream issues asking the maintainer to confirm this are still o
 ([pnnbao97/VieNeu-TTS#222](https://github.com/pnnbao97/VieNeu-TTS/issues/222),
 [#218](https://github.com/pnnbao97/VieNeu-TTS/issues/218)). Clone only voices you have permission to use.
 
+The optional **Tách giọng và nhạc nền (HTDemucs)** model (≈ 84 MB, not bundled; downloaded only when
+you start it on the models page) separates a recording's background from its voices with PyTorch,
+which the installer includes. Its code is MIT, but the licence of its weights is unclear upstream:
+they were trained with MusDB, whose data is for research only
+([adefossez/HTDemucs@cbc8a9b](https://huggingface.co/adefossez/HTDemucs/tree/cbc8a9b1a87023b7fd74e7b3412e6321c0eab003)).
+Check that this fits your use before you download it.
+
 ## Troubleshooting
 
 - **"Windows protected your PC" (SmartScreen).** The installer is not code-signed. Check its

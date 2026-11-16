@@ -180,3 +180,14 @@ fn a_segment_chapter_survives_save_and_load() {
     assert_eq!(loaded["segments"][0]["chapter"], "P1");
     assert!(loaded["segments"][1]["chapter"].is_null());
 }
+
+#[test]
+fn queued_separations_run_after_other_queued_work() {
+    let tmp = tempfile::tempdir().unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    let separation = s.enqueue("separate", None, json!({"asset_id":"a1"})).unwrap();
+    let tts = s.enqueue("tts", None, json!({"text":"Xin chào"})).unwrap();
+    let preview = s.enqueue("clone_preview", None, json!({})).unwrap();
+    for want in [&preview, &tts, &separation] { assert_eq!(s.claim_next().unwrap().unwrap()["id"], want["id"]); }
+    assert!(s.claim_next().unwrap().is_none());
+}

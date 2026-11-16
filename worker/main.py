@@ -44,7 +44,7 @@ def validate_request(request):
         raise WorkerError('INVALID_REQUEST', 'A request id is required.')
     if not isinstance(request.get('payload'), dict):
         raise WorkerError('INVALID_REQUEST', 'payload must be an object.')
-    if request.get('operation') not in {'health', 'probe', 'tts', 'stt', 'render', 'download', 'clone_preview'}:
+    if request.get('operation') not in {'health', 'probe', 'tts', 'stt', 'render', 'download', 'clone_preview', 'separate'}:
         raise WorkerError('INVALID_REQUEST', 'Unknown operation.')
 
 
@@ -724,6 +724,139 @@ def stt(payload, progress):
     return response
 
 
+SEPARATE_RATE = 44100  # HTDemucs separates 44.1 kHz stereo
+# Demucs holds the whole input it is given: memory grew ~3.6 MB per input second (225 s: 1.8 GB working set). One 60 s window
+# peaked at 1.24 GB working set and 2.37 GB commit, however long the track.
+SEPARATE_WINDOW_S = 60.0
+SEPARATE_CROSSFADE_S = 2.0
+
+
+def crossfade_windows(read, separator, write, size, overlap):
+    """Pass the audio read(frames) yields ((n, 2) float32, short only at the end) through separator(chunk, start) in windows of
+    `size` frames, each sharing `overlap` frames with the next, and write() the output in order: in the shared frames it fades
+    linearly from one window's output to the next. As long as the input; an identity separator gives it back exactly."""
+    import numpy as np
+    if not 0 < overlap < size:
+        raise ValueError('The crossfade must be shorter than the window.')
+    ramp = (np.arange(1, overlap + 1, dtype=np.float32) / (overlap + 1))[:, None]
+    chunk, start, tail = read(size), 0, None
+    while len(chunk):
+        out = separator(chunk, start)
+        if tail is not None:
+            out = np.concatenate([tail + (out[:overlap] - tail) * ramp, out[overlap:]])
+        more = read(size - overlap) if len(chunk) == size else chunk[:0]
+        if not len(more):
+            write(out)
+            return
+        write(out[:-overlap])
+        tail, start, chunk = out[-overlap:], start + size - overlap, np.concatenate([chunk[-overlap:], more])
+
+
+def background_separator(sources, run, total, progress):
+    """separator(chunk, start) for crossfade_windows: the chunk minus its vocals. run(mix, callback) (see demucs_model) gets the
+    chunk normalised by the mean and deviation of its mono mix, as Demucs' own separate does; progress follows its segments
+    over `total` input frames and never goes back where windows overlap."""
+    import numpy as np
+    keep, done = [i for i, name in enumerate(sources) if name != 'vocals'], [0.0]
+    def separator(chunk, start):
+        mix = np.ascontiguousarray(chunk.T)
+        mono = mix.mean(axis=0)
+        mean, std = float(mono.mean()), float(mono.std()) + 1e-8  # + 1e-8: silence
+        def segment(event):
+            value = min(0.99, (start + event['segment_offset']) / total)
+            if event['state'] == 'end' and value > done[0]:
+                done[0] = value
+                progress(value, 'Separating')
+        stems = run((mix - mean) / std, segment)
+        return (stems[keep] * std + mean).sum(axis=0).T
+    return separator
+
+
+def demucs_model(path):
+    """(source names, run) for the HTDemucs safetensors at `path`; run(mix, callback) splits a (2, n) float32 mix into
+    (sources, 2, n) with Demucs' own 7.8 s segments. shifts=0: one random shift averages nothing and costs repeatability."""
+    import torch
+    from demucs.apply import apply_model
+    from demucs.hf import load_safetensors_model
+    from safetensors import safe_open
+    torch.set_num_threads(min(8, os.cpu_count() or 4))
+    with safe_open(str(path), framework='pt') as weights:  # the sha256 pin is the guard; this only refuses to build another class
+        if (weights.metadata() or {}).get('klass') != 'demucs.htdemucs.HTDemucs':
+            raise WorkerError('MODEL_UNKNOWN', 'The separation model is not HTDemucs.')
+    model = load_safetensors_model(path).eval()
+    def run(mix, callback):
+        with torch.inference_mode():
+            return apply_model(model, torch.from_numpy(mix)[None], shifts=0, split=True, overlap=0.25, device='cpu',
+                callback=callback)[0].numpy()
+    return model.sources, run
+
+
+def memory_status():
+    """(available physical memory, available commit) in bytes."""
+    import ctypes
+    class Status(ctypes.Structure):
+        _fields_ = [('length', ctypes.c_ulong), ('load', ctypes.c_ulong)] + [(name, ctypes.c_ulonglong) for name in
+            ('total_phys', 'avail_phys', 'total_page_file', 'avail_page_file', 'total_virtual', 'avail_virtual', 'avail_extended')]
+    status = Status(length=ctypes.sizeof(Status))
+    if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+        raise ctypes.WinError()
+    return status.avail_phys, status.avail_page_file
+
+
+def separate(payload, output_dir: Path, progress):
+    """The input's background (every HTDemucs source but the vocals) as a 44.1 kHz stereo 24-bit FLAC. FFmpeg decodes the
+    input once into windows of SEPARATE_WINDOW_S, so memory stays flat however long the track is."""
+    offline_mode()
+    model_dir = Path(payload.get('model_path', ''))
+    spec = verify_model(model_dir, 'htdemucs')
+    ffmpeg = executable('ffmpeg', payload.get('ffmpeg_path'))
+    info = probe(payload.get('input_path', ''), ffmpeg)
+    name = payload.get('output_name') or f'{uuid.uuid4()}.flac'
+    if Path(name).suffix.lower() != '.flac':
+        raise WorkerError('INVALID_PATH', 'Separation output must be a FLAC file.')
+    output_dir.mkdir(parents=True, exist_ok=True)
+    final = contained_path(output_dir, name)
+    partial = final.with_name(final.stem + '.partial.flac')
+    phys, commit = memory_status()
+    if phys < 1.5 * 2**30 or commit < 2.5 * 2**30:
+        raise WorkerError('LOW_MEMORY', f'Không đủ bộ nhớ để tách nhạc nền: cần khoảng 1,5 GB RAM trống và 2,5 GB bộ nhớ ảo trống, '
+            f'đang còn {phys / 2**30:.1f} GB và {commit / 2**30:.1f} GB. Đóng bớt ứng dụng rồi thử lại.')
+    need = 2 * info['duration_ms'] / 1000 * SEPARATE_RATE * 2 * 3  # 24-bit stereo before FLAC packs it: the job's file and its asset copy
+    free = shutil.disk_usage(output_dir).free
+    if free < need + 256 * 1024 * 1024:
+        raise WorkerError('DISK_FULL', f'Không đủ dung lượng: cần khoảng {math.ceil(need / 2**20)} MB trống, còn {free // 2**20} MB.')
+    progress(0.01, 'Loading HTDemucs')
+    sources, run = demucs_model(contained_path(model_dir, spec['artifacts'][0]['path']))
+    import numpy as np
+    import soundfile as sf
+    separator = background_separator(sources, run, max(1, info['duration_ms'] * SEPARATE_RATE / 1000), progress)
+    flags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+    # FFmpeg's few error lines go to the worker's stderr (worker.log); a full pipe nobody reads would stall it.
+    decoder = subprocess.Popen([ffmpeg, '-nostdin', '-hide_banner', '-loglevel', 'error', '-i', info['path'], '-vn', '-ac', '2',
+        '-ar', str(SEPARATE_RATE), '-f', 'f32le', 'pipe:1'], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, creationflags=flags)
+    def read(frames):
+        data = decoder.stdout.read(frames * 8)
+        return np.frombuffer(data[:len(data) // 8 * 8], dtype=np.float32).reshape(-1, 2)
+    try:
+        with sf.SoundFile(str(partial), 'w', SEPARATE_RATE, 2, 'PCM_24', format='FLAC') as out:
+            # Clipped: a stem can pass full scale where the vocals cancelled the music, and 24-bit FLAC would wrap.
+            crossfade_windows(read, separator, lambda audio: out.write(np.clip(audio, -1, 1)),
+                round(SEPARATE_WINDOW_S * SEPARATE_RATE), round(SEPARATE_CROSSFADE_S * SEPARATE_RATE))
+        if decoder.wait():
+            raise WorkerError('AUDIO_PROCESS_FAILED', 'FFmpeg could not decode the input; see worker.log.')
+        frames = sf.info(str(partial)).frames
+        if not frames:
+            raise WorkerError('NO_AUDIO', 'The file has no audio to separate.')
+        replace_with_retry(partial, final)
+        return {'path': str(final), 'duration_ms': round(frames * 1000 / SEPARATE_RATE), 'sample_rate': SEPARATE_RATE, 'channels': 2}
+    finally:
+        if decoder.poll() is None:
+            decoder.kill()
+        decoder.wait()
+        decoder.stdout.close()
+        partial.unlink(missing_ok=True)
+
+
 def health():
     # Import for real: native extensions only fail at load time (e.g. a missing MSVC runtime DLL).
     def loads(name):
@@ -733,9 +866,12 @@ def health():
         except Exception:
             return False
     modules = {name: loads(name) for name in ['numpy', 'soundfile', 'onnxruntime', 'ctranslate2', 'av', 'vieneu', 'faster_whisper', 'huggingface_hub']}
-    return {'python': sys.version.split()[0], 'modules': modules,
+    # Only separate() may load torch: TTS and STT must start and run as they did before it was in the runtime.
+    torch_imported_by_engines = 'torch' in sys.modules
+    modules.update({name: loads(name) for name in ['torch', 'demucs.htdemucs', 'safetensors']})
+    return {'python': sys.version.split()[0], 'modules': modules, 'torch_imported_by_engines': torch_imported_by_engines,
         'ffmpeg': os.environ.get('THANHAM_FFMPEG') or shutil.which('ffmpeg'),
-        'ready': all(modules.values())}
+        'ready': all(modules.values()) and not torch_imported_by_engines}
 
 
 def main():
@@ -772,6 +908,7 @@ def main():
             elif operation == 'download': result = download(payload, models_dir, progress)
             elif operation == 'tts': result = tts(payload, output_dir, progress, lambda index, **v: emit('item', index=index, **v))
             elif operation == 'clone_preview': result = clone_preview(payload, output_dir, progress)
+            elif operation == 'separate': result = separate(payload, output_dir, progress)
             else: result = stt(payload, progress)
         emit('result', result=result)
         return 0

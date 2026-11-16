@@ -233,6 +233,13 @@ try {
     return s.python_path;
   });
   if (phase === 'full') {
+    await step('runtime health: torch ships and the engines do not load it', async () => {
+      const root = dirname(exe), request = JSON.stringify({protocol: 1, id: 'health', operation: 'health', payload: {}});
+      const {result} = JSON.parse(execFileSync(join(root, 'runtime', 'python', 'python.exe'), ['-I', '-X', 'utf8', join(root, 'worker', 'main.py')], {input: request, encoding: 'utf8'}).trim().split('\n').at(-1));
+      if (!result?.ready || !result.modules.torch || result.torch_imported_by_engines !== false) throw Error(JSON.stringify(result));
+      const bytes = readdirSync(root, {recursive: true}).map((f) => statSync(join(root, f))).reduce((sum, s) => sum + (s.isFile() ? s.size : 0), 0);
+      return `ready; installed ${(bytes / 2 ** 20).toFixed(0)} MiB`; // size is information, not a gate
+    });
     await step('download models via UI', async () => {
       for (const name of ['VieNeu v3 Turbo', 'Whisper Small']) {
         await nav('Model & cài đặt');
