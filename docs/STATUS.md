@@ -830,6 +830,20 @@ Evidence: `work\release-v1.0.11-sandbox` (`run45*` first pass, `run46`, `run46b`
 
 Evidence: `work\release-v1.0.12-sandbox` (`run1012`, `github-update`); the temp-copy fix before and after in `work\updater-temp-copy`.
 
+### v1.0.13 release (built by `.github/workflows/release.yml` from tag `v1.0.13` at `0177842`)
+
+| Check | Result |
+|---|---|
+| Tests | CI green on #100, #101, #102 and the merge commit (88 unit, 44 Playwright, 53 Rust with 23 for Word import; worker and job code unchanged since 1.0.12) |
+| Word hidden text against Word | 43 hand-made cases (hidden paragraph, character and table styles, `w:basedOn`, hidden document defaults, default, unknown and wrong-type styles, nested tables) opened in Word 16, which reported `Font.Hidden` per paragraph and its visible text; `docx_text` matched the text Word shows on all seven files compared (five hand-made, one with styles Word created itself, one with directly hidden text) |
+| Installer SHA-256 | `1326b51e9bc882ec12cc87e24cf7ea33959dc493db893767b3f3bbf4b0488c35`; `sha256sum -c` OK after `gh release download` and after an anonymous download from `/releases/latest/download/` |
+| Update feed | the anonymous `/releases/latest/download/latest.json` names 1.0.13, points to the v1.0.13 installer, and its signature's trusted comment holds `version:1.0.13` |
+| Clean Sandbox, `-Only update -From` the published 1.0.12 installer | 1.0.12 refused a cut-off package, then updated itself to 1.0.13 through the local feed and reopened at 1.0.13 with its project and the 1.0.13 entry in "Có gì mới"; the installer copy in `%TEMP%` was removed: 4 PASS, 0 FAIL |
+| Clean Sandbox, `-Only scripts` (owner's choice for this release) | the 1.0.7 Word script re-saved by Word with hidden text added (a directly hidden phrase, a paragraph hidden by a paragraph style, a phrase hidden by a character style) imported as exactly the three visible lines with their speakers; voice model download, a take with a pause mark and the sigh button, per-chapter export and save: 7 PASS, 0 FAIL |
+| Not run | STT, speaker separation, subtitle export, dubbing, voice cloning, drag and drop and display scaling in the installed app (that code is unchanged since 1.0.12); the update to 1.0.13 through GitHub itself |
+
+Evidence: `work\release-v1.0.13-sandbox` (`run1013u`, `run1013s`, `script.docx`); the Word measurements in `work\docx-hidden-word-check`.
+
 ## Not verified / known gaps
 
 - Self-update through GitHub was observed once, in a clean Sandbox (1.0.11 to 1.0.12, above); the per-release gate
