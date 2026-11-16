@@ -1,5 +1,5 @@
 [
- {"version": "1.0.14", "date": "2026-11-17", "changes": [
+ {"version": "1.0.15", "date": "2026-11-17", "changes": [
   "Nhân bản giọng giờ lấy 8 giây có nhiều tiếng nói nhất của mẫu thay vì 8 giây đầu. Nút \"Nghe mẫu đã làm sạch\" phát đúng đoạn đã lọc ồn mà app dùng; nếu còn nghe nhạc, tiếng ồn hay giọng khác thì nên chọn mẫu khác.",
   "Xuất thêm M4A, FLAC và Opus bên cạnh WAV và MP3.",
   "Lồng tiếng theo phụ đề có thể giữ nhạc nền của video gốc: đánh dấu \"Giữ nhạc nền\", app tách giọng nói khỏi nhạc rồi trộn nhạc nền dưới giọng mới. Cần tải thêm mô hình HTDemucs (84 MB) ở trang Mô hình; mã HTDemucs dùng giấy phép MIT, còn trọng số chưa rõ giấy phép vì dữ liệu MusDB chỉ được dùng cho nghiên cứu. Việc tách chạy trên CPU nên với video dài sẽ mất khá lâu.",
