@@ -1,4 +1,7 @@
 [
+ {"version": "1.0.13", "date": "2026-11-16", "changes": [
+  "Khi nhập kịch bản Word (.docx), chữ đặt ẩn (Hidden) không còn bị đọc thành giọng, kể cả chữ bị ẩn qua kiểu chữ (style). Chữ hiện trong Word vẫn giữ nguyên."
+ ]},
  {"version": "1.0.12", "date": "2026-11-16", "changes": [
   "Phím Escape đóng các hộp thoại “Có gì mới”, “Cài bản … rồi đóng?” và “Thêm nội dung” cả khi vừa bấm vào chữ trong hộp. Chữ đang gõ trong “Thêm nội dung” vẫn còn khi mở lại.",
   "Sau khi cài bản cập nhật, app tự xóa bản sao trình cài đặt (khoảng 200 MB) mà bộ cập nhật để lại trong thư mục tạm của Windows."
