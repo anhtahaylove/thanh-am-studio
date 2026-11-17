@@ -387,7 +387,7 @@ try {
       await page.getByRole('button', {name: 'Chọn mẫu audio'}).click();
       dialog(padded);
       await page.getByRole('button', {name: 'Chọn mẫu audio'}).waitFor({state: 'detached', timeout: 30000});
-      if (!await page.getByText('Chỉ dùng 8 giây có nhiều tiếng nói nhất của mẫu, đã lọc ồn.').isVisible()) throw Error('hint not visible');
+      if (!await page.getByText('Chỉ dùng 8 giây có âm thanh to và liền mạch nhất của mẫu (nhạc hoặc tiếng ồn to cũng có thể được chọn), đã lọc ồn.').isVisible()) throw Error('hint not visible');
       const before = await done('clone_preview');
       await page.getByRole('button', {name: 'Nghe mẫu đã làm sạch'}).click();
       const [job] = await waitJobs('clone_preview', before + 1, 10 * 60000);

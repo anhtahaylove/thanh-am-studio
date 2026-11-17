@@ -1,10 +1,10 @@
 [
  {"version": "1.0.15", "date": "2026-11-17", "changes": [
-  "Nhân bản giọng giờ lấy 8 giây có nhiều tiếng nói nhất của mẫu thay vì 8 giây đầu. Nút \"Nghe mẫu đã làm sạch\" phát đúng đoạn đã lọc ồn mà app dùng; nếu còn nghe nhạc, tiếng ồn hay giọng khác thì nên chọn mẫu khác.",
+  "Nhân bản giọng giờ lấy 8 giây có âm thanh to và liền mạch nhất của mẫu (nhạc hoặc tiếng ồn to cũng có thể được chọn) thay vì 8 giây đầu. Nút \"Nghe mẫu đã làm sạch\" phát đúng đoạn đã lọc ồn mà app dùng; nếu còn nghe nhạc, tiếng ồn hay giọng khác thì nên chọn mẫu khác.",
   "Xuất thêm M4A, FLAC và Opus bên cạnh WAV và MP3.",
-  "Lồng tiếng theo phụ đề có thể giữ nhạc nền của video gốc: đánh dấu \"Giữ nhạc nền\", app tách giọng nói khỏi nhạc rồi trộn nhạc nền dưới giọng mới. Cần tải thêm mô hình HTDemucs (84 MB) ở trang Mô hình; mã HTDemucs dùng giấy phép MIT, còn trọng số chưa rõ giấy phép vì dữ liệu MusDB chỉ được dùng cho nghiên cứu. Việc tách chạy trên CPU nên với video dài sẽ mất khá lâu.",
+  "Lồng tiếng theo phụ đề có thể giữ nhạc nền của video gốc: đánh dấu \"Giữ nhạc nền\", app tách giọng nói khỏi nhạc rồi trộn nhạc nền dưới giọng mới. Cần tải thêm mô hình HTDemucs (84 MB) ở trang Mô hình; mã HTDemucs dùng giấy phép MIT, còn trọng số chưa rõ giấy phép vì được huấn luyện trên MusDB-HQ (chỉ được dùng cho nghiên cứu) và 800 bài hát chưa công bố. Việc tách chạy trên CPU nên với video dài sẽ mất khá lâu.",
   "Vá lỗi bảo mật của SQLite (RUSTSEC-2026-0459).",
-  "Bộ cài lớn hơn khoảng 80 MB vì có thêm PyTorch cho việc tách nhạc, và có thêm trang đồng ý giấy phép, gồm điều khoản của Intel cho thư viện OpenMP và oneMKL đi kèm."
+  "Bộ cài lớn hơn khoảng 80 MB (cài xong chiếm thêm khoảng 440 MB) vì có thêm PyTorch cho việc tách nhạc, và có thêm trang đồng ý giấy phép, gồm điều khoản của Intel cho thư viện OpenMP và oneMKL đi kèm."
  ]},
  {"version": "1.0.13", "date": "2026-11-16", "changes": [
   "Khi nhập kịch bản Word (.docx), chữ đặt ẩn (Hidden) không còn bị đọc thành giọng, kể cả chữ bị ẩn qua kiểu chữ (style). Chữ hiện trong Word vẫn giữ nguyên."

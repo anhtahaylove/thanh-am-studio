@@ -37,7 +37,7 @@ disclosed. Two upstream issues asking the maintainer to confirm this are still o
 The optional **Tách giọng và nhạc nền (HTDemucs)** model (≈ 84 MB, not bundled; downloaded only when
 you start it on the models page) separates a recording's background from its voices with PyTorch,
 which the installer includes. Its code is MIT, but the licence of its weights is unclear upstream:
-they were trained with MusDB, whose data is for research only
+they were trained on MusDB-HQ, whose data is for research only, plus 800 unpublished songs
 ([adefossez/HTDemucs@cbc8a9b](https://huggingface.co/adefossez/HTDemucs/tree/cbc8a9b1a87023b7fd74e7b3412e6321c0eab003)).
 Check that this fits your use before you download it.
 

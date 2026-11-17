@@ -716,6 +716,46 @@ class WorkerTests(unittest.TestCase):
         self.assertAlmostEqual(loudness[0], -16, delta=0.5)
 
     @unittest.skipUnless(shutil.which('ffmpeg') and shutil.which('ffprobe'), 'FFmpeg required for actual render test')
+    def test_actual_render_exports_a_kept_background_as_m4a_with_the_wav_length_and_levels(self):
+        import numpy as np
+        import soundfile as sf
+        db = lambda a: 20 * np.log10(np.sqrt(np.mean(np.square(a, dtype=np.float64))))
+        def decode(path):  # the AAC stream as 48 kHz stereo float, the way a player gets it
+            raw = subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-i', path, '-f', 'f32le', '-ar', '48000', '-ac', '2', 'pipe:1'],
+                capture_output=True, check=True).stdout
+            return np.frombuffer(raw, np.float32).reshape(-1, 2)
+        with tempfile.TemporaryDirectory() as td:
+            voice = Path(td) / 'câu.wav'
+            sf.write(str(voice), (0.5 * np.sin(2 * np.pi * 1000 * np.arange(48000) / 48000)).astype(np.float32), 48000)  # 1 s
+            t = np.arange(6 * 44100) / 44100  # a 6 s stem as separate writes it: 44.1 kHz stereo 24-bit FLAC
+            bed = (0.126 * np.stack([np.sin(2 * np.pi * 110 * t), np.sin(2 * np.pi * 165 * t)], axis=1)).astype(np.float32)
+            sf.write(str(Path(td) / 'nền.flac'), bed, 44100, subtype='PCM_24')
+            for normalize in (False, True):
+                with self.subTest(normalize=normalize):
+                    paths = {}
+                    for fmt in ('wav', 'm4a'):
+                        result = worker.render({'clips': [{'path': str(voice), 'at_ms': 500, 'rate': 1}, {'path': str(voice), 'at_ms': 2500, 'rate': 1}],
+                            'normalize': normalize, 'format': fmt, 'timeline': True, 'pad_to_ms': 4000,
+                            'background_path': str(Path(td) / 'nền.flac')}, Path(td), lambda *_: None)
+                        paths[fmt] = result['path']
+                    probed = json.loads(subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'a:0', '-show_entries',
+                        'stream=codec_name,channels:format=format_name,duration', '-of', 'json', paths['m4a']], capture_output=True, check=True).stdout)
+                    self.assertEqual((probed['streams'][0]['codec_name'], probed['streams'][0]['channels'], probed['format']['format_name']),
+                        ('aac', 2, 'mov,mp4,m4a,3gp,3g2,mj2'))
+                    wav = sf.read(paths['wav'], dtype='float32', always_2d=True)[0]
+                    m4a = decode(paths['m4a'])
+                    # The container and the decoded stream both keep the WAV's length (no rounding up to loudnorm's 100 ms frames).
+                    self.assertAlmostEqual(len(wav) / 48, 6000, delta=2)
+                    self.assertAlmostEqual(float(probed['format']['duration']) * 1000, len(wav) / 48, delta=2)
+                    self.assertAlmostEqual(len(m4a) / 48, len(wav) / 48, delta=2)
+                    for ch in (0, 1):  # between the takes only the background plays, in both channels, at the WAV's level (AAC: 1 dB)
+                        between = slice(1600 * 48, 2400 * 48)
+                        self.assertAlmostEqual(db(m4a[between, ch]), db(wav[between, ch]), delta=1)
+                        if not normalize:
+                            self.assertAlmostEqual(db(m4a[between, ch]), db(bed[:, ch]), delta=1)
+            self.assertEqual(list(Path(td).glob('*.partial*')), [])
+
+    @unittest.skipUnless(shutil.which('ffmpeg') and shutil.which('ffprobe'), 'FFmpeg required for actual render test')
     def test_actual_render_limits_a_loud_background_mix_below_full_scale_in_place(self):
         import numpy as np
         import soundfile as sf
