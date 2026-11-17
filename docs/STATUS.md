@@ -872,13 +872,14 @@ v1.0.14 (tag at `038ae4f`) was built but never published: its Sandbox runs 1 and
 | Clean Sandbox 3, `-Only full,clone,dpi` | cleaned-sample preview skips 6 s of leading tone bursts (7797 ms, fits the padded reference at 8580 ms); clone WER 6.1 % (8.5 % on the 1.0.14 build); 4/4 layouts: 26 PASS, 0 FAIL |
 | Clean Sandbox 4, `-Only update -From` the published 1.0.13 | refused a package that does not match its signature, then updated itself to 1.0.15 through the local feed (passive install, no licence page) and reopened at 1.0.15 with its project; the installer copy in `%TEMP%` was removed: 4 PASS, 0 FAIL |
 | Interactive installer | started without `/S` in a fifth clean Sandbox: Welcome, then the licence page whose text box holds `src-tauri/installer-license.txt` in full (Vietnamese diacritics intact; read through UI Automation, screenshot of the top) and "I Agree" |
-| Not run | the update to 1.0.15 through GitHub itself; the interactive install past "I Agree"; the uninstaller; listening to the separated backgrounds |
+| Clean Sandbox, update through GitHub after publishing | the published 1.0.13 (installer hash matches its `SHA256SUMS.txt`), with no local feed, found 1.0.15 through its automatic check of `/releases/latest/download/latest.json` (nobody clicked "Kiểm tra ngay"); the download was verified 11 s after the harness began waiting for it, then it installed and reopened at 1.0.15 with its project, and the installer copy was removed: 3 PASS, 0 FAIL. The same scratch-copy harness change as for 1.0.12 skipped the local feed (its diff is kept with the evidence) |
+| Not run | the interactive install past "I Agree"; the uninstaller; listening to the separated backgrounds |
 
-Evidence: `work\release-v1.0.15-sandbox` (`run1015a`, `run1015b`, `run1015c`, `run1015u`, `licence-page`; the failed 1.0.14 runs in `run1014*`).
+Evidence: `work\release-v1.0.15-sandbox` (`run1015a`, `run1015b`, `run1015c`, `run1015u`, `licence-page`, `github-update`; the failed 1.0.14 runs in `run1014*`).
 
 ## Not verified / known gaps
 
-- Self-update through GitHub was observed once, in a clean Sandbox (1.0.11 to 1.0.12, above); the per-release gate
+- Self-update through GitHub was observed twice, in clean Sandboxes (1.0.11 to 1.0.12 and 1.0.13 to 1.0.15, above); the per-release gate
   still uses a local copy of the feed (`THANHAM_UPDATE_MANIFEST`), because it runs before the release is published.
   Each update downloads the whole installer (about 297 MB from 1.0.15, which adds PyTorch); from 1.0.12 the app removes the installer copy the updater
   leaves in `%TEMP%` shortly after it starts.
