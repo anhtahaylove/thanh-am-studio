@@ -1,4 +1,9 @@
 [
+ {"version": "1.0.16", "date": "2026-11-17", "changes": [
+  "Thay thư viện chạy song song OpenMP của Intel bằng LLVM OpenMP (mã nguồn mở, giấy phép Apache-2.0). Trang điều khoản khi cài không còn điều khoản OpenMP của Intel; kết quả nhận dạng giọng nói và tách nhạc nền không đổi.",
+  "Bỏ hai bộ mã hoá video x264 và x265 (giấy phép GPL) đi kèm thư viện đọc âm thanh, vì app chỉ đọc chứ không mã hoá video, và bỏ tệp cuDNN của NVIDIA chỉ dùng cho GPU. Bản cập nhật tự xoá các tệp cũ này.",
+  "Danh sách giấy phép bên thứ ba (THIRD-PARTY-NOTICES.txt) giờ liệt kê đủ các thư viện nằm sẵn trong các gói Python."
+ ]},
  {"version": "1.0.15", "date": "2026-11-17", "changes": [
   "Nhân bản giọng giờ lấy 8 giây có âm thanh to và liền mạch nhất của mẫu (nhạc hoặc tiếng ồn to cũng có thể được chọn) thay vì 8 giây đầu. Nút \"Nghe mẫu đã làm sạch\" phát đúng đoạn đã lọc ồn mà app dùng; nếu còn nghe nhạc, tiếng ồn hay giọng khác thì nên chọn mẫu khác.",
   "Xuất thêm M4A, FLAC và Opus bên cạnh WAV và MP3.",
