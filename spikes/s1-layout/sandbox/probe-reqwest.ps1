@@ -14,21 +14,15 @@ $leaf = New-SelfSignedCertificate -Subject 'CN=localhost' -DnsName 'localhost' -
 $pem = "-----BEGIN CERTIFICATE-----`n" + [Convert]::ToBase64String($ca.RawData, 'InsertLineBreaks') + "`n-----END CERTIFICATE-----`n"
 $caPem = Join-Path $Dir 's1-root-ca.pem'
 [IO.File]::WriteAllText($caPem, $pem)
-netsh http add sslcert ipport=127.0.0.1:8443 certhash=$($leaf.Thumbprint) appid='{00112233-4455-6677-8899-aabbccddeeff}' | Out-Null
-$serve = {
-    param($prefix, $mode)
-    $l = New-Object System.Net.HttpListener
-    $l.Prefixes.Add($prefix); $l.Start()
-    while ($true) {
-        $c = $l.GetContext()
-        $text = if ($mode -eq 'proxy') { "via-proxy:" + $c.Request.RawUrl } else { 'hello-tls' }
-        $b = [Text.Encoding]::UTF8.GetBytes($text)
-        $c.Response.OutputStream.Write($b, 0, $b.Length); $c.Response.Close()
+$srv = Join-Path $PSScriptRoot 'probe-server.ps1'
+$p1 = Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $srv, 'tls', '8443', $leaf.Thumbprint, (Join-Path $Dir 'server-tls.log') -PassThru -WindowStyle Hidden
+$p2 = Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $srv, 'proxy', '8899', 'none', (Join-Path $Dir 'server-proxy.log') -PassThru -WindowStyle Hidden
+foreach ($port in 8443, 8899) {   # wait until each server accepts connections
+    for ($i = 0; $i -lt 30; $i++) {
+        $t = New-Object Net.Sockets.TcpClient
+        try { $t.Connect('127.0.0.1', $port); $t.Close(); break } catch { Start-Sleep 1 }
     }
 }
-$j1 = Start-Job $serve -ArgumentList 'https://localhost:8443/', 'tls'
-$j2 = Start-Job $serve -ArgumentList 'http://+:8899/', 'proxy'
-Start-Sleep 4
 Probe 'tls-no-ca-not-in-store (negative control)' @('https://localhost:8443/')
 Probe 'tls-custom-root-ca-merge (--ca)' @('https://localhost:8443/', '--ca', $caPem)
 Probe 'tls-custom-root-ca-only (--ca --only)' @('https://localhost:8443/', '--ca', $caPem, '--only')
@@ -46,5 +40,5 @@ Set-ItemProperty $k ProxyEnable 0
 $env:HTTP_PROXY = 'http://127.0.0.1:8899'
 Probe 'http-env-proxy (HTTP_PROXY, registry proxy off)' @('http://s1-probe.invalid/env')
 Remove-Item Env:\HTTP_PROXY
-Stop-Job $j1, $j2 -ErrorAction SilentlyContinue
+Stop-Process -Id $p1.Id, $p2.Id -Force -ErrorAction SilentlyContinue
 $out -join "`n"
