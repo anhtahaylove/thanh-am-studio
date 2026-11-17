@@ -17,3 +17,7 @@ if ($LASTEXITCODE -ne 0) { throw 'CT2 configure failed' }
 cmake --build $bld --target install --parallel 3
 if ($LASTEXITCODE -ne 0) { throw 'CT2 build failed' }
 Get-ChildItem -Recurse -File -Filter *.lib $ins, $bld | ForEach-Object { "{0}  {1}" -f $_.FullName, $_.Length }
+# The recipe's lib directory: what ct2rs-sys `system` links (ctranslate2, cpu_features) next to dnnl, iomp5/libiomp5md and the cublas stubs.
+Copy-Item (Join-Path $ins 'lib\ctranslate2.lib') $Lib -Force
+Copy-Item (Join-Path $bld 'third_party\cpu_features\cpu_features.lib') $Lib -Force
+Get-ChildItem $Lib | ForEach-Object { "{0}  {1}" -f $_.Name, $_.Length }

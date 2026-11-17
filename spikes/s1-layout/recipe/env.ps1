@@ -12,4 +12,4 @@ New-Item -ItemType Directory -Force -Path $Root, $Lib | Out-Null
 cmd /c "`"$Vcvars`" >nul && set" | ForEach-Object { if ($_ -match '^([^=]+)=(.*)$' -and $Matches[1] -ne 'PSModulePath') { Set-Item -Path "Env:$($Matches[1])" -Value $Matches[2] } }
 $env:VSLANG = '1033'
 # Never disturb other agents' CPU measurements.
-(Get-Process -Id $PID).PriorityClass = 'Idle'
+(Get-Process -Id $PID).PriorityClass = 'BelowNormal'

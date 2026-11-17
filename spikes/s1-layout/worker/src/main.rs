@@ -7,7 +7,8 @@
 //!
 //! usage: thanham-worker health [--ort <onnxruntime.dll>] [--whisper <dir>] [--silero <onnx>]
 //!                              [--g2p-bin <sea_g2p.bin>] [--tokenizer <tokenizer.json>]
-//!                              [--encode-out <file>] [--threads <n>] [--skip <ort,ct2,g2p>]
+//!                              [--encode-out <file>] [--threads <n>] [--compute int8|float32|int8_float32]
+//!                              [--skip <ort,ct2,g2p>]
 //! Every result is one JSON line on stdout; the exit code is 0 only if every requested step passed.
 
 use std::ffi::{c_char, c_int, c_void};
@@ -81,6 +82,7 @@ struct Args {
     tokenizer: Option<PathBuf>,
     encode_out: Option<PathBuf>,
     threads: usize,
+    compute: ComputeType,
     skip: Vec<String>,
 }
 
@@ -94,6 +96,7 @@ fn parse(args: &[String]) -> Result<Args, String> {
         tokenizer: None,
         encode_out: None,
         threads: 8,
+        compute: ComputeType::INT8,
         skip: Vec::new(),
     };
     let mut it = args.iter();
@@ -107,6 +110,14 @@ fn parse(args: &[String]) -> Result<Args, String> {
             "--tokenizer" => a.tokenizer = Some(PathBuf::from(value()?)),
             "--encode-out" => a.encode_out = Some(PathBuf::from(value()?)),
             "--threads" => a.threads = value()?.parse().map_err(|e| format!("--threads: {e}"))?,
+            "--compute" => {
+                a.compute = match value()?.as_str() {
+                    "int8" => ComputeType::INT8,
+                    "float32" => ComputeType::FLOAT32,
+                    "int8_float32" => ComputeType::INT8_FLOAT32,
+                    other => return Err(format!("--compute: unknown {other}")),
+                }
+            }
             "--skip" => a.skip = value()?.split(',').map(str::to_string).collect(),
             other => return Err(format!("unknown argument {other}")),
         }
@@ -139,7 +150,7 @@ fn step_ct2(a: &Args) -> Result<String, String> {
     let t0 = Instant::now();
     let config = Config {
         device: Device::CPU,
-        compute_type: ComputeType::INT8,
+        compute_type: a.compute,
         num_threads_per_replica: a.threads,
         ..Config::default()
     };
