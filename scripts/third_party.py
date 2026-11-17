@@ -12,18 +12,35 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 out = pathlib.Path(sys.argv[1]); out.mkdir(parents=True, exist_ok=True)
 components, notices = [], []
 LICENSE_FILE = re.compile(r'^(LICEN[CS]E|COPYING|NOTICE|AUTHORS)', re.I)
+# Packages that ship no licence file where the walks below look: texts from the package folder, or vendored from the
+# upstream tag or commit of the packaged version (scripts/licenses/). Paths are relative to ROOT.
+NO_LICENSE_FILE = {
+    'alloc-stdlib': ['scripts/licenses/alloc-stdlib-LICENSE.txt'],
+    'selectors': ['scripts/licenses/selectors-MPL-2.0.txt'],
+    'webview2-com': ['scripts/licenses/webview2-com-LICENSE.txt'],
+    'webview2-com-macros': ['scripts/licenses/webview2-com-macros-LICENSE.txt'],
+    # also ships Microsoft's WebView2 loader, which the app links statically
+    'webview2-com-sys': ['scripts/licenses/webview2-com-LICENSE.txt', 'scripts/licenses/webview2-sdk-LICENSE.txt'],
+    'ctranslate2': ['scripts/licenses/ctranslate2-LICENSE.txt'],
+    'flatbuffers': ['scripts/licenses/flatbuffers-LICENSE.txt'],
+    'onnxruntime': ['runtime/python/Lib/site-packages/onnxruntime/LICENSE', 'runtime/python/Lib/site-packages/onnxruntime/ThirdPartyNotices.txt'],
+    'sherpa-onnx-core': ['scripts/licenses/sherpa-onnx-LICENSE.txt'],
+    'tokenizers': ['scripts/licenses/tokenizers-LICENSE.txt'],
+}
+no_text = []
 
 def add(kind, name, version, license_, purl, files):
     components.append({'type': 'library', 'name': name, 'version': version, 'purl': purl,
                        'licenses': [{'expression': license_ or 'NOASSERTION'}], 'properties': [{'name': 'ecosystem', 'value': kind}]})
     texts = []
-    for f in files:
+    for f in files or [ROOT / p for p in NO_LICENSE_FILE.get(name, [])]:
         try: text = f.read_text(encoding='utf-8')
         except OSError: continue
         except UnicodeDecodeError as e: sys.exit(f'{f}: not UTF-8 text ({e})')
         if '\0' in text: sys.exit(f'{f}: contains NUL bytes, not a licence text')
         texts.append(text.strip())
-    notices.append(f"{'=' * 78}\n{name} {version} ({kind}) — {license_ or 'NOASSERTION'}\n{'=' * 78}\n" + ('\n\n'.join(texts) or '(no license file shipped by the package; see its source repository)'))
+    if not texts: no_text.append(f'{name} {version} ({kind})')
+    notices.append(f"{'=' * 78}\n{name} {version} ({kind}) — {license_ or 'NOASSERTION'}\n{'=' * 78}\n" + '\n\n'.join(texts))
 
 # Rust: normal (non-dev, non-build) dependencies reachable from the app crate.
 meta = json.loads(subprocess.check_output(['cargo', 'metadata', '--format-version', '1', '--locked', '--filter-platform', 'x86_64-pc-windows-msvc'],
@@ -64,7 +81,7 @@ for info in sorted(site.glob('*.dist-info')):
     files = [f for f in sorted(info.rglob('*')) if f.is_file() and LICENSE_FILE.match(f.name) and f.suffix not in ('.py', '.pyc')]  # av ships AUTHORS.py and its __pycache__
     add('pypi', m['Name'], m['Version'], lic, f"pkg:pypi/{m['Name'].lower()}@{m['Version']}", files)
 add('runtime', 'CPython', '3.11.18', 'PSF-2.0', 'pkg:generic/cpython@3.11.18', [ROOT / 'runtime' / 'python' / 'LICENSE.txt'])
-add('runtime', 'Microsoft Visual C++ Redistributable CRT (app-local DLLs next to python.exe; msvcp140 in numpy.libs and llvmlite.libs)', '14.x', 'LicenseRef-Microsoft-VC-Redist', 'pkg:generic/msvc-crt@14', [])
+add('runtime', 'Microsoft Visual C++ Redistributable CRT (app-local DLLs next to python.exe; msvcp140 in numpy.libs and llvmlite.libs)', '14.x', 'LicenseRef-Microsoft-VC-Redist', 'pkg:generic/msvc-crt@14', [ROOT / 'scripts' / 'licenses' / 'msvc-crt-NOTE.txt'])
 # Intel binaries inside the torch and ctranslate2 wheels, whose dist-info carries no Intel text; the texts come from the
 # dist-info of the mkl 2026.2.1 and intel-openmp 2026.2.0 wheels (scripts/licenses/).
 licenses = ROOT / 'scripts' / 'licenses'
@@ -78,7 +95,8 @@ add('runtime', 'FFmpeg (BtbN LGPL shared build)', '9.0.2', 'LGPL-2.1-or-later', 
 # and the GCC runtime) and msvcp140 is the Visual C++ runtime above; the av.libs ones are listed here, with versions
 # and texts from the sources of PyAV's FFmpeg build (scripts/licenses/pyav-ffmpeg-SOURCE.txt). Any other DLL stops
 # the script, so a runtime update cannot ship an unlisted library.
-if not (site / 'av-18.1.0.dist-info').is_dir(): sys.exit('av is no longer 18.1.0: update the av.libs components')
+for pin in ('av-18.1.0', 'soundfile-0.14.0', 'sherpa_onnx_core-2.0.1'):
+    if not (site / f'{pin}.dist-info').is_dir(): sys.exit(f'{pin} is no longer installed: update its bundled-library components below')
 av_libs = [  # (DLL names without soname and delvewheel hash, component, version, licence, purl, files in scripts/licenses)
     ('avcodec avdevice avfilter avformat avutil swresample swscale', 'FFmpeg (PyAV build in av.libs)', '8.1.2', 'GPL-3.0-or-later',
      'pkg:generic/ffmpeg@8.1.2', ['ffmpeg-COPYING.LGPLv3.txt', 'ffmpeg-COPYING.GPLv3.txt', 'pyav-ffmpeg-SOURCE.txt']),
@@ -108,7 +126,26 @@ listed = {d for row in av_libs for d in row[0].split()} | {'libscipy_openblas', 
 if dlls != listed: sys.exit(f'site-packages/*.libs changed: unlisted {sorted(dlls - listed)}, no longer present {sorted(listed - dlls)}')
 for _, name, version, license_, purl, files in av_libs:
     add('runtime', name, version, license_, purl, [licenses / f for f in files])
+# soundfile's libsndfile_x64.dll links its codec libraries in statically (scripts/licenses/libsndfile-SOURCE.txt).
+for name, version, license_, purl, files in [
+    ('libsndfile (_soundfile_data/libsndfile_x64.dll in soundfile)', '1.2.2', 'LGPL-2.1-or-later', 'pkg:generic/libsndfile@1.2.2',
+     ['libsndfile-COPYING.txt', 'libsndfile-SOURCE.txt']),
+    ('FLAC (libFLAC, linked into libsndfile_x64.dll)', '1.4.3', 'BSD-3-Clause', 'pkg:generic/flac@1.4.3', ['flac-COPYING.Xiph.txt']),
+    ('libvorbis (linked into libsndfile_x64.dll)', '1.3.7', 'BSD-3-Clause', 'pkg:generic/libvorbis@1.3.7', ['libvorbis-COPYING.txt']),
+    ('libogg (linked into libsndfile_x64.dll)', '1.3.5 (vcpkg port version; not recorded in the DLL)', 'BSD-3-Clause',
+     'pkg:generic/libogg@1.3.5', ['libogg-COPYING.txt']),
+    ('Opus (libopus, linked into libsndfile_x64.dll)', '1.5.2', 'BSD-3-Clause', 'pkg:generic/opus@1.5.2', ['opus-1.5.2-COPYING.txt']),
+    ('mpg123 (libmpg123, linked into libsndfile_x64.dll)', '1.32.9 (vcpkg port version; not recorded in the DLL)', 'LGPL-2.1-or-later',
+     'pkg:generic/mpg123@1.32.9', ['mpg123-COPYING.txt']),
+    ('LAME (libmp3lame, linked into libsndfile_x64.dll)', '3.100', 'LGPL-2.0-or-later', 'pkg:generic/lame@3.100', ['lame-COPYING.txt']),
+]:
+    add('runtime', name, version, license_, purl, [licenses / f for f in files])
+# sherpa-onnx-core installs its own ONNX Runtime; the 1.31.1 package's LICENSE is identical to 1.28.2's and its
+# ThirdPartyNotices.txt holds every section of 1.28.2's.
+add('runtime', 'ONNX Runtime (onnxruntime.dll in sherpa_onnx/lib and Scripts, from sherpa-onnx-core)', '1.28.2', 'MIT', 'pkg:generic/onnxruntime@1.28.2',
+    [site / 'onnxruntime' / 'LICENSE', site / 'onnxruntime' / 'ThirdPartyNotices.txt'])
 
+if no_text: sys.exit('no licence text for: ' + '; '.join(no_text) + ' (add it to NO_LICENSE_FILE)')
 bom = {'bomFormat': 'CycloneDX', 'specVersion': '1.5', 'version': 1,
        'metadata': {'component': {'type': 'application', 'name': 'Thanh Âm Studio', 'version': json.loads((ROOT / 'package.json').read_text())['version'], 'licenses': [{'expression': 'Apache-2.0'}]}},
        'components': components}

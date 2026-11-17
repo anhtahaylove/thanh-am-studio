@@ -1,0 +1,23 @@
+Source of runtime/python/Lib/site-packages/_soundfile_data/libsndfile_x64.dll, as bundled in the soundfile 0.14.0
+wheel (DLL sha256 22518c16f9d13eda5ae5adf999c4740d7d16cc2d6b178b36dd4ac2f759a38559).
+
+soundfile 0.14.0 (https://github.com/bastibe/python-soundfile/tree/0.14.0) takes the DLL from its _soundfile_data
+submodule, https://github.com/bastibe/libsndfile-binaries at commit a3e6f9769d0c7e91d2d036cf0fdbe5b4bbf18b87. The DLL
+was added there in commit 1ac5f9412c ("Build Windows libsndfile dynamically, but dependencies statically",
+2024-12-30) by .github/workflows/build-libs.yml: `vcpkg install libsndfile:x64-windows-custom
+--overlay-triplets=triplets` on the windows-2019 runner, with libsndfile built as a DLL and its dependencies linked
+in statically (triplets/x64-windows-custom.cmake).
+
+Inside the DLL (versions from strings in the DLL; libogg and mpg123 do not record theirs, so those are the vcpkg port
+versions of December 2024):
+
+libsndfile 1.2.2   https://github.com/libsndfile/libsndfile/releases/tag/1.2.2
+FLAC 1.4.3         https://github.com/xiph/flac/releases/tag/1.4.3
+libvorbis 1.3.7    https://github.com/xiph/vorbis/releases/tag/v1.3.7
+libogg 1.3.5       https://github.com/xiph/ogg/releases/tag/v1.3.5
+Opus 1.5.2         https://github.com/xiph/opus/releases/tag/v1.5.2
+mpg123 1.32.9      https://www.mpg123.de/download/mpg123-1.32.9.tar.bz2
+LAME 3.100         https://sourceforge.net/projects/lame/files/lame/3.100/
+
+The vcpkg build recipes are in https://github.com/microsoft/vcpkg/tree/master/ports (libsndfile, libflac, libvorbis,
+libogg, opus, mpg123, mp3lame).

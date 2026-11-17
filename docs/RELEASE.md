@@ -73,9 +73,12 @@ SBOM/notices; FFmpeg and python-soxr are LGPL and ship as separate replaceable f
 license and source pointer (`runtime/ffmpeg/SOURCE.txt`). The PyAV wheel bundles a second FFmpeg
 build with its codec libraries in `av.libs`, including the GPL-licensed x264 and x265; the notices list
 each with its license text and the build's sources (`scripts/licenses/`, `pyav-ffmpeg-SOURCE.txt`), and
-`scripts/third_party.py` stops when a `*.libs` folder holds a DLL it does not list. Its last line names
-the GPL and LGPL components for review: python-soxr, both FFmpeg builds, x264, x265, LAME, GNU libiconv
-and the GCC runtime are expected. Models (VieNeu v3 Turbo and the MOSS
+`scripts/third_party.py` stops when a `*.libs` folder holds a DLL it does not list. soundfile's
+`libsndfile_x64.dll` (LGPL) links FLAC, Ogg, Vorbis, Opus, mpg123 and LAME in statically; each is listed,
+with the build's sources in `scripts/licenses/libsndfile-SOURCE.txt`. The script also stops when a component
+has no license text; packages that ship none get theirs from `NO_LICENSE_FILE` in the script. Its last line
+names the GPL and LGPL components for review: python-soxr, both FFmpeg builds, x264, x265, LAME (twice),
+GNU libiconv, the GCC runtime, libsndfile and mpg123 are expected. Models (VieNeu v3 Turbo and the MOSS
 audio tokenizer: Apache-2.0; faster-whisper conversions: MIT) are downloaded by the user, not
 redistributed. The optional HTDemucs weights (code MIT; the weights' license is unclear upstream:
 trained on MusDB-HQ, which is for research only, plus 800 unpublished songs) are also a user-started download; say so in the
