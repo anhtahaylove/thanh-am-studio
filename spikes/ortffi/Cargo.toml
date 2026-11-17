@@ -1,0 +1,20 @@
+[package]
+name = "ortffi"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+license = "MIT"
+description = "Minimal hand-written ONNX Runtime 1.31.1 C API bindings, loaded dynamically (Thanh Am Studio Rust migration spike)"
+publish = false
+
+# Own workspace so this spike never joins src-tauri's.
+[workspace]
+
+[dependencies]
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+missing_docs = "warn"
+
+[lints.clippy]
+undocumented_unsafe_blocks = "deny"
