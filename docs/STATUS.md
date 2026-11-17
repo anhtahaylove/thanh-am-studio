@@ -873,9 +873,10 @@ v1.0.14 (tag at `038ae4f`) was built but never published: its Sandbox runs 1 and
 | Clean Sandbox 4, `-Only update -From` the published 1.0.13 | refused a package that does not match its signature, then updated itself to 1.0.15 through the local feed (passive install, no licence page) and reopened at 1.0.15 with its project; the installer copy in `%TEMP%` was removed: 4 PASS, 0 FAIL |
 | Interactive installer | started without `/S` in a fifth clean Sandbox: Welcome, then the licence page whose text box holds `src-tauri/installer-license.txt` in full (Vietnamese diacritics intact; read through UI Automation, screenshot of the top) and "I Agree" |
 | Clean Sandbox, update through GitHub after publishing | the published 1.0.13 (installer hash matches its `SHA256SUMS.txt`), with no local feed, found 1.0.15 through its automatic check of `/releases/latest/download/latest.json` (nobody clicked "Kiểm tra ngay"); the download was verified 11 s after the harness began waiting for it, then it installed and reopened at 1.0.15 with its project, and the installer copy was removed: 3 PASS, 0 FAIL. The same scratch-copy harness change as for 1.0.12 skipped the local feed (its diff is kept with the evidence) |
-| Not run | the interactive install past "I Agree"; the uninstaller; listening to the separated backgrounds |
+| Interactive install and uninstall, two more clean Sandboxes | started without `/S`, each page's default button pressed through Win32 messages: Welcome, licence ("I Agree"), install location (1.3 GB required), install (about 4 min), Finish with "Run Thanh Âm Studio" and "Create desktop shortcut"; the app window opened. The uninstaller (its "Delete the application data" box unchecked by default) removed the install folder (16,857 entries), the Start-menu and desktop shortcuts and the uninstall registry key, and kept `%LOCALAPPDATA%\studio.thanham.desktop` (database, models, jobs, WebView2 profile) and `HKCU\Software\thanham`; with the box ticked nothing of the app was left. Both runs leave `%TEMP%\~nsu1.tmp\Un.exe` (NSIS's running copy of the uninstaller) and `%TEMP%\MicrosoftEdgeWebview2Setup.exe` (downloaded by the installer's WebView2 check), plus Windows and WebView2 registry entries |
+| Not run | listening to the separated backgrounds (a pack of six clips with original, kept background and removed voice is ready in `work\separation-listening-1.0.15`; Whisper Small hears 0 words in every background) |
 
-Evidence: `work\release-v1.0.15-sandbox` (`run1015a`, `run1015b`, `run1015c`, `run1015u`, `licence-page`, `github-update`; the failed 1.0.14 runs in `run1014*`).
+Evidence: `work\release-v1.0.15-sandbox` (`run1015a`, `run1015b`, `run1015c`, `run1015u`, `licence-page`, `github-update`, `install-uninstall`; the failed 1.0.14 runs in `run1014*`).
 
 ## Not verified / known gaps
 
@@ -883,6 +884,17 @@ Evidence: `work\release-v1.0.15-sandbox` (`run1015a`, `run1015b`, `run1015c`, `r
   still uses a local copy of the feed (`THANHAM_UPDATE_MANIFEST`), because it runs before the release is published.
   Each update downloads the whole installer (about 297 MB from 1.0.15, which adds PyTorch); from 1.0.12 the app removes the installer copy the updater
   leaves in `%TEMP%` shortly after it starts.
+- The installer redistributes the Intel OpenMP runtime under the Intel End User License Agreement for
+  Developer Tools, whose distributor obligations stay with the publisher; the licence page passes on only
+  Intel's restrictions and disclaimers. On 2026-11-17 the owner chose to state in the README and the
+  release notes that releases are for friends and family and provided as is, and to replace Intel OpenMP
+  with LLVM OpenMP in 1.0.16. A spike (`work\openmp-swap-spike\RESULTS.md`) found that a plain swap fails
+  (torch and ctranslate2 import five `_vcomp_*` functions LLVM's runtime lacks) and that a small shim
+  forwarding to LLVM's runtime gives byte-identical separation and STT output and passes the worker tests.
+- The 1.0.15 notices have gaps, to be fixed in 1.0.16: the PyAV entry holds a compiled `__pycache__` file
+  instead of its licence text; the libraries delvewheel bundled into wheels (`av.libs`: a second FFmpeg
+  build, Intel VPL, dav1d, SVT-AV1, libvpx, LAME, opencore-amr, Opus, libwebp, libiconv, the GCC runtime)
+  are not listed; oneMKL is linked into ctranslate2 as well as torch.
 - Listening quality has not been judged by a human; the clipping checks above are signal analysis.
   On 2026-11-13 the owner accepted the machine listening below in place of a human listening pass.
   The listening pack (first 20 sentences as separate files in script order, plus the full render) is

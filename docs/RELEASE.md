@@ -86,3 +86,8 @@ owner accepted these terms on 2026-11-16. The installer therefore shows `src-tau
 as an "I agree" page (silent `/S` installs and the updater's passive install skip it) and installs
 `LICENSE.txt` and `THIRD-PARTY-NOTICES.txt`. Before publishing, check the tagged build's notices:
 `Select-String 'Intel Simplified Software License','Intel End User License Agreement for Developer Tools' release/THIRD-PARTY-NOTICES.txt`.
+A click-through page passes Intel's restrictions and disclaimers on to users; it does not move the
+distributor's own obligations to Intel, which stay with the publisher. On 2026-11-17 the owner chose
+to keep shipping these binaries, to say in the README and in every release's notes that releases are
+made for friends and family and provided as is, without warranty (Apache-2.0 sections 7 and 8), and
+to try replacing the Intel OpenMP runtime with LLVM's (see STATUS).
