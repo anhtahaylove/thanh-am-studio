@@ -1,0 +1,44 @@
+loop lo=0 hi=100003 step=1 nt=1 total=100003 hash=1e4dec72e31800ac
+loop lo=0 hi=100003 step=1 nt=2 total=100003 hash=1e4dec72e31800ac
+loop lo=0 hi=100003 step=1 nt=3 total=100003 hash=1e4dec72e31800ac
+loop lo=0 hi=100003 step=1 nt=8 total=100003 hash=1e4dec72e31800ac
+loop lo=0 hi=100003 step=1 nt=16 total=100003 hash=1e4dec72e31800ac
+loop lo=0 hi=100003 step=7 nt=1 total=14287 hash=7fe6c2d9af292da8
+loop lo=0 hi=100003 step=7 nt=2 total=14287 hash=7fe6c2d9af292da8
+loop lo=0 hi=100003 step=7 nt=3 total=14287 hash=7fe6c2d9af292da8
+loop lo=0 hi=100003 step=7 nt=8 total=14287 hash=7fe6c2d9af292da8
+loop lo=0 hi=100003 step=7 nt=16 total=14287 hash=7fe6c2d9af292da8
+loop lo=5 hi=6 step=1 nt=1 total=1 hash=24039b04a3c52d68
+loop lo=5 hi=6 step=1 nt=2 total=1 hash=24039b04a3c52d68
+loop lo=5 hi=6 step=1 nt=3 total=1 hash=24039b04a3c52d68
+loop lo=5 hi=6 step=1 nt=8 total=1 hash=24039b04a3c52d68
+loop lo=5 hi=6 step=1 nt=16 total=1 hash=24039b04a3c52d68
+loop lo=0 hi=0 step=1 nt=1 total=0 hash=ae3e328f18166d01
+loop lo=0 hi=0 step=1 nt=2 total=0 hash=ae3e328f18166d01
+loop lo=0 hi=0 step=1 nt=3 total=0 hash=ae3e328f18166d01
+loop lo=0 hi=0 step=1 nt=8 total=0 hash=ae3e328f18166d01
+loop lo=0 hi=0 step=1 nt=16 total=0 hash=ae3e328f18166d01
+loop lo=0 hi=3 step=1 nt=1 total=3 hash=75b0ee3c2a16934c
+loop lo=0 hi=3 step=1 nt=2 total=3 hash=75b0ee3c2a16934c
+loop lo=0 hi=3 step=1 nt=3 total=3 hash=75b0ee3c2a16934c
+loop lo=0 hi=3 step=1 nt=8 total=3 hash=75b0ee3c2a16934c
+loop lo=0 hi=3 step=1 nt=16 total=3 hash=75b0ee3c2a16934c
+loop lo=100002 hi=-1 step=-1 nt=1 total=100003 hash=1e4dec72e31800ac
+loop lo=100002 hi=-1 step=-1 nt=2 total=100003 hash=1e4dec72e31800ac
+loop lo=100002 hi=-1 step=-1 nt=3 total=100003 hash=1e4dec72e31800ac
+loop lo=100002 hi=-1 step=-1 nt=8 total=100003 hash=1e4dec72e31800ac
+loop lo=100002 hi=-1 step=-1 nt=16 total=100003 hash=1e4dec72e31800ac
+loop lo=100002 hi=10 step=-13 nt=1 total=7692 hash=e0139b384a426c4d
+loop lo=100002 hi=10 step=-13 nt=2 total=7692 hash=e0139b384a426c4d
+loop lo=100002 hi=10 step=-13 nt=3 total=7692 hash=e0139b384a426c4d
+loop lo=100002 hi=10 step=-13 nt=8 total=7692 hash=e0139b384a426c4d
+loop lo=100002 hi=10 step=-13 nt=16 total=7692 hash=e0139b384a426c4d
+loop lo=3 hi=2 step=-1 nt=1 total=1 hash=4945499bec7c9280
+loop lo=3 hi=2 step=-1 nt=2 total=1 hash=4945499bec7c9280
+loop lo=3 hi=2 step=-1 nt=3 total=1 hash=4945499bec7c9280
+loop lo=3 hi=2 step=-1 nt=8 total=1 hash=4945499bec7c9280
+loop lo=3 hi=2 step=-1 nt=16 total=1 hash=4945499bec7c9280
+team=6 ids=6 barrier_ok=1
+if0 team=1 id=0
+firstprivate acc=-226,1274,2774,4274,5774,7274,8774,10274
+nested inner=2,2,2,2 ids_ok=1

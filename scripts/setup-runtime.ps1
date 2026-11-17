@@ -10,6 +10,10 @@ $PythonVersion = '3.11.18'
 $FfmpegTag = 'autobuild-2026-11-10-12-39'
 $FfmpegAsset = 'ffmpeg-n9.0.2-48-gd4070a14ce-win64-lgpl-shared-9.0'
 $FfmpegSha256 = 'cdc19c20aa80d46f78cfc69c8d87430ee34990864e30379db02d1447cd111e83'
+# conda-forge llvm-openmp (LLVM OpenMP runtime, Apache-2.0 WITH LLVM-exception), pinned by URL and SHA-256. It replaces
+# Intel's OpenMP runtime; scripts/openmp-shim/vcomp_shim.c explains the shim built against it.
+$LlvmOpenmpUrl = 'https://conda.anaconda.org/conda-forge/win-64/llvm-openmp-23.1.5-h49e36cd_0.conda'
+$LlvmOpenmpSha256 = 'f7b5e57c99568c23d97759820b9bb2eeae47dff5ba024ddc9dcdc08780da527d'
 
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $destinationPath = [IO.Path]::GetFullPath($Destination)
@@ -54,6 +58,70 @@ try {
     # Torch's C++ headers, import libraries and build tools only serve compiling extensions.
     foreach ($rel in @('include', 'bin', 'share')) { Remove-Item -LiteralPath (Join-Path $site "torch\$rel") -Recurse -Force -ErrorAction SilentlyContinue }
     Remove-Item -Path (Join-Path $site 'torch\lib\*.lib') -Force -ErrorAction SilentlyContinue
+
+    # Replace Intel's OpenMP runtime (libiomp5md.dll in torch and ctranslate2, Intel EULA) with LLVM's libomp.dll behind
+    # the shim in scripts/openmp-shim, which keeps the libiomp5md.dll name and adds the MSVC vcomp entry points.
+    $ompPkg = Join-Path ([IO.Path]::GetTempPath()) ([IO.Path]::GetFileName($LlvmOpenmpUrl))
+    if (-not (Test-Path -LiteralPath $ompPkg) -or (Get-FileHash -LiteralPath $ompPkg -Algorithm SHA256).Hash -ne $LlvmOpenmpSha256) {
+        Invoke-WebRequest -Uri $LlvmOpenmpUrl -OutFile $ompPkg
+    }
+    if ((Get-FileHash -LiteralPath $ompPkg -Algorithm SHA256).Hash -ne $LlvmOpenmpSha256) { throw 'llvm-openmp package checksum mismatch.' }
+    $omp = "$ompPkg-build"
+    if (Test-Path -LiteralPath $omp) { Remove-Item -LiteralPath $omp -Recurse -Force }
+    New-Item -ItemType Directory -Path $omp -Force | Out-Null
+    # System32's bsdtar reads the .conda zip and its zstd tarball; tar on PATH may be Git's GNU tar.
+    $tar = Join-Path $env:SystemRoot 'System32\tar.exe'
+    & $tar -xf $ompPkg -C $omp
+    if ($LASTEXITCODE -ne 0) { throw 'llvm-openmp package extraction failed.' }
+    & $tar -xf (Get-ChildItem -LiteralPath $omp -Filter 'pkg-*.tar.zst').FullName -C $omp Library/bin/libomp.dll Library/lib/libomp.lib
+    if ($LASTEXITCODE -ne 0) { throw 'llvm-openmp package extraction failed.' }
+    $libomp = Join-Path $omp 'Library\bin\libomp.dll'
+    $shim = Join-Path $omp 'libiomp5md.dll'
+    $msvcVersion = (Get-Content -LiteralPath (Join-Path $vs 'VC\Auxiliary\Build\Microsoft.VCToolsVersion.default.txt')).Trim()
+    $dumpbin = Join-Path $vs "VC\Tools\MSVC\$msvcVersion\bin\Hostx64\x64\dumpbin.exe"
+    # The shim forwards every libomp export, read from the package's import library (which also says which exports are
+    # data and must be marked DATA), so a new pin re-forwards without a checked-in list.
+    $forwarded = foreach ($line in & $dumpbin /nologo /headers (Join-Path $omp 'Library\lib\libomp.lib')) {
+        if ($line -cmatch '^\s+Symbol name\s*:\s*(\S+)$') { $name = $Matches[1] }
+        elseif ($line -cmatch '^\s+Type\s*:\s*(code|data)$') { "    $name=libomp.$name" + $(if ($Matches[1] -eq 'data') { ' DATA' }) }
+    }
+    Set-Content -LiteralPath (Join-Path $omp 'libiomp5md.def') -Encoding ascii -Value (@('LIBRARY libiomp5md', 'EXPORTS') + $forwarded)
+    & (Join-Path $PSScriptRoot 'openmp-shim\build.cmd') (Join-Path $vs 'VC\Auxiliary\Build\vcvars64.bat') (Join-Path $omp 'Library\lib') $omp
+    if ($LASTEXITCODE -ne 0) { throw 'OpenMP shim build failed.' }
+    Copy-Item -LiteralPath $libomp -Destination $omp
+    $semantics = & (Join-Path $omp 'semantics_test.exe')
+    if ($LASTEXITCODE -ne 0 -or ($semantics -join "`n") -ne ((Get-Content -LiteralPath (Join-Path $PSScriptRoot 'openmp-shim\semantics_expected.txt')) -join "`n")) {
+        throw "OpenMP shim results differ from Microsoft's vcomp140 (scripts/openmp-shim/semantics_expected.txt): $($semantics -join "`n")"
+    }
+    # libomp.dll goes next to every shim: an STT job loads only ctranslate2's copy, a separation job only torch's.
+    # Delete before copying: uv hardlinks installed files to its cache, so writing over them would change the cache
+    # and every other environment linked to it.
+    foreach ($dir in (Get-ChildItem -LiteralPath $pythonDir -Recurse -File -Filter 'libiomp5md.dll').DirectoryName) {
+        Get-ChildItem -LiteralPath $dir -File | Where-Object Name -In 'libiomp5md.dll', 'libomp.dll' | Remove-Item -Force
+        Copy-Item -LiteralPath $shim, $libomp -Destination $dir
+    }
+    Get-ChildItem -LiteralPath $pythonDir -Recurse -File -Filter 'libiompstubs5md.dll' | Remove-Item -Force
+    # Fail the build if an Intel OpenMP binary remains, or if any binary imports a symbol the shim does not export
+    # (e.g. a torch or ctranslate2 bump that starts using another _vcomp_* entry point).
+    $pes = Get-ChildItem -LiteralPath $pythonDir -Recurse -File -Include '*.dll', '*.pyd', '*.exe'
+    $intel = $pes | Where-Object { $_.VersionInfo.ProductName -match 'Intel.*OpenMP' }
+    if ($intel) { throw "Intel OpenMP binaries remain: $($intel.FullName -join ', ')" }
+    $exports = & $dumpbin /nologo /exports $shim | ForEach-Object { if ($_ -cmatch '^\s+\d+\s+[0-9A-F]+\s+(?:[0-9A-F]{8}\s+)?(\S+)') { $Matches[1] } }
+    $imports = for ($i = 0; $i -lt $pes.Count; $i += 50) {
+        $file = $null; $inBlock = $false
+        foreach ($line in & $dumpbin /nologo /imports:libiomp5md.dll $pes[$i..($i + 49)].FullName) {
+            if ($line -cmatch '^Dump of file (.+)$') { $file = $Matches[1]; $inBlock = $false }
+            elseif ($line -match '^\s+libiomp5md\.dll$') { $inBlock = $true }
+            elseif ($line -cmatch '^\s+Summary$') { $inBlock = $false }
+            elseif ($inBlock -and $line -cmatch '^\s+[0-9A-F]+ (\S+)$') { [pscustomobject]@{ File = $file; Symbol = $Matches[1] } }
+            elseif ($inBlock -and $line -cmatch '^\s+Ordinal\s') { throw "$file imports libiomp5md.dll by ordinal; the shim's ordinals differ from Intel's." }
+        }
+    }
+    if (-not $imports) { throw 'No runtime binary imports libiomp5md.dll: the import scan is broken, or the shim is no longer needed.' }
+    $missing = @($imports | Where-Object Symbol -notin $exports)
+    if ($missing) { throw "The OpenMP shim does not export: $(($missing | ForEach-Object { "$($_.Symbol) (imported by $($_.File))" }) -join ', ')" }
+    Write-Output "OpenMP import check: all $(@($imports.Symbol | Sort-Object -Unique).Count) symbols that $((@($imports.File | Sort-Object -Unique) | Split-Path -Leaf) -join ', ') import from libiomp5md.dll are among the shim's $($exports.Count) exports."
+    Remove-Item -LiteralPath $omp -Recurse -Force
     Remove-Item -LiteralPath $managed -Recurse -Force
 
     $bin = Join-Path $destinationPath 'ffmpeg'
