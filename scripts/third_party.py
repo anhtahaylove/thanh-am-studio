@@ -18,8 +18,11 @@ def add(kind, name, version, license_, purl, files):
                        'licenses': [{'expression': license_ or 'NOASSERTION'}], 'properties': [{'name': 'ecosystem', 'value': kind}]})
     texts = []
     for f in files:
-        try: texts.append(f.read_text(encoding='utf-8', errors='replace').strip())
-        except OSError: pass
+        try: text = f.read_text(encoding='utf-8')
+        except OSError: continue
+        except UnicodeDecodeError as e: sys.exit(f'{f}: not UTF-8 text ({e})')
+        if '\0' in text: sys.exit(f'{f}: contains NUL bytes, not a licence text')
+        texts.append(text.strip())
     notices.append(f"{'=' * 78}\n{name} {version} ({kind}) — {license_ or 'NOASSERTION'}\n{'=' * 78}\n" + ('\n\n'.join(texts) or '(no license file shipped by the package; see its source repository)'))
 
 # Rust: normal (non-dev, non-build) dependencies reachable from the app crate.
@@ -58,19 +61,53 @@ for info in sorted(site.glob('*.dist-info')):
     lic = m.get('License-Expression') or next((c.split('::')[-1].strip() for c in m.get_all('Classifier') or [] if c.startswith('License ::')), None) or ((m.get('License') or '').strip().splitlines() or [''])[0][:80] or None
     lic = lic or {'llvmlite': 'BSD-2-Clause'}.get(m['Name'])  # metadata omits it; verified from its LICENSE file
     lic = {'sherpa-onnx': 'Apache-2.0'}.get(m['Name'], lic)  # metadata has prose ("Apache licensed, as found in the LICENSE file"), not an SPDX id
-    files = [f for f in sorted(info.rglob('*')) if f.is_file() and LICENSE_FILE.match(f.name)]
+    files = [f for f in sorted(info.rglob('*')) if f.is_file() and LICENSE_FILE.match(f.name) and f.suffix not in ('.py', '.pyc')]  # av ships AUTHORS.py and its __pycache__
     add('pypi', m['Name'], m['Version'], lic, f"pkg:pypi/{m['Name'].lower()}@{m['Version']}", files)
 add('runtime', 'CPython', '3.11.18', 'PSF-2.0', 'pkg:generic/cpython@3.11.18', [ROOT / 'runtime' / 'python' / 'LICENSE.txt'])
-add('runtime', 'Microsoft Visual C++ Redistributable CRT (app-local DLLs next to python.exe)', '14.x', 'LicenseRef-Microsoft-VC-Redist', 'pkg:generic/msvc-crt@14', [])
+add('runtime', 'Microsoft Visual C++ Redistributable CRT (app-local DLLs next to python.exe; msvcp140 in numpy.libs and llvmlite.libs)', '14.x', 'LicenseRef-Microsoft-VC-Redist', 'pkg:generic/msvc-crt@14', [])
 # Intel binaries inside the torch and ctranslate2 wheels, whose dist-info carries no Intel text; the texts come from the
 # dist-info of the mkl 2026.2.1 and intel-openmp 2026.2.0 wheels (scripts/licenses/).
 licenses = ROOT / 'scripts' / 'licenses'
 add('runtime', 'Intel OpenMP runtime (libiomp5md.dll in torch and ctranslate2)', '20260828 (torch), 20250910 (ctranslate2)', 'LicenseRef-Intel-EULA-Developer-Tools',
     'pkg:generic/intel-openmp@2026.2.0', [licenses / 'intel-openmp-runtime.txt'])
-add('runtime', 'Intel oneMKL (linked into torch)', '2026.2', 'LicenseRef-Intel-Simplified-Software-License', 'pkg:generic/intel-onemkl@2026.2',
+add('runtime', 'Intel oneMKL (linked into torch and ctranslate2)', 'build 20260915 (torch), build 20251007 (ctranslate2)', 'LicenseRef-Intel-Simplified-Software-License', 'pkg:generic/intel-onemkl@2026.2',
     [licenses / 'intel-simplified-software-license.txt'])
 ff = ROOT / 'runtime' / 'ffmpeg'
 add('runtime', 'FFmpeg (BtbN LGPL shared build)', '9.0.2', 'LGPL-2.1-or-later', 'pkg:generic/ffmpeg@9.0.2', [ff / 'LICENSE.txt', ff / 'SOURCE.txt'])
+# DLLs that delvewheel copied into <package>.libs. numpy's and scipy's licence files cover their OpenBLAS (with LAPACK
+# and the GCC runtime) and msvcp140 is the Visual C++ runtime above; the av.libs ones are listed here, with versions
+# and texts from the sources of PyAV's FFmpeg build (scripts/licenses/pyav-ffmpeg-SOURCE.txt). Any other DLL stops
+# the script, so a runtime update cannot ship an unlisted library.
+if not (site / 'av-18.1.0.dist-info').is_dir(): sys.exit('av is no longer 18.1.0: update the av.libs components')
+av_libs = [  # (DLL names without soname and delvewheel hash, component, version, licence, purl, files in scripts/licenses)
+    ('avcodec avdevice avfilter avformat avutil swresample swscale', 'FFmpeg (PyAV build in av.libs)', '8.1.2', 'GPL-3.0-or-later',
+     'pkg:generic/ffmpeg@8.1.2', ['ffmpeg-COPYING.LGPLv3.txt', 'ffmpeg-COPYING.GPLv3.txt', 'pyav-ffmpeg-SOURCE.txt']),
+    ('libx264', 'x264 (libx264 in av.libs)', '0.165 (commit b35605a)', 'GPL-2.0-or-later',
+     'pkg:generic/x264@b35605ace3ddf7c1a5d67a2eb553f034aef41d55', ['x264-COPYING.txt']),
+    ('libx265', 'x265 (libx265 in av.libs)', '4.2', 'GPL-2.0-or-later', 'pkg:generic/x265@4.2', ['x265-COPYING.txt']),
+    ('libmp3lame', 'LAME (libmp3lame in av.libs)', '3.100', 'LGPL-2.0-or-later', 'pkg:generic/lame@3.100', ['lame-COPYING.txt']),
+    ('libopencore-amrnb libopencore-amrwb', 'opencore-amr (libopencore-amrnb, libopencore-amrwb in av.libs)', '0.1.6', 'Apache-2.0',
+     'pkg:generic/opencore-amr@0.1.6', ['opencore-amr-LICENSE.txt', 'opencore-amr-NOTICE.txt']),
+    ('libopus', 'Opus (libopus in av.libs)', '1.6.1', 'BSD-3-Clause', 'pkg:generic/opus@1.6.1', ['opus-COPYING.txt']),
+    ('libdav1d', 'dav1d (libdav1d in av.libs)', '1.5.3', 'BSD-2-Clause', 'pkg:generic/dav1d@1.5.3', ['dav1d-COPYING.txt']),
+    ('libSvtAv1Enc', 'SVT-AV1 (libSvtAv1Enc in av.libs)', '4.1.0', 'BSD-3-Clause-Clear', 'pkg:generic/svt-av1@4.1.0',
+     ['svt-av1-LICENSE.txt', 'svt-av1-PATENTS.txt']),
+    ('libvpx', 'libvpx (in av.libs)', '1.16.0', 'BSD-3-Clause', 'pkg:generic/libvpx@1.16.0', ['libvpx-LICENSE.txt', 'libvpx-PATENTS.txt']),
+    ('libwebp libwebpmux libsharpyuv', 'libwebp (libwebp, libwebpmux, libsharpyuv in av.libs)', '1.6.0', 'BSD-3-Clause',
+     'pkg:generic/libwebp@1.6.0', ['libwebp-COPYING.txt', 'libwebp-PATENTS.txt']),
+    ('libvpl', 'Intel VPL dispatcher (libvpl in av.libs)', '2.16.0', 'MIT', 'pkg:generic/libvpl@2.16.0', ['libvpl-LICENSE.txt']),
+    ('zlib1', 'zlib (zlib1 in av.libs)', '1.3.2', 'Zlib', 'pkg:generic/zlib@1.3.2', ['zlib-LICENSE.txt']),
+    ('libiconv', 'GNU libiconv (libiconv in av.libs)', '1.19', 'LGPL-2.1-or-later', 'pkg:generic/libiconv@1.19', ['libiconv-COPYING.LIB.txt']),
+    ('libgcc_s_seh libstdc++', 'GCC runtime libraries (libgcc_s_seh, libstdc++ in av.libs)', '16.1.0',
+     'GPL-3.0-or-later WITH GCC-exception-3.1', 'pkg:generic/gcc@16.1.0', ['gcc-COPYING3.txt', 'gcc-COPYING.RUNTIME.txt']),
+    ('libwinpthread', 'mingw-w64 winpthreads (libwinpthread in av.libs)', '14.0.0+git (MSYS2 build, as bundled in av 18.1.0)',
+     'MIT AND BSD-3-Clause', 'pkg:generic/mingw-w64-winpthreads@14.0.0', ['winpthreads-COPYING.txt']),
+]
+dlls = {re.sub(r'(-\d+)?-[0-9a-f]{32}$', '', f.stem) for f in site.glob('*.libs/*.dll')}
+listed = {d for row in av_libs for d in row[0].split()} | {'libscipy_openblas', 'libscipy_openblas64_', 'msvcp140'}
+if dlls != listed: sys.exit(f'site-packages/*.libs changed: unlisted {sorted(dlls - listed)}, no longer present {sorted(listed - dlls)}')
+for _, name, version, license_, purl, files in av_libs:
+    add('runtime', name, version, license_, purl, [licenses / f for f in files])
 
 bom = {'bomFormat': 'CycloneDX', 'specVersion': '1.5', 'version': 1,
        'metadata': {'component': {'type': 'application', 'name': 'Thanh Âm Studio', 'version': json.loads((ROOT / 'package.json').read_text())['version'], 'licenses': [{'expression': 'Apache-2.0'}]}},
