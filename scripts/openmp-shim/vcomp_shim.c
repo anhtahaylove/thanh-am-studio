@@ -38,7 +38,7 @@ __declspec(dllimport) void __kmpc_for_static_fini(ident_t *, int32_t);
 void vcomp_call(void *fn, int nargs, void **argv); /* vcomp_call.asm */
 
 static ident_t loc = {0, 2 /* KMP_IDENT_KMPC */, 0, 0, ";vcomp_shim;unknown;0;0;;"};
-enum { MAX_ARGS = 64 }; /* MSVC passes one argument per captured variable; real regions use a handful */
+enum { MAX_ARGS = 64 }; /* one per captured variable; the largest call passes 9 in torch_cpu.dll, 5 in ctranslate2.dll */
 
 static void micro(int32_t *gtid, int32_t *btid, void *fn, intptr_t nargs, void **argv) {
     (void)gtid; (void)btid;
@@ -76,7 +76,8 @@ __declspec(dllexport) void _vcomp_for_static_simple_init_i8(int64_t first, int64
                                                             int64_t *begin, int64_t *end) {
     int32_t lastiter = 0;
     int64_t lo = first, hi = last, stride = 0, incr = increment ? step : -step;
-    if (step == 0) { *begin = first; *end = last; return; }
+    /* MSVC never passes step <= 0; give this thread an empty range, as Wine's vcomp does, rather than call libomp. */
+    if (step <= 0) { *begin = 0; *end = increment ? -1 : 1; return; }
     __kmpc_for_static_init_8(&loc, __kmpc_global_thread_num(&loc), 34 /* kmp_sch_static */, &lastiter, &lo, &hi, &stride, incr, 1);
     *begin = lo; *end = hi;
 }

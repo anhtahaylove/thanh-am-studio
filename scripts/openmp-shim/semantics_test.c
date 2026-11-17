@@ -2,8 +2,10 @@
  * makes, then linked against the shim instead of vcomp.lib. setup-runtime.ps1 runs it and compares stdout with
  * semantics_expected.txt, which is this program's output when linked against Microsoft's vcomp140.dll (Intel's
  * libiomp5md.dll printed the same). To regenerate it, link the object without /NODEFAULTLIB:vcomp.lib and run it
- * next to vcomp140.dll. Covers int64 loops (bounds, steps, empty and one-iteration), num_threads, if(0), barrier,
- * nesting and by-value double/int captures. */
+ * next to vcomp140.dll. Covers int64 loops (bounds, steps, empty and one-iteration; each index counted atomically,
+ * so an index run twice shows), num_threads (and that it applies to the next region only, also after if(0)), if(0),
+ * barrier, nesting, by-value double/int captures, lastprivate with fewer iterations than threads, descending and
+ * on the loop variable, orphaned omp for from serial code and inside a region, and which thread runs each iteration. */
 #include <omp.h>
 #include <stdio.h>
 #include <string.h>
@@ -26,14 +28,20 @@ static void loop_case(long long lo, long long hi, long long step, int nt) {
     memset(hits, 0, sizeof hits);
     if (step > 0) {
 #pragma omp parallel for schedule(static) num_threads(nt)
-        for (i = lo; i < hi; i += step) hits[i] += 1 + omp_get_thread_num() * 0;
+        for (i = lo; i < hi; i += step) InterlockedIncrement64(&hits[i]);
     } else {
 #pragma omp parallel for schedule(static) num_threads(nt)
-        for (i = lo; i > hi; i += step) hits[i] += 1;
+        for (i = lo; i > hi; i += step) InterlockedIncrement64(&hits[i]);
     }
     long long total = 0;
     for (i = 0; i < N; i++) total += hits[i];
     printf("loop lo=%lld hi=%lld step=%lld nt=%d total=%lld hash=%llx\n", lo, hi, step, nt, total, fnv(hits, N));
+}
+
+static void orphan_for(long long n, long long *out) {
+    long long i;
+#pragma omp for schedule(static)
+    for (i = 0; i < n; i++) out[i] = omp_get_thread_num() + 1;
 }
 
 int main(void) {
@@ -87,5 +95,45 @@ int main(void) {
         }
     }
     printf("nested inner=%d,%d,%d,%d ids_ok=%d\n", inner_sizes[0], inner_sizes[1], inner_sizes[2], inner_sizes[3], inner_ids_ok);
+
+    /* lastprivate: trip count below the team size, descending, stride 3, and on the int64 loop variable */
+    long long i, lp = -7, lp2 = -7, lp3 = -7, lpi = -7;
+#pragma omp parallel for schedule(static) num_threads(8) lastprivate(lp)
+    for (i = 0; i < 3; i++) lp = i * 10 + 1;
+#pragma omp parallel for schedule(static) num_threads(8) lastprivate(lp2)
+    for (i = 2; i > -1; i--) lp2 = i * 10 + 1;
+#pragma omp parallel for schedule(static) num_threads(4) lastprivate(lp3)
+    for (i = 0; i < 11; i += 3) lp3 = i;
+#pragma omp parallel for schedule(static) num_threads(8) lastprivate(i)
+    for (i = 0; i < 3; i++) lpi = i;
+    printf("lastprivate small=%lld descending=%lld step3=%lld loop_var=%lld\n", lp, lp2, lp3, i);
+
+    /* num_threads applies to the next region only, and an if(0) region does not leave it set */
+    int max = omp_get_max_threads(), t1 = 0, t2 = 0, t3 = 0;
+#pragma omp parallel num_threads(3)
+    { if (omp_get_thread_num() == 0) t1 = omp_get_num_threads(); }
+#pragma omp parallel
+    { if (omp_get_thread_num() == 0) t2 = omp_get_num_threads(); }
+#pragma omp parallel if(cond) num_threads(3)
+    { }
+#pragma omp parallel
+    { if (omp_get_thread_num() == 0) t3 = omp_get_num_threads(); }
+    printf("num_threads(3)=%d next_is_max=%d after_if0_is_max=%d\n", t1, t2 == max, t3 == max);
+
+    /* orphaned omp for, from serial code and inside a region */
+    long long out[5] = {0}, out2[7] = {0};
+    orphan_for(5, out);
+#pragma omp parallel num_threads(3)
+    orphan_for(7, out2);
+    printf("orphan serial: %lld %lld %lld %lld %lld\n", out[0], out[1], out[2], out[3], out[4]);
+    printf("orphan in region: %lld %lld %lld %lld %lld %lld %lld\n", out2[0], out2[1], out2[2], out2[3], out2[4], out2[5], out2[6]);
+
+    /* which thread runs each iteration of a static loop */
+    long long owner[10];
+#pragma omp parallel for schedule(static) num_threads(4)
+    for (i = 0; i < 10; i++) owner[i] = omp_get_thread_num();
+    printf("owners:");
+    for (i = 0; i < 10; i++) printf(" %lld", owner[i]);
+    printf("\n");
     return 0;
 }

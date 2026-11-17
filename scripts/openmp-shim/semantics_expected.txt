@@ -42,3 +42,8 @@ team=6 ids=6 barrier_ok=1
 if0 team=1 id=0
 firstprivate acc=-226,1274,2774,4274,5774,7274,8774,10274
 nested inner=2,2,2,2 ids_ok=1
+lastprivate small=21 descending=1 step3=-7 loop_var=3
+num_threads(3)=3 next_is_max=1 after_if0_is_max=1
+orphan serial: 1 1 1 1 1
+orphan in region: 1 1 1 2 2 3 3
+owners: 0 0 0 1 1 1 2 2 3 3

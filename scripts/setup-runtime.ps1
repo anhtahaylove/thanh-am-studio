@@ -20,6 +20,7 @@ $destinationPath = [IO.Path]::GetFullPath($Destination)
 New-Item -ItemType Directory -Path $destinationPath -Force | Out-Null
 $managed = Join-Path $destinationPath 'managed'
 $oldManaged = $env:UV_PYTHON_INSTALL_DIR
+$oldVslang = $env:VSLANG
 try {
     $env:UV_PYTHON_INSTALL_DIR = $managed
     & uv python install $PythonVersion
@@ -79,6 +80,7 @@ try {
     $shim = Join-Path $omp 'libiomp5md.dll'
     $msvcVersion = (Get-Content -LiteralPath (Join-Path $vs 'VC\Auxiliary\Build\Microsoft.VCToolsVersion.default.txt')).Trim()
     $dumpbin = Join-Path $vs "VC\Tools\MSVC\$msvcVersion\bin\Hostx64\x64\dumpbin.exe"
+    $env:VSLANG = '1033' # English tool output on a localized Visual Studio; the dumpbin parsing below expects it
     # The shim forwards every libomp export, read from the package's import library (which also says which exports are
     # data and must be marked DATA), so a new pin re-forwards without a checked-in list.
     $forwarded = foreach ($line in & $dumpbin /nologo /headers (Join-Path $omp 'Library\lib\libomp.lib')) {
@@ -90,7 +92,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'OpenMP shim build failed.' }
     Copy-Item -LiteralPath $libomp -Destination $omp
     $semantics = & (Join-Path $omp 'semantics_test.exe')
-    if ($LASTEXITCODE -ne 0 -or ($semantics -join "`n") -ne ((Get-Content -LiteralPath (Join-Path $PSScriptRoot 'openmp-shim\semantics_expected.txt')) -join "`n")) {
+    if ($LASTEXITCODE -ne 0 -or ($semantics -join "`n") -cne ((Get-Content -LiteralPath (Join-Path $PSScriptRoot 'openmp-shim\semantics_expected.txt')) -join "`n")) {
         throw "OpenMP shim results differ from Microsoft's vcomp140 (scripts/openmp-shim/semantics_expected.txt): $($semantics -join "`n")"
     }
     # libomp.dll goes next to every shim: an STT job loads only ctranslate2's copy, a separation job only torch's.
@@ -114,17 +116,17 @@ try {
         }
     }
     # NVIDIA cuDNN ships in the ctranslate2 wheel for GPU use. Nothing imports it; ctranslate2 only preloads every DLL
-    # in its folder, so the CPU runtime does not need it.
-    Remove-Item -LiteralPath (Join-Path $site 'ctranslate2\cudnn64_9.dll') -Force -ErrorAction SilentlyContinue
-    # Fail the build if an Intel OpenMP or x264/x265 binary remains, or if any binary imports a symbol its replacement
-    # does not export (e.g. a torch or ctranslate2 bump that starts using another _vcomp_* entry point).
+    # in its folder, so the CPU runtime does not need it. A missing or locked file stops the build.
+    Remove-Item -LiteralPath (Join-Path $site 'ctranslate2\cudnn64_9.dll') -Force
+    # Fail the build if an Intel OpenMP, x264/x265 or cuDNN binary remains, or if any binary imports a symbol its
+    # replacement does not export (e.g. a torch or ctranslate2 bump that starts using another _vcomp_* entry point).
     $pes = Get-ChildItem -LiteralPath $pythonDir -Recurse -File -Include '*.dll', '*.pyd', '*.exe'
     $banned = $pes | Where-Object {
         $v = $_.VersionInfo
-        "$($v.ProductName) $($v.CompanyName) $($v.FileDescription)" -match 'Intel.*OpenMP|x264|x265|HEVC video encoder|H\.264.*encoder' -or
-        ($_.Name -match '^libx26[45]-' -and $_.Length -gt 64KB)
+        "$($v.ProductName) $($v.CompanyName) $($v.FileDescription)" -match 'Intel.*OpenMP|x264|x265|HEVC video encoder|H\.264.*encoder|cuDNN' -or
+        ($_.Name -match '^libx26[45]-' -and $_.Length -gt 64KB) -or $_.Name -match '^cudnn'
     }
-    if ($banned) { throw "Intel OpenMP or x264/x265 binaries remain: $($banned.FullName -join ', ')" }
+    if ($banned) { throw "Intel OpenMP, x264/x265 or cuDNN binaries remain: $($banned.FullName -join ', ')" }
     foreach ($dll in $replacements.Keys) {
         $exports = & $dumpbin /nologo /exports $replacements[$dll] | ForEach-Object { if ($_ -cmatch '^\s+\d+\s+[0-9A-F]+\s+(?:[0-9A-F]{8}\s+)?(\S+)') { $Matches[1] } }
         $imports = for ($i = 0; $i -lt $pes.Count; $i += 50) {
@@ -133,7 +135,7 @@ try {
                 if ($line -cmatch '^Dump of file (.+)$') { $file = $Matches[1]; $inBlock = $false }
                 elseif ($line -match "^\s+$([regex]::Escape($dll))$") { $inBlock = $true }
                 elseif ($line -cmatch '^\s+Summary$') { $inBlock = $false }
-                elseif ($inBlock -and $line -cmatch '^\s+[0-9A-F]+ (\S+)$') { [pscustomobject]@{ File = $file; Symbol = $Matches[1] } }
+                elseif ($inBlock -and $line -cmatch '^\s+[0-9A-F]{1,4} (\S+)$') { [pscustomobject]@{ File = $file; Symbol = $Matches[1] } }
                 elseif ($inBlock -and $line -cmatch '^\s+Ordinal\s') { throw "$file imports $dll by ordinal; the replacement's ordinals differ from the original's." }
             }
         }
@@ -181,4 +183,5 @@ try {
     Write-Output "Runtime ready at $destinationPath. Tauri bundles it as resources/runtime. Models are downloaded separately in the app."
 } finally {
     $env:UV_PYTHON_INSTALL_DIR = $oldManaged
+    $env:VSLANG = $oldVslang
 }
