@@ -29,7 +29,7 @@ test('the cleaned sample is made once in the queue, plays when it is ready, and 
  await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:'Thư viện giọng'}).click();
  const listen=page.getByRole('button',{name:'Nghe mẫu đã làm sạch'});
  await expect(listen).toBeDisabled(); // no sample yet
- await expect(page.getByText('Chỉ dùng 8 giây có nhiều tiếng nói nhất của mẫu, đã lọc ồn. Nghe thử: nếu còn nhạc, tiếng ồn hoặc giọng khác, hãy chọn mẫu khác.')).toBeVisible();
+ await expect(page.getByText('Chỉ dùng 8 giây có âm thanh to và liền mạch nhất của mẫu (nhạc hoặc tiếng ồn to cũng có thể được chọn), đã lọc ồn. Nghe thử: nếu còn nhạc, tiếng ồn hoặc giọng khác, hãy chọn mẫu khác.')).toBeVisible();
  await page.getByRole('button',{name:'Chọn mẫu audio'}).click();await expect(page.getByRole('button',{name:'mẫu giọng.wav'})).toBeVisible();
  await listen.click(); // no consent needed: nothing is cloned
  expect(await calls(page,'enqueue_job')).toEqual([{kind:'clone_preview',projectId:null,payload:{asset_id:'a1',name:'mẫu giọng.wav',version}}]);

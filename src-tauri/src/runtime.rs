@@ -3,7 +3,7 @@ use serde_json::{json,Value};
 use std::{fs,io::{BufRead,BufReader,Write},path::{Path,PathBuf},process::{Command,Stdio},sync::{Arc,atomic::{AtomicBool,Ordering}},thread,time::Duration};
 #[cfg(windows)] use std::os::windows::process::CommandExt;
 
-pub const MODELS:&[(&str,&str,&str,&str)] = &[("vieneu-v3","VieNeu v3 Turbo","tts","Apache-2.0"),("whisper-small","Whisper Small","stt","MIT"),("whisper-turbo","Whisper Large v3 Turbo","stt","MIT"),("diarization","Phân biệt người nói (pyannote + CAM++)","stt","MIT, Apache-2.0"),("htdemucs","Tách giọng và nhạc nền (HTDemucs)","separation","Mã MIT; trọng số chưa rõ giấy phép (dữ liệu MusDB chỉ cho nghiên cứu)")];
+pub const MODELS:&[(&str,&str,&str,&str)] = &[("vieneu-v3","VieNeu v3 Turbo","tts","Apache-2.0"),("whisper-small","Whisper Small","stt","MIT"),("whisper-turbo","Whisper Large v3 Turbo","stt","MIT"),("diarization","Phân biệt người nói (pyannote + CAM++)","stt","MIT, Apache-2.0"),("htdemucs","Tách giọng và nhạc nền (HTDemucs)","separation","Mã MIT; trọng số chưa rõ giấy phép (huấn luyện trên MusDB-HQ, chỉ cho nghiên cứu, và 800 bài hát chưa công bố)")];
 /// Queued TTS jobs share one worker process so the model loads once (~13 s on CPU).
 pub const TTS_BATCH:usize=32;
 /// Workers join a kill-on-close job object so a crashed or killed app never leaves Python running.

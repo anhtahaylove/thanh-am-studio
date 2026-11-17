@@ -14,7 +14,7 @@ Use `scripts/setup-runtime.ps1` with uv available (no administrator rights). It 
 
 Model IDs: `vieneu-v3`, `whisper-small`, `whisper-turbo`, `diarization`, `htdemucs`. Pass `models/<id>` as `model_path`. VieNeu uses ONNX FP32, CPU, a single batch and no GPU dependencies. HF offline flags are set before engine imports. The pinned wrapper does not forward its codec directory, so a narrow constructor-scoped resolver maps only the known codec repository to our verified local codec folder. It is restored immediately after initialization. Unexpected model requests fail rather than fetching an unpinned model.
 
-`htdemucs` (optional, user-started download) is the HTDemucs safetensors from `adefossez/HTDemucs` at `cbc8a9b`: code MIT, weights' license unclear upstream (trained with MusDB, research only). `separate` refuses a file whose metadata names another class than `demucs.htdemucs.HTDemucs` before building it (the SHA-256 pin is the real guard).
+`htdemucs` (optional, user-started download) is the HTDemucs safetensors from `adefossez/HTDemucs` at `cbc8a9b`: code MIT, weights' license unclear upstream (trained on MusDB-HQ, research only, plus 800 unpublished songs). `separate` refuses a file whose metadata names another class than `demucs.htdemucs.HTDemucs` before building it (the SHA-256 pin is the real guard).
 
 Fresh reference cloning is supported via `reference_path`; consent and asset access checks belong to the desktop boundary. Do not copy user voice references into source control.
 

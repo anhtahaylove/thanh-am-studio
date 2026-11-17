@@ -270,8 +270,8 @@
       "name": "HTDemucs (vocals and background separation)",
       "engine": "demucs",
       "revision": "cbc8a9b1a87023b7fd74e7b3412e6321c0eab003",
-      "license": "Mã MIT; trọng số chưa rõ giấy phép (dữ liệu MusDB chỉ cho nghiên cứu)",
-      "description": "Local CPU model (PyTorch). Hybrid Transformer Demucs: code MIT; the weights' license is unclear upstream (trained with MusDB, which is for research only). Optional; download it before separating a background.",
+      "license": "Mã MIT; trọng số chưa rõ giấy phép (huấn luyện trên MusDB-HQ, chỉ cho nghiên cứu, và 800 bài hát chưa công bố)",
+      "description": "Local CPU model (PyTorch). Hybrid Transformer Demucs: code MIT; the weights' license is unclear upstream (trained on MusDB-HQ, which is for research only, plus 800 unpublished songs). Optional; download it before separating a background.",
       "artifacts": [
         {
           "path": "955717e8.safetensors",

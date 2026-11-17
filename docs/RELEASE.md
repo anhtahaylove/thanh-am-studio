@@ -73,7 +73,7 @@ SBOM/notices; FFmpeg and python-soxr are LGPL and ship as separate replaceable f
 license and source pointer (`runtime/ffmpeg/SOURCE.txt`). Models (VieNeu v3 Turbo and the MOSS
 audio tokenizer: Apache-2.0; faster-whisper conversions: MIT) are downloaded by the user, not
 redistributed. The optional HTDemucs weights (code MIT; the weights' license is unclear upstream:
-trained with MusDB, which is for research only) are also a user-started download; say so in the
+trained on MusDB-HQ, which is for research only, plus 800 unpublished songs) are also a user-started download; say so in the
 release notes.
 
 The runtime includes Intel binaries: the Intel OpenMP runtime (`libiomp5md.dll` in torch and in
