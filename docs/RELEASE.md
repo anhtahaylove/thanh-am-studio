@@ -71,31 +71,37 @@ Installers are **not Authenticode-signed** (SignPath Foundation declined the app
 project's updater key by the release workflow. Record the signing status in the release notes. Third-party components and their licenses are listed in the generated
 SBOM/notices; FFmpeg and python-soxr are LGPL and ship as separate replaceable files with their
 license and source pointer (`runtime/ffmpeg/SOURCE.txt`). The PyAV wheel bundles a second FFmpeg
-build with its codec libraries in `av.libs`, including the GPL-licensed x264 and x265; the notices list
-each with its license text and the build's sources (`scripts/licenses/`, `pyav-ffmpeg-SOURCE.txt`), and
-`scripts/third_party.py` stops when a `*.libs` folder holds a DLL it does not list. soundfile's
+build with its codec libraries in `av.libs`. `scripts/setup-runtime.ps1` replaces its GPL x264 and x265
+encoder DLLs with the project's stubs (`scripts/encoder-stubs`: same file names, no encoder code; the app
+only decodes), so that build is listed under LGPL-3.0-or-later. The notices list each library with its
+license text and the build's sources (`scripts/licenses/`, `pyav-ffmpeg-SOURCE.txt`), and
+`scripts/third_party.py` stops when a `*.libs` folder holds a DLL it does not list, or when the runtime
+still holds a binary that setup-runtime replaces or removes. soundfile's
 `libsndfile_x64.dll` (LGPL) links FLAC, Ogg, Vorbis, Opus, mpg123 and LAME in statically; each is listed,
 with the build's sources in `scripts/licenses/libsndfile-SOURCE.txt`. The script also stops when a component
 has no license text; packages that ship none get theirs from `NO_LICENSE_FILE` in the script. Its last line
-names the GPL and LGPL components for review: python-soxr, both FFmpeg builds, x264, x265, LAME (twice),
+names the GPL and LGPL components for review: python-soxr, both FFmpeg builds, LAME (twice),
 GNU libiconv, the GCC runtime, libsndfile and mpg123 are expected. Models (VieNeu v3 Turbo and the MOSS
 audio tokenizer: Apache-2.0; faster-whisper conversions: MIT) are downloaded by the user, not
 redistributed. The optional HTDemucs weights (code MIT; the weights' license is unclear upstream:
 trained on MusDB-HQ, which is for research only, plus 800 unpublished songs) are also a user-started download; say so in the
 release notes.
 
-The runtime includes Intel binaries: the Intel OpenMP runtime (`libiomp5md.dll` in torch and in
-ctranslate2; Intel End User License Agreement for Developer Tools) and Intel oneMKL (linked into
-torch and ctranslate2; Intel Simplified Software License). Their texts are in `scripts/licenses/` (from the
-`intel-openmp` 2026.2.0 and `mkl` 2026.2.1 wheels) and `scripts/third_party.py` adds them to the
-notices. The EULA lets a product redistribute the runtime only under a license agreement that forbids
-reverse engineering it, and makes the distributor responsible to its users and indemnify Intel; the
-owner accepted these terms on 2026-11-16. The installer therefore shows `src-tauri/installer-license.txt`
-as an "I agree" page (silent `/S` installs and the updater's passive install skip it) and installs
-`LICENSE.txt` and `THIRD-PARTY-NOTICES.txt`. Before publishing, check the tagged build's notices:
-`Select-String 'Intel Simplified Software License','Intel End User License Agreement for Developer Tools' release/THIRD-PARTY-NOTICES.txt`.
-A click-through page passes Intel's restrictions and disclaimers on to users; it does not move the
-distributor's own obligations to Intel, which stay with the publisher. On 2026-11-17 the owner chose
-to keep shipping these binaries, to say in the README and in every release's notes that releases are
-made for friends and family and provided as is, without warranty (Apache-2.0 sections 7 and 8), and
-to try replacing the Intel OpenMP runtime with LLVM's (see STATUS).
+The only Intel binary in the runtime is Intel oneMKL (linked into torch and ctranslate2; Intel
+Simplified Software License, text in `scripts/licenses/` from the `mkl` 2026.2.1 wheel). Its terms forbid
+reverse engineering and modifying it, so the installer shows `src-tauri/installer-license.txt` as an
+"I agree" page (silent `/S` installs and the updater's passive install skip it) and installs
+`LICENSE.txt` and `THIRD-PARTY-NOTICES.txt`. Since 1.0.16, `scripts/setup-runtime.ps1` replaces the Intel
+OpenMP runtime that the torch and ctranslate2 wheels ship (Intel End User License Agreement for Developer
+Tools) with the LLVM OpenMP runtime 23.1.5 (conda-forge `llvm-openmp`, pinned by SHA-256; Apache-2.0 WITH
+LLVM-exception), loaded through the project's `libiomp5md.dll` shim (`scripts/openmp-shim`), which adds the
+five MSVC vcomp entry points both packages import. The build fails if a binary imports a symbol the shim
+lacks or an Intel OpenMP binary remains. setup-runtime also deletes ctranslate2's unused NVIDIA cuDNN DLL,
+and an installer hook (`src-tauri/installer-hooks.nsh`) deletes `libiompstubs5md.dll` and `cudnn64_9.dll`,
+which an update over 1.0.15 would otherwise leave behind. Before publishing, check the tagged build's
+notices: `Select-String 'Intel Simplified Software License','LLVM-exception' release/THIRD-PARTY-NOTICES.txt`
+finds both, and `Select-String 'for Developer Tools' release/THIRD-PARTY-NOTICES.txt` finds nothing. On
+2026-11-17 the owner chose to say in the README and in every release's notes that releases are made for
+friends and family and provided as is, without warranty (Apache-2.0 sections 7 and 8), and to ship
+1.0.16 with the Intel OpenMP runtime replaced, so the installer no longer redistributes a binary under
+the Intel EULA.

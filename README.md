@@ -78,12 +78,14 @@ open. The app is provided as is, without warranty or liability of any kind (Apac
 and 8); use it at your own risk.
 
 The installer includes third-party binaries under their own terms, listed in
-`THIRD-PARTY-NOTICES.txt` (installed next to the app and attached to each release). Two come from
-Intel: the Intel OpenMP runtime (`libiomp5md.dll`, inside the bundled PyTorch and CTranslate2) under
-the Intel End User License Agreement for Developer Tools, and Intel oneMKL (linked into PyTorch and
-CTranslate2) under the Intel Simplified Software License. The installer's licence page summarises them: you may
-not reverse engineer, decompile, disassemble or modify these Intel components, and Intel's warranty
-disclaimers and limitations of liability apply to you. Read the full terms before you install.
+`THIRD-PARTY-NOTICES.txt` (installed next to the app and attached to each release). The only Intel
+component is Intel oneMKL (linked into PyTorch and CTranslate2), under the Intel Simplified Software
+License. The installer's licence page summarises it: you may not reverse engineer, decompile,
+disassemble or modify it, and Intel's warranty disclaimers and limitations of liability apply to you.
+Read the full terms before you install. From 1.0.16 the runtime uses the LLVM OpenMP runtime
+(Apache-2.0 WITH LLVM-exception) instead of Intel's, loaded through the project's own `libiomp5md.dll`
+shim; PyAV's GPL x264 and x265 encoder libraries are replaced by the project's stubs (the app only
+decodes), and the unused NVIDIA cuDNN library is left out.
 Updates and silent installs (`/S`) do not show the page again; the same terms apply to what they
 install.
 

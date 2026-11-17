@@ -10,12 +10,17 @@ $PythonVersion = '3.11.18'
 $FfmpegTag = 'autobuild-2026-11-10-12-39'
 $FfmpegAsset = 'ffmpeg-n9.0.2-48-gd4070a14ce-win64-lgpl-shared-9.0'
 $FfmpegSha256 = 'cdc19c20aa80d46f78cfc69c8d87430ee34990864e30379db02d1447cd111e83'
+# conda-forge llvm-openmp (LLVM OpenMP runtime, Apache-2.0 WITH LLVM-exception), pinned by URL and SHA-256. It replaces
+# Intel's OpenMP runtime; scripts/openmp-shim/vcomp_shim.c explains the shim built against it.
+$LlvmOpenmpUrl = 'https://conda.anaconda.org/conda-forge/win-64/llvm-openmp-23.1.5-h49e36cd_0.conda'
+$LlvmOpenmpSha256 = 'f7b5e57c99568c23d97759820b9bb2eeae47dff5ba024ddc9dcdc08780da527d'
 
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $destinationPath = [IO.Path]::GetFullPath($Destination)
 New-Item -ItemType Directory -Path $destinationPath -Force | Out-Null
 $managed = Join-Path $destinationPath 'managed'
 $oldManaged = $env:UV_PYTHON_INSTALL_DIR
+$oldVslang = $env:VSLANG
 try {
     $env:UV_PYTHON_INSTALL_DIR = $managed
     & uv python install $PythonVersion
@@ -54,6 +59,92 @@ try {
     # Torch's C++ headers, import libraries and build tools only serve compiling extensions.
     foreach ($rel in @('include', 'bin', 'share')) { Remove-Item -LiteralPath (Join-Path $site "torch\$rel") -Recurse -Force -ErrorAction SilentlyContinue }
     Remove-Item -Path (Join-Path $site 'torch\lib\*.lib') -Force -ErrorAction SilentlyContinue
+
+    # Replace Intel's OpenMP runtime (libiomp5md.dll in torch and ctranslate2, Intel EULA) with LLVM's libomp.dll behind
+    # the shim in scripts/openmp-shim, which keeps the libiomp5md.dll name and adds the MSVC vcomp entry points.
+    $ompPkg = Join-Path ([IO.Path]::GetTempPath()) ([IO.Path]::GetFileName($LlvmOpenmpUrl))
+    if (-not (Test-Path -LiteralPath $ompPkg) -or (Get-FileHash -LiteralPath $ompPkg -Algorithm SHA256).Hash -ne $LlvmOpenmpSha256) {
+        Invoke-WebRequest -Uri $LlvmOpenmpUrl -OutFile $ompPkg
+    }
+    if ((Get-FileHash -LiteralPath $ompPkg -Algorithm SHA256).Hash -ne $LlvmOpenmpSha256) { throw 'llvm-openmp package checksum mismatch.' }
+    $omp = "$ompPkg-build"
+    if (Test-Path -LiteralPath $omp) { Remove-Item -LiteralPath $omp -Recurse -Force }
+    New-Item -ItemType Directory -Path $omp -Force | Out-Null
+    # System32's bsdtar reads the .conda zip and its zstd tarball; tar on PATH may be Git's GNU tar.
+    $tar = Join-Path $env:SystemRoot 'System32\tar.exe'
+    & $tar -xf $ompPkg -C $omp
+    if ($LASTEXITCODE -ne 0) { throw 'llvm-openmp package extraction failed.' }
+    & $tar -xf (Get-ChildItem -LiteralPath $omp -Filter 'pkg-*.tar.zst').FullName -C $omp Library/bin/libomp.dll Library/lib/libomp.lib
+    if ($LASTEXITCODE -ne 0) { throw 'llvm-openmp package extraction failed.' }
+    $libomp = Join-Path $omp 'Library\bin\libomp.dll'
+    $shim = Join-Path $omp 'libiomp5md.dll'
+    $msvcVersion = (Get-Content -LiteralPath (Join-Path $vs 'VC\Auxiliary\Build\Microsoft.VCToolsVersion.default.txt')).Trim()
+    $dumpbin = Join-Path $vs "VC\Tools\MSVC\$msvcVersion\bin\Hostx64\x64\dumpbin.exe"
+    $env:VSLANG = '1033' # English tool output on a localized Visual Studio; the dumpbin parsing below expects it
+    # The shim forwards every libomp export, read from the package's import library (which also says which exports are
+    # data and must be marked DATA), so a new pin re-forwards without a checked-in list.
+    $forwarded = foreach ($line in & $dumpbin /nologo /headers (Join-Path $omp 'Library\lib\libomp.lib')) {
+        if ($line -cmatch '^\s+Symbol name\s*:\s*(\S+)$') { $name = $Matches[1] }
+        elseif ($line -cmatch '^\s+Type\s*:\s*(code|data)$') { "    $name=libomp.$name" + $(if ($Matches[1] -eq 'data') { ' DATA' }) }
+    }
+    Set-Content -LiteralPath (Join-Path $omp 'libiomp5md.def') -Encoding ascii -Value (@('LIBRARY libiomp5md', 'EXPORTS') + $forwarded)
+    & (Join-Path $PSScriptRoot 'openmp-shim\build.cmd') (Join-Path $vs 'VC\Auxiliary\Build\vcvars64.bat') (Join-Path $omp 'Library\lib') $omp
+    if ($LASTEXITCODE -ne 0) { throw 'OpenMP shim build failed.' }
+    Copy-Item -LiteralPath $libomp -Destination $omp
+    $semantics = & (Join-Path $omp 'semantics_test.exe')
+    if ($LASTEXITCODE -ne 0 -or ($semantics -join "`n") -cne ((Get-Content -LiteralPath (Join-Path $PSScriptRoot 'openmp-shim\semantics_expected.txt')) -join "`n")) {
+        throw "OpenMP shim results differ from Microsoft's vcomp140 (scripts/openmp-shim/semantics_expected.txt): $($semantics -join "`n")"
+    }
+    # libomp.dll goes next to every shim: an STT job loads only ctranslate2's copy, a separation job only torch's.
+    # Delete before copying: uv hardlinks installed files to its cache, so writing over them would change the cache
+    # and every other environment linked to it.
+    foreach ($dir in (Get-ChildItem -LiteralPath $pythonDir -Recurse -File -Filter 'libiomp5md.dll').DirectoryName) {
+        Get-ChildItem -LiteralPath $dir -File | Where-Object Name -In 'libiomp5md.dll', 'libomp.dll' | Remove-Item -Force
+        Copy-Item -LiteralPath $shim, $libomp -Destination $dir
+    }
+    Get-ChildItem -LiteralPath $pythonDir -Recurse -File -Filter 'libiompstubs5md.dll' | Remove-Item -Force
+    # PyAV's FFmpeg links the GPL x264 and x265 encoders, but the app only decodes. Replace both DLLs, under the same
+    # file names (deleted first, as above), with the stand-ins in scripts/encoder-stubs, which encode nothing.
+    & (Join-Path $PSScriptRoot 'encoder-stubs\build.cmd') (Join-Path $vs 'VC\Auxiliary\Build\vcvars64.bat') $omp
+    if ($LASTEXITCODE -ne 0) { throw 'Encoder stub build failed.' }
+    $replacements = @{ 'libiomp5md.dll' = $shim }
+    foreach ($n in 'x264', 'x265') {
+        foreach ($real in Get-ChildItem -LiteralPath (Join-Path $site 'av.libs') -File -Filter "lib$n-*.dll") {
+            Remove-Item -LiteralPath $real.FullName -Force
+            Copy-Item -LiteralPath (Join-Path $omp "$n.dll") -Destination $real.FullName
+            $replacements[$real.Name] = Join-Path $omp "$n.dll"
+        }
+    }
+    # NVIDIA cuDNN ships in the ctranslate2 wheel for GPU use. Nothing imports it; ctranslate2 only preloads every DLL
+    # in its folder, so the CPU runtime does not need it. A missing or locked file stops the build.
+    Remove-Item -LiteralPath (Join-Path $site 'ctranslate2\cudnn64_9.dll') -Force
+    # Fail the build if an Intel OpenMP, x264/x265 or cuDNN binary remains, or if any binary imports a symbol its
+    # replacement does not export (e.g. a torch or ctranslate2 bump that starts using another _vcomp_* entry point).
+    $pes = Get-ChildItem -LiteralPath $pythonDir -Recurse -File -Include '*.dll', '*.pyd', '*.exe'
+    $banned = $pes | Where-Object {
+        $v = $_.VersionInfo
+        "$($v.ProductName) $($v.CompanyName) $($v.FileDescription)" -match 'Intel.*OpenMP|x264|x265|HEVC video encoder|H\.264.*encoder|cuDNN' -or
+        ($_.Name -match '^libx26[45]-' -and $_.Length -gt 64KB) -or $_.Name -match '^cudnn'
+    }
+    if ($banned) { throw "Intel OpenMP, x264/x265 or cuDNN binaries remain: $($banned.FullName -join ', ')" }
+    foreach ($dll in $replacements.Keys) {
+        $exports = & $dumpbin /nologo /exports $replacements[$dll] | ForEach-Object { if ($_ -cmatch '^\s+\d+\s+[0-9A-F]+\s+(?:[0-9A-F]{8}\s+)?(\S+)') { $Matches[1] } }
+        $imports = for ($i = 0; $i -lt $pes.Count; $i += 50) {
+            $file = $null; $inBlock = $false
+            foreach ($line in & $dumpbin /nologo /imports:$dll $pes[$i..($i + 49)].FullName) {
+                if ($line -cmatch '^Dump of file (.+)$') { $file = $Matches[1]; $inBlock = $false }
+                elseif ($line -match "^\s+$([regex]::Escape($dll))$") { $inBlock = $true }
+                elseif ($line -cmatch '^\s+Summary$') { $inBlock = $false }
+                elseif ($inBlock -and $line -cmatch '^\s+[0-9A-F]{1,4} (\S+)$') { [pscustomobject]@{ File = $file; Symbol = $Matches[1] } }
+                elseif ($inBlock -and $line -cmatch '^\s+Ordinal\s') { throw "$file imports $dll by ordinal; the replacement's ordinals differ from the original's." }
+            }
+        }
+        if (-not $imports) { throw "No runtime binary imports ${dll}: the import scan is broken, or its replacement is no longer needed." }
+        $missing = @($imports | Where-Object Symbol -notin $exports)
+        if ($missing) { throw "The replacement $dll does not export: $(($missing | ForEach-Object { "$($_.Symbol) (imported by $($_.File))" }) -join ', ')" }
+        Write-Output "Import check: all $(@($imports.Symbol | Sort-Object -Unique).Count) symbols that $((@($imports.File | Sort-Object -Unique) | Split-Path -Leaf) -join ', ') import from $dll are among the replacement's $($exports.Count) exports."
+    }
+    Remove-Item -LiteralPath $omp -Recurse -Force
     Remove-Item -LiteralPath $managed -Recurse -Force
 
     $bin = Join-Path $destinationPath 'ffmpeg'
@@ -92,4 +183,5 @@ try {
     Write-Output "Runtime ready at $destinationPath. Tauri bundles it as resources/runtime. Models are downloaded separately in the app."
 } finally {
     $env:UV_PYTHON_INSTALL_DIR = $oldManaged
+    $env:VSLANG = $oldVslang
 }

@@ -33,6 +33,7 @@ jobs:
           key: ${{ steps.ffmpeg.outputs.key }}
       - name: Build private runtime (Python + FFmpeg)
         shell: pwsh
+        timeout-minutes: 60  # a deadlocked OpenMP semantics test must not hold the runner for 6 h
         run: ./scripts/setup-runtime.ps1
       - name: SBOM and notices
         run: python scripts/third_party.py release
