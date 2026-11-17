@@ -10,6 +10,6 @@ INTEL COMPONENTS
 This product includes the following Intel software, in binary form only:
 
 - Intel OpenMP runtime (libiomp5md.dll, inside the bundled PyTorch and CTranslate2 packages), provided under the Intel End User License Agreement for Developer Tools.
-- Intel oneMKL, linked into the bundled PyTorch library, provided under the Intel Simplified Software License.
+- Intel oneMKL, linked into the bundled PyTorch and CTranslate2 libraries, provided under the Intel Simplified Software License.
 
 By installing this product you agree that you may not reverse engineer, decompile or disassemble these Intel components, and may not modify them. Intel's disclaimers of warranty and limitations of liability in those license terms apply to you and are binding on you. Their full license terms are in THIRD-PARTY-NOTICES.txt.

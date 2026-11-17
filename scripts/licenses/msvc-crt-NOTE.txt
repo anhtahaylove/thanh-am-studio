@@ -1,0 +1,18 @@
+Microsoft Visual C++ runtime DLLs: concrt140, msvcp140, msvcp140_1, msvcp140_2, msvcp140_atomic_wait,
+msvcp140_codecvt_ids, vccorlib140, vcruntime140, vcruntime140_1 and vcruntime140_threads next to python.exe
+(14.44 when this note was written), and the msvcp140 copies that the numpy and llvmlite wheels bring in
+numpy.libs and llvmlite.libs. Copyright Microsoft Corporation.
+
+These files are Microsoft "Distributable Code". scripts/setup-runtime.ps1 copies them unmodified from the Visual C++
+redistributable folder of Visual Studio 2022 (VC\Redist\MSVC\<version>\x64\Microsoft.VC143.CRT). Microsoft ships no
+licence file with them: their terms are the "Distributable Code" section of the Microsoft Software License Terms of
+the Visual Studio 2022 edition that provides them, and Microsoft's Distributable Code list for Visual Studio 2022 says:
+
+  "Subject to the License Terms for the software, you may copy and distribute with your program any of the files
+  within the following folder and its subfolders except as noted below. You may not modify these files.
+  [VisualStudioFolder]\VC\redist"
+
+Distributable Code list: https://learn.microsoft.com/en-us/visualstudio/releases/2022/redistribution
+License terms: https://visualstudio.microsoft.com/license-terms/vs2022-ga-proenterprise/ (Enterprise and Professional)
+and https://visualstudio.microsoft.com/license-terms/vs2022-ga-community/ (Community).
+The CPython entry's LICENSE.txt states the matching conditions for the Microsoft Distributable Code in CPython's own build.
