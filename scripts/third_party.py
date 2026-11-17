@@ -82,11 +82,12 @@ for info in sorted(site.glob('*.dist-info')):
     add('pypi', m['Name'], m['Version'], lic, f"pkg:pypi/{m['Name'].lower()}@{m['Version']}", files)
 add('runtime', 'CPython', '3.11.18', 'PSF-2.0', 'pkg:generic/cpython@3.11.18', [ROOT / 'runtime' / 'python' / 'LICENSE.txt'])
 add('runtime', 'Microsoft Visual C++ Redistributable CRT (app-local DLLs next to python.exe; msvcp140 in numpy.libs and llvmlite.libs)', '14.x', 'LicenseRef-Microsoft-VC-Redist', 'pkg:generic/msvc-crt@14', [ROOT / 'scripts' / 'licenses' / 'msvc-crt-NOTE.txt'])
-# Intel binaries inside the torch and ctranslate2 wheels, whose dist-info carries no Intel text; the texts come from the
-# dist-info of the mkl 2026.2.1 and intel-openmp 2026.2.0 wheels (scripts/licenses/).
+# setup-runtime.ps1 replaces Intel's OpenMP runtime in torch and ctranslate2 with LLVM's, from the pinned conda-forge
+# package whose licence text is vendored in scripts/licenses/. oneMKL is linked into both binaries and their dist-info
+# carries no Intel text; it comes from the dist-info of the mkl 2026.2.1 wheel.
 licenses = ROOT / 'scripts' / 'licenses'
-add('runtime', 'Intel OpenMP runtime (libiomp5md.dll in torch and ctranslate2)', '20260828 (torch), 20250910 (ctranslate2)', 'LicenseRef-Intel-EULA-Developer-Tools',
-    'pkg:generic/intel-openmp@2026.2.0', [licenses / 'intel-openmp-runtime.txt'])
+add('runtime', 'LLVM OpenMP runtime (libomp.dll in torch/lib and ctranslate2)', '23.1.5', 'Apache-2.0 WITH LLVM-exception',
+    'pkg:conda/llvm-openmp@23.1.5?build=h49e36cd_0&channel=conda-forge&subdir=win-64', [licenses / 'llvm-openmp-LICENSE.txt'])
 add('runtime', 'Intel oneMKL (linked into torch and ctranslate2)', 'build 20260915 (torch), build 20251007 (ctranslate2)', 'LicenseRef-Intel-Simplified-Software-License', 'pkg:generic/intel-onemkl@2026.2',
     [licenses / 'intel-simplified-software-license.txt'])
 ff = ROOT / 'runtime' / 'ffmpeg'
@@ -98,11 +99,10 @@ add('runtime', 'FFmpeg (BtbN LGPL shared build)', '9.0.2', 'LGPL-2.1-or-later', 
 for pin in ('av-18.1.0', 'soundfile-0.14.0', 'sherpa_onnx_core-2.0.1'):
     if not (site / f'{pin}.dist-info').is_dir(): sys.exit(f'{pin} is no longer installed: update its bundled-library components below')
 av_libs = [  # (DLL names without soname and delvewheel hash, component, version, licence, purl, files in scripts/licenses)
-    ('avcodec avdevice avfilter avformat avutil swresample swscale', 'FFmpeg (PyAV build in av.libs)', '8.1.2', 'GPL-3.0-or-later',
-     'pkg:generic/ffmpeg@8.1.2', ['ffmpeg-COPYING.LGPLv3.txt', 'ffmpeg-COPYING.GPLv3.txt', 'pyav-ffmpeg-SOURCE.txt']),
-    ('libx264', 'x264 (libx264 in av.libs)', '0.165 (commit b35605a)', 'GPL-2.0-or-later',
-     'pkg:generic/x264@b35605ace3ddf7c1a5d67a2eb553f034aef41d55', ['x264-COPYING.txt']),
-    ('libx265', 'x265 (libx265 in av.libs)', '4.2', 'GPL-2.0-or-later', 'pkg:generic/x265@4.2', ['x265-COPYING.txt']),
+    # LGPLv3 is a set of additional permissions on the GPLv3, so both texts ship.
+    ('avcodec avdevice avfilter avformat avutil swresample swscale',
+     'FFmpeg (PyAV build in av.libs; its x264 and x265 encoder libraries are replaced by the stubs listed below)', '8.1.2',
+     'LGPL-3.0-or-later', 'pkg:generic/ffmpeg@8.1.2', ['ffmpeg-COPYING.LGPLv3.txt', 'ffmpeg-COPYING.GPLv3.txt', 'pyav-ffmpeg-SOURCE.txt']),
     ('libmp3lame', 'LAME (libmp3lame in av.libs)', '3.100', 'LGPL-2.0-or-later', 'pkg:generic/lame@3.100', ['lame-COPYING.txt']),
     ('libopencore-amrnb libopencore-amrwb', 'opencore-amr (libopencore-amrnb, libopencore-amrwb in av.libs)', '0.1.6', 'Apache-2.0',
      'pkg:generic/opencore-amr@0.1.6', ['opencore-amr-LICENSE.txt', 'opencore-amr-NOTICE.txt']),
@@ -122,10 +122,19 @@ av_libs = [  # (DLL names without soname and delvewheel hash, component, version
      'MIT AND BSD-3-Clause', 'pkg:generic/mingw-w64-winpthreads@14.0.0', ['winpthreads-COPYING.txt']),
 ]
 dlls = {re.sub(r'(-\d+)?-[0-9a-f]{32}$', '', f.stem) for f in site.glob('*.libs/*.dll')}
-listed = {d for row in av_libs for d in row[0].split()} | {'libscipy_openblas', 'libscipy_openblas64_', 'msvcp140'}
+listed = {d for row in av_libs for d in row[0].split()} | {'libscipy_openblas', 'libscipy_openblas64_', 'msvcp140', 'libx264', 'libx265'}
 if dlls != listed: sys.exit(f'site-packages/*.libs changed: unlisted {sorted(dlls - listed)}, no longer present {sorted(listed - dlls)}')
 for _, name, version, license_, purl, files in av_libs:
     add('runtime', name, version, license_, purl, [licenses / f for f in files])
+# These notices describe the runtime setup-runtime.ps1 builds: this project's stand-ins instead of Intel's OpenMP runtime
+# and the x264/x265 encoders, and no cuDNN. Stop on a runtime that still has the originals (the stand-ins are < 64 KB).
+stale = [f for f in [*site.rglob('libiomp5md.dll'), *site.glob('av.libs/libx26[45]-*.dll')] if f.stat().st_size > 256 * 1024]
+stale += [*site.rglob('libiompstubs5md.dll'), *site.rglob('cudnn64_*.dll')]
+if stale: sys.exit('runtime not built by the current scripts/setup-runtime.ps1: ' + ', '.join(str(f.relative_to(site)) for f in stale))
+app_version = json.loads((ROOT / 'package.json').read_text())['version']
+add('runtime', 'Thanh Âm Studio stand-in DLLs, part of this project: the OpenMP shim libiomp5md.dll in torch/lib and ctranslate2 '
+    '(scripts/openmp-shim) and the libx264 and libx265 stubs in av.libs, which contain no x264 or x265 code (scripts/encoder-stubs)',
+    app_version, 'Apache-2.0', f'pkg:github/anhtahaylove/thanh-am-studio@{app_version}', [ROOT / 'LICENSE'])
 # soundfile's libsndfile_x64.dll links its codec libraries in statically (scripts/licenses/libsndfile-SOURCE.txt).
 for name, version, license_, purl, files in [
     ('libsndfile (_soundfile_data/libsndfile_x64.dll in soundfile)', '1.2.2', 'LGPL-2.1-or-later', 'pkg:generic/libsndfile@1.2.2',
@@ -147,7 +156,7 @@ add('runtime', 'ONNX Runtime (onnxruntime.dll in sherpa_onnx/lib and Scripts, fr
 
 if no_text: sys.exit('no licence text for: ' + '; '.join(no_text) + ' (add it to NO_LICENSE_FILE)')
 bom = {'bomFormat': 'CycloneDX', 'specVersion': '1.5', 'version': 1,
-       'metadata': {'component': {'type': 'application', 'name': 'Thanh Âm Studio', 'version': json.loads((ROOT / 'package.json').read_text())['version'], 'licenses': [{'expression': 'Apache-2.0'}]}},
+       'metadata': {'component': {'type': 'application', 'name': 'Thanh Âm Studio', 'version': app_version, 'licenses': [{'expression': 'Apache-2.0'}]}},
        'components': components}
 (out / 'sbom.cdx.json').write_text(json.dumps(bom, ensure_ascii=False, indent=1), encoding='utf-8')
 (out / 'THIRD-PARTY-NOTICES.txt').write_text(

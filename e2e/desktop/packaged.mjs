@@ -947,6 +947,10 @@ try {
       if (!(await invoke('list_projects')).length) await invoke('create_project', {name: 'Giữ qua bản cập nhật'}); // run alone, the phase brings its own project
       const projects = (await invoke('list_projects')).length, sentinel = join(dirname(exe), 'uninstall.exe'), from = await invoke('plugin:app|version');
       rmSync(sentinel, {force: true}); // the installer writes it again near its end (Sandbox only: a failed install would leave no uninstaller)
+      // 1.0.15 shipped these and later versions do not; the updater installs without uninstalling, so src-tauri/installer-hooks.nsh deletes them.
+      const site = join(dirname(exe), 'runtime', 'python', 'Lib', 'site-packages');
+      const leftovers = () => [join(site, 'torch', 'lib', 'libiompstubs5md.dll'), join(site, 'ctranslate2', 'cudnn64_9.dll')].filter((f) => existsSync(f));
+      const before = leftovers().length;
       feed('/good');
       await page.getByRole('button', {name: 'Kiểm tra ngay'}).click();
       await page.getByText(/đã tải xong và đã kiểm chữ ký/).first().waitFor({timeout: 300000});
@@ -975,7 +979,8 @@ try {
       if (process.env.THANHAM_UPDATE_FROM && from === now) throw Error(`-From installed ${from}, the version under test, so no earlier release was updated`);
       const after = (await invoke('list_projects')).length;
       if (after !== projects) throw Error(`projects ${projects} -> ${after}`);
-      return `${from} -> ${now}, reopened; ${after} projects kept; installer copy ${left.join(' | ')} removed; requests ${served.join(' ')}`;
+      if (leftovers().length) throw Error(`left behind by the update: ${leftovers().join(' | ')}`);
+      return `${from} -> ${now}, reopened; ${after} projects kept; installer copy ${left.join(' | ')} removed; ${before} of 2 files the new version no longer ships were present, none left; requests ${served.join(' ')}`;
     });
   }
   if (phase === 'export') {

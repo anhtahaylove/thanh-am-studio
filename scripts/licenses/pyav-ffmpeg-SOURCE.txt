@@ -10,10 +10,6 @@ name these source archives and their SHA-256:
 
 FFmpeg 8.1.2            https://ffmpeg.org/releases/ffmpeg-8.1.2.tar.xz
                         464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c
-x264 0.165 (b35605a)    https://code.videolan.org/videolan/x264/-/archive/b35605ace3ddf7c1a5d67a2eb553f034aef41d55/x264-b35605ace3ddf7c1a5d67a2eb553f034aef41d55.tar.bz2
-                        6eeb82934e69fd51e043bd8c5b0d152839638d1ce7aa4eea65a3fedcf83ff224
-x265 4.2                https://bitbucket.org/multicoreware/x265_git/downloads/x265_4.2.tar.gz
-                        40b1ea0453e0309f0eba934e0ddf533f8f6295966679e8894e8f1c1c8d5e1210
 LAME 3.100              https://deb.debian.org/debian/pool/main/l/lame/lame_3.100.orig.tar.gz
                         ddfe36cab873794038ae2c1210557ad34857a4b6bdc515785d1da9e175b1da1e
 opencore-amr 0.1.6      https://downloads.sourceforge.net/project/opencore-amr/opencore-amr/opencore-amr-0.1.6.tar.gz
@@ -51,7 +47,9 @@ FFmpeg configuration, as reported by the bundled avcodec:
 --disable-encoder='avui,dca,mlp,opus,s302m,sonic,sonic_ls,truehd' --disable-decoder=sonic --disable-libjack
 --disable-indev=jack --disable-filter=gfxcapture
 
-The build links libx264 and libx265, which are licensed under the GPL version 2 or later. FFmpeg's LICENSE.md says
-that FFmpeg combined with them needs to be licensed as GPL as well; pyav-ffmpeg's patches/ffmpeg.patch moves both
-libraries off configure's GPL list, so the build does not pass --enable-gpl and reports "LGPL version 3 or later".
-These notices therefore list this FFmpeg build under the GPL version 3 or later.
+The build links the x264 and x265 encoder libraries (GPL version 2 or later); pyav-ffmpeg's patches/ffmpeg.patch moves
+both off configure's GPL list, so the build does not pass --enable-gpl and reports "LGPL version 3 or later". Thanh Âm
+Studio does not ship them: scripts/setup-runtime.ps1 replaces libx264-165-*.dll and libx265-*.dll in av.libs with
+stubs of the same names built from scripts/encoder-stubs, which contain no x264 or x265 code and make opening those
+two encoders fail. The FFmpeg libraries shipped here are therefore listed under the LGPL version 3 or later, whose
+terms also require the GPL version 3 text.
