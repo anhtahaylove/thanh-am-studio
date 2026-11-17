@@ -895,7 +895,8 @@ Same app code as 1.0.15; the bundled runtime and the installer changed (#117 not
 | Clean Sandbox 3, `-Only full,clone,dpi` | install 127 s; cleaned-sample preview 7808 ms after the bursts; clone WER 6.1 %; 4/4 layouts: 26 PASS, 0 FAIL |
 | Clean Sandbox 4, `-Only update -From` the published 1.0.15 | refused a package that does not match its signature, updated itself to 1.0.16 through the local feed and reopened with its project; `libiompstubs5md.dll` and `cudnn64_9.dll` were both present before and gone after (installer hook); the installer copy in `%TEMP%` was removed: 4 PASS, 0 FAIL |
 | Installed files, fifth clean Sandbox | both `libiomp5md.dll` copies are the 63,488-byte shim next to `libomp.dll` (675,840 bytes); the x264/x265 stubs are 6,656 and 3,584 bytes; no `libiompstubs5md.dll` or `cudnn64_9.dll`; health ready |
-| Not run | an antivirus scan (Microsoft Defender is turned off on the test machine, so it does not run in its Sandbox either); opening the licence page interactively; the update through GitHub itself; speed on other CPUs (AMD in particular) |
+| Antivirus, after publication | Microsoft Defender is turned off on the test machine, so it does not run in its Sandbox either; the installer was scanned on [VirusTotal](https://www.virustotal.com/gui/file/ad2fb71f4bfd659f6d4c9bd87267156a1cacd67a4d70d4497d3d05af3a1371ea) on 2026-11-17 UTC: none of the 42 engines that finished flagged it (Microsoft, Sophos and Symantec among them); 25 timed out on the 280 MB file and 5 could not process its type |
+| Not run | a scan of the installed DLLs on their own; opening the licence page interactively; the update through GitHub itself; speed on other CPUs (AMD in particular) |
 
 Evidence: `work\release-v1.0.16-sandbox` (`run1016a`, `run1016b`, `run1016c`, `run1016u`, `installed-files`); the spike in `work\openmp-swap-spike\RESULTS.md`.
 
@@ -909,7 +910,8 @@ Evidence: `work\release-v1.0.16-sandbox` (`run1016a`, `run1016b`, `run1016c`, `r
   for Developer Tools): LLVM's runtime runs behind the project's `libiomp5md.dll` shim (owner decision 2026-11-17;
   spike in `work\openmp-swap-spike\RESULTS.md`). Intel oneMKL, linked into torch and ctranslate2, remains under the
   Intel Simplified Software License and the licence page states its terms. The shim and the encoder stubs are not
-  Authenticode-signed, and no antivirus has scanned them.
+  Authenticode-signed. No antivirus has scanned them on their own; the 1.0.16 installer that carries them showed
+  no detections on VirusTotal (above).
 - The 1.0.15 notices gaps are fixed in 1.0.16 (#117, #118). Not listed yet: libraries linked statically into
   ctranslate2 and tokenizers (for example cpu_features, spdlog and the Rust crates in tokenizers).
 - Listening quality has not been judged by a human; the clipping checks above are signal analysis.
