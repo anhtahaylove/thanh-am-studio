@@ -878,23 +878,40 @@ v1.0.14 (tag at `038ae4f`) was built but never published: its Sandbox runs 1 and
 
 Evidence: `work\release-v1.0.15-sandbox` (`run1015a`, `run1015b`, `run1015c`, `run1015u`, `licence-page`, `github-update`, `install-uninstall`; the failed 1.0.14 runs in `run1014*`).
 
+### v1.0.16 release (built by `.github/workflows/release.yml` from tag `v1.0.16` at `5a7dc5d`)
+
+Same app code as 1.0.15; the bundled runtime and the installer changed (#117 notices; #118 LLVM OpenMP shim, encoder stubs, no cuDNN, installer hook; #119 version).
+
+| Check | Result |
+|---|---|
+| Tests | CI green on #117 to #119 and the merge commit (88 unit, 64 Playwright, 61 Rust, 98 worker with 19 skipped); the `runtime` workflow on #118's head ran the worker tests on the bundled runtime (6 skipped) |
+| Runtime build checks | in the release workflow: all 37 symbols ctranslate2.dll and torch_cpu.dll import from `libiomp5md.dll` are exported by the shim (791 exports); x264 15/15, x265 1/1; the shim's semantics test output equals `vcomp140.dll`'s; no Intel OpenMP, x264/x265 or cuDNN binary left |
+| A/B against Intel OpenMP | on runtimes built locally by the same script: STT 60 s and HTDemucs 70 s byte-identical, `decode_audio` of WAV/MP3/MP4 byte-identical with the stubs; after the review commit (5a27dfc) only STT was compared again (byte-identical). The released build was not compared |
+| Installer SHA-256 | `ad2fb71f4bfd659f6d4c9bd87267156a1cacd67a4d70d4497d3d05af3a1371ea` (293,669,499 bytes); `sha256sum -c` OK after `gh release download` and after an anonymous download from `/releases/latest/download/`, byte-identical to the draft's assets |
+| Notices | 367 components, no NUL bytes; `LLVM-exception` and `Intel Simplified Software License` present, `for Developer Tools`, `Intel OpenMP` and `cuDNN` absent; the installer's licence text (extracted) names Intel oneMKL only |
+| Update feed | the anonymous `/releases/latest/download/latest.json` names 1.0.16, points to the v1.0.16 installer, and its signature's trusted comment holds `version:1.0.16` |
+| Clean Sandbox 1, `-Only full,features,dub,scripts,ux` | install 121 s, 1297 MiB; health ready; STT (CTranslate2 on LLVM OpenMP) and HTDemucs separation (PyTorch on LLVM OpenMP, 0.93x real time, lag 0 ms, gap -0.03 dB with normalising off) passed; cancel at 37 % leaves nothing behind: 48 PASS, 0 FAIL |
+| Clean Sandbox 2, default runner | install 115 s; `full`, `reopen`, `turbo`, `offline`, `export`: 35 PASS, 0 FAIL |
+| Clean Sandbox 3, `-Only full,clone,dpi` | install 127 s; cleaned-sample preview 7808 ms after the bursts; clone WER 6.1 %; 4/4 layouts: 26 PASS, 0 FAIL |
+| Clean Sandbox 4, `-Only update -From` the published 1.0.15 | refused a package that does not match its signature, updated itself to 1.0.16 through the local feed and reopened with its project; `libiompstubs5md.dll` and `cudnn64_9.dll` were both present before and gone after (installer hook); the installer copy in `%TEMP%` was removed: 4 PASS, 0 FAIL |
+| Installed files, fifth clean Sandbox | both `libiomp5md.dll` copies are the 63,488-byte shim next to `libomp.dll` (675,840 bytes); the x264/x265 stubs are 6,656 and 3,584 bytes; no `libiompstubs5md.dll` or `cudnn64_9.dll`; health ready |
+| Not run | an antivirus scan (Microsoft Defender is turned off on the test machine, so it does not run in its Sandbox either); opening the licence page interactively; the update through GitHub itself; speed on other CPUs (AMD in particular) |
+
+Evidence: `work\release-v1.0.16-sandbox` (`run1016a`, `run1016b`, `run1016c`, `run1016u`, `installed-files`); the spike in `work\openmp-swap-spike\RESULTS.md`.
+
 ## Not verified / known gaps
 
 - Self-update through GitHub was observed twice, in clean Sandboxes (1.0.11 to 1.0.12 and 1.0.13 to 1.0.15, above); the per-release gate
   still uses a local copy of the feed (`THANHAM_UPDATE_MANIFEST`), because it runs before the release is published.
-  Each update downloads the whole installer (about 297 MB from 1.0.15, which adds PyTorch); from 1.0.12 the app removes the installer copy the updater
+  Each update downloads the whole installer (about 297 MB from 1.0.15, which added PyTorch, and 294 MB from 1.0.16); from 1.0.12 the app removes the installer copy the updater
   leaves in `%TEMP%` shortly after it starts.
-- The installer redistributes the Intel OpenMP runtime under the Intel End User License Agreement for
-  Developer Tools, whose distributor obligations stay with the publisher; the licence page passes on only
-  Intel's restrictions and disclaimers. On 2026-11-17 the owner chose to state in the README and the
-  release notes that releases are for friends and family and provided as is, and to replace Intel OpenMP
-  with LLVM OpenMP in 1.0.16. A spike (`work\openmp-swap-spike\RESULTS.md`) found that a plain swap fails
-  (torch and ctranslate2 import five `_vcomp_*` functions LLVM's runtime lacks) and that a small shim
-  forwarding to LLVM's runtime gives byte-identical separation and STT output and passes the worker tests.
-- The 1.0.15 notices have gaps, to be fixed in 1.0.16: the PyAV entry holds a compiled `__pycache__` file
-  instead of its licence text; the libraries delvewheel bundled into wheels (`av.libs`: a second FFmpeg
-  build, Intel VPL, dav1d, SVT-AV1, libvpx, LAME, opencore-amr, Opus, libwebp, libiconv, the GCC runtime)
-  are not listed; oneMKL is linked into ctranslate2 as well as torch.
+- From 1.0.16 the installer no longer redistributes the Intel OpenMP runtime (Intel End User License Agreement
+  for Developer Tools): LLVM's runtime runs behind the project's `libiomp5md.dll` shim (owner decision 2026-11-17;
+  spike in `work\openmp-swap-spike\RESULTS.md`). Intel oneMKL, linked into torch and ctranslate2, remains under the
+  Intel Simplified Software License and the licence page states its terms. The shim and the encoder stubs are not
+  Authenticode-signed, and no antivirus has scanned them.
+- The 1.0.15 notices gaps are fixed in 1.0.16 (#117, #118). Not listed yet: libraries linked statically into
+  ctranslate2 and tokenizers (for example cpu_features, spdlog and the Rust crates in tokenizers).
 - Listening quality has not been judged by a human; the clipping checks above are signal analysis.
   On 2026-11-13 the owner accepted the machine listening below in place of a human listening pass.
   The listening pack (first 20 sentences as separate files in script order, plus the full render) is
