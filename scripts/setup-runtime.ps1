@@ -101,26 +101,47 @@ try {
         Copy-Item -LiteralPath $shim, $libomp -Destination $dir
     }
     Get-ChildItem -LiteralPath $pythonDir -Recurse -File -Filter 'libiompstubs5md.dll' | Remove-Item -Force
-    # Fail the build if an Intel OpenMP binary remains, or if any binary imports a symbol the shim does not export
-    # (e.g. a torch or ctranslate2 bump that starts using another _vcomp_* entry point).
-    $pes = Get-ChildItem -LiteralPath $pythonDir -Recurse -File -Include '*.dll', '*.pyd', '*.exe'
-    $intel = $pes | Where-Object { $_.VersionInfo.ProductName -match 'Intel.*OpenMP' }
-    if ($intel) { throw "Intel OpenMP binaries remain: $($intel.FullName -join ', ')" }
-    $exports = & $dumpbin /nologo /exports $shim | ForEach-Object { if ($_ -cmatch '^\s+\d+\s+[0-9A-F]+\s+(?:[0-9A-F]{8}\s+)?(\S+)') { $Matches[1] } }
-    $imports = for ($i = 0; $i -lt $pes.Count; $i += 50) {
-        $file = $null; $inBlock = $false
-        foreach ($line in & $dumpbin /nologo /imports:libiomp5md.dll $pes[$i..($i + 49)].FullName) {
-            if ($line -cmatch '^Dump of file (.+)$') { $file = $Matches[1]; $inBlock = $false }
-            elseif ($line -match '^\s+libiomp5md\.dll$') { $inBlock = $true }
-            elseif ($line -cmatch '^\s+Summary$') { $inBlock = $false }
-            elseif ($inBlock -and $line -cmatch '^\s+[0-9A-F]+ (\S+)$') { [pscustomobject]@{ File = $file; Symbol = $Matches[1] } }
-            elseif ($inBlock -and $line -cmatch '^\s+Ordinal\s') { throw "$file imports libiomp5md.dll by ordinal; the shim's ordinals differ from Intel's." }
+    # PyAV's FFmpeg links the GPL x264 and x265 encoders, but the app only decodes. Replace both DLLs, under the same
+    # file names (deleted first, as above), with the stand-ins in scripts/encoder-stubs, which encode nothing.
+    & (Join-Path $PSScriptRoot 'encoder-stubs\build.cmd') (Join-Path $vs 'VC\Auxiliary\Build\vcvars64.bat') $omp
+    if ($LASTEXITCODE -ne 0) { throw 'Encoder stub build failed.' }
+    $replacements = @{ 'libiomp5md.dll' = $shim }
+    foreach ($n in 'x264', 'x265') {
+        foreach ($real in Get-ChildItem -LiteralPath (Join-Path $site 'av.libs') -File -Filter "lib$n-*.dll") {
+            Remove-Item -LiteralPath $real.FullName -Force
+            Copy-Item -LiteralPath (Join-Path $omp "$n.dll") -Destination $real.FullName
+            $replacements[$real.Name] = Join-Path $omp "$n.dll"
         }
     }
-    if (-not $imports) { throw 'No runtime binary imports libiomp5md.dll: the import scan is broken, or the shim is no longer needed.' }
-    $missing = @($imports | Where-Object Symbol -notin $exports)
-    if ($missing) { throw "The OpenMP shim does not export: $(($missing | ForEach-Object { "$($_.Symbol) (imported by $($_.File))" }) -join ', ')" }
-    Write-Output "OpenMP import check: all $(@($imports.Symbol | Sort-Object -Unique).Count) symbols that $((@($imports.File | Sort-Object -Unique) | Split-Path -Leaf) -join ', ') import from libiomp5md.dll are among the shim's $($exports.Count) exports."
+    # NVIDIA cuDNN ships in the ctranslate2 wheel for GPU use. Nothing imports it; ctranslate2 only preloads every DLL
+    # in its folder, so the CPU runtime does not need it.
+    Remove-Item -LiteralPath (Join-Path $site 'ctranslate2\cudnn64_9.dll') -Force -ErrorAction SilentlyContinue
+    # Fail the build if an Intel OpenMP or x264/x265 binary remains, or if any binary imports a symbol its replacement
+    # does not export (e.g. a torch or ctranslate2 bump that starts using another _vcomp_* entry point).
+    $pes = Get-ChildItem -LiteralPath $pythonDir -Recurse -File -Include '*.dll', '*.pyd', '*.exe'
+    $banned = $pes | Where-Object {
+        $v = $_.VersionInfo
+        "$($v.ProductName) $($v.CompanyName) $($v.FileDescription)" -match 'Intel.*OpenMP|x264|x265|HEVC video encoder|H\.264.*encoder' -or
+        ($_.Name -match '^libx26[45]-' -and $_.Length -gt 64KB)
+    }
+    if ($banned) { throw "Intel OpenMP or x264/x265 binaries remain: $($banned.FullName -join ', ')" }
+    foreach ($dll in $replacements.Keys) {
+        $exports = & $dumpbin /nologo /exports $replacements[$dll] | ForEach-Object { if ($_ -cmatch '^\s+\d+\s+[0-9A-F]+\s+(?:[0-9A-F]{8}\s+)?(\S+)') { $Matches[1] } }
+        $imports = for ($i = 0; $i -lt $pes.Count; $i += 50) {
+            $file = $null; $inBlock = $false
+            foreach ($line in & $dumpbin /nologo /imports:$dll $pes[$i..($i + 49)].FullName) {
+                if ($line -cmatch '^Dump of file (.+)$') { $file = $Matches[1]; $inBlock = $false }
+                elseif ($line -match "^\s+$([regex]::Escape($dll))$") { $inBlock = $true }
+                elseif ($line -cmatch '^\s+Summary$') { $inBlock = $false }
+                elseif ($inBlock -and $line -cmatch '^\s+[0-9A-F]+ (\S+)$') { [pscustomobject]@{ File = $file; Symbol = $Matches[1] } }
+                elseif ($inBlock -and $line -cmatch '^\s+Ordinal\s') { throw "$file imports $dll by ordinal; the replacement's ordinals differ from the original's." }
+            }
+        }
+        if (-not $imports) { throw "No runtime binary imports ${dll}: the import scan is broken, or its replacement is no longer needed." }
+        $missing = @($imports | Where-Object Symbol -notin $exports)
+        if ($missing) { throw "The replacement $dll does not export: $(($missing | ForEach-Object { "$($_.Symbol) (imported by $($_.File))" }) -join ', ')" }
+        Write-Output "Import check: all $(@($imports.Symbol | Sort-Object -Unique).Count) symbols that $((@($imports.File | Sort-Object -Unique) | Split-Path -Leaf) -join ', ') import from $dll are among the replacement's $($exports.Count) exports."
+    }
     Remove-Item -LiteralPath $omp -Recurse -Force
     Remove-Item -LiteralPath $managed -Recurse -Force
 
