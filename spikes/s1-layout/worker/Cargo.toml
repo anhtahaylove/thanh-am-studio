@@ -1,0 +1,22 @@
+[package]
+name = "thanham-worker"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "thanham-worker"
+path = "src/main.rs"
+
+[dependencies]
+ortffi = { path = "../../../../rust-ortffi/spikes/ortffi" }
+ct2rs-sys = { version = "=0.11.2", default-features = false, features = ["system", "mkl", "openmp-runtime-intel"] }
+# Declared directly so Cargo unifies the features with ct2rs-sys's own dependency (plan §3 step 5): MKL static, ILP64, threaded (iomp).
+intel-onemkl-prebuild = { version = "=0.2.2", features = ["system", "openmp"] }
+# Same pins as spike S2: the tag of the tokenizers 0.23.3 wheel, and the sea_g2p 0.10.0 commit (no PyO3).
+tokenizers = { git = "https://github.com/huggingface/tokenizers", tag = "v0.23.3", default-features = false, features = ["fancy-regex"] }
+sea-g2p-rs = { git = "https://github.com/pnnbao97/sea-g2p", rev = "dae5ca83ea45f356c43bdb70a1bcd42e8729ff16", default-features = false }
+sha2 = "0.10"
+
+[build-dependencies]
+cc = "1"

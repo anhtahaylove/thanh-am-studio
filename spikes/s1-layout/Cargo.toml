@@ -1,0 +1,9 @@
+# Spike S1 (Layout): own workspace, never joins src-tauri's.
+[workspace]
+resolver = "2"
+members = ["worker", "diarize", "reqwest-probe"]
+
+[profile.release]
+panic = "unwind"
+opt-level = 2
+debug = 1
