@@ -1,0 +1,24 @@
+[package]
+name = "s2-g2p"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# Own workspace: the spike never joins src-tauri's build.
+[workspace]
+
+[dependencies]
+# Same commit as the sea_g2p 0.10.0 wheel's Python files and sea_g2p.bin (byte-identical, see RESULTS.md); no PyO3.
+sea-g2p-rs = { git = "https://github.com/pnnbao97/sea-g2p", rev = "dae5ca83ea45f356c43bdb70a1bcd42e8729ff16", default-features = false }
+# The tag of the tokenizers 0.23.3 Python wheel in the runtime. Regex backend is chosen by feature (the wheel itself uses onig).
+tokenizers = { git = "https://github.com/huggingface/tokenizers", tag = "v0.23.3", default-features = false }
+serde_json = "1"
+regex = "1"
+
+[features]
+default = ["fancy"]
+fancy = ["tokenizers/fancy-regex"]
+onig = ["tokenizers/onig"]
+
+[profile.release]
+debug = false
