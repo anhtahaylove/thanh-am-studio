@@ -20,7 +20,34 @@ import sys
 import time
 from pathlib import Path
 
-ctypes.windll.kernel32.SetPriorityClass(ctypes.windll.kernel32.GetCurrentProcess(), 0x4000)  # BELOW_NORMAL: shared machine
+K32 = ctypes.windll.kernel32
+K32.GetCurrentProcess.restype = ctypes.c_void_p
+SELF = ctypes.c_void_p(K32.GetCurrentProcess())
+K32.SetPriorityClass(SELF, 0x4000)  # BELOW_NORMAL: shared machine
+# Decision O.10 / finding F-S4-1: pin the core type before any model load (i5-13400F: LP 0-11 are the P-cores) and log it; and opt out
+# of power throttling, which parks hidden BelowNormal processes on the E-cores (F-S4-3).
+P_CORES = 0x0FFF
+assert K32.SetProcessAffinityMask(SELF, ctypes.c_size_t(P_CORES)), 'SetProcessAffinityMask failed'
+K32.SetProcessInformation(SELF, 4, (ctypes.c_ulong * 3)(1, 1, 0), 12)
+
+
+class MemoryStatus(ctypes.Structure):
+    _fields_ = [('length', ctypes.c_ulong), ('load', ctypes.c_ulong)] + [(n, ctypes.c_ulonglong) for n in
+               ('total', 'avail', 'total_page', 'avail_page', 'total_virtual', 'avail_virtual', 'avail_ext')]
+
+
+def wait_for_ram(gb=3):
+    """Shared machine rule: start each heavy job only with at least `gb` GB of physical memory available."""
+    s = MemoryStatus(length=ctypes.sizeof(MemoryStatus))
+    while K32.GlobalMemoryStatusEx(ctypes.byref(s)) and s.avail < gb * 2**30:
+        print(f'waiting for RAM: {s.avail / 2**30:.1f} GB available', flush=True)
+        time.sleep(60)
+
+
+def affinity():
+    mask, system = ctypes.c_size_t(), ctypes.c_size_t()
+    K32.GetProcessAffinityMask(SELF, ctypes.byref(mask), ctypes.byref(system))
+    return f'{mask.value:04X}'
 
 import numpy as np
 
@@ -144,11 +171,13 @@ def main():
     models = {}
     for corpus, model_name, mode, *only in jobs:
         only = set(only[0].split(',')) if only else None
+        wait_for_ram()
         if model_name not in models:
             models.clear()  # one model in memory at a time
             m = WhisperModel(str(MODELS / f'whisper-{model_name}'), device='cpu', compute_type='int8', cpu_threads=THREADS, local_files_only=True)
             m.model = Recorder(m.model)
             models[model_name] = m
+            print(f'loaded {model_name} with affinity {affinity()} (P-cores {P_CORES:04X})', flush=True)
         model = models[model_name]
         rec = model.model
         out_dir = S4 / 'rec' / corpus / model_name / mode

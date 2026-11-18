@@ -24,6 +24,22 @@ extern "C" {
 extern "system" {
     fn GetCurrentProcess() -> *mut c_void;
     fn SetProcessAffinityMask(process: *mut c_void, mask: usize) -> i32;
+    fn GetProcessAffinityMask(process: *mut c_void, process_mask: *mut usize, system_mask: *mut usize) -> i32;
+    fn SetProcessInformation(process: *mut c_void, class: i32, info: *const c_void, size: u32) -> i32;
+}
+
+/// Opts this process out of power throttling (EcoQoS, S4 finding F-S4-3) and returns its affinity mask at model load (F-S4-1:
+/// the core type at load decides the numbers; runs are pinned with `start /affinity`).
+fn no_ecoqos_and_mask() -> usize {
+    // PROCESS_POWER_THROTTLING_STATE { Version 1, ControlMask EXECUTION_SPEED, StateMask 0 }; class 4 = ProcessPowerThrottling.
+    let state: [u32; 3] = [1, 1, 0];
+    let (mut mask, mut system) = (0usize, 0usize);
+    // SAFETY: plain Win32 calls on the current process pseudo-handle with correctly sized buffers.
+    unsafe {
+        SetProcessInformation(GetCurrentProcess(), 4, state.as_ptr().cast(), 12);
+        GetProcessAffinityMask(GetCurrentProcess(), &mut mask, &mut system);
+    }
+    mask
 }
 
 fn mkl_version() -> String {
@@ -45,6 +61,7 @@ fn run(args: &[String]) -> Result<(), String> {
     let [dir, threads, list] = args else { return Err("usage: s4-encode <whisper dir> <threads> <list.tsv>".into()) };
     let threads: usize = threads.parse().map_err(|e| format!("threads: {e}"))?;
     let config = Config { device: Device::CPU, compute_type: ComputeType::INT8, num_threads_per_replica: threads, ..Config::default() };
+    let load_mask = no_ecoqos_and_mask();
     let t0 = Instant::now();
     let whisper = Whisper::new(dir, config).map_err(|e| format!("load: {e}"))?;
     let n_mels = whisper.n_mels();
@@ -55,7 +72,11 @@ fn run(args: &[String]) -> Result<(), String> {
             return Err("SetProcessAffinityMask failed".into());
         }
     }
-    println!("{{\"mkl\":{:?},\"n_mels\":{n_mels},\"threads\":{threads},\"load_ms\":{}}}", mkl_version(), t0.elapsed().as_millis());
+    println!(
+        "{{\"mkl\":{:?},\"n_mels\":{n_mels},\"threads\":{threads},\"load_ms\":{},\"load_affinity\":\"{load_mask:04X}\"}}",
+        mkl_version(),
+        t0.elapsed().as_millis()
+    );
     let entries = std::fs::read_to_string(list).map_err(|e| format!("{list}: {e}"))?;
     for line in entries.lines().filter(|l| !l.trim().is_empty()) {
         let parts: Vec<&str> = line.split('\t').collect();

@@ -19,6 +19,7 @@ foreach ($model in $Models) {
         $list = Join-Path $dir 'list.tsv'
         & $Py -I $T1e list (Join-Path $Evidence 'rec') $model $dir $list | Out-Null
         $cmd = if ($who -eq 'rust') { "$Exe $md 8 $list" } else { "$Py -I $T1e pyencode $md 8 $list" }
+        while ((Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory -lt 3MB) { "waiting for 3 GB of free RAM"; Start-Sleep 60 }  # shared machine rule (KB)
         $t = Get-Date
         cmd.exe /c "start `"`" /b /wait /belownormal /affinity $($masks[$core]) $cmd > $dir\run.jsonl 2> $dir\run.err.log"
         "{0} {1} exit={2} seconds={3}" -f $model, $run, $LASTEXITCODE, [int]((Get-Date) - $t).TotalSeconds

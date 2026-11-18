@@ -21,6 +21,7 @@ foreach ($model in $Models) {
             $log = Join-Path $dir 'run.log'
             $md = Join-Path $ModelRoot "whisper-$model"
             $cmd = if ($who -eq 'rust') { "$Exe $md 8 $list" } else { "$Py -I $T1e pyencode $md 8 $list" }
+            while ((Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory -lt 3MB) { "waiting for 3 GB of free RAM"; Start-Sleep 60 }  # shared machine rule (KB)
             $t = Get-Date
             cmd.exe /c "start `"`" /b /wait /belownormal /affinity $Mask $Sde -$chip -- $cmd > $log 2>&1"
             "{0} {1} {2} exit={3} seconds={4}" -f $model, $chip, $who, $LASTEXITCODE, [int]((Get-Date) - $t).TotalSeconds

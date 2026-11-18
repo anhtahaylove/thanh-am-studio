@@ -4,6 +4,7 @@
   t1e.py compare <list.tsv> <reference dir>                    byte-compare each output with the file of the same name under the
                                                                 reference dir (default: the recorded Python outputs)
   t1e.py pyencode <model dir> <threads> <list.tsv>              the Python wheel's encode on the same list (SDE reference)"""
+import ctypes
 import hashlib
 import json
 import sys
@@ -65,10 +66,22 @@ def cmd_compare(list_file, ref_dir=None):
     print(json.dumps({'summary': list_file, 'calls': total, 'bitwise_equal': equal, 'max_abs': worst}))
 
 
+def no_ecoqos_and_mask():
+    """Opts this process out of power throttling (EcoQoS, F-S4-3); returns its affinity mask at model load (F-S4-1, pinned by the caller)."""
+    k32 = ctypes.windll.kernel32
+    k32.GetCurrentProcess.restype = ctypes.c_void_p
+    h = ctypes.c_void_p(k32.GetCurrentProcess())
+    k32.SetProcessInformation(h, 4, (ctypes.c_ulong * 3)(1, 1, 0), 12)  # ProcessPowerThrottling: EXECUTION_SPEED never throttled
+    mask, system = ctypes.c_size_t(), ctypes.c_size_t()
+    k32.GetProcessAffinityMask(h, ctypes.byref(mask), ctypes.byref(system))
+    return f'{mask.value:04X}'
+
+
 def cmd_pyencode(model_dir, threads, list_file):
     import ctranslate2
+    load_mask = no_ecoqos_and_mask()
     m = ctranslate2.models.Whisper(model_dir, device='cpu', compute_type='int8', intra_threads=int(threads))
-    print(json.dumps({'ct2': ctranslate2.__version__, 'n_mels': m.n_mels, 'threads': int(threads)}), flush=True)
+    print(json.dumps({'ct2': ctranslate2.__version__, 'n_mels': m.n_mels, 'threads': int(threads), 'load_affinity': load_mask}), flush=True)
     for row in Path(list_file).read_text(encoding='utf-8').splitlines():
         feat, off, out = row.split('\t')
         x = np.fromfile(feat, dtype=np.float32, count=m.n_mels * 3000, offset=int(off)).reshape(1, m.n_mels, 3000)
