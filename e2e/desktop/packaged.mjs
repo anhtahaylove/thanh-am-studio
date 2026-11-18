@@ -258,6 +258,8 @@ if (phase === 'update') {
   process.env.THANHAM_UPDATE_MANIFEST = feed('/bad');
 }
 const fixture = 'Xin chào, đây là Thanh Âm Studio. Hôm nay trời Hà Nội trong xanh.\nChúng tôi kiểm tra giọng đọc tiếng Việt trên máy tính.';
+// Read by a preset voice to make the reference of the clone and ab phases.
+const refText = 'Xin chào các bạn, tôi là người dẫn chương trình. Hôm nay trời rất đẹp, chúng ta cùng nhau đi dạo quanh hồ Gươm và nghe kể về những câu chuyện xưa của thành phố. Những câu chuyện ấy đã được người Hà Nội kể lại qua nhiều thế hệ.';
 try {
   await step('launch', async () => `cold start ${await launch()} ms`);
   await step('runtime bundled', async () => {
@@ -396,7 +398,7 @@ try {
       return (await waitJobs('tts', before + n, 15 * 60000)).slice(0, n);
     };
     await step('reference clip from preset voice', async () => {
-      const pid = await project('Mẫu giọng kiểm thử', ['Xin chào các bạn, tôi là người dẫn chương trình. Hôm nay trời rất đẹp, chúng ta cùng nhau đi dạo quanh hồ Gươm và nghe kể về những câu chuyện xưa của thành phố. Những câu chuyện ấy đã được người Hà Nội kể lại qua nhiều thế hệ.'], 'Trúc Ly');
+      const pid = await project('Mẫu giọng kiểm thử', [refText], 'Trúc Ly');
       await generateAll(1);
       const take = (await invoke('load_project', {id: pid})).segments[0].takes[0];
       // The preview step needs a full 8 s of speech behind its 6 s of bursts.
@@ -1090,39 +1092,69 @@ try {
     });
   }
   if (phase === 'ab') {
-    // The operations this build routes to the native worker (RUST_OPS), each run on Python and on the native worker: same job, same output.
+    // The operations this build routes to the native worker (RUST_OPS: render, download, preset and cloned tts, clone_preview), each run on
+    // Python and on the native worker: same job, the chosen engine with no fallback, same output bytes.
+    await step('voice model ready', voiceModel);
     const wav = join(saves, 'ab-tone.wav'), n = 24000, pcm = Buffer.alloc(n * 2);
     for (let i = 0; i < n; i++) pcm.writeInt16LE(Math.round(8000 * Math.sin(i * 0.05)), i * 2);
     const head = Buffer.alloc(44); head.write('RIFF', 0); head.writeUInt32LE(36 + pcm.length, 4); head.write('WAVEfmt ', 8); head.writeUInt32LE(16, 16); head.writeUInt16LE(1, 20); head.writeUInt16LE(1, 22); head.writeUInt32LE(24000, 24); head.writeUInt32LE(48000, 28); head.writeUInt16LE(2, 32); head.writeUInt16LE(16, 34); head.write('data', 36); head.writeUInt32LE(pcm.length, 40);
     writeFileSync(wav, Buffer.concat([head, pcm]));
     const asset = await invoke('import_asset', {path: wav}), base = await invoke('get_settings');
     const segments = [{id: 'ab1', text: 'a', takes: [{id: 't1', asset_id: asset.id}], selected_take_id: 't1', trim_start_ms: 0, trim_end_ms: null, gap_ms: 100, fade_in_ms: 0, fade_out_ms: 0, gain_db: 0}];
-    const jobs = {render: {payload: {segments, normalize: false, format: 'wav'}}, download: {payload: {model_id: 'diarization'}}};
-    const ran = {}; let count = {render: 0, download: 0};
-    for (const engine of ['python', 'auto']) {
-      await invoke('save_settings', {settings: {...base, worker_engines: {render: engine, download: engine}}});
-      for (const [kind, {payload}] of Object.entries(jobs)) {
-        const op = kind === 'download' ? 'model_download' : kind;
-        await step(`${kind} on ${engine}`, async () => {
-          await invoke('enqueue_job', {kind: op, projectId: null, payload});
-          const job = (await waitJobs(op, ++count[kind], 20 * 60000))[0]; // list_jobs is newest first and the queue is sequential
-          ran[`${kind}-${engine}`] = job;
-          if (job.result.engine !== (engine === 'python' ? 'python' : 'rust')) throw Error(`${kind} ran on ${job.result.engine} with worker_engines=${engine}: is it in RUST_OPS for this build? ${JSON.stringify(job.result)}`);
-          return `engine ${job.result.engine}`;
-        });
+    // Counted from what earlier phases left (-Only full,ab shares one Sandbox); one evaluate puts a tts list inside one 300 ms queue
+    // poll, so it runs as one worker batch as "Tạo giọng tất cả" makes it (a split batch would still be checked the same way).
+    const enqueue = async (list) => {
+      const kind = list[0].kind, before = await done(kind);
+      const ids = await page.evaluate(async (l) => { const ids = []; for (const a of l) ids.push((await window.__TAURI_INTERNALS__.invoke('enqueue_job', a)).id); return ids; }, list);
+      const finished = await waitJobs(kind, before + ids.length, 20 * 60000);
+      return ids.map((id) => finished.find((j) => j.id === id));
+    };
+    // tts items carry the app's payload (App.tsx generate) with no take check, which would keep the whole batch on Python.
+    const texts = ['Xin chào, đây là Thanh Âm Studio.', 'Hôm nay trời Hà Nội trong xanh, gió thổi nhẹ.', 'Chúng tôi kiểm tra giọng đọc tiếng Việt trên máy tính.'];
+    const project = await invoke('create_project', {name: `A/B ${Date.now()}`});
+    project.segments = [refText, ...texts].map((text, i) => ({id: `ab${i}`, text, normalized_text: text, voice_id: 'Trúc Ly', speaker: 'Người dẫn', gap_ms: 300, takes: [], selected_take_id: null, trim_start_ms: 0, trim_end_ms: null, fade_in_ms: 0, fade_out_ms: 0, gain_db: 0}));
+    await invoke('save_project', {project});
+    const tts = (i, text, voice, reference = null) => ({kind: 'tts', projectId: project.id, payload: {segment_id: `ab${i}`, text, voice_id: voice, speed: 1, reference_asset_id: reference, check: false}});
+    let ref, voiceId;
+    await step('reference clip from preset voice', async () => {
+      // As in the clone phase, the app's own preset clip, so no third-party voice is involved; its WAV take is a format that passed parity.
+      [ref] = await enqueue([tts(0, refText, 'Trúc Ly')]);
+      voiceId = (await invoke('save_voice', {voice: {name: 'Giọng mẫu A/B', kind: 'reference', reference_asset_id: ref.result.asset_id, consent: true, engine_voice_id: null}})).id;
+      return `${ref.result.duration_ms} ms on ${ref.result.engine}, voice ${voiceId}`;
+    });
+    const jobs = {render: [{kind: 'render', projectId: null, payload: {segments, normalize: false, format: 'wav'}}], download: [{kind: 'model_download', projectId: null, payload: {model_id: 'diarization'}}],
+      tts: texts.map((t, i) => tts(i + 1, t, 'Trúc Ly')), 'cloned tts': texts.map((t, i) => tts(i + 1, t, voiceId, ref.result.asset_id)), clone_preview: [{kind: 'clone_preview', projectId: null, payload: {asset_id: ref.result.asset_id}}]};
+    const ran = {};
+    try {
+      for (const engine of ['python', 'auto']) {
+        await invoke('save_settings', {settings: {...base, worker_engines: {render: engine, download: engine, tts: engine, clone_preview: engine}}});
+        for (const [kind, list] of Object.entries(jobs)) {
+          await step(`${kind} on ${engine}`, async () => {
+            const got = ran[`${kind}-${engine}`] = await enqueue(list);
+            for (const job of got) if (job?.result?.engine !== (engine === 'python' ? 'python' : 'rust') || job.result.fallback !== false) throw Error(`${kind} ran on ${job?.result?.engine} (fallback ${job?.result?.fallback}) with worker_engines=${engine}: is it in RUST_OPS for this build? ${JSON.stringify(job?.result)}`);
+            return `engine ${got[0].result.engine}${got.length > 1 ? ` for ${got.length} items` : ''}`;
+          });
+        }
       }
-    }
-    await step('render output is identical on both engines', async () => {
-      const sha = async (j) => (await import('node:crypto')).createHash('sha256').update(readFileSync((await invoke('get_asset', {id: j.result.asset_id})).path)).digest('hex');
-      const [a, b] = [await sha(ran['render-python']), await sha(ran['render-auto'])];
-      if (a !== b) throw Error(`render sha256 differs: ${a} vs ${b}`);
-      return a.slice(0, 16);
-    });
-    await step('download result is identical on both engines', async () => {
-      const [a, b] = [ran['download-python'], ran['download-auto']].map((j) => JSON.stringify({model_id: j.result.model_id, revision: j.result.revision}));
-      if (a !== b) throw Error(`${a} vs ${b}`);
-      return a;
-    });
+      await step('render output is identical on both engines', async () => {
+        const sha = async (j) => (await import('node:crypto')).createHash('sha256').update(readFileSync((await invoke('get_asset', {id: j.result.asset_id})).path)).digest('hex');
+        const [a, b] = [await sha(ran['render-python'][0]), await sha(ran['render-auto'][0])];
+        if (a !== b) throw Error(`render sha256 differs: ${a} vs ${b}`);
+        return a.slice(0, 16);
+      });
+      await step('download result is identical on both engines', async () => {
+        const [a, b] = [ran['download-python'][0], ran['download-auto'][0]].map((j) => JSON.stringify({model_id: j.result.model_id, revision: j.result.revision}));
+        if (a !== b) throw Error(`${a} vs ${b}`);
+        return a;
+      });
+      for (const kind of ['tts', 'cloned tts', 'clone_preview']) await step(`${kind} output is identical on both engines`, async () => {
+        // A take is its file plus, with FFmpeg bundled, its reading before the speed change (raw_asset_id).
+        const hashes = async (engine) => { const h = []; for (const {result: r} of ran[`${kind}-${engine}`]) for (const p of [r.path, r.raw_asset_id && (await invoke('get_asset', {id: r.raw_asset_id})).path]) if (p) h.push(sha256File(p)); return h; };
+        const [a, b] = [await hashes('python'), await hashes('auto')];
+        if (a.join() !== b.join()) throw Error(`${kind} sha256 differs: ${a.join(' ')} vs ${b.join(' ')}`);
+        return `${a.length} files: ${a.map((h) => h.slice(0, 12)).join(' ')}`;
+      });
+    } finally { await invoke('save_settings', {settings: {...base, worker_engines: base.worker_engines ?? {}}}); } // the user's engine choice; {} when none was saved, since an absent key keeps the last one
   }
   if (phase === 'export') {
     await nav('Dự án');

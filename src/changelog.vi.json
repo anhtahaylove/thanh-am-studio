@@ -1,4 +1,8 @@
 [
+ {"version": "1.0.19", "date": "2026-11-18", "changes": [
+  "Đọc văn bản (giọng có sẵn và giọng nhân bản) và nút \"Nghe mẫu đã làm sạch\" giờ chạy bằng bộ xử lý gốc viết bằng Rust: kết quả giống hệt từng bit như trước và nhanh hơn trong phép đo của chúng tôi. Nếu bộ xử lý gốc gặp lỗi, app tự chạy lại bằng Python; mục Bộ xử lý trong Model & cài đặt cho chọn \"Luôn dùng Python\". Mẫu giọng dạng M4A hoặc video và các take có bật tự kiểm vẫn chạy bằng Python.",
+  "Lần chạy đầu sau khi cài hoặc cập nhật không còn phải biên dịch lại một phần thư viện Python đi kèm."
+ ]},
  {"version": "1.0.18", "date": "2026-11-18", "changes": [
   "Bộ cài nhẹ hơn: phần tách nhạc nền (PyTorch, Demucs) chuyển thành gói tải riêng. Lần đầu dùng lồng tiếng giữ nhạc nền, app hỏi bạn đồng ý giấy phép oneMKL rồi tải gói khoảng 170 MB một lần; bản cập nhật tự xoá các thư viện này khỏi thư mục cài cũ.",
   "Xuất âm thanh và tải model giờ chạy bằng bộ xử lý gốc viết bằng Rust, cho kết quả giống hệt từng bit như trước. Nếu bộ xử lý gốc gặp lỗi, app tự chạy lại bằng Python; trong Model & cài đặt, mục Bộ xử lý cho chọn \"Luôn dùng Python\" cho từng thao tác.",

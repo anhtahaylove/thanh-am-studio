@@ -3936,7 +3936,7 @@ dependencies = [
 
 [[package]]
 name = "thanh-am-studio"
-version = "1.0.18"
+version = "1.0.19"
 dependencies = [
  "chrono",
  "miniz_oxide 0.8.9",
