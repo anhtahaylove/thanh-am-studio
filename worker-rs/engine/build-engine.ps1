@@ -8,7 +8,8 @@ param(
 # wheel's own build script describes (python/tools/prepare_build_environment_windows.sh at v4.8.5): oneMKL 2025.3 threaded and
 # static (ILP64), oneDNN 3.1.1 static with the wheel's flags, Intel OpenMP ABI, no CUDA. Spike S1 built it this way and found the
 # Rust encoder bitwise equal to the wheel's (natively and under Intel SDE). Differences from S1, each needed by the worker:
-# * /MD instead of /MT: the worker links the C runtime dynamically (worker-rs/.cargo/config.toml), as the wheel's DLL does.
+# * /MD instead of /MT: the worker links the C runtime dynamically (worker-rs/.cargo/config.toml), as the wheel's DLL does. CT2's
+#   CMakeLists.txt sets the static runtime itself for a static build, so that one line is changed after extraction (step 6).
 # * The OpenMP ABI is the 1.0.16 LLVM shim (scripts/openmp-shim), as in S1; its link-time import library also declares the two
 #   names that oneDNN's dead code references (S1 finding F-a (a), see Step-LinkLib).
 # Every input is pinned by SHA-256; nothing else is downloaded. Run in a shell without the MSVC environment or with it.
@@ -133,13 +134,22 @@ cmake -S (Join-Path $src 'oneDNN-3.1.1') -B (Join-Path $Work 'onednn-build') @cm
 cmake --build (Join-Path $Work 'onednn-build') --target install
 Copy-Item (Join-Path $dnnl 'lib\dnnl.lib') $lib -Force
 
-# 6. CTranslate2 4.8.5 static: MKL, oneDNN, Intel OpenMP (the shim's import library), no CUDA, no Ruy.
+# 6. CTranslate2 4.8.5 static: MKL, oneDNN, Intel OpenMP (the shim's import library), no CUDA, no Ruy. Its CMakeLists.txt forces
+# the static C runtime when BUILD_SHARED_LIBS is OFF (a normal variable, so -DCMAKE_MSVC_RUNTIME_LIBRARY cannot override it).
+$cmakeLists = Join-Path $src 'ct2rs-sys-0.11.2\CTranslate2\CMakeLists.txt'
+$staticCrt = 'set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")'
+$text = [IO.File]::ReadAllText($cmakeLists)
+if (-not $text.Contains($staticCrt)) { throw "CTranslate2's CMakeLists.txt no longer has: $staticCrt" }
+[IO.File]::WriteAllText($cmakeLists, $text.Replace($staticCrt, 'set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")'))
 $ct2 = Join-Path $Work 'ct2-install'
 cmake -S (Join-Path $src 'ct2rs-sys-0.11.2\CTranslate2') -B (Join-Path $Work 'ct2-build') @cmakeCommon '-DCMAKE_CXX_FLAGS=/EHsc' `
     -DCMAKE_INSTALL_PREFIX="$ct2" -DCMAKE_PREFIX_PATH="$dnnl" -DINTEL_ROOT="$Work" -DBUILD_CLI=OFF -DBUILD_SHARED_LIBS=OFF `
     -DWITH_MKL=ON -DWITH_DNNL=ON -DWITH_CUDA=OFF -DWITH_RUY=OFF -DOPENMP_RUNTIME=INTEL
 cmake --build (Join-Path $Work 'ct2-build') --target install
 Copy-Item (Join-Path $ct2 'lib\ctranslate2.lib'), (Join-Path $Work 'ct2-build\third_party\cpu_features\cpu_features.lib') $lib -Force
+foreach ($static in 'ctranslate2.lib', 'cpu_features.lib', 'dnnl.lib') {
+    if (dumpbin /directives (Join-Path $lib $static) | Select-String -SimpleMatch 'LIBCMT' -Quiet) { throw "$static asks for the static C runtime." }
+}
 
 # The engine. lib\: what the worker links (ct2rs-sys `system`: ctranslate2, cpu_features, cublas stubs, iomp5; the worker's build.rs:
 # dnnl). mklroot\: MKLROOT for intel-onemkl-prebuild (only the three static libraries it links, and the headers). include\: CT2's
