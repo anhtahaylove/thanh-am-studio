@@ -13,6 +13,9 @@ mod paths;
 mod protocol;
 mod pyfmt;
 mod render;
+// The stt operation arrives in a later step of bundle 2; until then only the parity tests call into it.
+#[allow(dead_code)]
+mod stt;
 mod tts;
 
 use error::{Result, WorkerError};
