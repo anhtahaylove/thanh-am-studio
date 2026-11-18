@@ -262,7 +262,8 @@ try {
   await step('launch', async () => `cold start ${await launch()} ms`);
   await step('runtime bundled', async () => {
     const s = await invoke('runtime_status');
-    if (!s.python_ready || !s.ffmpeg_ready || !s.worker_ready || !s.native_worker_ready) throw Error(JSON.stringify(s));
+    // In the update phase the app is the -From release, which may predate the native worker; it is checked after the update.
+    if (!s.python_ready || !s.ffmpeg_ready || !s.worker_ready || (phase !== 'update' && !s.native_worker_ready)) throw Error(JSON.stringify(s));
     return s.python_path;
   });
   if (phase === 'full') {
@@ -1024,6 +1025,8 @@ try {
       if (copies().length) throw Error(`installer copy still in ${tmpdir()}: ${copies().join(' | ')}`);
       const now = await invoke('plugin:app|version'), want = JSON.parse(readFileSync(process.env.THANHAM_UPDATE_FEED, 'utf8').replace(/^\uFEFF/, '')).version;
       if (now !== want) throw Error(`running ${now} after the update, the feed offers ${want}`);
+      const rs = await invoke('runtime_status');
+      if (!rs.native_worker_ready) throw Error(`native worker not ready after the update: ${JSON.stringify(rs)}`);
       if (process.env.THANHAM_UPDATE_FROM && from === now) throw Error(`-From installed ${from}, the version under test, so no earlier release was updated`);
       const after = (await invoke('list_projects')).length;
       if (after !== projects) throw Error(`projects ${projects} -> ${after}`);
