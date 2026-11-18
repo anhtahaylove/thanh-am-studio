@@ -63,7 +63,8 @@ def main():
     described = {name: [hashlib.sha256(np.asarray(v['speaker_emb'], dtype=np.float32).tobytes()).hexdigest(),
                         hashlib.sha256(strip_encoder_pad_frame(np.asarray(v['codes'], dtype=np.int64)).tobytes()).hexdigest()]
                  for name, v in voices['presets'].items()}
-    lines = [json.loads(ln)['text'] for ln in Path(args.corpus).read_text(encoding='utf-8').splitlines() if ln.strip()]
+    # split('\n'), not splitlines(): a corpus line may hold U+2028 or U+0085, which JSON leaves unescaped
+    lines = [json.loads(ln)['text'] for ln in Path(args.corpus).read_text(encoding='utf-8').split('\n') if ln.strip()]
     with open(args.out, 'w', encoding='utf-8', newline='\n') as out:
         out.write(json.dumps({'voices': described, 'default_voice': voices.get('default_voice')}, ensure_ascii=False) + '\n')
         for text in lines:

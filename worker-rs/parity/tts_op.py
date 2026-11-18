@@ -42,7 +42,7 @@ def run(argv, request, env, out_dir):
     wall = time.perf_counter() - t0
     c = Counters(cb=ctypes.sizeof(Counters))
     ctypes.windll.psapi.GetProcessMemoryInfo(ctypes.wintypes.HANDLE(int(p._handle)), ctypes.byref(c), c.cb)
-    return p.returncode, stdout.decode('utf-8').splitlines(), wall, c.PeakWorkingSetSize / 2**20
+    return p.returncode, [ln for ln in stdout.decode('utf-8').split('\n') if ln.strip()], wall, c.PeakWorkingSetSize / 2**20
 
 
 def sha(path):
@@ -67,7 +67,7 @@ def traces(path):
     out = {}
     if not Path(path).is_file():  # the worker died before its first engine call
         return out
-    for line in Path(path).read_text(encoding='utf-8').splitlines():
+    for line in filter(str.strip, Path(path).read_text(encoding='utf-8').split('\n')):  # JSON lines may hold U+2028
         rec = json.loads(line)
         out[(rec['item'], rec['call'])] = rec
     return out
