@@ -93,7 +93,7 @@ pub fn render(payload: &Map<String, Value>, output_dir: &Path, progress: &dyn Fn
         _ => return Err(invalid("Select at least one audio take to export.")),
     };
     let fmt = payload.get("format").map_or("wav", |f| f.as_str().unwrap_or(""));
-    let Some((_, codec)) = EXPORT_CODECS.iter().find(|(name, _)| *name == fmt) else {
+    let Some(&(_, codec)) = EXPORT_CODECS.iter().find(|(name, _)| *name == fmt) else {
         let names: Vec<&str> = EXPORT_CODECS.iter().map(|(n, _)| *n).collect();
         return Err(invalid(&format!("Supported export formats: {}.", names.join(", "))));
     };
@@ -140,7 +140,7 @@ fn render_into(
     output_dir: &Path,
     final_path: &Path,
     partial: &Path,
-    (timeline, pad_to, background, normalize, codec): (bool, i64, Option<&str>, bool, &&[&str]),
+    (timeline, pad_to, background, normalize, codec): (bool, i64, Option<&str>, bool, &[&str]),
     progress: &dyn Fn(f64, &str),
 ) -> Result<Value> {
     let temp = TempDir(output_dir.join(format!("render-{}", &uuid::Uuid::new_v4().simple().to_string()[..8])));
@@ -243,4 +243,49 @@ fn render_into(
     replace_with_retry(partial, final_path).map_err(|e| WorkerError::py("OSError", e))?;
     info["path"] = Value::from(resolve(final_path).to_string_lossy().into_owned());
     Ok(info)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn clip(v: Value) -> Map<String, Value> {
+        v.as_object().unwrap().clone()
+    }
+
+    #[test]
+    fn number_takes_finite_non_boolean_values_inside_the_range() {
+        let ok = |v: Value| number(Some(&v), "x", 0.0, 10.0);
+        assert_eq!(ok(json!(10)).unwrap(), 10.0);
+        assert_eq!(ok(json!(0.0)).unwrap(), 0.0);
+        for bad in [json!(10.5), json!(-0.1), json!(true), json!("5"), Value::Null] {
+            assert_eq!(ok(bad).unwrap_err().code, "INVALID_RECIPE");
+        }
+        assert_eq!(number(None, "x", 0.0, 1.0).unwrap_err().message, "x is outside the supported range.");
+    }
+
+    #[test]
+    fn a_clip_defaults_to_the_whole_source_and_clamps_fades_to_its_length() {
+        let r = clip_recipe(&clip(json!({"fade_in_ms": 5000, "fade_out_ms": 10, "gain_db": -3})), 1000.0).unwrap();
+        assert_eq!(
+            (r.start_ms, r.duration_ms, r.fade_in_ms, r.fade_out_ms, r.gain_db, r.gap_ms),
+            (0.0, 1000.0, 1000.0, 10.0, -3.0, 0.0)
+        );
+        let r = clip_recipe(&clip(json!({"trim_start_ms": 200, "trim_end_ms": 1001.5})), 1000.0).unwrap();
+        assert_eq!((r.start_ms, r.duration_ms), (200.0, 800.0), "an end up to 2 ms past the source is clamped");
+    }
+
+    #[test]
+    fn a_bad_trim_or_range_is_an_invalid_recipe() {
+        for bad in [
+            json!({"trim_end_ms": 1002.5}),
+            json!({"trim_start_ms": 500, "trim_end_ms": 500}),
+            json!({"gain_db": 25}),
+            json!({"gap_ms": 600001}),
+            json!({"trim_start_ms": -1}),
+        ] {
+            assert_eq!(clip_recipe(&clip(bad.clone()), 1000.0).err().unwrap().code, "INVALID_RECIPE", "{bad}");
+        }
+    }
 }
