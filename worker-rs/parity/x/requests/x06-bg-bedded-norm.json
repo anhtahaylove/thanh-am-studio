@@ -1,0 +1,26 @@
+{
+ "protocol": 1,
+ "id": "x-x06-bg-bedded-norm",
+ "operation": "render",
+ "payload": {
+  "clips": [
+   {
+    "path": "${FIX}/voice1k.wav",
+    "at_ms": 500,
+    "rate": 1
+   },
+   {
+    "path": "${FIX}/voice1k.wav",
+    "at_ms": 2500,
+    "rate": 1
+   }
+  ],
+  "normalize": true,
+  "format": "wav",
+  "background_path": "${FIX}/nền dài.flac",
+  "timeline": true,
+  "pad_to_ms": 4000
+ },
+ "output_dir": "${OUT}",
+ "models_dir": "${OUT}"
+}

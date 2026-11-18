@@ -1,0 +1,24 @@
+{
+ "protocol": 1,
+ "id": "x-x03-pauses-one-stretch",
+ "operation": "render",
+ "payload": {
+  "clips": [
+   {
+    "path": "${FIX}/pauses-take.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 11159,
+    "at_ms": 0,
+    "rate": 1.5,
+    "raw_path": "${FIX}/pauses-raw.wav",
+    "speed": 0.85
+   }
+  ],
+  "normalize": false,
+  "format": "wav",
+  "timeline": true,
+  "pad_to_ms": 0
+ },
+ "output_dir": "${OUT}",
+ "models_dir": "${OUT}"
+}

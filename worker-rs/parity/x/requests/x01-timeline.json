@@ -1,0 +1,31 @@
+{
+ "protocol": 1,
+ "id": "x-x01-timeline",
+ "operation": "render",
+ "payload": {
+  "clips": [
+   {
+    "path": "${FIX}/câu.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gap_ms": 300,
+    "at_ms": 500,
+    "rate": 1
+   },
+   {
+    "path": "${FIX}/câu.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gap_ms": 300,
+    "at_ms": 2000,
+    "rate": 1.25
+   }
+  ],
+  "normalize": false,
+  "format": "wav",
+  "timeline": true,
+  "pad_to_ms": 3500
+ },
+ "output_dir": "${OUT}",
+ "models_dir": "${OUT}"
+}

@@ -29,9 +29,37 @@ jobs:
       - name: Placeholder bundle resources (tauri-build checks they exist)
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force runtime/python, runtime/ffmpeg, release | Out-Null
+          New-Item -ItemType Directory -Force runtime/python, runtime/ffmpeg, worker-rs/stage, release | Out-Null
           New-Item -ItemType File -Force release/THIRD-PARTY-NOTICES.txt | Out-Null
       - run: cargo test --manifest-path src-tauri/Cargo.toml --tests --locked
       # numpy pinned as in worker/requirements-base.lock (peak limiter test).
       - run: python -m pip install numpy==2.4.6
       - run: python -m unittest discover -s worker/tests -v
+  worker-rs:
+    runs-on: windows-latest
+    defaults:
+      run:
+        # cargo reads .cargo/config.toml (crt-static) from the working directory, not from --manifest-path.
+        working-directory: worker-rs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: worker-rs
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      # The wheels give the pinned onnxruntime.dll, sherpa's older one and the Silero asset at <venv>/Lib/site-packages. The VieNeu
+      # tests need the 600 MB model and skip here; parity.yml runs them with ORTFFI_REQUIRE=1.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: ORT inputs for the ortffi tests
+        run: |
+          python -m venv "$env:RUNNER_TEMP/ortvenv"
+          & "$env:RUNNER_TEMP/ortvenv/Scripts/python.exe" -m pip install --no-deps onnxruntime==1.31.1 faster-whisper==1.2.1 sherpa-onnx==2.0.1 sherpa-onnx-core==2.0.1
+      - run: cargo test --workspace --locked
+        env:
+          ORTFFI_RUNTIME: ${{ runner.temp }}/ortvenv

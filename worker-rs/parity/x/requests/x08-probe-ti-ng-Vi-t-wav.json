@@ -1,0 +1,10 @@
+{
+ "protocol": 1,
+ "id": "x-x08-probe-ti-ng-Vi-t-wav",
+ "operation": "probe",
+ "payload": {
+  "input_path": "${FIX}/tiếng Việt.wav"
+ },
+ "output_dir": "${OUT}",
+ "models_dir": "${OUT}"
+}

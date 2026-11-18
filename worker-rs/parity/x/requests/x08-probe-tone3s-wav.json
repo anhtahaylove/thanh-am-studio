@@ -1,0 +1,10 @@
+{
+ "protocol": 1,
+ "id": "x-x08-probe-tone3s-wav",
+ "operation": "probe",
+ "payload": {
+  "input_path": "${FIX}/tone3s.wav"
+ },
+ "output_dir": "${OUT}",
+ "models_dir": "${OUT}"
+}

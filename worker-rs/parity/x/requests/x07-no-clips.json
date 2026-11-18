@@ -1,0 +1,11 @@
+{
+ "protocol": 1,
+ "id": "x-x07-no-clips",
+ "operation": "render",
+ "payload": {
+  "clips": [],
+  "format": "wav"
+ },
+ "output_dir": "${OUT}",
+ "models_dir": "${OUT}"
+}

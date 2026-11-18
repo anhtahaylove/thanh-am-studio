@@ -1,0 +1,16 @@
+{
+ "protocol": 1,
+ "id": "x-x07-bg-without-timeline",
+ "operation": "render",
+ "payload": {
+  "clips": [
+   {
+    "path": "${FIX}/voice1k.wav"
+   }
+  ],
+  "format": "wav",
+  "background_path": "${FIX}/nền dài.flac"
+ },
+ "output_dir": "${OUT}",
+ "models_dir": "${OUT}"
+}

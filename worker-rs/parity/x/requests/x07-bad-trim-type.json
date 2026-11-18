@@ -1,0 +1,16 @@
+{
+ "protocol": 1,
+ "id": "x-x07-bad-trim-type",
+ "operation": "render",
+ "payload": {
+  "clips": [
+   {
+    "path": "${FIX}/voice1k.wav",
+    "trim_start_ms": "x"
+   }
+  ],
+  "format": "wav"
+ },
+ "output_dir": "${OUT}",
+ "models_dir": "${OUT}"
+}

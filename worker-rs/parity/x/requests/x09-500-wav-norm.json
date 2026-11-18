@@ -1,0 +1,4513 @@
+{
+ "protocol": 1,
+ "id": "x-x09-500-wav-norm",
+ "operation": "render",
+ "payload": {
+  "clips": [
+   {
+    "path": "${FIX}/seg/seg000.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": 2710,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg001.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg002.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 3730,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg003.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 1810,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg004.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 2450,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg005.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 2850,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg006.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg007.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg008.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg009.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg010.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg011.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg012.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": 1990,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg013.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg014.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg015.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg016.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 1830,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg017.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg018.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg019.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": 2850,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg020.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg021.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": 1990,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg022.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg023.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg024.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2470,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg025.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg026.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 3030,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg027.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg028.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg029.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 2950,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg030.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg031.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg032.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg033.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg034.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg035.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2610,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg036.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg037.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg038.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg039.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg040.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg041.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg042.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg043.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg044.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg045.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg046.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 3030,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg047.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg048.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg049.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 2230,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg050.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg051.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": 3110,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg052.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg053.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg054.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg055.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg056.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg057.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg058.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2310,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg059.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg060.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 3030,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg061.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg062.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg063.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg064.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg065.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg066.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg067.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg068.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2770,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg069.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg070.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg071.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg072.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg073.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg074.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg075.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg076.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2210,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg077.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 1890,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg078.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2150,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg079.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg080.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg081.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg082.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg083.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg084.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg085.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg086.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg087.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 1990,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg088.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg089.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 3030,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg090.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg091.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 1670,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg092.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg093.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg094.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg095.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg096.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 1730,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg097.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 1910,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg098.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 1890,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg099.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg100.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg101.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg102.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg103.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg104.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 1830,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg105.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg106.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg107.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2370,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg108.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2870,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg109.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2870,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg110.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg111.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg112.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg113.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg114.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg115.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg116.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg117.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg118.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": 2230,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg119.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2290,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg120.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg121.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg122.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg123.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg124.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 2770,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg125.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg126.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg127.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg128.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg129.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg130.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg131.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 1730,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg132.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 2950,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg133.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 1910,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg134.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2070,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg135.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg136.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2850,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg137.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg138.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg139.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg140.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg141.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg142.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 2690,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg143.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg144.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": 2310,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg145.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg146.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg147.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": 2710,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg148.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 1910,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg149.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 1670,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg150.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg151.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg152.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg153.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": 2550,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg154.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 1910,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg155.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg156.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg157.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 1970,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg158.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2610,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg159.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg160.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2710,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg161.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2230,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg162.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 1990,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg163.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2230,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg164.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2690,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg165.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": 3110,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg166.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg167.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg168.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 3250,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg169.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 1990,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg170.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 3030,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg171.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg172.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 3030,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg173.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg174.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg175.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 1990,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg176.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2770,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg177.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg178.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2790,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg179.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": 3030,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg180.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2230,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg181.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg182.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2710,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg183.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": 2290,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg184.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2550,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg185.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg186.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 3250,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg187.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 1590,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg188.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg189.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 3010,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg190.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 3510,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg191.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg192.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg193.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg194.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg195.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg196.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 2710,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg197.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg198.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg199.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg200.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg201.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg202.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg203.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 3410,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg204.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg205.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 1670,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg206.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg207.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2950,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg208.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg209.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg210.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg211.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2770,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg212.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 3090,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg213.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2230,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg214.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg215.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2290,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg216.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg217.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg218.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 2710,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg219.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 2770,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg220.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg221.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 2130,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg222.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg223.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 3110,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg224.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2690,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg225.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg226.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg227.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg228.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 2630,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg229.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2870,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg230.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg231.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 1990,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg232.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg233.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg234.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg235.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": 2230,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg236.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": 2950,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg237.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg238.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg239.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2690,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg240.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg241.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg242.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 2130,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg243.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg244.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg245.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg246.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": 3250,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg247.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg248.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg249.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg250.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg251.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg252.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg253.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg254.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg255.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2710,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg256.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg257.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 1670,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg258.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg259.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2210,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg260.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg261.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg262.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg263.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg264.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg265.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg266.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg267.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg268.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg269.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg270.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 3010,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg271.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg272.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg273.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg274.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg275.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg276.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2070,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg277.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg278.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 1830,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg279.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg280.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": 3090,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg281.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg282.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 3190,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg283.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg284.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg285.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2770,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg286.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg287.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg288.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg289.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": 3330,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg290.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg291.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg292.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg293.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg294.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 1810,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg295.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg296.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg297.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg298.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg299.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 3030,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg300.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 3190,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg301.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2310,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg302.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg303.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg304.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg305.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg306.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg307.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg308.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg309.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg310.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 2130,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg311.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg312.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg313.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 1670,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg314.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg315.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg316.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg317.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg318.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg319.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg320.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg321.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 3030,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg322.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg323.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg324.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 1890,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg325.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg326.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg327.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": 3190,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg328.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 3170,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg329.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg330.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg331.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg332.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg333.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg334.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2370,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg335.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg336.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg337.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg338.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg339.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg340.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 3110,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg341.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 2690,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg342.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg343.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 2210,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg344.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg345.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg346.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg347.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 2070,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg348.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg349.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg350.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 3090,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg351.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 3250,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg352.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg353.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg354.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": 2450,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg355.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg356.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg357.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg358.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": 2470,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg359.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg360.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg361.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2610,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg362.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg363.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg364.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg365.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg366.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg367.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg368.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2930,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg369.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg370.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg371.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": 3170,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg372.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg373.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 2150,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg374.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg375.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2950,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg376.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg377.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 3430,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg378.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg379.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": 2130,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg380.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg381.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg382.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg383.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 2550,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg384.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg385.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2230,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg386.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg387.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg388.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg389.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg390.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 2230,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg391.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg392.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg393.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg394.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg395.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2630,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg396.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg397.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg398.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg399.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": 2230,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg400.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg401.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 2710,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg402.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 2950,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg403.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": 2550,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg404.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 3410,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg405.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg406.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 1750,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg407.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg408.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg409.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": 2770,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg410.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg411.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg412.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": 2690,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg413.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg414.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 1650,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg415.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2210,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg416.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg417.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg418.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg419.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 2610,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg420.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg421.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 3030,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg422.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg423.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 1730,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg424.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 1670,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg425.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": 2130,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg426.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg427.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg428.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 2950,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg429.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg430.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg431.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": 1730,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg432.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg433.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2950,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg434.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2630,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg435.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg436.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg437.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg438.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg439.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg440.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg441.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 3270,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg442.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg443.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg444.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg445.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg446.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg447.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg448.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 2930,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg449.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": 1990,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg450.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2630,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg451.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg452.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg453.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg454.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg455.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg456.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": 2770,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg457.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg458.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg459.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg460.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg461.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg462.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg463.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg464.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": 2870,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg465.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg466.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg467.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg468.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2550,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg469.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2930,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg470.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg471.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg472.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 2610,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg473.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg474.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg475.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg476.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg477.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg478.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg479.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg480.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg481.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": 3170,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg482.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg483.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg484.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg485.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg486.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg487.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 3110,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg488.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg489.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg490.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg491.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 0
+   },
+   {
+    "path": "${FIX}/seg/seg492.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg493.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg494.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg495.wav",
+    "trim_start_ms": 40,
+    "trim_end_ms": null,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg496.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 1730,
+    "gain_db": 0,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg497.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": 3110,
+    "gain_db": 2.5,
+    "fade_in_ms": 0,
+    "fade_out_ms": 0,
+    "gap_ms": 150
+   },
+   {
+    "path": "${FIX}/seg/seg498.wav",
+    "trim_start_ms": 120,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 0,
+    "gap_ms": 400
+   },
+   {
+    "path": "${FIX}/seg/seg499.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gain_db": -3,
+    "fade_in_ms": 10,
+    "fade_out_ms": 25,
+    "gap_ms": 400
+   }
+  ],
+  "normalize": true,
+  "format": "wav"
+ },
+ "output_dir": "${OUT}",
+ "models_dir": "${OUT}"
+}

@@ -1,0 +1,15 @@
+{
+ "protocol": 1,
+ "id": "x-x07-bad-format-ogg",
+ "operation": "render",
+ "payload": {
+  "clips": [
+   {
+    "path": "${FIX}/voice1k.wav"
+   }
+  ],
+  "format": "ogg"
+ },
+ "output_dir": "${OUT}",
+ "models_dir": "${OUT}"
+}
