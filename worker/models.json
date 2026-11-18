@@ -282,6 +282,25 @@
           "sha256": "d9fa14133cfcc034a6758923bb3a8ca9f8dfd0b582134643bbf83f72c17576dd"
         }
       ]
+    },
+    {
+      "id": "separation-runtime",
+      "kind": "runtime",
+      "name": "Separation runtime pack (Python, PyTorch, Demucs)",
+      "engine": "python-runtime",
+      "revision": "separation-v1",
+      "license": "BSD-3-Clause (PyTorch), MIT (Demucs), Intel Simplified Software License (oneMKL), Apache-2.0 WITH LLVM-exception (LLVM OpenMP), PSF-2.0 (Python)",
+      "description": "Python 3.11 with PyTorch and Demucs that runs background separation. Downloaded once from this project's GitHub release, checked against a manifest, and never changed afterwards. The installer does not carry it.",
+      "artifacts": [],
+      "pack": {
+        "url": "https://github.com/anhtahaylove/thanh-am-studio/releases/download/pack-separation-v1/separation-runtime-v1.zip",
+        "size": 0,
+        "unpacked_size": 0,
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "manifest_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "files": 0,
+        "longest_path": 0
+      }
     }
   ]
 }

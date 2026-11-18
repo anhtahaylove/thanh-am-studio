@@ -489,6 +489,8 @@ def verify_model(model_dir, expected_id=None):
 
 def download(payload, models_dir: Path, progress):
     spec = model_spec(payload.get('model_id'))
+    if spec.get('kind') == 'runtime':
+        return install_pack(spec, payload, models_dir, progress)
     destination = contained_path(models_dir, spec['id'])
     destination.mkdir(parents=True, exist_ok=True)
     (destination / 'installed.json').unlink(missing_ok=True)
@@ -548,6 +550,160 @@ def download(payload, models_dir: Path, progress):
     temp.write_text(json.dumps({'model_id': spec['id'], 'revision': spec['revision']}, indent=2), encoding='utf-8')
     replace_with_retry(temp, marker)
     progress(1, 'Model sẵn sàng')
+    return {'model_id': spec['id'], 'path': str(destination), 'revision': spec['revision']}
+
+
+PACK_PATH_LIMIT = 259  # MAX_PATH - 1: DLL loading has no long-path opt-in
+PACK_MANIFEST = 'MANIFEST.sha256'
+
+
+def parse_pack_manifest(text):
+    """`<sha256>  <size>  <path>` per line, as scripts/build_pack.py writes it: a list of (sha256, size, path)."""
+    entries = []
+    for line in text.splitlines():
+        digest, size, rel = line.split('  ', 2)
+        entries.append((digest, int(size), rel))
+    return entries
+
+
+def pack_path_check(destination: Path, longest: int):
+    if len(str(destination)) + 1 + longest > PACK_PATH_LIMIT:
+        raise WorkerError('PACK_PATH_TOO_LONG', 'Đường dẫn thư mục dữ liệu quá dài nên không cài được gói tách nhạc nền.')
+
+
+def file_sha256(path: Path):
+    h = hashlib.sha256()
+    with path.open('rb') as f:
+        for chunk in iter(lambda: f.read(4 * 1024 * 1024), b''):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def verify_pack(destination: Path, manifest_sha256, progress=None):
+    """Re-hashes an installed pack against its manifest and reports files that are not in it. On any problem the marker is
+    removed, so the app offers the download again, and MODEL_CHECKSUM is raised."""
+    manifest = destination / PACK_MANIFEST
+    problems = []
+    if not manifest.is_file() or file_sha256(manifest) != manifest_sha256:
+        problems.append(f'{PACK_MANIFEST} differs from its pin')
+    else:
+        entries = parse_pack_manifest(manifest.read_text(encoding='utf-8'))
+        listed = {rel for _, _, rel in entries} | {PACK_MANIFEST, 'installed.json'}
+        for i, (digest, size, rel) in enumerate(entries):
+            path = destination / rel
+            if not path.is_file():
+                problems.append(f'missing: {rel}')
+            elif path.stat().st_size != size or file_sha256(path) != digest:
+                problems.append(f'changed: {rel}')
+            if progress and i % 200 == 0:
+                progress(min(0.99, i / len(entries)), 'Đang kiểm tra gói')
+        problems += [f'extra: {rel}' for rel in (p.relative_to(destination).as_posix() for p in destination.rglob('*') if p.is_file()) if rel not in listed]
+    if problems:
+        (destination / 'installed.json').unlink(missing_ok=True)
+        raise WorkerError('MODEL_CHECKSUM', f'Gói chạy tách nhạc nền bị thay đổi hoặc hỏng ({len(problems)} vấn đề, ví dụ: {problems[0]}). Bấm Tải để cài lại gói.')
+
+
+def fetch_pack(url, part: Path, size, progress):
+    """Downloads url into part, resuming from the bytes already there."""
+    import urllib.error
+    import urllib.request
+    have = part.stat().st_size if part.is_file() else 0
+    if have > size:
+        part.unlink()
+        have = 0
+    if have == size:
+        return
+    request = urllib.request.Request(url, headers={'Range': f'bytes={have}-', 'User-Agent': 'ThanhAmStudio'})
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            if have and response.status != 206:
+                have = 0  # the server ignored the range: start over
+            with part.open('ab' if have else 'wb') as out:
+                while True:
+                    chunk = response.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    out.write(chunk)
+                    have += len(chunk)
+                    progress(min(0.85, 0.85 * have / size), 'Đang tải gói tách nhạc nền')
+    except (urllib.error.URLError, OSError) as error:
+        raise WorkerError('NETWORK', f'Không tải được gói tách nhạc nền ({type(error).__name__}). Kiểm tra mạng rồi bấm thử lại; phần đã tải được giữ lại.') from error
+
+
+def install_pack(spec, payload, models_dir: Path, progress):
+    """The separation runtime pack (a zip of Python + PyTorch + Demucs): installs it into models/<id>/, or, when that
+    revision is already installed, re-verifies it. The marker is written last, so a cut-off install is never ready."""
+    import zipfile
+    pin = spec['pack']
+    destination = contained_path(models_dir, spec['id'])
+    marker = destination / 'installed.json'
+    record = json.loads(marker.read_text(encoding='utf-8')) if marker.is_file() else {}
+    if record.get('model_id') == spec['id'] and record.get('revision') == spec['revision']:
+        verify_pack(destination, record.get('manifest_sha256'), progress)
+        progress(1, 'Gói sẵn sàng')
+        return {'model_id': spec['id'], 'path': str(destination), 'revision': spec['revision'], 'verified': True}
+    if not payload.get('license_accepted_at'):
+        raise WorkerError('LICENSE_NOT_ACCEPTED', 'Cần đồng ý giấy phép Intel oneMKL trước khi tải gói tách nhạc nền.')
+    if not pin.get('size'):
+        raise WorkerError('MODEL_NOT_READY', 'Gói chạy tách nhạc nền chưa được phát hành.')
+    pack_path_check(destination, pin.get('longest_path', 0))
+    staging = contained_path(models_dir, f".download/{spec['id']}")
+    staging.mkdir(parents=True, exist_ok=True)
+    part = staging / (pin['url'].rsplit('/', 1)[-1] + '.part')
+    need = pin['size'] + pin.get('unpacked_size', 0)
+    free = shutil.disk_usage(models_dir).free
+    if free < need + 256 * 1024 * 1024:
+        raise WorkerError('DISK_FULL', f'Không đủ dung lượng: cần khoảng {math.ceil(need / 2**20)} MB trống, còn {free // 2**20} MB.')
+    fetch_pack(pin['url'], part, pin['size'], progress)
+    progress(0.86, 'Đang kiểm tra gói')
+    if part.stat().st_size != pin['size'] or file_sha256(part) != pin['sha256']:
+        part.unlink(missing_ok=True)
+        raise WorkerError('MODEL_CHECKSUM', 'Gói tải về không khớp mã kiểm tra. Bấm Tải để tải lại.')
+    try:
+        with zipfile.ZipFile(part) as archive:
+            manifest_bytes = archive.read(PACK_MANIFEST)
+            if hashlib.sha256(manifest_bytes).hexdigest() != pin['manifest_sha256']:
+                raise WorkerError('MODEL_CHECKSUM', f'{PACK_MANIFEST} của gói không khớp mã ghim.')
+            entries = parse_pack_manifest(manifest_bytes.decode('utf-8'))
+            names = {rel for _, _, rel in entries}
+            members = {m.filename for m in archive.infolist()}
+            if members != names | {PACK_MANIFEST} or len(members) != len(archive.infolist()):
+                raise WorkerError('MODEL_CHECKSUM', 'Gói chứa tệp không có trong danh sách.')
+            for rel in names:  # zip-slip: every name stays inside the destination, as a plain relative path
+                if '\\' in rel or ':' in rel or rel.startswith('/') or '..' in rel.split('/'):
+                    raise WorkerError('INVALID_PATH', 'Tên tệp trong gói không hợp lệ.')
+            # Checked on the manifest's own longest path, before anything is extracted.
+            pack_path_check(destination, max(len(rel) for rel in names))
+            if destination.exists():
+                shutil.rmtree(destination)  # an older revision or a cut-off install
+            destination.mkdir(parents=True)
+            (destination / PACK_MANIFEST).write_bytes(manifest_bytes)
+            done = 0
+            for digest, size, rel in entries:
+                target = contained_path(destination, rel)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                h = hashlib.sha256()
+                with archive.open(rel) as source, target.open('wb') as out:
+                    for chunk in iter(lambda: source.read(1024 * 1024), b''):
+                        h.update(chunk)
+                        out.write(chunk)
+                if h.hexdigest() != digest or target.stat().st_size != size:
+                    raise WorkerError('MODEL_CHECKSUM', f'Tệp trong gói không khớp mã kiểm tra: {rel}')
+                done += 1
+                if done % 100 == 0:
+                    progress(min(0.99, 0.87 + 0.12 * done / len(entries)), 'Đang giải nén gói')
+    except zipfile.BadZipFile as error:
+        part.unlink(missing_ok=True)
+        raise WorkerError('MODEL_CHECKSUM', 'Gói tải về không phải tệp zip hợp lệ. Bấm Tải để tải lại.') from error
+    except BaseException:
+        shutil.rmtree(destination, ignore_errors=True)
+        raise
+    temp = marker.with_suffix('.partial')
+    temp.write_text(json.dumps({'model_id': spec['id'], 'revision': spec['revision'], 'manifest_sha256': pin['manifest_sha256'],
+        'license_accepted_at': payload['license_accepted_at']}, indent=2), encoding='utf-8')
+    replace_with_retry(temp, marker)
+    shutil.rmtree(staging, ignore_errors=True)
+    progress(1, 'Gói sẵn sàng')
     return {'model_id': spec['id'], 'path': str(destination), 'revision': spec['revision']}
 
 
