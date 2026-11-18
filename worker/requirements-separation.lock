@@ -1,0 +1,14 @@
+cffi==2.1.1
+demucs==4.1.0
+einops==0.8.2
+filelock==4.2.10
+fsspec==2026.9.0
+julius==0.2.8
+numpy==2.4.6
+pycparser==3.12
+pyyaml==6.0.3
+safetensors==0.8.0
+soundfile==0.14.0
+torch @ https://download.pytorch.org/whl/cpu/torch-2.15.0%2Bcpu-cp311-cp311-win_amd64.whl#sha256=773a685c0210c9c29e0ff4b6bc7f5ff98d3f7fa5853d62770c83babd75adf8c4
+tqdm==4.70.1
+typing-extensions==4.16.0

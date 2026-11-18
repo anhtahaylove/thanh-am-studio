@@ -82,13 +82,14 @@ for info in sorted(site.glob('*.dist-info')):
     add('pypi', m['Name'], m['Version'], lic, f"pkg:pypi/{m['Name'].lower()}@{m['Version']}", files)
 add('runtime', 'CPython', '3.11.18', 'PSF-2.0', 'pkg:generic/cpython@3.11.18', [ROOT / 'runtime' / 'python' / 'LICENSE.txt'])
 add('runtime', 'Microsoft Visual C++ Redistributable CRT (app-local DLLs next to python.exe; msvcp140 in numpy.libs and llvmlite.libs)', '14.x', 'LicenseRef-Microsoft-VC-Redist', 'pkg:generic/msvc-crt@14', [ROOT / 'scripts' / 'licenses' / 'msvc-crt-NOTE.txt'])
-# setup-runtime.ps1 replaces Intel's OpenMP runtime in torch and ctranslate2 with LLVM's, from the pinned conda-forge
-# package whose licence text is vendored in scripts/licenses/. oneMKL is linked into both binaries and their dist-info
-# carries no Intel text; it comes from the dist-info of the mkl 2026.2.1 wheel.
+# setup-runtime.ps1 replaces Intel's OpenMP runtime in ctranslate2 with LLVM's, from the pinned conda-forge
+# package whose licence text is vendored in scripts/licenses/. oneMKL is linked into the binary and its dist-info
+# carries no Intel text; it comes from the dist-info of the mkl 2026.2.1 wheel. torch (with its own oneMKL and
+# OpenMP) is not in the installer: it ships in the separation pack, whose notices scripts/build_pack.py writes.
 licenses = ROOT / 'scripts' / 'licenses'
-add('runtime', 'LLVM OpenMP runtime (libomp.dll in torch/lib and ctranslate2)', '23.1.5', 'Apache-2.0 WITH LLVM-exception',
+add('runtime', 'LLVM OpenMP runtime (libomp.dll in ctranslate2)', '23.1.5', 'Apache-2.0 WITH LLVM-exception',
     'pkg:conda/llvm-openmp@23.1.5?build=h49e36cd_0&channel=conda-forge&subdir=win-64', [licenses / 'llvm-openmp-LICENSE.txt'])
-add('runtime', 'Intel oneMKL (linked into torch and ctranslate2)', 'build 20260915 (torch), build 20251007 (ctranslate2)', 'LicenseRef-Intel-Simplified-Software-License', 'pkg:generic/intel-onemkl@2026.2',
+add('runtime', 'Intel oneMKL (linked into ctranslate2)', 'build 20251007 (ctranslate2)', 'LicenseRef-Intel-Simplified-Software-License', 'pkg:generic/intel-onemkl@2026.2',
     [licenses / 'intel-simplified-software-license.txt'])
 ff = ROOT / 'runtime' / 'ffmpeg'
 add('runtime', 'FFmpeg (BtbN LGPL shared build)', '9.0.2', 'LGPL-2.1-or-later', 'pkg:generic/ffmpeg@9.0.2', [ff / 'LICENSE.txt', ff / 'SOURCE.txt'])
@@ -132,7 +133,7 @@ stale = [f for f in [*site.rglob('libiomp5md.dll'), *site.glob('av.libs/libx26[4
 stale += [*site.rglob('libiompstubs5md.dll'), *site.rglob('cudnn64_*.dll')]
 if stale: sys.exit('runtime not built by the current scripts/setup-runtime.ps1: ' + ', '.join(str(f.relative_to(site)) for f in stale))
 app_version = json.loads((ROOT / 'package.json').read_text())['version']
-add('runtime', 'Thanh Âm Studio stand-in DLLs, part of this project: the OpenMP shim libiomp5md.dll in torch/lib and ctranslate2 '
+add('runtime', 'Thanh Âm Studio stand-in DLLs, part of this project: the OpenMP shim libiomp5md.dll in ctranslate2 '
     '(scripts/openmp-shim) and the libx264 and libx265 stubs in av.libs, which contain no x264 or x265 code (scripts/encoder-stubs)',
     app_version, 'Apache-2.0', f'pkg:github/anhtahaylove/thanh-am-studio@{app_version}', [ROOT / 'LICENSE'])
 # soundfile's libsndfile_x64.dll links its codec libraries in statically (scripts/licenses/libsndfile-SOURCE.txt).

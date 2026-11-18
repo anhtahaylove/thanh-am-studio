@@ -890,7 +890,11 @@ def separate(payload, output_dir: Path, progress):
         partial.unlink(missing_ok=True)
 
 
-def health():
+HEALTH_PROFILES = {'base': ['numpy', 'soundfile', 'onnxruntime', 'ctranslate2', 'av', 'vieneu', 'faster_whisper', 'huggingface_hub'],
+                   'separation': ['numpy', 'soundfile', 'torch', 'demucs.htdemucs', 'safetensors']}
+
+
+def health(profile='base'):
     # Import for real: native extensions only fail at load time (e.g. a missing MSVC runtime DLL).
     def loads(name):
         try:
@@ -898,11 +902,13 @@ def health():
             return True
         except Exception:
             return False
-    modules = {name: loads(name) for name in ['numpy', 'soundfile', 'onnxruntime', 'ctranslate2', 'av', 'vieneu', 'faster_whisper', 'huggingface_hub']}
+    if profile not in HEALTH_PROFILES:
+        raise WorkerError('INVALID_REQUEST', f'Unknown health profile: {profile}')
+    # The base runtime ships the engines (TTS, STT, render); the separation pack ships only what separate() imports.
     # Only separate() may load torch: TTS and STT must start and run as they did before it was in the runtime.
-    torch_imported_by_engines = 'torch' in sys.modules
-    modules.update({name: loads(name) for name in ['torch', 'demucs.htdemucs', 'safetensors']})
-    return {'python': sys.version.split()[0], 'modules': modules, 'torch_imported_by_engines': torch_imported_by_engines,
+    modules = {name: loads(name) for name in HEALTH_PROFILES[profile]}
+    torch_imported_by_engines = profile == 'base' and 'torch' in sys.modules
+    return {'python': sys.version.split()[0], 'profile': profile, 'modules': modules, 'torch_imported_by_engines': torch_imported_by_engines,
         'ffmpeg': os.environ.get('THANHAM_FFMPEG') or shutil.which('ffmpeg'),
         'ready': all(modules.values()) and not torch_imported_by_engines}
 
@@ -935,7 +941,7 @@ def main():
         models_dir = Path(request.get('models_dir') or tempfile.gettempdir()).resolve()
         # SDK prints belong on stderr, never on our protocol stream.
         with contextlib.redirect_stdout(sys.stderr):
-            if operation == 'health': result = health()
+            if operation == 'health': result = health(payload.get('profile', 'base'))
             elif operation == 'probe': result = probe(payload['input_path'], payload.get('ffmpeg_path'))
             elif operation == 'render': result = render(payload, output_dir, progress)
             elif operation == 'download': result = download(payload, models_dir, progress)

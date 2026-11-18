@@ -1,6 +1,7 @@
 name: runtime
 # Builds the private runtime as release.yml does and runs the worker tests on it, so a worker or lock change
-# meets the real packages (soundfile, VieNeu, FFmpeg) on every PR instead of first at tag time.
+# meets the real packages (soundfile, VieNeu, FFmpeg) on every PR instead of first at tag time. It also builds the
+# separation profile (the input of the downloadable pack, see pack.yml) and runs the separation tests on it.
 on:
   push:
     branches: [main]
@@ -19,7 +20,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
-          cache-dependency-glob: worker/requirements-cpu.lock
+          cache-dependency-glob: worker/requirements-*.lock
       # setup-runtime.ps1 reuses a FFmpeg zip in %TEMP% whose SHA-256 matches its pin.
       - name: FFmpeg archive location
         id: ffmpeg
@@ -40,3 +41,16 @@ jobs:
         run: |
           $env:Path = "$PWD\runtime\ffmpeg;$env:Path"
           .\runtime\python\python.exe -m unittest discover -s worker/tests -v
+      - name: The installer's runtime carries no torch
+        shell: pwsh
+        run: |
+          .\runtime\python\python.exe -I -c "import importlib.util as u, sys; sys.exit(1 if any(u.find_spec(n) for n in ('torch', 'demucs', 'julius', 'einops', 'safetensors')) else 0)"
+          if ($LASTEXITCODE -ne 0) { throw 'torch or a Demucs package is in the base runtime' }
+      - name: Build the separation runtime (the pack's input)
+        shell: pwsh
+        run: ./scripts/setup-runtime.ps1 -Profile separation
+      - name: Separation tests on the separation runtime
+        shell: pwsh
+        run: |
+          $env:Path = "$PWD\runtime\ffmpeg;$env:Path"
+          .\runtime-separation\python\python.exe -B -I -m unittest discover -s worker/tests -p test_worker.py -k separat -v
