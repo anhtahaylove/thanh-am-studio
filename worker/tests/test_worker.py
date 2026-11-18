@@ -128,6 +128,8 @@ class WorkerTests(unittest.TestCase):
         for module in ROOT.glob('*.py'):
             with self.subTest(module=module.name):
                 self.assertEqual(resources.get(f'../worker/{module.name}'), f'worker/{module.name}')
+        # the native worker, ONNX Runtime and the VC143 runtime (scripts/stage-worker.ps1) land beside main.py
+        self.assertEqual(resources.get('../worker-rs/stage/'), 'worker/')
 
     def test_pause_marks_split_text_and_carry_silence(self):
         parts, trailing = worker.split_pauses('Xin chào. [nghỉ 0,5s] Tạm biệt [NGHỈ 250ms][nghỉ 1 giây]')

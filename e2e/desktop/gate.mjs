@@ -15,7 +15,7 @@ const report = {segments: N};
 let page, app, browser;
 const invoke = (c, a = {}) => page.evaluate(([c, a]) => window.__TAURI_INTERNALS__.invoke(c, a), [c, a]);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const procs = () => { try { return JSON.parse(execSync(`powershell -NoProfile -Command "Get-Process python,thanh-am-studio -EA SilentlyContinue | Where-Object { $_.Path -like '*thanh*' -or $_.ProcessName -like 'thanh*' } | Select-Object Id,ProcessName,WorkingSet64 | ConvertTo-Json -Compress"`, {encoding: 'utf8'}) || '[]'); } catch { return []; } };
+const procs = () => { try { return JSON.parse(execSync(`powershell -NoProfile -Command "Get-Process python,thanham-worker,thanh-am-studio -EA SilentlyContinue | Where-Object { $_.Path -like '*thanh*' -or $_.ProcessName -like 'thanh*' } | Select-Object Id,ProcessName,WorkingSet64 | ConvertTo-Json -Compress"`, {encoding: 'utf8'}) || '[]'); } catch { return []; } };
 const peak = {python: 0, app: 0};
 // Per-phase peaks plus a raw per-process timeline (ram.csv) to attribute worker memory to TTS, render or STT.
 let phase = 'tts';
@@ -23,8 +23,9 @@ const byPhase = {};
 const mb = (b) => Math.round(b / 2 ** 20);
 const sample = () => {
   const ps = [procs()].flat(), ph = (byPhase[phase] ??= {python_max_mb: 0, python_sum_max_mb: 0, python_procs_max: 0, app_max_mb: 0});
-  const py = ps.filter((p) => p.ProcessName === 'python');
-  for (const p of ps) { const k = p.ProcessName === 'python' ? 'python' : 'app'; peak[k] = Math.max(peak[k], p.WorkingSet64); ph[`${k}_max_mb`] = Math.max(ph[`${k}_max_mb`], mb(p.WorkingSet64)); }
+  const isWorker = (p) => p.ProcessName === 'python' || p.ProcessName === 'thanham-worker'; // Python and native workers share the python_* columns
+  const py = ps.filter(isWorker);
+  for (const p of ps) { const k = isWorker(p) ? 'python' : 'app'; peak[k] = Math.max(peak[k], p.WorkingSet64); ph[`${k}_max_mb`] = Math.max(ph[`${k}_max_mb`], mb(p.WorkingSet64)); }
   ph.python_sum_max_mb = Math.max(ph.python_sum_max_mb, mb(py.reduce((a, p) => a + p.WorkingSet64, 0)));
   ph.python_procs_max = Math.max(ph.python_procs_max, py.length);
   appendFileSync(join(out, 'ram.csv'), ps.map((p) => `${new Date().toISOString()},${phase},${p.ProcessName},${p.Id},${mb(p.WorkingSet64)}\n`).join(''));
@@ -100,7 +101,7 @@ try {
     const before = (await ttsJobs(pid)).filter((j) => j.status === 'succeeded').length;
     execSync(`taskkill /F /T /PID ${app.pid}`); // hard crash, no graceful shutdown
     await sleep(3000);
-    report.orphan_workers_after_crash = procs().filter((x) => x.ProcessName === 'python').length;
+    report.orphan_workers_after_crash = procs().filter((x) => x.ProcessName === 'python' || x.ProcessName === 'thanham-worker').length;
     log(`crashed after ${before} takes; orphan python=${report.orphan_workers_after_crash}`);
 
     report.restart_ms = await launch();

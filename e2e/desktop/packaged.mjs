@@ -1,5 +1,5 @@
 // Acceptance run against the packaged desktop app (UI -> Rust -> worker -> files).
-// usage: node packaged.mjs <app.exe> <outDir> <phase: full|reopen|turbo|offline|export|clone|dpi|longstt|ux|features|dub|scripts|update|update-seeded>
+// usage: node packaged.mjs <app.exe> <outDir> <phase: full|reopen|turbo|offline|export|clone|dpi|longstt|ux|features|dub|scripts|update|update-seeded|ab>
 // Drives the real WebView2 over CDP; native file dialogs are filled by file-dialog.ps1.
 import {chromium} from 'playwright-core';
 import {spawn, execFileSync} from 'node:child_process';
@@ -262,7 +262,7 @@ try {
   await step('launch', async () => `cold start ${await launch()} ms`);
   await step('runtime bundled', async () => {
     const s = await invoke('runtime_status');
-    if (!s.python_ready || !s.ffmpeg_ready || !s.worker_ready) throw Error(JSON.stringify(s));
+    if (!s.python_ready || !s.ffmpeg_ready || !s.worker_ready || !s.native_worker_ready) throw Error(JSON.stringify(s));
     return s.python_path;
   });
   if (phase === 'full') {
@@ -489,7 +489,7 @@ try {
       for (;;) {
         const fin = await finished();
         if (fin.length > n0) { job = fin[0]; break; } // list_jobs is newest first
-        const ps = JSON.parse(execFileSync('powershell', ['-NoProfile', '-Command', "@(Get-Process python -EA SilentlyContinue | Where-Object { $_.Path -like '*thanh*' } | Select-Object WorkingSet64) | ConvertTo-Json -Compress"], {encoding: 'utf8'}) || '[]');
+        const ps = JSON.parse(execFileSync('powershell', ['-NoProfile', '-Command', "@(Get-Process python,thanham-worker -EA SilentlyContinue | Where-Object { $_.Path -like '*thanh*' } | Select-Object WorkingSet64) | ConvertTo-Json -Compress"], {encoding: 'utf8'}) || '[]');
         peak = Math.max(peak, ...[ps].flat().map((p) => p?.WorkingSet64 ?? 0));
         if (Date.now() - t > 90 * 60000) throw Error('timeout');
         await page.waitForTimeout(5000);
@@ -968,7 +968,7 @@ try {
       await invoke('cancel_job', {id: again.id});
       await page.waitForTimeout(10000);
       j = (await invoke('list_jobs')).find((x) => x.id === again.id);
-      const workers = [JSON.parse(execFileSync('powershell', ['-NoProfile', '-Command', `@(Get-Process python,ffmpeg -EA SilentlyContinue | Where-Object { $_.Path -like '${dirname(exe)}\\*' -or $_.Path -like '*\\models\\separation-runtime\\*' } | Select-Object ProcessName,Id) | ConvertTo-Json -Compress`], {encoding: 'utf8'}) || '[]')].flat();
+      const workers = [JSON.parse(execFileSync('powershell', ['-NoProfile', '-Command', `@(Get-Process python,thanham-worker,ffmpeg -EA SilentlyContinue | Where-Object { $_.Path -like '${dirname(exe)}\\*' -or $_.Path -like '*\\models\\separation-runtime\\*' } | Select-Object ProcessName,Id) | ConvertTo-Json -Compress`], {encoding: 'utf8'}) || '[]')].flat();
       const folder = join(process.env.LOCALAPPDATA, 'studio.thanham.desktop', 'jobs', again.id), files = existsSync(folder) ? readdirSync(folder) : [];
       if (j.status !== 'cancelled' || workers.length || files.some((f) => /\.flac$/i.test(f))) throw Error(JSON.stringify({status: j.status, workers, files}));
       return `cancelled at ${Math.round(j.progress * 100)} %; no worker python or ffmpeg after 10 s; job folder: ${files.join(', ') || 'none'}`;
@@ -1084,6 +1084,41 @@ try {
       if (downloads.length !== downloadsBefore) throw Error(`model_download jobs: ${downloadsBefore} before, ${downloads.length} now`);
       for (const id of seeded) if (treeHash(join(models, id)) !== baseline[id]) throw Error(`${id} changed`);
       return `${seeded.length} models unchanged; ${downloads.length} model downloads besides the pack`;
+    });
+  }
+  if (phase === 'ab') {
+    // The operations this build routes to the native worker (RUST_OPS), each run on Python and on the native worker: same job, same output.
+    const wav = join(saves, 'ab-tone.wav'), n = 24000, pcm = Buffer.alloc(n * 2);
+    for (let i = 0; i < n; i++) pcm.writeInt16LE(Math.round(8000 * Math.sin(i * 0.05)), i * 2);
+    const head = Buffer.alloc(44); head.write('RIFF', 0); head.writeUInt32LE(36 + pcm.length, 4); head.write('WAVEfmt ', 8); head.writeUInt32LE(16, 16); head.writeUInt16LE(1, 20); head.writeUInt16LE(1, 22); head.writeUInt32LE(24000, 24); head.writeUInt32LE(48000, 28); head.writeUInt16LE(2, 32); head.writeUInt16LE(16, 34); head.write('data', 36); head.writeUInt32LE(pcm.length, 40);
+    writeFileSync(wav, Buffer.concat([head, pcm]));
+    const asset = await invoke('import_asset', {path: wav}), base = await invoke('get_settings');
+    const segments = [{id: 'ab1', text: 'a', takes: [{id: 't1', asset_id: asset.id}], selected_take_id: 't1', trim_start_ms: 0, trim_end_ms: null, gap_ms: 100, fade_in_ms: 0, fade_out_ms: 0, gain_db: 0}];
+    const jobs = {render: {payload: {segments, normalize: false, format: 'wav'}}, download: {payload: {model_id: 'diarization'}}};
+    const ran = {}; let count = {render: 0, download: 0};
+    for (const engine of ['python', 'auto']) {
+      await invoke('save_settings', {settings: {...base, worker_engines: {render: engine, download: engine}}});
+      for (const [kind, {payload}] of Object.entries(jobs)) {
+        const op = kind === 'download' ? 'model_download' : kind;
+        await step(`${kind} on ${engine}`, async () => {
+          await invoke('enqueue_job', {kind: op, projectId: null, payload});
+          const job = (await waitJobs(op, ++count[kind], 20 * 60000))[0]; // list_jobs is newest first and the queue is sequential
+          ran[`${kind}-${engine}`] = job;
+          if (job.result.engine !== (engine === 'python' ? 'python' : 'rust')) throw Error(`${kind} ran on ${job.result.engine} with worker_engines=${engine}: is it in RUST_OPS for this build? ${JSON.stringify(job.result)}`);
+          return `engine ${job.result.engine}`;
+        });
+      }
+    }
+    await step('render output is identical on both engines', async () => {
+      const sha = async (j) => (await import('node:crypto')).createHash('sha256').update(readFileSync((await invoke('get_asset', {id: j.result.asset_id})).path)).digest('hex');
+      const [a, b] = [await sha(ran['render-python']), await sha(ran['render-auto'])];
+      if (a !== b) throw Error(`render sha256 differs: ${a} vs ${b}`);
+      return a.slice(0, 16);
+    });
+    await step('download result is identical on both engines', async () => {
+      const [a, b] = [ran['download-python'], ran['download-auto']].map((j) => JSON.stringify({model_id: j.result.model_id, revision: j.result.revision}));
+      if (a !== b) throw Error(`${a} vs ${b}`);
+      return a;
     });
   }
   if (phase === 'export') {
