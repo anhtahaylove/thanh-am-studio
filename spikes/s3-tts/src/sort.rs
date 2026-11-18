@@ -1,7 +1,9 @@
 //! `np.argsort` and `np.argpartition` for float32 vectors, with numpy 2.4.6's own dispatch:
 //!
-//! * x86-64-v4 CPU: numpy's x86-simd-sort AVX-512 (`ArgQSort` / `ArgQSelect`), compiled from numpy's sources (`build.rs`);
-//! * x86-64-v3 CPU: the same library's AVX2 variant;
+//! * x86-64-v3 and v4 CPUs: numpy's x86-simd-sort (`ArgQSort` / `ArgQSelect`) compiled from numpy's sources with `/arch:AVX2` (`build.rs`).
+//!   numpy's Windows wheel dispatches `X86_V4` too, but measured under Intel SDE `-skx` its argsort/argpartition orders equal the AVX2 ones on
+//!   2,000 tie-heavy vectors while an `/arch:AVX512` build of the same sources does not (1,450 of 2,000 candidate sets match), so v4 uses
+//!   the AVX2 variant;
 //! * anything older: numpy's generic `aquicksort_` and `aintroselect_` (`npysort/quicksort.cpp`, `selection.cpp`), ported below.
 //!
 //! The order of equal elements and the identity of the elements kept at a tie differ between these implementations, which is why each
@@ -12,8 +14,6 @@ use crate::exp::{isa, Isa};
 extern "C" {
     fn xss_v3_argsort_f32(arr: *mut f32, arg: *mut i64, n: i64);
     fn xss_v3_argselect_f32(arr: *mut f32, arg: *mut i64, kth: i64, n: i64);
-    fn xss_v4_argsort_f32(arr: *mut f32, arg: *mut i64, n: i64);
-    fn xss_v4_argselect_f32(arr: *mut f32, arg: *mut i64, kth: i64, n: i64);
 }
 
 /// numpy's float `Tag::less`: NaNs sort to the end.
@@ -31,8 +31,7 @@ pub fn argsort(a: &mut [f32]) -> Vec<i64> {
     }
     match isa() {
         // SAFETY: `a` and `arg` hold `n` elements; `arg` is the identity permutation on entry as numpy's `tosort` is.
-        Isa::V4 => unsafe { xss_v4_argsort_f32(a.as_mut_ptr(), arg.as_mut_ptr(), n as i64) },
-        Isa::V3 => unsafe { xss_v3_argsort_f32(a.as_mut_ptr(), arg.as_mut_ptr(), n as i64) },
+        Isa::V4 | Isa::V3 => unsafe { xss_v3_argsort_f32(a.as_mut_ptr(), arg.as_mut_ptr(), n as i64) },
         Isa::Baseline => aquicksort(a, &mut arg),
     }
     arg
@@ -44,8 +43,7 @@ pub fn argpartition(a: &mut [f32], kth: usize) -> Vec<i64> {
     let mut arg: Vec<i64> = (0..n as i64).collect();
     match isa() {
         // SAFETY: as above; `kth < n`.
-        Isa::V4 => unsafe { xss_v4_argselect_f32(a.as_mut_ptr(), arg.as_mut_ptr(), kth as i64, n as i64) },
-        Isa::V3 => unsafe { xss_v3_argselect_f32(a.as_mut_ptr(), arg.as_mut_ptr(), kth as i64, n as i64) },
+        Isa::V4 | Isa::V3 => unsafe { xss_v3_argselect_f32(a.as_mut_ptr(), arg.as_mut_ptr(), kth as i64, n as i64) },
         Isa::Baseline => {
             introselect(a, &mut arg, 0, n as isize - 1, kth as isize);
         }
