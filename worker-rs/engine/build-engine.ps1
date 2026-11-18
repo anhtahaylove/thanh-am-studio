@@ -48,14 +48,20 @@ $in = Join-Path $Work 'inputs'
 $lib = Join-Path $Work 'lib'
 foreach ($d in $Work, $in, $lib) { New-Item -ItemType Directory -Force -Path $d | Out-Null }
 
-# MSVC environment (cl, lib, link, dumpbin, cmake, ninja), unless the caller already has it.
+# MSVC environment (cl, lib, link, dumpbin, cmake, ninja), unless the caller already has it. The compiler is MSVC 14.44 (cl 19.44,
+# Visual Studio 2022 17.14), the toolset of the wheel's windows-2022 build (its DLL's objects: cl 19.44.35228 and 35229): CT2's
+# own kernels are compiled code, and on a CPU without MKL (oneDNN path) an engine from cl 19.51 differed from the wheel.
+$Toolset = '14.44'
 if (-not (Get-Command cl.exe -ErrorAction SilentlyContinue)) {
     $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
     $vs = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
     $vcvars = Join-Path $vs 'VC\Auxiliary\Build\vcvars64.bat'
-    cmd /c "`"$vcvars`" >nul && set" | ForEach-Object { if ($_ -match '^([^=]+)=(.*)$' -and $Matches[1] -ne 'PSModulePath') { Set-Item "Env:$($Matches[1])" $Matches[2] } }
+    cmd /c "`"$vcvars`" -vcvars_ver=$Toolset >nul && set" | ForEach-Object { if ($_ -match '^([^=]+)=(.*)$' -and $Matches[1] -ne 'PSModulePath') { Set-Item "Env:$($Matches[1])" $Matches[2] } }
 }
 $env:VSLANG = '1033'  # English tool output; the dumpbin parsing below expects it
+$cl = (cmd /c 'cl 2>&1' | Select-Object -First 1)
+if ($cl -notmatch "Version 19\.$($Toolset.Split('.')[1])\.") { throw "Needs the MSVC $Toolset toolset (cl 19.$($Toolset.Split('.')[1])), found: $cl" }
+"compiler: $cl"
 
 foreach ($i in $Inputs) {
     $file = Join-Path $in $i.Name
