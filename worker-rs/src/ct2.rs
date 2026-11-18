@@ -65,6 +65,32 @@ mod tests {
             .collect()
     }
 
+    /// The worker's engine settings: int8 on the CPU, `min(8, cpu_count)` threads (main.py `stt`).
+    fn load(model: &std::ffi::OsStr) -> Whisper {
+        let threads = std::thread::available_parallelism().map_or(4, |n| n.get()).min(8);
+        let config = Config {
+            device: Device::CPU,
+            compute_type: ComputeType::INT8,
+            num_threads_per_replica: threads,
+            ..Config::default()
+        };
+        Whisper::new(model.to_str().unwrap(), config).unwrap()
+    }
+
+    /// `whisper.encode(features)` of a `[1, n_mels, 3000]` input, as float32.
+    fn encode(whisper: &Whisper, mut feats: Vec<f32>) -> Vec<f32> {
+        let n_mels = whisper.n_mels();
+        let sv = StorageView::new(&[1, n_mels, 3000], &mut feats, Device::CPU).unwrap();
+        let enc = whisper.encode(&sv, false).unwrap();
+        let ptr = &*enc as *const _ as *const c_void;
+        // SAFETY: `ptr` is the live ctranslate2::StorageView owned by `enc`; a null destination only asks for the count.
+        let count = unsafe { thanham_sv_copy_f32(ptr, std::ptr::null_mut(), 0) };
+        let mut out = vec![0f32; count];
+        // SAFETY: `out` holds exactly `count` writable floats.
+        assert_eq!(unsafe { thanham_sv_copy_f32(ptr, out.as_mut_ptr(), count) }, count);
+        out
+    }
+
     /// The engine's encoder output equals the Python wheel's bitwise on this machine: `THANHAM_CT2_MODEL` is a Whisper model
     /// folder and `THANHAM_CT2_REFERENCE` the wheel's output for the same input (`parity/ct2_encode.py`), both int8 and with the
     /// worker's thread count. Skipped when they are not set.
@@ -76,29 +102,36 @@ mod tests {
             eprintln!("THANHAM_CT2_MODEL / THANHAM_CT2_REFERENCE not set: skipped");
             return;
         };
-        let threads = std::thread::available_parallelism().map_or(4, |n| n.get()).min(8);
-        let config = Config {
-            device: Device::CPU,
-            compute_type: ComputeType::INT8,
-            num_threads_per_replica: threads,
-            ..Config::default()
-        };
-        let whisper = Whisper::new(model.to_str().unwrap(), config).unwrap();
+        let whisper = load(&model);
         let n_mels = whisper.n_mels();
-        let mut feats = features(n_mels * 3000);
-        let sv = StorageView::new(&[1, n_mels, 3000], &mut feats, Device::CPU).unwrap();
-        let enc = whisper.encode(&sv, false).unwrap();
-        let ptr = &*enc as *const _ as *const c_void;
-        // SAFETY: `ptr` is the live ctranslate2::StorageView owned by `enc`; a null destination only asks for the count.
-        let count = unsafe { thanham_sv_copy_f32(ptr, std::ptr::null_mut(), 0) };
-        let mut out = vec![0f32; count];
-        // SAFETY: `out` holds exactly `count` writable floats.
-        assert_eq!(unsafe { thanham_sv_copy_f32(ptr, out.as_mut_ptr(), count) }, count);
+        let out = encode(&whisper, features(n_mels * 3000));
         let got: Vec<u8> = out.iter().flat_map(|v| v.to_le_bytes()).collect();
         let want = std::fs::read(reference).unwrap();
         let differing = got.chunks(4).zip(want.chunks(4)).filter(|(a, b)| a != b).count();
-        println!("encoder: {count} floats, {differing} differ from the wheel; engine {}", super::info());
+        println!("encoder: {} floats, {differing} differ from the wheel; engine {}", out.len(), super::info());
         assert_eq!(got.len(), want.len());
         assert_eq!(differing, 0);
+    }
+
+    /// Row T1e, run locally: the encoder on recorded inputs, listed as spike S4's `t1e.py list` writes them
+    /// (`<features file>\t<byte offset>\t<out file>` per line), each output written for `t1e.py compare`. Start the test process
+    /// pinned to one core type (S4 finding F-S4-1); `THANHAM_CT2_MODEL` and `THANHAM_T1E_LIST`.
+    #[test]
+    #[ignore = "local T1e runs on recorded inputs"]
+    fn encode_list() {
+        let (model, list) =
+            (std::env::var_os("THANHAM_CT2_MODEL").unwrap(), std::env::var_os("THANHAM_T1E_LIST").unwrap());
+        let whisper = load(&model);
+        let n = whisper.n_mels() * 3000;
+        println!("engine {}", super::info());
+        for line in std::fs::read_to_string(list).unwrap().lines().filter(|l| !l.trim().is_empty()) {
+            let [feat, offset, out] = line.split('\t').collect::<Vec<_>>()[..] else { panic!("bad list line: {line}") };
+            let raw = std::fs::read(feat).unwrap();
+            let at: usize = offset.parse().unwrap();
+            let feats =
+                raw[at..at + n * 4].chunks_exact(4).map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect();
+            let bytes: Vec<u8> = encode(&whisper, feats).iter().flat_map(|v| v.to_le_bytes()).collect();
+            std::fs::write(out, bytes).unwrap();
+        }
     }
 }

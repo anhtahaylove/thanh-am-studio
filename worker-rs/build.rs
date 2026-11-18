@@ -62,9 +62,10 @@ fn main() {
         println!("cargo:rustc-link-lib=static=dnnl");
         // CT2 adds this only to its own EXE/DLL links (plan F43), and /openmp objects ask for vcomp: the OpenMP ABI must come from
         // the shim's libiomp5md.dll instead.
-        println!("cargo:rustc-link-arg=/NODEFAULTLIB:vcomp");
-        // Keeps the .CRT$XCT initializer that makes CT2 choose MKL as the wheel does (native/ct2_glue.cc).
-        println!("cargo:rustc-link-arg=/INCLUDE:thanham_early_ct2_env_p");
+        println!("cargo:rustc-link-arg-bins=/NODEFAULTLIB:vcomp");
+        // Keeps the .CRT$XCT initializer that makes CT2 choose MKL as the wheel does (native/ct2_glue.cc). The exe and its unit
+        // tests only: the integration tests run the exe and do not link CTranslate2.
+        println!("cargo:rustc-link-arg-bins=/INCLUDE:thanham_early_ct2_env_p");
         cc::Build::new()
             .cpp(true)
             .std("c++17")

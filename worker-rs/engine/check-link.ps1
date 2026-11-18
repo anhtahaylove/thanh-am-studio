@@ -40,11 +40,12 @@ foreach ($n in 'cublas', 'cublasLt') {
 "imports from libiomp5md.dll: $($imports.Count) ($(($imports | Sort-Object) -join ', '))"
 "dependents: $($deps -join ', ')"
 
-$health = (& $Exe health | Out-String) | ConvertFrom-Json
-$engine = $health.stt_engine
-"health stt_engine: $($engine | ConvertTo-Json -Compress)"
-$want = if ($engine.cpu_vendor -ceq 'GenuineIntel') { 'MKL' } else { 'DNNL' }
-if ($engine.gemm_int8 -cne $want) { $fail += "CTranslate2 chose $($engine.gemm_int8) on a $($engine.cpu_vendor) CPU; the wheel chooses $want" }
+# The worker reads one protocol request on stdin; the last event is the result.
+$result = '{"protocol":1,"id":"check-link","operation":"health","payload":{}}' | & $Exe | Select-Object -Last 1 | ConvertFrom-Json
+$stt = $result.result.stt_engine  # not $engine: PowerShell names are case-insensitive and $Engine is the [string] parameter
+"health stt_engine: $($stt | ConvertTo-Json -Compress)"
+$want = if ($stt.cpu_vendor -ceq 'GenuineIntel') { 'MKL' } else { 'DNNL' }
+if ($stt.gemm_int8 -cne $want) { $fail += "CTranslate2 chose $($stt.gemm_int8) on a $($stt.cpu_vendor) CPU; the wheel chooses $want" }
 
 if ($fail) { throw "Link checks failed:`n$($fail -join "`n")" }
 'OK: link-only names declared and not imported; every libiomp5md.dll import exported by the shim; no VCOMP; empty cublas stubs; backend as the wheel'
