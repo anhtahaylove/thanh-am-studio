@@ -46,6 +46,14 @@ jobs:
         run: ./scripts/setup-runtime.ps1
       - name: SBOM and notices
         run: python scripts/third_party.py release
+      - name: Build the native worker
+        working-directory: worker-rs  # .cargo/config.toml (crt-static) and rust-toolchain.toml are read from here
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal
+          cargo build --release --locked
+      - name: Stage the native worker (exe, ONNX Runtime, VC143 runtime)
+        shell: pwsh
+        run: ./scripts/stage-worker.ps1
       # tauri-build needs the bundled resources to exist, so test after the runtime is built.
       - run: cargo test --manifest-path src-tauri/Cargo.toml --tests --locked
       - run: npm run tauri build -- --ci
