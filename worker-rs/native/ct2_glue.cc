@@ -116,10 +116,6 @@ extern "C" void thanham_whisper_free(void* whisper) {
   delete static_cast<Whisper*>(whisper);
 }
 
-extern "C" std::size_t thanham_whisper_n_mels(const void* whisper) {
-  return static_cast<const Whisper*>(whisper)->n_mels();
-}
-
 // `model.encode(features, to_cpu=False)` on a float32 `[1, n_mels, frames]` buffer, which the input view does not copy (nor does
 // `StorageView.from_array`). The result is a new StorageView for thanham_sv_free.
 extern "C" void* thanham_whisper_encode(void* whisper, const float* features, std::size_t n_mels, std::size_t frames,
@@ -189,11 +185,11 @@ extern "C" int thanham_whisper_generate(void* whisper, const void* features, con
 }
 
 // `model.align(features, start_sequence, text_tokens, num_frames, median_filter_width)`: one result per text, as its (text index,
-// time index) pairs and its text token probabilities. `tokens` holds the texts one after the other, `token_lens` their lengths.
+// time index) pairs (the worker does not use the word probabilities). `tokens` holds the texts one after the other, `token_lens` their lengths.
 extern "C" int thanham_whisper_align(void* whisper, const void* features, const std::size_t* start, std::size_t start_len,
                                      const std::size_t* tokens, const std::size_t* token_lens, std::size_t texts,
                                      std::size_t num_frames, std::size_t median_filter_width, void* ctx,
-                                     void (*alignment)(void*, const std::int64_t*, std::size_t, const float*, std::size_t),
+                                     void (*alignment)(void*, const std::int64_t*, std::size_t),
                                      thanham_ct2_error* error) {
   return guarded(error, [&] {
     std::vector<std::vector<std::size_t>> text_tokens;
@@ -210,7 +206,7 @@ extern "C" int thanham_whisper_align(void* whisper, const void* features, const 
         pairs.push_back(p.first);
         pairs.push_back(p.second);
       }
-      alignment(ctx, pairs.data(), result.alignments.size(), result.text_token_probs.data(), result.text_token_probs.size());
+      alignment(ctx, pairs.data(), result.alignments.size());
     }
   });
 }

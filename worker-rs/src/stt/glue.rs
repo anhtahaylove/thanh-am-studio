@@ -519,9 +519,9 @@ pub struct GenResult {
     pub no_speech_prob: f64,
 }
 
+/// `align`'s (text index, time index) pairs; faster-whisper's word probabilities are not used by the worker.
 pub struct AlignResult {
     pub alignments: Vec<(i64, i64)>,
-    pub text_token_probs: Vec<f64>,
 }
 
 /// The engine (CTranslate2 Whisper), the VAD (Silero in production) and optional trace hooks.

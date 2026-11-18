@@ -90,7 +90,6 @@ struct Options {
 extern "C" {
     fn thanham_whisper_load(model_dir: *const c_char, threads: usize, error: *mut Ct2Error) -> *mut c_void;
     fn thanham_whisper_free(whisper: *mut c_void);
-    fn thanham_whisper_n_mels(whisper: *const c_void) -> usize;
     fn thanham_whisper_encode(
         whisper: *mut c_void,
         features: *const f32,
@@ -121,7 +120,7 @@ extern "C" {
         num_frames: usize,
         median_filter_width: usize,
         ctx: *mut c_void,
-        alignment: unsafe extern "C" fn(*mut c_void, *const i64, usize, *const f32, usize),
+        alignment: unsafe extern "C" fn(*mut c_void, *const i64, usize),
         error: *mut Ct2Error,
     ) -> c_int;
     fn thanham_whisper_detect_language(
@@ -163,17 +162,12 @@ unsafe extern "C" fn push_sequence(ctx: *mut c_void, ids: *const usize, n: usize
     out.push((ids.iter().map(|&i| i as u32).collect(), f64::from(score)));
 }
 
-unsafe extern "C" fn push_alignment(ctx: *mut c_void, pairs: *const i64, n: usize, probs: *const f32, m: usize) {
+unsafe extern "C" fn push_alignment(ctx: *mut c_void, pairs: *const i64, n: usize) {
     // SAFETY: `ctx` is the `Vec<AlignResult>` of `align`, alive and not otherwise borrowed during the call.
     let out = unsafe { &mut *(ctx as *mut Vec<AlignResult>) };
     // SAFETY: the engine passes `n` pairs as 2n readable values.
     let pairs = if n == 0 { &[][..] } else { unsafe { std::slice::from_raw_parts(pairs, 2 * n) } };
-    // SAFETY: the engine passes `m` readable probabilities.
-    let probs = if m == 0 { &[][..] } else { unsafe { std::slice::from_raw_parts(probs, m) } };
-    out.push(AlignResult {
-        alignments: pairs.chunks_exact(2).map(|p| (p[0], p[1])).collect(),
-        text_token_probs: probs.iter().map(|&p| f64::from(p)).collect(),
-    });
+    out.push(AlignResult { alignments: pairs.chunks_exact(2).map(|p| (p[0], p[1])).collect() });
 }
 
 unsafe extern "C" fn push_language(ctx: *mut c_void, token: *const c_char, probability: f32) {
@@ -196,11 +190,6 @@ impl Whisper {
         } else {
             Ok(Whisper(whisper))
         }
-    }
-
-    pub fn n_mels(&self) -> usize {
-        // SAFETY: a loaded model.
-        unsafe { thanham_whisper_n_mels(self.0) }
     }
 
     /// `model.encode(features)`: `features` is `[1, n_mels, frames]` row-major.

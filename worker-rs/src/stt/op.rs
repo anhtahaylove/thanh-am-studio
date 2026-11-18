@@ -63,6 +63,7 @@ impl WhisperEngine for Engine<'_> {
         Ok(())
     }
 
+    #[allow(clippy::manual_clamp)] // Python's max(0.05, min(0.99, x)), which never returns NaN; clamp would
     fn trace_segment(&mut self, end: f64) -> std::result::Result<(), GlueError> {
         (self.progress)(f64::max(0.05, f64::min(0.99, (self.offset + end) / self.duration)), "Transcribing");
         Ok(())
