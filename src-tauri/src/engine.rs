@@ -4,7 +4,7 @@ use std::{fs,io::Write,path::Path};
 
 /// Operations routed to `thanham-worker.exe`. An operation of an unreleased bundle is absent, so main stays releasable;
 /// `worker_engines` in the settings can still send a listed operation back to Python.
-pub const RUST_OPS:&[&str]=&["render","download"];
+pub const RUST_OPS:&[&str]=&["render","download","tts","clone_preview"];
 /// The operations a job can run, and so the keys `worker_engines` accepts.
 pub const OPS:&[&str]=&["tts","stt","render","download","clone_preview","separate"];
 /// Exit codes before any `result` or `error` that mean the native worker itself broke: DLL not found, access violation,
