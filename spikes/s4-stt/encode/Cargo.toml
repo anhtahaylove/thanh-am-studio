@@ -1,0 +1,18 @@
+[package]
+name = "s4-encode"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "s4-encode"
+path = "src/main.rs"
+
+[dependencies]
+# The S1 matched engine (plan §3; spike S1 stage 2): CTranslate2 4.8.5 static, MKL static ILP64 threaded (iomp shim), oneDNN 3.1.1.
+ct2rs-sys = { version = "=0.11.2", default-features = false, features = ["system", "mkl", "openmp-runtime-intel"] }
+intel-onemkl-prebuild = { version = "=0.2.2", features = ["system", "openmp"] }
+sha2 = "0.10"
+
+[build-dependencies]
+cc = "1"

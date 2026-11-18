@@ -1,0 +1,11 @@
+# Spike S4 (STT): own workspace, never joins src-tauri's.
+# glue: the faster-whisper glue port and the T1a replay driver (pure Rust, builds without the engine recipe).
+# encode: the T1e engine runner on the S1 matched CTranslate2 build (needs the S1 recipe libs, see recipe/build-encode.ps1).
+[workspace]
+resolver = "2"
+members = ["glue", "encode"]
+
+[profile.release]
+panic = "unwind"
+opt-level = 2
+debug = 1

@@ -1,0 +1,18 @@
+[package]
+name = "s4-glue"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "s4-replay"
+path = "src/bin/s4-replay.rs"
+
+[dependencies]
+# Same pin as spikes S1/S2: the tag of the tokenizers 0.23.3 wheel in the 1.0.16 runtime.
+tokenizers = { git = "https://github.com/huggingface/tokenizers", tag = "v0.23.3", default-features = false, features = ["fancy-regex"] }
+realfft = "=3.5.1"
+# float_roundtrip: recorded Python floats must parse to the exact same f64.
+serde_json = { version = "1", features = ["float_roundtrip"] }
+sha2 = "0.10"
+flate2 = { version = "1", default-features = false, features = ["zlib-rs"] }
