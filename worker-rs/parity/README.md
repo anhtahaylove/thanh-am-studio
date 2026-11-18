@@ -49,7 +49,8 @@ working set per process to `ram.csv` (the A4a RTF and RAM accept).
 - Row F is bit-exact on a CPU of the family that recorded the tensors (ORT picks kernels by CPU; on GitHub runners the committed VieNeu
   recordings differed in the last digits, max abs diff 2.6e-6). `parity.yml` therefore records the fixtures again on its runner with
   `crates/ortffi/tools/gen_fixtures.py` and the private runtime's onnxruntime, then compares exactly; there is no tolerance.
-- The `.opus` encodes of the two x05 recipes differ between CPUs (libopus picks its code paths by CPU), so their decoded PCM matches the goldens
+- The `.opus` encodes of the two x05 recipes differ between machines (most likely libopus picking its code paths by CPU: GitHub runners
+  differed from the goldens, while the Python and Rust workers on one runner gave identical PCM), so their decoded PCM matches the goldens
   only on the recording machine. `parity.yml` runs those two recipes with `--opus-python`, which takes the PCM reference from the Python
   worker run on the same runner; everything else in them (exit code, events, file names, ffprobe fields) is still compared with the goldens.
 - Row R replaces the text of a Python exception (`KeyError: 'x'`, `JSONDecodeError: ...`) with `<pyexc>`; its wording belongs to Python.
