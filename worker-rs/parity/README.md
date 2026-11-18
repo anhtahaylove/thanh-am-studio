@@ -13,6 +13,7 @@ make their Python reference on the machine that runs them, from the private runt
 | L, P1 | preset TTS before the engine: the text check (token cap), pause marks, chunks and gaps, the readings and token ids of every chunk, and the preset voices as loaded; 10,000+ lines from `tts_corpus.py` | `tts_cases.py`, then `cargo test --release tts::` | made on the machine |
 | P-op, P3-P5 | preset `tts` seeded (`THANHAM_TTS_SEED`) in both workers: events, WAV and raw WAV bytes, and per engine call the logits (P3), codes (P4) and decoded PCM (P5); 148 items in `tts/items.json` | `tts_op.py` (with `tts_trace.py` on the Python side) | made on the machine |
 | P-op, K-cond (cloned) | cloned `tts` and `clone_preview` seeded in both workers: the P-op rows above, plus every step of reference enrollment (decode, window, trim, the PCM_16 file, each resample, the denoiser's STFT, ORT and output, fbank, embedding, codes; `THANHAM_CLONE_TRACE`) and the preview's bytes; 25 items in `tts/clone_items.json` over 20 references (rates 8 to 96 kHz, stereo, every importer format soundfile reads, and M4A) | `tts_op.py --refs --previews` | references made on the machine by `clone_refs.py` from preset takes (no recording in the repository) |
+| Engine (STT) | the CTranslate2 engine of `engine/build-engine.ps1` linked into the worker (feature `ct2`): the S1 F-a link checks and the backend CTranslate2 chose, then the encoder on S1's deterministic input against the Python wheel, bitwise | `engine/check-link.ps1`; `cargo test --release --features ct2 ct2::` with the output of `ct2_encode.py` | made on the machine |
 
 Run them from `worker-rs/`, after `cargo build --release`:
 
@@ -48,7 +49,8 @@ working set per process to `ram.csv` (the A4a RTF and RAM accept).
 
 ## Declared differences
 
-- `health` is not a parity row: the Rust result is `{engine, version, ort, ffmpeg, ready}` and the Python one lists its modules.
+- `health` is not a parity row: the Rust result is `{engine, version, ort, ffmpeg, ready, stt_engine}` (`stt_engine` is null unless the exe is
+  built with the `ct2` feature) and the Python one lists its modules.
 - Row F is bit-exact on a CPU of the family that recorded the tensors (ORT picks kernels by CPU; on GitHub runners the committed VieNeu
   recordings differed in the last digits, max abs diff 2.6e-6). `parity.yml` therefore records the fixtures again on its runner with
   `crates/ortffi/tools/gen_fixtures.py` and the private runtime's onnxruntime, then compares exactly; there is no tolerance.

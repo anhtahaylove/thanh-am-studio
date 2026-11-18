@@ -48,4 +48,30 @@ fn main() {
         .include("third_party/pocketfft")
         .file("native/pocketfft_shim.cc")
         .compile("pocketfft_np");
+
+    // Feature `ct2`: the STT engine from engine/build-engine.ps1, whose output folder THANHAM_CT2_ENGINE names (ct2rs-sys links
+    // ctranslate2, cpu_features, the cublas stubs and iomp5 from its lib\; MKLROOT must be its mklroot\).
+    if std::env::var_os("CARGO_FEATURE_CT2").is_some() {
+        println!("cargo:rerun-if-env-changed=THANHAM_CT2_ENGINE");
+        let engine = std::path::PathBuf::from(
+            std::env::var_os("THANHAM_CT2_ENGINE")
+                .expect("THANHAM_CT2_ENGINE: the output folder of engine/build-engine.ps1"),
+        );
+        println!("cargo:rustc-link-search=native={}", engine.join("lib").display());
+        // oneDNN 3.1.1 from the recipe: ct2rs-sys's own `dnnl` feature would build a 2026 oneDNN (plan F37).
+        println!("cargo:rustc-link-lib=static=dnnl");
+        // CT2 adds this only to its own EXE/DLL links (plan F43), and /openmp objects ask for vcomp: the OpenMP ABI must come from
+        // the shim's libiomp5md.dll instead.
+        println!("cargo:rustc-link-arg=/NODEFAULTLIB:vcomp");
+        // Keeps the .CRT$XCT initializer that makes CT2 choose MKL as the wheel does (native/ct2_glue.cc).
+        println!("cargo:rustc-link-arg=/INCLUDE:thanham_early_ct2_env_p");
+        cc::Build::new()
+            .cpp(true)
+            .std("c++17")
+            .opt_level(2)
+            .flag("/EHsc")
+            .include(engine.join("include"))
+            .file("native/ct2_glue.cc")
+            .compile("ct2_glue");
+    }
 }
