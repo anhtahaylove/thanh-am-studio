@@ -453,8 +453,12 @@ impl Tok {
         }
         Ok((words, word_tokens))
     }
-    /// `split_tokens_on_spaces` (the language is not one of zh/ja/th/lo/my/yue on the worker's path).
-    fn split_to_word_tokens(&self, tokens: &[u32]) -> Result<(Vec<String>, Vec<Vec<u32>>), GlueError> {
+    /// `Tokenizer.split_to_word_tokens`: unicode split for the languages written without spaces (auto language can detect them),
+    /// else `split_tokens_on_spaces`.
+    fn split_to_word_tokens(&self, tokens: &[u32], language_id: u32) -> Result<(Vec<String>, Vec<Vec<u32>>), GlueError> {
+        if ["zh", "ja", "th", "lo", "my", "yue"].iter().any(|l| self.token_to_id(&format!("<|{l}|>")) == Some(language_id)) {
+            return self.split_on_unicode(tokens);
+        }
         let (subwords, subword_tokens) = self.split_on_unicode(tokens)?;
         let (mut words, mut word_tokens): (Vec<String>, Vec<Vec<u32>>) = (Vec::new(), Vec::new());
         for (subword, toks) in subwords.into_iter().zip(subword_tokens) {
@@ -858,7 +862,7 @@ impl Transcriber {
         let mut out = Vec::new();
         for (result, text_token) in results.iter().zip(text_tokens) {
             let with_eot: Vec<u32> = text_token.iter().copied().chain([self.tok.eot]).collect();
-            let (words, word_tokens) = self.tok.split_to_word_tokens(&with_eot)?;
+            let (words, word_tokens) = self.tok.split_to_word_tokens(&with_eot, sot_sequence[1])?; // [sot, language, transcribe]
             if word_tokens.len() <= 1 {
                 out.push(Vec::new());
                 continue;
