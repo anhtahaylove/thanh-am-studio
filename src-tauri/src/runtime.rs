@@ -99,13 +99,14 @@ impl Runtime{
   if j["kind"]=="stt"{result["transcript"]=json!(transcript_rows(result["segments"].as_array().ok_or("INVALID_TRANSCRIPT_RESULT")?)?);}
   s.finish(id,result)?;Ok(())
  }
- /// The engine an operation runs on: the native worker when the release routes it there, it is installed and the user has not chosen Python.
+ /// The engine an operation runs on: the native worker when the release routes it there, it can run this request, it is installed and the
+ /// user has not chosen Python.
  fn engine_for(&self,s:&Store,request:&Value)->Engine{
   let op=request["operation"].as_str().unwrap_or("");
   let user_python=s.settings().is_ok_and(|x|x["worker_engines"][op]=="python");
   // The separation pack is a Python runtime only the Python worker knows how to fetch and verify.
   let pack=op=="download"&&request["payload"]["model_id"]=="separation-runtime";
-  if self.rust_ops.contains(&op)&&!user_python&&!pack&&self.native_worker().is_some(){Engine::Rust}else{Engine::Python}
+  if self.rust_ops.contains(&op)&&!user_python&&!pack&&engine::native_can_run(request)&&self.native_worker().is_some(){Engine::Rust}else{Engine::Python}
  }
  /// One worker process for one request: its events are applied to the queue as they arrive; the outcome says how it ended.
  fn attempt(&self,s:&Store,engine:Engine,fell_back:bool,request:&Value,out:&Path,ids:&[String])->Result<Attempt>{
