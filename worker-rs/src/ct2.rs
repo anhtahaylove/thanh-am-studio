@@ -19,8 +19,7 @@ fn c_string(buf: &[c_char]) -> String {
 
 /// The CPU vendor string of CPUID leaf 0 (CTranslate2 takes MKL only on "GenuineIntel", as the wheel does).
 fn cpu_vendor() -> String {
-    // SAFETY: CPUID leaf 0 exists on every x86-64 CPU.
-    let r = unsafe { std::arch::x86_64::__cpuid(0) };
+    let r = std::arch::x86_64::__cpuid(0);
     let bytes: Vec<u8> = [r.ebx, r.edx, r.ecx].iter().flat_map(|v| v.to_le_bytes()).collect();
     String::from_utf8_lossy(&bytes).into_owned()
 }
