@@ -1,0 +1,21 @@
+[package]
+name = "thanham-diarize"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+license = "Apache-2.0"
+description = "Thanh Am Studio speaker diarization child process: worker/diarize.py's __main__ on sherpa-onnx's C API"
+publish = false
+
+[[bin]]
+name = "thanham-diarize"
+path = "src/main.rs"
+
+[dependencies]
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+
+[lints.clippy]
+undocumented_unsafe_blocks = "deny"

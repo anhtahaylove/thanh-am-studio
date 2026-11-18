@@ -1861,6 +1861,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "thanham-diarize"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+]
+
+[[package]]
 name = "thanham-worker"
 version = "0.1.0"
 dependencies = [

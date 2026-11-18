@@ -1,9 +1,10 @@
 //! The `stt` operation of `worker/main.py` (feature `ct2`): validation, the model, `load_audio`, the window loop of the glue with
-//! the CTranslate2 engine and the Silero VAD, and the progress `stt_window` reports. A job that asks for speakers
-//! (`diarize_model_path`) stays on the Python worker until diarization is ported.
+//! the CTranslate2 engine and the Silero VAD, the progress `stt_window` reports, and the speakers (`diarize_model_path`) through
+//! `thanham-diarize.exe`.
 
 use super::decode::decode_audio;
-use super::glue::{AlignResult, GenOptions, GenResult, GlueError, Transcriber, WhisperEngine, STT_RATE};
+use super::diarize::{diarize_exe, diarize_isolated, split_rows, Failure, SpeakerRow};
+use super::glue::{AlignResult, GenOptions, GenResult, GlueError, SttResult, Transcriber, WhisperEngine, STT_RATE};
 use super::vad::Vad;
 use crate::ct2::{Encoded, Whisper};
 use crate::download::verify_model;
@@ -79,11 +80,43 @@ fn path_arg<'a>(payload: &'a Map<String, Value>, key: &str) -> Result<&'a str> {
     }
 }
 
-/// `stt(payload, progress)` without diarization: `{"segments": [{start, end, text}], "language": ...}`.
+/// The `try` block of `stt` that adds speakers: the rows split by speaker, or `str(error)` and, for the desktop's fallback,
+/// `DIARIZE_PROCESS` (the child process failed) or the `MODEL_*` code of the model check.
+fn separate_speakers(
+    payload: &Map<String, Value>,
+    result: &SttResult,
+    audio: &[f32],
+    counts: [Option<i64>; 3],
+) -> std::result::Result<Vec<SpeakerRow>, (String, Option<String>)> {
+    let model = match payload.get("diarize_model_path") {
+        Some(Value::String(s)) => py_path(s),
+        other => {
+            let kind = match other {
+                Some(Value::Bool(_)) => "bool",
+                Some(Value::Number(n)) if n.is_f64() => "float",
+                Some(Value::Number(_)) => "int",
+                Some(Value::Array(_)) => "list",
+                _ => "dict",
+            };
+            return Err((format!("expected str, bytes or os.PathLike object, not {kind}"), None));
+        }
+    };
+    verify_model(Path::new(&model), Some("diarization"))
+        .map_err(|e| (e.message, e.code.starts_with("MODEL_").then_some(e.code)))?;
+    // A known count goes in as min = max (main.py: the automatic result is kept when it already has that many speakers).
+    let [speakers, low, high] = counts;
+    let (low, high) = if speakers.is_some() { (speakers, speakers) } else { (low, high) };
+    let sherpa = site_packages().join("sherpa_onnx").join("lib");
+    let turns = diarize_isolated(&diarize_exe(), &sherpa, audio, &model, low, high).map_err(|e| match e {
+        Failure::Process(m) => (m, Some("DIARIZE_PROCESS".to_string())),
+        Failure::Other(m) => (m, None),
+    })?;
+    Ok(split_rows(&result.segments, &result.words, &turns))
+}
+
+/// `stt(payload, progress)`: `{"segments": [{start, end, text[, speaker, overlap]}], "language": ...}`, plus `diarize_error` and
+/// `diarize_error_code` when speakers were asked for and could not be found.
 pub fn stt(payload: &Map<String, Value>, progress: &dyn Fn(f64, &str)) -> Result<Value> {
-    if payload.get("diarize_model_path").is_some_and(truthy) {
-        return Err(WorkerError::new("WORKER_ERROR", "Speaker separation runs on the Python worker."));
-    }
     let count = |key: &str| payload.get(key).filter(|v| !v.is_null());
     let (speakers, low, high) = (count("num_speakers"), count("min_speakers"), count("max_speakers"));
     // `isinstance(n, bool) or not isinstance(n, int) or not 1 <= n <= 8`: JSON true/false and 2.0 are not ints.
@@ -99,6 +132,7 @@ pub fn stt(payload: &Map<String, Value>, progress: &dyn Fn(f64, &str)) -> Result
             "num_speakers excludes min_speakers/max_speakers, and min_speakers must not exceed max_speakers.",
         ));
     }
+    let counts = [int(speakers), int(low), int(high)];
     let model_dir = path_arg(payload, "model_path")?;
     let spec = verify_model(Path::new(model_dir), None)?;
     if spec.get("engine").and_then(Value::as_str) != Some("faster-whisper") {
@@ -128,13 +162,27 @@ pub fn stt(payload: &Map<String, Value>, progress: &dyn Fn(f64, &str)) -> Result
     let vad = Vad::load(&sp)?;
     let mut engine = Engine { whisper, vad, progress, offset: 0.0, duration };
     let lang = if language == "auto" { None } else { Some(language) };
-    let result = transcriber.stt(&mut engine, &audio, lang, false).map_err(|e| match e {
+    let diarizing = payload.get("diarize_model_path").is_some_and(truthy); // word times let rows split where the speaker changes
+    let result = transcriber.stt(&mut engine, &audio, lang, diarizing).map_err(|e| match e {
         GlueError::Index(m) => WorkerError::py("IndexError", m),
         GlueError::Engine(m) => WorkerError::new("WORKER_ERROR", m),
     })?;
     let segments: Vec<Value> =
         result.segments.iter().map(|r| json!({"start": r.start, "end": r.end, "text": r.text})).collect();
-    Ok(json!({"segments": segments, "language": result.language}))
+    let mut response = json!({"segments": segments, "language": result.language});
+    if diarizing {
+        progress(0.99, "Separating speakers");
+        match separate_speakers(payload, &result, &audio, counts) {
+            Ok(rows) => response["segments"] = rows.iter().map(SpeakerRow::json).collect(),
+            Err((message, code)) => {
+                response["diarize_error"] = json!(message.chars().take(300).collect::<String>()); // `str(error)[:300]`
+                if let Some(code) = code {
+                    response["diarize_error_code"] = json!(code);
+                }
+            }
+        }
+    }
+    Ok(response)
 }
 
 #[cfg(test)]

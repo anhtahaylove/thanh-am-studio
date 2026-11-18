@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
 #[cfg(windows)]
-const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+pub(crate) const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 /// `shutil.which`: the current folder first on Windows, then every `PATH` folder, trying the `PATHEXT` suffixes.
 fn which(name: &str) -> Option<PathBuf> {

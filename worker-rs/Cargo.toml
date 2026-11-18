@@ -1,7 +1,7 @@
 # Own workspace and lock file: never joins src-tauri's.
 [workspace]
 resolver = "2"
-members = [".", "crates/ortffi"]
+members = [".", "crates/ortffi", "crates/diarize"]
 
 [package]
 name = "thanham-worker"
