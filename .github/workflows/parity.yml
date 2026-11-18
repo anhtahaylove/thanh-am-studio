@@ -78,6 +78,8 @@ jobs:
       PY: ${{ github.workspace }}/runtime/python/python.exe
     steps:
       - uses: actions/checkout@v4
+      - name: Runner CPU (the engines' numbers can follow the CPU vendor and ISA)
+        run: Get-CimInstance Win32_Processor | Format-List Manufacturer, Name, NumberOfCores, NumberOfLogicalProcessors
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
@@ -185,6 +187,8 @@ jobs:
       PY: ${{ github.workspace }}/runtime/python/python.exe
     steps:
       - uses: actions/checkout@v4
+      - name: Runner CPU (the engines' numbers can follow the CPU vendor and ISA)
+        run: Get-CimInstance Win32_Processor | Format-List Manufacturer, Name, NumberOfCores, NumberOfLogicalProcessors
       - run: '"THANHAM_CT2_ENGINE=$env:RUNNER_TEMP\ct2-engine" >> $env:GITHUB_ENV'
       - uses: astral-sh/setup-uv@v6
         with:
@@ -256,3 +260,25 @@ jobs:
           Push-Location worker-rs
           cargo test --release --locked --features ct2 ct2:: -- --nocapture
           Pop-Location
+      - name: Encoder against the wheel per backend and ISA (diagnostic only; the step above decides)
+        if: ${{ !cancelled() }}
+        env:
+          THANHAM_CT2_MODEL: ${{ runner.temp }}/parity-models-whisper/whisper-small
+          THANHAM_CT2_REFERENCE: ${{ runner.temp }}/ct2-wheel-diag.f32
+          CT2_VERBOSE: '1'
+        run: |
+          $env:MKLROOT = "$env:THANHAM_CT2_ENGINE/mklroot"
+          $env:LIBRARY_PATH = "$env:THANHAM_CT2_ENGINE/lib"
+          $env:PATH = "$((Resolve-Path worker-rs/stage).Path);$env:PATH"
+          Push-Location worker-rs
+          # Both engines read these variables the same way; the forced ISA is one every x86-64 CPU has.
+          foreach ($cfg in 'CT2_USE_MKL=1', 'CT2_USE_MKL=0', 'CT2_USE_MKL=0 CT2_FORCE_CPU_ISA=GENERIC', 'CT2_USE_MKL=1 CT2_FORCE_CPU_ISA=GENERIC') {
+            "== $cfg"
+            $set = $cfg -split ' ' | ForEach-Object { $n, $v = $_ -split '='; Set-Item "Env:$n" $v; $n }
+            & $env:PY -I parity/ct2_encode.py $env:THANHAM_CT2_MODEL $env:THANHAM_CT2_REFERENCE 2>&1 | ForEach-Object { "wheel: $_" }
+            cargo test --release --locked --features ct2 ct2::tests::encode_matches_the_wheel -- --nocapture 2>&1 |
+              Select-String 'encoder:|CPU:|ISA|MKL|GEMM' | ForEach-Object { "rust: $_" }
+            $set | ForEach-Object { Remove-Item "Env:$_" }
+          }
+          Pop-Location
+          exit 0

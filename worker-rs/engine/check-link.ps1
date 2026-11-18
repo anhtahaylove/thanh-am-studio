@@ -7,8 +7,9 @@ param(
 # The two checks plan section 7 (bundle 2) asks for on the S1 F-a fixes, plus the link checks of plan section 3:
 # (a) the link-time libiomp5md.lib declares the two dead-code names, the exe imports neither, and every name the exe imports from
 #     libiomp5md.dll is exported by the shim; no VCOMP140.DLL; the cublas stubs hold no symbols;
-# (b) `thanham-worker health` shows the GEMM backend CTranslate2 chose: MKL on a GenuineIntel CPU, oneDNN otherwise (the wheel's
-#     own rule). Without the .CRT$XCT initializer of native/ct2_glue.cc an Intel CPU gets oneDNN (S1 F-a (b)).
+# (b) `thanham-worker health` shows the GEMM backend CTranslate2 chose, which must be the wheel's choice on this CPU: CT2_USE_MKL
+#     when set, else MKL on a GenuineIntel CPU and oneDNN on any other. Without the .CRT$XCT initializer of native/ct2_glue.cc an
+#     Intel CPU gets oneDNN (S1 F-a (b)).
 $ErrorActionPreference = 'Stop'
 if (-not (Get-Command dumpbin.exe -ErrorAction SilentlyContinue)) {
     $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
@@ -44,7 +45,9 @@ foreach ($n in 'cublas', 'cublasLt') {
 $result = '{"protocol":1,"id":"check-link","operation":"health","payload":{}}' | & $Exe | Select-Object -Last 1 | ConvertFrom-Json
 $stt = $result.result.stt_engine  # not $engine: PowerShell names are case-insensitive and $Engine is the [string] parameter
 "health stt_engine: $($stt | ConvertTo-Json -Compress)"
-$want = if ($stt.cpu_vendor -ceq 'GenuineIntel') { 'MKL' } else { 'DNNL' }
+# The wheel's own choice (backend.cc mayiuse_mkl): CT2_USE_MKL when set ("1", "true" or "TRUE" is MKL), else MKL on GenuineIntel only.
+$useMkl = if ($env:CT2_USE_MKL) { $env:CT2_USE_MKL -cin '1', 'true', 'TRUE' } else { $stt.cpu_vendor -ceq 'GenuineIntel' }
+$want = if ($useMkl) { 'MKL' } else { 'DNNL' }
 if ($stt.gemm_int8 -cne $want) { $fail += "CTranslate2 chose $($stt.gemm_int8) on a $($stt.cpu_vendor) CPU; the wheel chooses $want" }
 
 if ($fail) { throw "Link checks failed:`n$($fail -join "`n")" }
