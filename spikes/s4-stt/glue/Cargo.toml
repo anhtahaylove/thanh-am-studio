@@ -15,4 +15,7 @@ realfft = "=3.5.1"
 # float_roundtrip: recorded Python floats must parse to the exact same f64.
 serde_json = { version = "1", features = ["float_roundtrip"] }
 sha2 = "0.10"
-flate2 = { version = "1", default-features = false, features = ["zlib-rs"] }
+# Stock C zlib, built from libz-sys's bundled source: zlib-rs gave other compressed lengths than CPython's zlib (S4 replay:
+# compression ratios off by up to 0.045 on 70 of 87 decodes), and the ratio decides the temperature fallback at 2.4.
+flate2 = { version = "1", default-features = false, features = ["zlib"] }
+libz-sys = { version = "1", default-features = false, features = ["static", "libc"] }
