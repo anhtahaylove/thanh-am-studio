@@ -23,5 +23,13 @@ pub fn health() -> Value {
     };
     let ffmpeg = std::env::var("THANHAM_FFMPEG").ok().filter(|s| !s.is_empty());
     let ready = ort["loaded"] == true;
-    json!({"engine": "rust", "version": env!("CARGO_PKG_VERSION"), "ort": ort, "ffmpeg": ffmpeg, "ready": ready})
+    json!({"engine": "rust", "version": env!("CARGO_PKG_VERSION"), "ort": ort, "ffmpeg": ffmpeg, "ready": ready, "stt_engine": stt_engine()})
+}
+
+/// The linked STT engine (`crate::ct2::info`), or null in a build without it.
+fn stt_engine() -> Value {
+    #[cfg(feature = "ct2")]
+    return crate::ct2::info();
+    #[cfg(not(feature = "ct2"))]
+    Value::Null
 }

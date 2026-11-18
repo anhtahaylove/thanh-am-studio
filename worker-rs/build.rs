@@ -48,4 +48,36 @@ fn main() {
         .include("third_party/pocketfft")
         .file("native/pocketfft_shim.cc")
         .compile("pocketfft_np");
+
+    // Feature `ct2`: the STT engine from engine/build-engine.ps1, whose output folder THANHAM_CT2_ENGINE names (ct2rs-sys links
+    // ctranslate2, cpu_features, the cublas stubs and iomp5 from LIBRARY_PATH, which must be its lib\; MKLROOT must be its mklroot\).
+    if std::env::var_os("CARGO_FEATURE_CT2").is_some() {
+        println!("cargo:rerun-if-env-changed=THANHAM_CT2_ENGINE");
+        let engine = std::path::PathBuf::from(
+            std::env::var_os("THANHAM_CT2_ENGINE")
+                .expect("THANHAM_CT2_ENGINE: the output folder of engine/build-engine.ps1"),
+        );
+        // Only an engine from the toolset build-engine.ps1 pins (the wheel's); check-link.ps1 verifies the objects themselves.
+        let compiler = std::fs::read_to_string(engine.join("compiler.txt")).expect("compiler.txt of the engine");
+        assert!(compiler.starts_with("19.44."), "the engine was built with cl {compiler}; the worker needs cl 19.44");
+        println!("cargo:rerun-if-changed={}", engine.join("compiler.txt").display());
+        println!("cargo:rustc-env=THANHAM_CT2_COMPILER={compiler}");
+        println!("cargo:rustc-link-search=native={}", engine.join("lib").display());
+        // oneDNN 3.1.1 from the recipe: ct2rs-sys's own `dnnl` feature would build a 2026 oneDNN (plan F37).
+        println!("cargo:rustc-link-lib=static=dnnl");
+        // CT2 adds this only to its own EXE/DLL links (plan F43), and /openmp objects ask for vcomp: the OpenMP ABI must come from
+        // the shim's libiomp5md.dll instead.
+        println!("cargo:rustc-link-arg-bins=/NODEFAULTLIB:vcomp");
+        // Keeps the .CRT$XCT initializer that makes CT2 choose MKL as the wheel does (native/ct2_glue.cc). The exe and its unit
+        // tests only: the integration tests run the exe and do not link CTranslate2.
+        println!("cargo:rustc-link-arg-bins=/INCLUDE:thanham_early_ct2_env_p");
+        cc::Build::new()
+            .cpp(true)
+            .std("c++17")
+            .opt_level(2)
+            .flag("/EHsc")
+            .include(engine.join("include"))
+            .file("native/ct2_glue.cc")
+            .compile("ct2_glue");
+    }
 }

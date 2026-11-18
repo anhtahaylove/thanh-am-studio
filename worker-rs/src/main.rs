@@ -2,6 +2,8 @@
 //! like `worker/main.py`. It serves `health`, `probe`, `render`, `download`, `tts` (without take checks) and `clone_preview`; the
 //! other operations arrive in later phases and, until then, never reach this exe (the desktop does not route them here).
 
+#[cfg(feature = "ct2")]
+mod ct2;
 mod download;
 mod error;
 mod health;

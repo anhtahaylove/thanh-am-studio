@@ -78,6 +78,8 @@ jobs:
       PY: ${{ github.workspace }}/runtime/python/python.exe
     steps:
       - uses: actions/checkout@v4
+      - name: Runner CPU (the engines' numbers can follow the CPU vendor and ISA)
+        run: Get-CimInstance Win32_Processor | Format-List Manufacturer, Name, NumberOfCores, NumberOfLogicalProcessors
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
@@ -172,3 +174,111 @@ jobs:
             ${{ runner.temp }}/tts-clone/preview-*/*.jsonl
             ${{ runner.temp }}/tts-clone/preview-*/*.log
           if-no-files-found: ignore
+  stt:
+    # The STT engine (plan section 3): CTranslate2 4.8.5 matched to the Python wheel, built by worker-rs/engine/build-engine.ps1 and
+    # cached by the recipe's hash (a miss costs about 40 minutes). The worker is built against it (feature ct2) and checked: the S1
+    # F-a link and backend checks (engine/check-link.ps1), then the encoder against the wheel on this runner, bitwise.
+    runs-on: windows-latest
+    timeout-minutes: 180
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      PY: ${{ github.workspace }}/runtime/python/python.exe
+    steps:
+      - uses: actions/checkout@v4
+      - name: Runner CPU (the engines' numbers can follow the CPU vendor and ISA)
+        run: Get-CimInstance Win32_Processor | Format-List Manufacturer, Name, NumberOfCores, NumberOfLogicalProcessors
+      - run: '"THANHAM_CT2_ENGINE=$env:RUNNER_TEMP\ct2-engine" >> $env:GITHUB_ENV'
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: worker/requirements-*.lock
+      - name: FFmpeg archive location
+        id: ffmpeg
+        run: |
+          $s = Get-Content scripts/setup-runtime.ps1 -Raw
+          "path=$([IO.Path]::GetTempPath())$([regex]::Match($s, "FfmpegAsset = '([^']+)'").Groups[1].Value).zip" >> $env:GITHUB_OUTPUT
+          "key=ffmpeg-$([regex]::Match($s, "FfmpegSha256 = '([^']+)'").Groups[1].Value)" >> $env:GITHUB_OUTPUT
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.ffmpeg.outputs.path }}
+          key: ${{ steps.ffmpeg.outputs.key }}
+      - name: Build private runtime (Python + FFmpeg)
+        run: ./scripts/setup-runtime.ps1
+      # Restored and saved explicitly, so a failure in a later step does not throw the 40-minute build away.
+      - uses: actions/cache/restore@v4
+        id: engine
+        with:
+          path: ${{ env.THANHAM_CT2_ENGINE }}
+          key: ct2-engine-${{ hashFiles('worker-rs/engine/build-engine.ps1', 'scripts/openmp-shim/*') }}
+      - name: Build the STT engine (cache miss)
+        if: steps.engine.outputs.cache-hit != 'true'
+        run: ./worker-rs/engine/build-engine.ps1 -Out $env:THANHAM_CT2_ENGINE -Work "$env:RUNNER_TEMP/e"
+      - uses: actions/cache/save@v4
+        if: steps.engine.outputs.cache-hit != 'true'
+        with:
+          path: ${{ env.THANHAM_CT2_ENGINE }}
+          key: ${{ steps.engine.outputs.cache-primary-key }}
+      - run: rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy # worker-rs/rust-toolchain.toml
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: worker-rs
+          key: ct2
+      - name: Clippy and build with the engine
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $env:MKLROOT = "$env:THANHAM_CT2_ENGINE/mklroot"
+          $env:LIBRARY_PATH = "$env:THANHAM_CT2_ENGINE/lib"  # ct2rs-sys links its static libraries from here
+          Push-Location worker-rs
+          cargo clippy --release --locked --features ct2 --all-targets -- -D warnings
+          cargo build --release --locked --features ct2
+          Pop-Location
+          ./scripts/stage-worker.ps1
+          Copy-Item worker/models.json worker-rs/stage/
+          # The OpenMP shim and LLVM libomp the exe imports: the private runtime's copies beside ctranslate2, which Python loads.
+          Copy-Item runtime/python/Lib/site-packages/ctranslate2/libiomp5md.dll, runtime/python/Lib/site-packages/ctranslate2/libomp.dll worker-rs/stage/
+      - name: Link and backend checks (S1 F-a)
+        run: ./worker-rs/engine/check-link.ps1 -Exe worker-rs/stage/thanham-worker.exe -Engine $env:THANHAM_CT2_ENGINE
+      - uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/parity-models-whisper
+          key: parity-models-whisper-${{ hashFiles('worker/models.json') }}
+      - name: Fetch whisper-small
+        run: '& $env:PY -I worker-rs/parity/fetch_models.py --exe worker-rs/stage/thanham-worker.exe --models "$env:RUNNER_TEMP/parity-models-whisper" --only whisper-small'
+      - name: Encoder against the wheel on this runner (bitwise)
+        env:
+          THANHAM_CT2_MODEL: ${{ runner.temp }}/parity-models-whisper/whisper-small
+          THANHAM_CT2_REFERENCE: ${{ runner.temp }}/ct2-wheel.f32
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          & $env:PY -I worker-rs/parity/ct2_encode.py $env:THANHAM_CT2_MODEL $env:THANHAM_CT2_REFERENCE
+          $env:MKLROOT = "$env:THANHAM_CT2_ENGINE/mklroot"
+          $env:LIBRARY_PATH = "$env:THANHAM_CT2_ENGINE/lib"  # ct2rs-sys links its static libraries from here
+          # The test binary imports the shim like the exe does.
+          $env:PATH = "$((Resolve-Path worker-rs/stage).Path);$env:PATH"
+          Push-Location worker-rs
+          cargo test --release --locked --features ct2 ct2:: -- --nocapture
+          Pop-Location
+      - name: Encoder against the wheel per backend and ISA (diagnostic only; the step above decides)
+        if: ${{ !cancelled() }}
+        env:
+          THANHAM_CT2_MODEL: ${{ runner.temp }}/parity-models-whisper/whisper-small
+          THANHAM_CT2_REFERENCE: ${{ runner.temp }}/ct2-wheel-diag.f32
+          CT2_VERBOSE: '1'
+        run: |
+          $env:MKLROOT = "$env:THANHAM_CT2_ENGINE/mklroot"
+          $env:LIBRARY_PATH = "$env:THANHAM_CT2_ENGINE/lib"
+          $env:PATH = "$((Resolve-Path worker-rs/stage).Path);$env:PATH"
+          Push-Location worker-rs
+          # Both engines read these variables the same way; the forced ISA is one every x86-64 CPU has.
+          foreach ($cfg in 'CT2_USE_MKL=1', 'CT2_USE_MKL=0', 'CT2_USE_MKL=0 CT2_FORCE_CPU_ISA=GENERIC', 'CT2_USE_MKL=1 CT2_FORCE_CPU_ISA=GENERIC') {
+            "== $cfg"
+            $set = $cfg -split ' ' | ForEach-Object { $n, $v = $_ -split '='; Set-Item "Env:$n" $v; $n }
+            & $env:PY -I parity/ct2_encode.py $env:THANHAM_CT2_MODEL $env:THANHAM_CT2_REFERENCE 2>&1 | ForEach-Object { "wheel: $_" }
+            cargo test --release --locked --features ct2 ct2::tests::encode_matches_the_wheel -- --nocapture 2>&1 |
+              Select-String 'encoder:|CPU:|ISA|MKL|GEMM' | ForEach-Object { "rust: $_" }
+            $set | ForEach-Object { Remove-Item "Env:$_" }
+          }
+          Pop-Location
+          exit 0
