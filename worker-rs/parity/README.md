@@ -1,7 +1,8 @@
 # Parity harness
 
 The Rust worker must behave like the v1.0.16 Python worker (E0: the same events, exit codes, files and bytes, no tolerance unless a row says
-so). Each row compares the worker with output recorded from the unchanged v1.0.16 worker (the P0-A goldens).
+so). Rows X, W, R and F compare the worker with output recorded from the unchanged v1.0.16 worker (the P0-A goldens). The preset TTS rows
+make their Python reference on the machine that runs them, from the private runtime, and compare bitwise on that CPU.
 
 | Row | What | Comparator | Golden |
 |-----|------|------------|--------|
@@ -9,16 +10,27 @@ so). Each row compares the worker with output recorded from the unchanged v1.0.1
 | W | download: 35 scenarios against a Hugging Face stand-in with fault injection | `w_compare.py`, `hf_stub.py` | `w/golden.json` |
 | R | protocol, validation and error cases (38) | `r_compare.py` | `r/cases.json` (recorded with `--record`) |
 | F | ORT FFI against the recorded Silero and VieNeu tensors | `cargo test -p ortffi` | `../crates/ortffi/fixtures/` |
+| L, P1 | preset TTS before the engine: the text check (token cap), pause marks, chunks and gaps, the readings and token ids of every chunk, and the preset voices as loaded; 10,000+ lines from `tts_corpus.py` | `tts_cases.py`, then `cargo test --release tts::` | made on the machine |
+| P-op, P3-P5 | preset `tts` seeded (`THANHAM_TTS_SEED`) in both workers: events, WAV and raw WAV bytes, and per engine call the logits (P3), codes (P4) and decoded PCM (P5); 148 items in `tts/items.json` | `tts_op.py` (with `tts_trace.py` on the Python side) | made on the machine |
 
 Run them from `worker-rs/`, after `cargo build --release`:
 
 ```
-python parity/x_compare.py --exe target/release/thanham-worker.exe --ffmpeg <ffmpeg.exe> [--seg <dir of the 500 recorded takes>]
+python parity/x_compare.py --exe target/release/thanham-worker.exe --ffmpeg <ffmpeg.exe> [--seg <dir of the 500 recorded takes>] [--opus-python <py> --main ../worker/main.py]
 python parity/fetch_models.py --exe target/release/thanham-worker.exe --models <folder>
 python parity/w_compare.py --exe target/release/thanham-worker.exe --models <folder>
 python parity/r_compare.py --exe target/release/thanham-worker.exe
 ORTFFI_REQUIRE=1 cargo test -p ortffi        # with ORTFFI_DLL, ORTFFI_SHERPA_DLL, ORTFFI_SILERO and ORTFFI_VIENEU set
+<py> -I -X utf8 parity/tts_corpus.py .. corpus.jsonl
+<py> -I -X utf8 parity/tts_cases.py --corpus corpus.jsonl --model <models>/vieneu-v3 --out cases.jsonl
+THANHAM_TTS_CASES=cases.jsonl THANHAM_TTS_MODEL=<models>/vieneu-v3 THANHAM_PYTHON=<py> cargo test --release tts::
+<py> -I parity/tts_op.py --python <py> --exe <staged thanham-worker.exe> --model <models>/vieneu-v3 --ffmpeg <ffmpeg.exe> --items parity/tts/items.json --out <dir> [--rounds N]
 ```
+
+`<py>` is the private runtime's `runtime\python\python.exe` (`scripts/setup-runtime.ps1`). The staged exe is `scripts/stage-worker.ps1`'s folder plus
+`worker/models.json`; it reads numpy's OpenBLAS, sea-g2p's dictionary and the VieNeu voices from that runtime (`THANHAM_PYTHON`, else
+`..\runtime\python` beside its folder, the installed layout). `--rounds N` interleaves N Python/Rust pairs and writes wall time and peak
+working set per process to `ram.csv` (the A4a RTF and RAM accept).
 
 ## Golden placement (decision)
 
@@ -34,11 +46,13 @@ ORTFFI_REQUIRE=1 cargo test -p ortffi        # with ORTFFI_DLL, ORTFFI_SHERPA_DL
 ## Declared differences
 
 - `health` is not a parity row: the Rust result is `{engine, version, ort, ffmpeg, ready}` and the Python one lists its modules.
-- Row F is bit-exact on a CPU of the family that recorded the tensors (ORT picks kernels by CPU). On a GitHub runner the VieNeu outputs differed in the last
-  digits on one runner and matched on another (max abs diff 2.6e-6), so `parity.yml` sets `ORTFFI_MAX_ABS_DIFF=1e-5`; unset, the test is exact.
-- The `.opus` encodes of the two x05 recipes differed on a GitHub runner while every other recipe matched. The likely cause is libopus choosing SIMD paths by CPU (not
-  proven: the Python worker was not run on that runner). `x_compare.py` is exact on the machine that recorded the goldens (and the release gate runs it there); `parity.yml` passes `--opus-by-cpu`, which skips only the PCM hash of `.opus` outputs and keeps
-  the exit code, events, file names, ffprobe fields and the decode check.
+- Row F is bit-exact on a CPU of the family that recorded the tensors (ORT picks kernels by CPU; on GitHub runners the committed VieNeu
+  recordings differed in the last digits, max abs diff 2.6e-6). `parity.yml` therefore records the fixtures again on its runner with
+  `crates/ortffi/tools/gen_fixtures.py` and the private runtime's onnxruntime, then compares exactly; there is no tolerance.
+- The `.opus` encodes of the two x05 recipes differ between machines (most likely libopus picking its code paths by CPU: GitHub runners
+  differed from the goldens, while the Python and Rust workers on one runner gave identical PCM), so their decoded PCM matches the goldens
+  only on the recording machine. `parity.yml` runs those two recipes with `--opus-python`, which takes the PCM reference from the Python
+  worker run on the same runner; everything else in them (exit code, events, file names, ffprobe fields) is still compared with the goldens.
 - Row R replaces the text of a Python exception (`KeyError: 'x'`, `JSONDecodeError: ...`) with `<pyexc>`; its wording belongs to Python.
 - Row W event comparison ignores the retry waits: `THANHAM_HUB_SLEEP_SCALE` shortens them for the comparison (the release exe waits as the
   Python client does).

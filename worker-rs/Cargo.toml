@@ -18,16 +18,24 @@ path = "src/main.rs"
 
 [dependencies]
 ortffi = { path = "crates/ortffi" }
-serde_json = { version = "1", features = ["preserve_order"] }
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
 sha1 = "0.10"
 sha2 = "0.10"
 uuid = { version = "1", features = ["v4"] }
 # The reqwest the updater already pulls (src-tauri/Cargo.lock), with ring and the Windows certificate store and proxy settings.
 reqwest = { version = "=0.13.5", default-features = false, features = ["blocking", "rustls-no-provider", "system-proxy"] }
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
+# The TTS front end, pinned as in spike S2 (row P1: 30,992/30,992 lines identical to Python): the sea_g2p 0.10.0 wheel's commit and the
+# tokenizers 0.23.3 tag, with fancy-regex instead of the wheel's Oniguruma (319,166 fuzz inputs identical).
+sea-g2p-rs = { git = "https://github.com/pnnbao97/sea-g2p", rev = "dae5ca83ea45f356c43bdb70a1bcd42e8729ff16", default-features = false }
+tokenizers = { git = "https://github.com/huggingface/tokenizers", tag = "v0.23.3", default-features = false, features = ["fancy-regex"] }
+regex = "1"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_Threading"] }
+
+[build-dependencies]
+cc = "1"
 
 [dev-dependencies]
 tempfile = "3"

@@ -1,8 +1,8 @@
 //! Row F: outputs must be bitwise identical to the Python onnxruntime 1.31.1 recording
 //! (`tools/gen_fixtures.py`), with the same session options as the app's Python code.
 //!
-//! ORT picks its kernels by CPU, so the recording is only bit-exact on a CPU of the family that made it. `ORTFFI_MAX_ABS_DIFF` (CI sets
-//! 1e-5) accepts f32 outputs within that absolute difference; unset, the comparison is exact.
+//! ORT picks its kernels by CPU, so the recording is only bit-exact on a CPU of the family that made it: CI records the fixtures again
+//! on its own runner with `tools/gen_fixtures.py` (the private runtime's onnxruntime) before this test runs.
 
 mod common;
 
@@ -37,7 +37,7 @@ fn replay(
         assert_eq!(value.info().unwrap().shape, npy.shape, "{run}/{name}: shape");
         let got = value_bytes(&value);
         assert!(
-            got == npy.bytes || within_tolerance(&got, &npy.bytes, &npy.descr),
+            got == npy.bytes,
             "{run}/{name}: output differs from Python ({} bytes, {})",
             got.len(),
             diff_summary(&got, &npy.bytes, &npy.descr)
@@ -45,18 +45,6 @@ fn replay(
         by_name.insert(name.clone(), value);
     }
     by_name
-}
-
-/// True when `ORTFFI_MAX_ABS_DIFF` is set and every f32 value is that close to the recording.
-fn within_tolerance(got: &[u8], want: &[u8], descr: &str) -> bool {
-    let Some(limit) = std::env::var("ORTFFI_MAX_ABS_DIFF").ok().and_then(|v| v.parse::<f32>().ok()) else {
-        return false;
-    };
-    if descr != "<f4" || got.len() != want.len() {
-        return false;
-    }
-    let f = |b: &[u8]| -> Vec<f32> { b.chunks_exact(4).map(|c| f32::from_le_bytes(c.try_into().unwrap())).collect() };
-    f(got).iter().zip(f(want)).all(|(x, y)| (x - y).abs() <= limit)
 }
 
 /// For a failure message only: the largest absolute difference when the data is f32.

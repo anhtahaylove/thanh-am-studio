@@ -424,6 +424,29 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual([(r['speech_start_ms'], r['speech_end_ms'], r['duration_ms']) for r in results],
                          [(120, 780, 1000), (0, None, 1800)])
 
+    def test_tts_seed_hook_reseeds_numpy_before_every_engine_call(self):
+        import numpy as np
+        import zlib
+        from types import SimpleNamespace
+        from unittest import mock
+        draws = []
+        engine = SimpleNamespace(infer=lambda **kw: np.random.random_sample())
+        def infer(text, **kw):  # two engine calls per part, as for a part read in two chunks
+            draws.append((engine.infer(), engine.infer()))
+            return np.full(4800, 0.3, dtype=np.float32)
+        fakes = {'vieneu': SimpleNamespace(Vieneu=lambda **k: SimpleNamespace(infer=infer, engine=engine)),
+                 'vieneu.v3turbo': SimpleNamespace(phonemize_text_with_emotions=lambda text: text),
+                 'vieneu._v3_turbo_engine': mock.Mock(),
+                 'vieneu._v3_turbo_engine.onnx_runtime_lite': SimpleNamespace(OnnxV3LiteEngine=mock.Mock()),
+                 'soundfile': SimpleNamespace(write=lambda path, *a, **k: Path(path).write_bytes(b'RIFF'))}
+        items = [{'text': 'A. [nghỉ 0.2s] B.', 'output_name': 'a.wav'}, {'text': 'C.', 'output_name': 'b.wav'}]
+        with tempfile.TemporaryDirectory() as td, mock.patch.object(worker, 'verify_model'), mock.patch.object(worker, 'offline_mode'), \
+                mock.patch.dict(sys.modules, fakes), mock.patch.dict(os.environ, {'THANHAM_TTS_SEED': '7'}):
+            worker.tts({'model_path': td, 'items': items}, Path(td) / 'out', lambda *a: None, lambda i, **v: None)
+        drawn = lambda name, call: np.random.RandomState(zlib.crc32(f'7|{name}|{call}'.encode())).random_sample()
+        self.assertEqual(draws, [(drawn('a.wav', 1), drawn('a.wav', 2)), (drawn('a.wav', 3), drawn('a.wav', 4)),
+                                 (drawn('b.wav', 1), drawn('b.wav', 2))])
+
     def test_tts_at_another_speed_keeps_the_reading_before_the_speed_change(self):
         import numpy as np
         from types import SimpleNamespace

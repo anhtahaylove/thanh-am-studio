@@ -16,6 +16,7 @@ import tempfile
 import threading
 import time
 import uuid
+import zlib
 
 ROOT = Path(__file__).resolve().parent
 
@@ -753,12 +754,21 @@ def tts(payload, output_dir: Path, progress, emit_item=None):
         OnnxV3LiteEngine._fetch = staticmethod(original_fetch)
     v3turbo = importlib.import_module('vieneu.v3turbo')
     v3turbo.phonemize_text_with_emotions = vietnamese_reading(v3turbo.phonemize_text_with_emotions)
+    seed, draws = os.environ.get('THANHAM_TTS_SEED'), {'name': None, 'call': 0}
+    if seed:  # parity hook (N12), the native worker has it too: numpy's draws are re-seeded before every engine call of a take
+        engine_infer = engine.engine.infer
+        def seeded_infer(*args, **kwargs):
+            draws['call'] += 1
+            np.random.seed(zlib.crc32(f"{seed}|{draws['name']}|{draws['call']}".encode()))
+            return engine_infer(*args, **kwargs)
+        engine.engine.infer = seeded_infer
     output_dir.mkdir(parents=True, exist_ok=True)
     crops = {}  # reference path -> what VieNeu clones from, cut once per request
 
     def synth(item):
         kwargs = voice_kwargs(item)
         name = item.get('output_name') or f'{uuid.uuid4()}.wav'
+        draws.update(name=name, call=0)
         if Path(name).suffix.lower() != '.wav':
             raise WorkerError('INVALID_PATH', 'TTS output must be a WAV file.')
         final = contained_path(output_dir, name)

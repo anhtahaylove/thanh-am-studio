@@ -61,6 +61,30 @@ pub fn verify_file(path: &Path, entry: &Value) -> Result<()> {
     Ok(())
 }
 
+/// `verify_model(model_dir, expected_id)`: the install marker, its revision against the registry, then every artifact.
+pub fn verify_model(model_dir: &Path, expected_id: &str) -> Result<Value> {
+    let marker = model_dir.join("installed.json");
+    if !marker.is_file() {
+        return Err(WorkerError::new("MODEL_NOT_READY", "Download this model in Model & settings first."));
+    }
+    let text = std::fs::read_to_string(&marker).map_err(|e| WorkerError::py("OSError", e))?;
+    let record: Value = serde_json::from_str(&text).map_err(|e| WorkerError::py("JSONDecodeError", e))?;
+    if !record.is_object() {
+        return Err(WorkerError::py("AttributeError", "the install marker is not an object"));
+    }
+    let spec = model_spec(Some(&json!(expected_id)))?;
+    if record.get("model_id") != spec.get("id") || record.get("revision") != spec.get("revision") {
+        return Err(WorkerError::new(
+            "MODEL_CHECKSUM",
+            "Installed model revision differs from the registry. Download again.",
+        ));
+    }
+    for artifact in spec.get("artifacts").and_then(Value::as_array).into_iter().flatten() {
+        verify_file(&contained_path(model_dir, artifact_str(artifact, "path")?)?, artifact)?;
+    }
+    Ok(spec)
+}
+
 fn stream(file: &mut std::fs::File, buffer: &mut [u8], mut each: impl FnMut(&[u8])) -> Result<()> {
     loop {
         match file.read(buffer) {
