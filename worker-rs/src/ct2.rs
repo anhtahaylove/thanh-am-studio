@@ -4,7 +4,9 @@
 use serde_json::{json, Value};
 use std::ffi::{c_char, c_int};
 
-// Keeps the MKL libraries in the link (ct2rs-sys references the crate the same way).
+// Keeps the MKL libraries in the link (ct2rs-sys references the crate the same way), and CTranslate2 itself: rustc drops a crate
+// nothing names from the link, with its native libraries, and only native/ct2_glue.cc calls into CTranslate2 outside the tests.
+extern crate ct2rs_sys as _;
 extern crate intel_onemkl_prebuild as _;
 
 extern "C" {
