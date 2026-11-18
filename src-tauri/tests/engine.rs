@@ -151,21 +151,28 @@ fn the_separation_runtime_download_stays_on_python(){
  let j=e.store.enqueue("model_download",None,json!({"model_id":"separation-runtime"})).unwrap();let job=e.store.claim_next().unwrap().unwrap();e.rt.execute(&e.store,&[job]).unwrap();
  let job=e.store.job(j["id"].as_str().unwrap()).unwrap();assert_eq!((job["result"]["engine"].as_str(),job["result"]["fallback"].as_bool()),(Some("python"),Some(false)));assert!(e.calls("rust").is_empty());
 }
-fn cloned_voices_take_checks_and_clone_previews_stay_on_python(){
- let routed=|kind:&str,payloads:Vec<Value>|{
-  let n=if kind=="tts"{payloads.len()}else{0};let mut py:Vec<Value>=(0..n).map(|i|json!({"do":"item","index":i})).collect();py.push(ok(json!({"count":n})));
-  let e=setup(json!([ok(json!({"done":"rust"}))]),json!(py));
-  let wav=e.dir.path().join("ref.wav");fs::write(&wav,b"RIFF0000WAVE").unwrap();let a=e.store.import_asset(&wav).unwrap();
+fn cloned_voices_route_by_reference_format_and_take_checks_stay_on_python(){
+ let routed=|kind:&str,ext:&str,payloads:Vec<Value>,engine:&str|{
+  let n=if kind=="tts"{payloads.len()}else{0};let mut script:Vec<Value>=(0..n).map(|i|json!({"do":"item","index":i})).collect();script.push(ok(json!({"count":n})));
+  let e=setup(json!(script),json!(script));
+  let r=e.dir.path().join(format!("ref.{ext}"));fs::write(&r,b"RIFF0000WAVE").unwrap();let a=e.store.import_asset(&r).unwrap();
   let ids:Vec<String>=payloads.iter().map(|p|{let mut p=p.clone();for k in ["reference_asset_id","asset_id"]{if p[k]=="REF"{p[k]=a["id"].clone();}}e.store.enqueue(kind,None,p).unwrap()["id"].as_str().unwrap().to_string()}).collect();
   let first=e.store.claim_next().unwrap().unwrap();let mut jobs=vec![first];jobs.extend(e.store.claim_queued(kind,31).unwrap());
   let _=e.rt.execute(&e.store,&jobs);
-  assert!(e.calls("rust").is_empty()&&e.log().is_empty(),"{kind} {payloads:?}");assert_eq!(e.calls("python").len(),1,"{kind} {payloads:?}");
-  if kind=="tts"{for id in &ids{let j=e.store.job(id).unwrap();assert_eq!((j["status"].as_str(),j["result"]["engine"].as_str(),j["result"]["fallback"].as_bool()),(Some("succeeded"),Some("python"),Some(false)),"{payloads:?}");}}
+  let other=if engine=="rust"{"python"}else{"rust"};
+  assert!(e.calls(other).is_empty()&&e.log().is_empty(),"{kind} {ext} {payloads:?}");assert_eq!(e.calls(engine).len(),1,"{kind} {ext} {payloads:?}");
+  if kind=="tts"{for id in &ids{let j=e.store.job(id).unwrap();assert_eq!((j["status"].as_str(),j["result"]["engine"].as_str(),j["result"]["fallback"].as_bool()),(Some("succeeded"),Some(engine),Some(false)),"{ext} {payloads:?}");}}
  };
- routed("tts",vec![json!({"text":"câu","reference_asset_id":"REF"})]);
- routed("tts",vec![json!({"text":"câu","check":true})]);
- routed("tts",vec![json!({"text":"câu một"}),json!({"text":"câu hai","check":true})]); // one checked item takes the whole batch to Python
- routed("clone_preview",vec![json!({"asset_id":"REF"})]);
+ for ext in ["wav","flac","ogg","opus","mp3","aiff"]{
+  routed("tts",ext,vec![json!({"text":"câu","reference_asset_id":"REF"})],"rust");
+  routed("clone_preview",ext,vec![json!({"asset_id":"REF"})],"rust");
+ }
+ for ext in ["m4a","aac","mp4","webm","wma"]{
+  routed("tts",ext,vec![json!({"text":"câu một"}),json!({"text":"câu hai","reference_asset_id":"REF"})],"python"); // one such item takes the batch
+  routed("clone_preview",ext,vec![json!({"asset_id":"REF"})],"python");
+ }
+ routed("tts","wav",vec![json!({"text":"câu","reference_asset_id":"REF","check":true})],"python");
+ routed("tts","wav",vec![json!({"text":"câu một"}),json!({"text":"câu hai","check":true})],"python"); // one checked item takes the whole batch to Python
 }
 fn status_reports_the_native_worker(){
  let e=setup(json!([]),json!([]));let s=e.rt.status();assert_eq!(s["native_worker_ready"],true);assert!(s["native_worker_path"].as_str().unwrap().ends_with("thanham-worker.exe"));
@@ -207,7 +214,7 @@ fn main(){
   ("a_model_check_failure_keeps_the_transcript_without_speakers",a_model_check_failure_keeps_the_transcript_without_speakers),
   ("the_user_can_pin_an_operation_to_python_and_the_change_is_logged",the_user_can_pin_an_operation_to_python_and_the_change_is_logged),
   ("the_separation_runtime_download_stays_on_python",the_separation_runtime_download_stays_on_python),
-  ("cloned_voices_take_checks_and_clone_previews_stay_on_python",cloned_voices_take_checks_and_clone_previews_stay_on_python),
+  ("cloned_voices_route_by_reference_format_and_take_checks_stay_on_python",cloned_voices_route_by_reference_format_and_take_checks_stay_on_python),
   ("status_reports_the_native_worker",status_reports_the_native_worker),
   ("diagnostics_hold_the_settings_and_both_logs",diagnostics_hold_the_settings_and_both_logs),
   ("cancelling_a_job_kills_what_its_worker_started",cancelling_a_job_kills_what_its_worker_started)];
