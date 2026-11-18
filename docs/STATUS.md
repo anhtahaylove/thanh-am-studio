@@ -1,6 +1,6 @@
 # Thanh Âm Studio status
 
-Last updated 2026-11-14. Evidence below was observed, not inferred; anything not listed is unverified.
+Last updated 2026-11-18. Evidence below was observed, not inferred; anything not listed is unverified.
 
 ## Implemented
 
@@ -899,6 +899,30 @@ Same app code as 1.0.15; the bundled runtime and the installer changed (#117 not
 | Not run | a scan of the installed DLLs on their own; opening the licence page interactively; the update through GitHub itself; speed on other CPUs (AMD in particular) |
 
 Evidence: `work\release-v1.0.16-sandbox` (`run1016a`, `run1016b`, `run1016c`, `run1016u`, `installed-files`); the spike in `work\openmp-swap-spike\RESULTS.md`.
+
+### v1.0.18 release (built by `.github/workflows/release.yml` from tag `v1.0.18` at `a4c806b`)
+
+The installer no longer bundles PyTorch and Demucs. Background separation runs from the downloadable separation pack (`pack-separation-v1`, pinned in `worker/models.json` by #128). Export rendering and model downloads run on the native worker (`worker-rs`, `RUST_OPS` = `render`, `download`); when it fails, the job falls back to Python and the fallback is logged. The release also adds the diagnostics export and the 600-character cap on unspaced tokens (#130).
+
+There is no 1.0.17. The tag `v1.0.17` exists, but its release build stopped at the pack check; #131 fixed that and added a dry run of the workflow before tagging.
+
+| Check | Result |
+|---|---|
+| Tests | CI green on the tagged commit; the release workflow's dry run passed on it before the tag |
+| Native worker parity | row X on the worker built from the tag: 51 of 51 recipes bit-identical to the 1.0.16 Python worker's recordings, including the three 500-segment recipes; none skipped |
+| Installer SHA-256 | `c75f749f0e61363185a635f1286b735116b692c0d5dbbf804f1dadb7c4eed88c` (213,635,539 bytes; 1.0.16: 293,669,499). `sha256sum -c` OK on the draft's assets and after an anonymous download from `/releases/download/v1.0.18/` |
+| Update feed | the anonymous `/releases/latest/download/latest.json` names 1.0.18, points to the v1.0.18 installer and carries a signature |
+| Reduced Sandbox gate | the machine could not free 8 GB per Sandbox with other sessions open, so the runs below used 4 to 6 GB and skipped some phases |
+| Clean Sandbox, `-Only update -From` the published 1.0.16 (4 GB) | refused a package that does not match its signature; updated itself to 1.0.18 through the local feed and reopened with its project. torch, demucs, julius, einops and safetensors were present before the update and gone after it, and the native worker was ready after it. 4 PASS, 0 FAIL. The first attempt failed in the harness, which expected a native worker from 1.0.16; fixed in #134 |
+| Clean Sandbox, `-Only full,turbo,clone,dpi,ux,features` (6 GB) | 885 MiB installed; health ready without torch; exports in five formats; Whisper Large v3 Turbo on the MP3; clone WER 4.9 %; 4/4 layouts; drag and drop. 39 PASS. `features` failed only because it ran after `ux` and opened that phase's project |
+| Clean Sandbox, `-Only full,features` (6 GB) | 22 PASS, 0 FAIL, including speaker separation into a two-voice script (22 rows, 2 speakers) |
+| Engines | the app's job records in both fresh-install runs: every `render` and model download ran with `engine: rust, fallback: false`; TTS and STT ran on Python |
+| Shipped bytecode | the jobs rewrote 208 of the 3,792 shipped `.pyc` files. NSIS stores file times at even seconds, so a timestamp `.pyc` whose source was saved at an odd second goes stale. No effect on results; #135 compiles unchecked-hash `.pyc` from the next release |
+| Notices | `THIRD-PARTY-NOTICES.txt` lacks five crates that the native worker links (bytes, mio, sha1, uuid, zeroize; all MIT or Apache-2.0), because the tag's `third_party.py` listed only the app crate. They are in the release asset `THIRD-PARTY-NOTICES-native-worker.txt`, and `third_party.py` on main now lists the worker's crates. The licence page said oneMKL is in PyTorch as well as CTranslate2; fixed on main for the next release |
+| Antivirus, before publication | Microsoft Defender is off on the test machine. On [VirusTotal](https://www.virustotal.com/gui/file/c75f749f0e61363185a635f1286b735116b692c0d5dbbf804f1dadb7c4eed88c), none of 42 engines flagged the installer, and none of 44 flagged the separation pack zip |
+| Not run | `update-seeded`, `dub` (installing the separation pack through the app, then separating), `scripts`, `ab`, the default runner's `reopen`/`offline`/`export`, and `-Gate 500`. The pack download was tested on the development PC only (resume, checksum, and a corrupted file refused) |
+
+Evidence: `work\release-v1.0.18-sandbox` (`out1018r1p`, `out1018r2`, `out1018r2b`, `out1018r2c`, `x09-parity.log`, `r2*-job-engines.txt`, `pyc-check`), `work\release-v1.0.18-vt`, `work\release-v1.0.18-notices`.
 
 ## Not verified / known gaps
 

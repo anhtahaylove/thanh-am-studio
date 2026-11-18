@@ -9,6 +9,6 @@ INTEL COMPONENT
 
 This product includes the following Intel software, in binary form only:
 
-- Intel oneMKL, linked into the bundled PyTorch and CTranslate2 libraries, provided under the Intel Simplified Software License.
+- Intel oneMKL, linked into the bundled CTranslate2 library and into PyTorch in the separation pack that the app can download, provided under the Intel Simplified Software License.
 
 By installing this product you agree that you may not reverse engineer, decompile or disassemble this Intel component, and may not modify it. Intel's disclaimers of warranty and limitations of liability in its license terms apply to you and are binding on you. Its full license terms are in THIRD-PARTY-NOTICES.txt.
