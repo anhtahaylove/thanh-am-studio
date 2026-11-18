@@ -49,6 +49,14 @@ fn main() {
         .file("native/pocketfft_shim.cc")
         .compile("pocketfft_np");
 
+    // The STT decode (stt/decode.rs): faster-whisper's decode_audio as PyAV runs it, against the unmodified FFmpeg 8.1.2 headers in
+    // third_party/ffmpeg-8.1.2; the FFmpeg functions are resolved at run time from PyAV's own DLLs, never linked.
+    cc::Build::new()
+        .opt_level(2)
+        .include("third_party/ffmpeg-8.1.2")
+        .file("native/pyav_decode.c")
+        .compile("pyav_decode");
+
     // Feature `ct2`: the STT engine from engine/build-engine.ps1, whose output folder THANHAM_CT2_ENGINE names (ct2rs-sys links
     // ctranslate2, cpu_features, the cublas stubs and iomp5 from LIBRARY_PATH, which must be its lib\; MKLROOT must be its mklroot\).
     if std::env::var_os("CARGO_FEATURE_CT2").is_some() {
