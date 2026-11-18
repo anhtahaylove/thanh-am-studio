@@ -341,6 +341,12 @@ mod tests {
         ) else {
             return;
         };
+        // The worker reads models.json and onnxruntime.dll beside its exe, as scripts/stage-worker.ps1 lays them out.
+        let here = std::env::current_exe().unwrap().parent().unwrap().to_path_buf();
+        let repo = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        std::fs::copy(repo.join("worker").join("models.json"), here.join("models.json")).unwrap();
+        let ort = site_packages().join("onnxruntime").join("capi").join("onnxruntime.dll");
+        std::fs::copy(ort, here.join("onnxruntime.dll")).unwrap();
         let dir = tempfile::tempdir().unwrap();
         // A noisy, syllable-gated harmonic tone after 1 s of near silence: something to trim, crop and denoise.
         let sr = 24000;
