@@ -66,3 +66,4 @@ jobs:
           ORTFFI_RUNTIME: ${{ runner.temp }}/ortvenv
           # thanham-diarize loads the wheel's sherpa-onnx-c-api.dll from here (its smoke test; no models in this job).
           THANHAM_SHERPA_LIB: ${{ runner.temp }}/ortvenv/Lib/site-packages/sherpa_onnx/lib
+          THANHAM_DIARIZE_REQUIRE: '1'  # built in the step above

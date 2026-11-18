@@ -323,7 +323,7 @@ mod tests {
     }
 
     /// The parent's side of a failing child: the codes and messages diarize_isolated() gives. Runs thanham-diarize.exe from the
-    /// test's target folder (`cargo build -p thanham-diarize`; required in CI, skipped elsewhere when missing).
+    /// test's target folder (`cargo build -p thanham-diarize`); skipped when missing unless `THANHAM_DIARIZE_REQUIRE` is set (ci.yml).
     #[test]
     fn child_failures() {
         let exe = std::env::current_exe().unwrap().parent().unwrap().parent().unwrap().join("thanham-diarize.exe");
@@ -352,7 +352,7 @@ mod tests {
                 "{message}"
             );
         } else {
-            assert!(std::env::var_os("CI").is_none(), "{} not built", exe.display());
+            assert!(std::env::var_os("THANHAM_DIARIZE_REQUIRE").is_none(), "{} not built", exe.display());
             eprintln!("{} not built: child run skipped", exe.display());
         }
         std::fs::remove_dir_all(&dir).unwrap();
