@@ -21,3 +21,9 @@ progress::-webkit-progress-value{background:var(--green)}
 .update{background:var(--surface);border:1px solid var(--border);color:var(--ink)}.alert.update>span{flex:1}.alert.update .primary{padding:9px 14px}
 .update-settings{padding:22px;margin-top:23px}.update-settings p{font-size:11px;color:var(--muted);margin:10px 0 14px;max-width:640px}.update-actions,.modal-actions{display:flex;gap:10px;align-items:center}.modal-actions{justify-content:flex-end}
 .whats-new{max-height:80vh;overflow:auto}.whats-new h3{display:flex;align-items:center;gap:8px}.whats-new article{margin-bottom:16px}.whats-new h4{margin:0 0 6px;font-size:13px;display:flex;gap:10px;align-items:baseline}.whats-new h4 span{font-size:10px;color:var(--muted);font-weight:400}.whats-new ul{margin:0;padding-left:18px;font-size:12px;line-height:1.6}.whats-new li+li{margin-top:4px}
+.engine-panel{padding:21px 27px;margin-bottom:23px;display:grid;gap:14px}
+.engine-panel h3{margin:0 0 6px}
+.engine-panel p{font-size:11px;color:var(--muted);margin:0;max-width:720px}
+.engine-rows{display:flex;flex-wrap:wrap;gap:12px 22px}
+.engine-rows label{display:grid;gap:4px;font-size:11px;color:var(--muted)}
+.engine-panel>button{justify-self:start}

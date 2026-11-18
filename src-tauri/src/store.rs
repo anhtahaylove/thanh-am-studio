@@ -103,7 +103,12 @@ impl Store {
  pub fn save_settings(&self,v:Value)->Result<Value>{
   let d=v["dictionary"].as_object().ok_or("INVALID_SETTINGS: dictionary")?;
   if d.len()>5000||d.iter().any(|(k,x)|k.is_empty()||k.len()>512||x.as_str().is_none_or(|x|x.len()>512)){return Err("INVALID_SETTINGS: dictionary".into())}
-  let s=json!({"dictionary":d});
+  // worker_engines is optional in the request and kept when absent, so a dictionary save never resets the engine choice.
+  let old=self.settings()?;let engines=match v.get("worker_engines"){None=>old["worker_engines"].clone(),Some(e)=>{
+   let m=e.as_object().filter(|m|m.iter().all(|(k,x)|crate::engine::OPS.contains(&k.as_str())&&matches!(x.as_str(),Some("auto"|"python")))).ok_or("INVALID_SETTINGS: worker_engines")?;
+   for op in crate::engine::OPS{let (from,to)=(old["worker_engines"][op].as_str().unwrap_or("auto"),m.get(*op).and_then(Value::as_str).unwrap_or("auto"));if from!=to{crate::engine::log_change(&self.root,op,from,to);}}
+   e.clone()}};
+  let mut s=json!({"dictionary":d});if !engines.is_null(){s["worker_engines"]=engines;}
   self.db.lock().map_err(err)?.execute("INSERT INTO settings VALUES('app',?1) ON CONFLICT(key) DO UPDATE SET data=excluded.data",[s.to_string()]).map_err(err)?;Ok(s)
  }
 }
