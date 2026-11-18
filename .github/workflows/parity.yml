@@ -23,7 +23,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - uses: dtolnay/rust-toolchain@stable
+      - run: rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy # worker-rs/rust-toolchain.toml
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: worker-rs
@@ -51,6 +51,7 @@ jobs:
       - name: Row X (render and probe)
         run: python -I parity/x_compare.py --exe target/release/thanham-worker.exe --ffmpeg "$env:RUNNER_TEMP/ffmpeg-parity/ffmpeg.exe" --ffprobe "$env:RUNNER_TEMP/ffmpeg-parity/ffprobe.exe"
       - name: Row R (protocol and errors)
+        if: ${{ !cancelled() }}
         run: python -I parity/r_compare.py --exe target/release/thanham-worker.exe
       # Models come through the Rust downloader itself, so a download regression also fails here; turbo (1.6 GB) is left to the gate.
       - uses: actions/cache@v4
@@ -58,15 +59,19 @@ jobs:
           path: ${{ runner.temp }}/parity-models
           key: parity-models-${{ hashFiles('worker/models.json') }}
       - name: Fetch models
+        if: ${{ !cancelled() }}
         run: python -I parity/fetch_models.py --exe target/release/thanham-worker.exe --models "$env:RUNNER_TEMP/parity-models" --skip whisper-turbo
       - name: Row W (download)
+        if: ${{ !cancelled() }}
         run: python -I parity/w_compare.py --exe target/release/thanham-worker.exe --models "$env:RUNNER_TEMP/parity-models"
       # ort, faster-whisper and sherpa-onnx wheels give the runtime DLLs and the Silero asset at the layout the tests expect (<venv>/Lib/site-packages).
       - name: ORT inputs for row F
+        if: ${{ !cancelled() }}
         run: |
           python -m venv "$env:RUNNER_TEMP/ortvenv"
           & "$env:RUNNER_TEMP/ortvenv/Scripts/python.exe" -m pip install --no-deps onnxruntime==1.31.1 faster-whisper==1.2.1 sherpa-onnx==2.0.1 sherpa-onnx-core==2.0.1
       - name: Row F (ORT FFI)
+        if: ${{ !cancelled() }}
         env:
           ORTFFI_REQUIRE: '1'
         run: |

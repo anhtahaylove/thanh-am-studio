@@ -43,9 +43,8 @@ jobs:
         working-directory: worker-rs
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
+      # worker-rs/rust-toolchain.toml pins the compiler (rustup does not install a missing one by itself).
+      - run: rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: worker-rs

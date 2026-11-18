@@ -1,0 +1,5 @@
+# Pinned: rustfmt and clippy change between releases, and the parity goldens must not depend on the compiler of the day.
+[toolchain]
+channel = "1.99.1"
+components = ["rustfmt", "clippy"]
+profile = "minimal"

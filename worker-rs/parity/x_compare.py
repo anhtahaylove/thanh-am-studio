@@ -50,7 +50,7 @@ def probe_fields(ffprobe, path):
 
 
 def run_recipe(args, name, request_path, fix_dir):
-    work = Path(tempfile.mkdtemp(prefix='xc-'))
+    work = Path(tempfile.mkdtemp(prefix='xc-')).resolve()  # the long name: a runner's TEMP may be an 8.3 short path the worker never prints
     try:
         text = request_path.read_text(encoding='utf-8').replace('${FIX}', str(fix_dir).replace('\\', '\\\\')).replace('${OUT}', str(work).replace('\\', '\\\\'))
         request = json.dumps(json.loads(text), ensure_ascii=False)
@@ -128,7 +128,7 @@ def main():
             if hashlib.sha256((seg_dir / name).read_bytes()).hexdigest() != digest:
                 sys.exit(f'seg take {name} does not match seg.sha256')
         # the recipes name ${FIX}/seg/...: a scratch fixtures folder that holds both
-        tmp_fix = Path(tempfile.mkdtemp(prefix='xc-fix-'))
+        tmp_fix = Path(tempfile.mkdtemp(prefix='xc-fix-')).resolve()
         shutil.copytree(fix_dir, tmp_fix, dirs_exist_ok=True)
         shutil.copytree(seg_dir, tmp_fix / 'seg')
         fix_dir = tmp_fix
