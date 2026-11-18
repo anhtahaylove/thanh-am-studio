@@ -75,6 +75,15 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual(events[-1]['id'], 'test')
         self.assertIs(events[-1]['result']['torch_imported_by_engines'], False)
 
+    def test_health_profiles_check_only_their_own_modules(self):
+        self.assertEqual(set(worker.health('separation')['modules']), {'numpy', 'soundfile', 'torch', 'demucs.htdemucs', 'safetensors'})
+        base = worker.health('base')
+        self.assertNotIn('torch', base['modules'])
+        self.assertEqual((base['profile'], base['torch_imported_by_engines']), ('base', False))
+        with self.assertRaises(worker.WorkerError) as ctx:
+            worker.health('nope')
+        self.assertEqual(ctx.exception.code, 'INVALID_REQUEST')
+
     def test_missing_model_reports_error_not_audio(self):
         with tempfile.TemporaryDirectory() as td:
             p = subprocess.run([sys.executable, str(ROOT / 'main.py')], input=json.dumps({
@@ -348,7 +357,7 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, 'INPUT_MISSING')
 
     def test_vieneu_pin_was_verified(self):
-        pin = re.search(r'VieNeu-TTS\.git@([0-9a-f]{40})', (ROOT / 'requirements-cpu.lock').read_text(encoding='utf-8')).group(1)
+        pin = re.search(r'VieNeu-TTS\.git@([0-9a-f]{40})', (ROOT / 'requirements-base.lock').read_text(encoding='utf-8')).group(1)
         self.assertEqual(pin, VIENEU_VERIFIED, 'The vieneu pin changed: run test_clone_preview_matches_what_synthesis_enrolls with '
                          'THANHAM_VIENEU_MODELS set to an installed vieneu-v3 folder, then update VIENEU_VERIFIED.')
 

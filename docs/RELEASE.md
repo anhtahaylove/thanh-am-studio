@@ -1,9 +1,11 @@
 # Release process
 
 The installer ships the app, the worker, a private CPython 3.11.18 runtime with the locked CPU
-inference closure (including PyTorch 2.15.0+cpu and Demucs 4.1.0 for background separation) and a
+inference closure (`worker/requirements-base.lock`; no PyTorch or Demucs) and a
 pinned LGPL FFmpeg build. Models are not shipped; users download them in **Model & cài đặt** (pinned
-revisions and digests in `worker/models.json`).
+revisions and digests in `worker/models.json`). Background separation runs on a separate **runtime pack**
+(Python + PyTorch 2.15.0+cpu + Demucs 4.1.0, `worker/requirements-separation.lock`) that the app downloads on
+demand from this repository's `pack-separation-v<N>` prerelease (see "Separation runtime pack" below).
 
 ## Reproducible build (Windows x64)
 
@@ -11,7 +13,7 @@ Requirements: Node 22+, Rust stable (MSVC; Visual Studio Build Tools also provid
 
 ```powershell
 npm ci
-./scripts/setup-runtime.ps1          # runtime/python + runtime/ffmpeg (FFmpeg SHA-256 pinned)
+./scripts/setup-runtime.ps1          # runtime/python + runtime/ffmpeg (FFmpeg SHA-256 pinned); -Profile base is the default
 python scripts/third_party.py release # release/sbom.cdx.json + release/THIRD-PARTY-NOTICES.txt (bundled into the installer)
 npm run tauri build -- --ci
 ```
@@ -20,10 +22,38 @@ makensis cannot open paths longer than 260 characters. If the checkout path is l
 from a short drive: `subst T: <repo>; cd T:\; npm run tauri build -- --ci; subst T: /d`.
 Do not run `src-tauri/target/release/thanh-am-studio.exe` while bundling (the bundler patches it).
 
+After its worker health check the base profile compiles every `.py` (timestamp mode) and writes
+`runtime/python/pyc-sha256.txt`, the SHA-256 of every shipped `.pyc`: NSIS restores each file's build-time write
+time on install and on update, so the shipped headers stay valid, and the Sandbox `full` phase checks after its
+jobs that none changed (new `.pyc` files are information only).
+
 `.github/workflows/release.yml` does the same on a `v*` tag, attaches the installer,
 `SHA256SUMS.txt`, the SBOM and notices to a **draft pre-release**. Publishing the draft is a
 manual decision after the acceptance gates below pass on that exact tag. Users verify a download
 with `sha256sum -c SHA256SUMS.txt` (or compare `Get-FileHash <file>` with the listed hash).
+
+## Separation runtime pack
+
+Background separation needs PyTorch and Demucs (about 450 MB installed), so they are not in the installer: the
+app downloads a pack, `separation-runtime` in **Model & cài đặt**, once. Its pin (url, size, SHA-256, manifest
+SHA-256) is in `worker/models.json`; `release.yml` stops when the pin is still the placeholder or the asset's size
+differs.
+
+- **Build and check**: `.github/workflows/pack.yml`. A pull request that touches the pack's inputs, or a manual run,
+  builds and checks the pack and uploads a workflow artifact only. `scripts/setup-runtime.ps1 -Profile separation`
+  builds the runtime (the OpenMP shim and its import check, the app-local CRT); `scripts/build_pack.py` compiles
+  every `.py` to unchecked-hash bytecode (PEP 552) and asserts the header flag on every `.pyc`, moves every
+  `*.dist-info/licenses` tree verbatim into the pack's `THIRD-PARTY-NOTICES.txt` (a byte check fails the build), checks
+  the path budget (9 + 40 + 64 + the longest path, 134 today, must be at most 259; the next torch bump may need the
+  shorter model id `sep`), runs the pack's own health check, writes `MANIFEST.sha256` (`<sha256>  <size>  <path>`) and
+  a reproducible zip plus `separation-runtime-v<N>.pin.json`. The workflow then runs a separation on the pack with
+  `-B` and compares the tree with the manifest.
+- **Publish** (the owner's decision, one pack per torch or Demucs change): push the tag
+  `pack-separation-v<N>`. The workflow creates a **prerelease** (never latest: the updater reads `releases/latest`)
+  with the zip, the pin file, the manifest and the notices, and fails if `releases/latest/download/latest.json`
+  changed. Then `python scripts/pin_pack.py <pin file>` writes the pin into `worker/models.json` (the entry's
+  `revision` must already be `separation-v<N>`), reviewed in a normal PR. Upload the zip to VirusTotal before the
+  release that pins it (the release gate below).
 
 ## Acceptance gates (on the installer built from the tagged revision)
 

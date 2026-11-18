@@ -1,8 +1,12 @@
 param(
-    [string]$Destination = (Join-Path $PSScriptRoot '..\runtime'),
+    [ValidateSet('base', 'separation')][string]$Profile = 'base',
+    [string]$Destination = (Join-Path $PSScriptRoot $(if ($Profile -eq 'separation') { '..\runtime-separation' } else { '..\runtime' })),
     [string]$FfmpegDirectory
 )
 # Builds the private runtime that the installer bundles (runtime/python + runtime/ffmpeg).
+# -Profile base (default): the installer's runtime, from worker/requirements-base.lock, with FFmpeg.
+# -Profile separation: Python + PyTorch + Demucs from worker/requirements-separation.lock, no FFmpeg. It is the input of
+# scripts/build_pack.py, which turns it into the downloadable separation pack (.github/workflows/pack.yml).
 # Does not modify system Python or PATH and needs no administrator rights.
 $ErrorActionPreference = 'Stop'
 $PythonVersion = '3.11.18'
@@ -37,7 +41,7 @@ try {
     Remove-Item -LiteralPath (Join-Path $pythonDir 'Lib\EXTERNALLY-MANAGED') -Force -ErrorAction SilentlyContinue
     # Lock enumerates the deliberately minimal inference closure. VieNeu's Gradio
     # application dependencies are not needed by the desktop worker.
-    & uv pip install --python $python --no-deps --compile-bytecode -r (Join-Path $root 'worker\requirements-cpu.lock')
+    & uv pip install --python $python --no-deps --compile-bytecode -r (Join-Path $root "worker\requirements-$Profile.lock")
     if ($LASTEXITCODE -ne 0) { throw 'CPU runtime dependency installation failed.' }
     # onnxruntime/ctranslate2 need the MSVC C++ runtime, which clean Windows lacks. Deploy the
     # redistributable CRT app-locally next to python.exe (permitted by the Visual Studio redist terms).
@@ -105,19 +109,21 @@ try {
     Get-ChildItem -LiteralPath $pythonDir -Recurse -File -Filter 'libiompstubs5md.dll' | Remove-Item -Force
     # PyAV's FFmpeg links the GPL x264 and x265 encoders, but the app only decodes. Replace both DLLs, under the same
     # file names (deleted first, as above), with the stand-ins in scripts/encoder-stubs, which encode nothing.
-    & (Join-Path $PSScriptRoot 'encoder-stubs\build.cmd') (Join-Path $vs 'VC\Auxiliary\Build\vcvars64.bat') $omp
-    if ($LASTEXITCODE -ne 0) { throw 'Encoder stub build failed.' }
     $replacements = @{ 'libiomp5md.dll' = $shim }
-    foreach ($n in 'x264', 'x265') {
-        foreach ($real in Get-ChildItem -LiteralPath (Join-Path $site 'av.libs') -File -Filter "lib$n-*.dll") {
-            Remove-Item -LiteralPath $real.FullName -Force
-            Copy-Item -LiteralPath (Join-Path $omp "$n.dll") -Destination $real.FullName
-            $replacements[$real.Name] = Join-Path $omp "$n.dll"
+    if ($Profile -eq 'base') {
+        & (Join-Path $PSScriptRoot 'encoder-stubs\build.cmd') (Join-Path $vs 'VC\Auxiliary\Build\vcvars64.bat') $omp
+        if ($LASTEXITCODE -ne 0) { throw 'Encoder stub build failed.' }
+        foreach ($n in 'x264', 'x265') {
+            foreach ($real in Get-ChildItem -LiteralPath (Join-Path $site 'av.libs') -File -Filter "lib$n-*.dll") {
+                Remove-Item -LiteralPath $real.FullName -Force
+                Copy-Item -LiteralPath (Join-Path $omp "$n.dll") -Destination $real.FullName
+                $replacements[$real.Name] = Join-Path $omp "$n.dll"
+            }
         }
+        # NVIDIA cuDNN ships in the ctranslate2 wheel for GPU use. Nothing imports it; ctranslate2 only preloads every DLL
+        # in its folder, so the CPU runtime does not need it. A missing or locked file stops the build.
+        Remove-Item -LiteralPath (Join-Path $site 'ctranslate2\cudnn64_9.dll') -Force
     }
-    # NVIDIA cuDNN ships in the ctranslate2 wheel for GPU use. Nothing imports it; ctranslate2 only preloads every DLL
-    # in its folder, so the CPU runtime does not need it. A missing or locked file stops the build.
-    Remove-Item -LiteralPath (Join-Path $site 'ctranslate2\cudnn64_9.dll') -Force
     # Fail the build if an Intel OpenMP, x264/x265 or cuDNN binary remains, or if any binary imports a symbol its
     # replacement does not export (e.g. a torch or ctranslate2 bump that starts using another _vcomp_* entry point).
     $pes = Get-ChildItem -LiteralPath $pythonDir -Recurse -File -Include '*.dll', '*.pyd', '*.exe'
@@ -148,6 +154,9 @@ try {
     Remove-Item -LiteralPath $managed -Recurse -Force
 
     $bin = Join-Path $destinationPath 'ffmpeg'
+    if ($Profile -eq 'separation') {
+        # The pack carries no FFmpeg: a separation job gets the installer's through the request's ffmpeg_path.
+    } else {
     if (Test-Path -LiteralPath $bin) { Remove-Item -LiteralPath $bin -Recurse -Force }
     New-Item -ItemType Directory -Path $bin -Force | Out-Null
     if ($FfmpegDirectory) {
@@ -173,14 +182,31 @@ try {
     foreach ($name in @('ffmpeg.exe', 'ffprobe.exe')) {
         if (-not (Test-Path -LiteralPath (Join-Path $bin $name))) { throw "Missing $name in runtime." }
     }
+    }
 
-    $request = @{protocol=1;id='setup';operation='health';payload=@{}} | ConvertTo-Json -Compress
+    $request = @{protocol=1;id='setup';operation='health';payload=@{profile=$Profile}} | ConvertTo-Json -Compress
     $health = $request | & $python -I -X utf8 (Join-Path $root 'worker\main.py')
     if ($LASTEXITCODE -ne 0) { throw "Worker health failed: $health" }
     # The worker exits 0 with ready:false when a module does not import (e.g. a native DLL that fails to load).
     if (-not ($health | Select-Object -Last 1 | ConvertFrom-Json).result.ready) { throw "Worker health is not ready: $health" }
     Write-Output $health
-    Write-Output "Runtime ready at $destinationPath. Tauri bundles it as resources/runtime. Models are downloaded separately in the app."
+    if ($Profile -eq 'base') {
+        # The health run above may have written .pyc files, and 419 .py files (mostly stdlib) shipped without one. Compile
+        # everything in timestamp mode now: NSIS restores each file's build-time write time on install and on update, so
+        # the shipped headers stay valid and a job writes almost nothing. py312_intrinsics.py is a SyntaxError under 3.11.
+        & $python -I -m compileall -q -x py312_intrinsics (Join-Path $pythonDir 'Lib')
+        if ($LASTEXITCODE -ne 0) { throw 'Bytecode compilation failed.' }
+        # The Sandbox gate hashes every shipped .pyc against this list after its jobs (new .pyc files are information only).
+        $sha = [Security.Cryptography.SHA256]::Create()
+        $pycList = foreach ($f in Get-ChildItem -LiteralPath $pythonDir -Recurse -File -Filter '*.pyc' | Sort-Object FullName) {
+            $stream = [IO.File]::OpenRead($f.FullName)
+            try { $hash = [BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-', '').ToLowerInvariant() } finally { $stream.Dispose() }
+            "$hash  $($f.FullName.Substring($pythonDir.Length + 1).Replace('\', '/'))"
+        }
+        [IO.File]::WriteAllText((Join-Path $pythonDir 'pyc-sha256.txt'), (($pycList -join "`n") + "`n"))
+        Write-Output "Wrote pyc-sha256.txt ($(@($pycList).Count) files)."
+    }
+    Write-Output "Runtime ($Profile) ready at $destinationPath. Tauri bundles the base one as resources/runtime. Models are downloaded separately in the app."
 } finally {
     $env:UV_PYTHON_INSTALL_DIR = $oldManaged
     $env:VSLANG = $oldVslang

@@ -1,0 +1,91 @@
+name: pack
+# Builds the separation runtime pack (Python + PyTorch + Demucs), the download that the installer no longer carries.
+# A tag `pack-separation-v<N>` publishes it as a PRERELEASE (never "latest": the in-app updater reads releases/latest).
+# A pull request that touches the pack's inputs, or a manual run, builds and checks it and uploads a workflow artifact only.
+on:
+  push:
+    tags: ['pack-separation-v*']
+  pull_request:
+    paths: ['scripts/setup-runtime.ps1', 'scripts/build_pack.py', 'scripts/pin_pack.py', 'scripts/openmp-shim/**', 'scripts/licenses/**',
+            'worker/requirements-separation.lock', 'worker/main.py', 'worker/tests/test_pack.py', '.github/workflows/pack.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: astral-sh/setup-uv@v6
+      - name: Pack tests (builder, installer and pin)
+        shell: pwsh
+        run: python -m unittest discover -s worker/tests -p 'test_*pack*.py' -v
+      - name: Build the separation runtime
+        shell: pwsh
+        run: ./scripts/setup-runtime.ps1 -Profile separation
+      - name: Build the pack
+        shell: pwsh
+        run: |
+          $tag = if ($env:GITHUB_REF -like 'refs/tags/pack-separation-v*') { $env:GITHUB_REF_NAME } else { 'pack-separation-v0' }  # a dry run names no real release
+          python scripts/build_pack.py runtime-separation/python pack-out --tag $tag
+          Get-ChildItem pack-out -File | Select-Object Name, Length
+      # The installer's pinned FFmpeg (setup-runtime.ps1 holds the pin) stands in for the one a separation job is given.
+      - name: FFmpeg for the separation test
+        shell: pwsh
+        run: |
+          $s = Get-Content scripts/setup-runtime.ps1 -Raw
+          $tag, $asset, $sha = 'FfmpegTag', 'FfmpegAsset', 'FfmpegSha256' | ForEach-Object { [regex]::Match($s, "$_ = '([^']+)'").Groups[1].Value }
+          $zip = Join-Path $env:RUNNER_TEMP "$asset.zip"
+          Invoke-WebRequest -Uri "https://github.com/BtbN/FFmpeg-Builds/releases/download/$tag/$asset.zip" -OutFile $zip
+          if ((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash -ne $sha) { throw 'FFmpeg archive checksum mismatch.' }
+          Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $env:RUNNER_TEMP 'ffmpeg')
+          "$env:RUNNER_TEMP\ffmpeg\$asset\bin" >> $env:GITHUB_PATH
+      # A separation job runs on the pack's own python with -B: afterwards the tree must still equal its manifest.
+      - name: Separate on the pack, then compare the tree with MANIFEST.sha256
+        shell: pwsh
+        run: |
+          $pack = 'pack-out/separation-runtime'
+          & "$pack/python.exe" -B -I -m unittest discover -s worker/tests -p test_worker.py -k test_separate_runs_a_random_htdemucs_end_to_end -v
+          if ($LASTEXITCODE -ne 0) { throw 'separation on the pack failed' }
+          $pin = Get-Content pack-out/separation-runtime-v*.pin.json -Raw | ConvertFrom-Json
+          python scripts/build_pack.py --verify $pack --manifest-sha256 $pin.manifest_sha256
+          if ($LASTEXITCODE -ne 0) { throw 'the pack tree differs from its manifest after a job' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: separation-runtime-pack
+          path: |
+            pack-out/separation-runtime-v*.zip
+            pack-out/separation-runtime-v*.pin.json
+            pack-out/separation-runtime/MANIFEST.sha256
+            pack-out/separation-runtime/THIRD-PARTY-NOTICES.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/pack-separation-v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: separation-runtime-pack
+          path: pack
+      - name: Publish a prerelease and check that latest.json did not move
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          feed="https://github.com/$GITHUB_REPOSITORY/releases/latest/download/latest.json"
+          before=$(curl -fsSL "$feed" | sha256sum)
+          zip=$(ls pack/separation-runtime-v*.zip) ; pin=$(ls pack/separation-runtime-v*.pin.json)
+          gh release create "$GITHUB_REF_NAME" "$zip" "$pin" pack/separation-runtime/MANIFEST.sha256 pack/separation-runtime/THIRD-PARTY-NOTICES.txt --repo "$GITHUB_REPOSITORY" \
+            --prerelease --latest=false --title "Separation runtime pack $GITHUB_REF_NAME" \
+            --notes "Runtime pack for background separation (Python, PyTorch, Demucs), built from $GITHUB_SHA. Not an app release: the app downloads it by the pin in worker/models.json (scripts/pin_pack.py writes the pin from the .pin.json asset). Never mark this release as latest."
+          test "$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json isPrerelease,isDraft --jq '.isPrerelease and (.isDraft | not)')" = true
+          after=$(curl -fsSL "$feed" | sha256sum)
+          test "$before" = "$after" || { echo "latest.json changed after the pack was published"; exit 1; }
