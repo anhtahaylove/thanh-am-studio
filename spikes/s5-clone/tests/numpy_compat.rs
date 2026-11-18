@@ -59,9 +59,8 @@ fn pcm_quantisation_matches_soundfile() {
     let x = f32s(evidence().join("fixtures/pcm/x.npy"));
     let want16 = Npy::read(&evidence().join("fixtures/pcm/pcm16_bytes.npy")).unwrap();
     let want24 = Npy::read(&evidence().join("fixtures/pcm/pcm24_bytes.npy")).unwrap();
-    let got16: Vec<u8> = x.iter().flat_map(|&v| wav::quantize_i16(v, 32768.0).to_le_bytes()).collect();
-    let got24: Vec<u8> =
-        x.iter().flat_map(|&v| wav::quantize_i24(v, 8_388_608.0).to_le_bytes()[..3].to_vec()).collect();
+    let got16: Vec<u8> = x.iter().flat_map(|&v| wav::quantize_i16(v).to_le_bytes()).collect();
+    let got24: Vec<u8> = x.iter().flat_map(|&v| wav::quantize_i24(v).to_le_bytes()[..3].to_vec()).collect();
     assert_eq!(got16, want16.u8s().unwrap());
     assert_eq!(got24, want24.u8s().unwrap());
 }
@@ -104,4 +103,32 @@ fn trim_reproduces_every_k_b3_golden() {
         cases += 1;
     }
     assert_eq!(cases, 59);
+}
+
+/// S5b: every denoiser STFT/iSTFT sub-step is bitwise equal to numpy 2.4.6 when given numpy's own intermediates
+/// (recorded by `py/recstft.py`, reference 000-N).
+#[test]
+fn denoiser_stft_steps_are_bitwise_numpy() {
+    let report =
+        s5_clone::s5b::iso(&evidence().join("rec-stft").join("000-N"), &evidence().join("rec").join("000-N")).unwrap();
+    for step in [
+        "frames_window",
+        "fft_pocketfft_numpy",
+        "abs_numpy_formula_fma",
+        "atan2",
+        "cos",
+        "sin",
+        "ort_in_mag_from_numpy_spec",
+        "ort_in_cos_from_numpy_phi",
+        "ort_in_sin_from_numpy_phi",
+        "complex_product",
+        "ifft_pocketfft_numpy_f32",
+        "overlap_add",
+        "window_sum",
+        "normalise",
+        "final_scale",
+    ] {
+        let n_diff = report[step]["n_diff"].as_u64().unwrap();
+        assert_eq!(n_diff, 0, "{step}: {n_diff} values differ from numpy");
+    }
 }

@@ -1,4 +1,4 @@
-// Builds kaldi-native-fbank 1.23.0 (Apache-2.0) and its pinned kissfft (BSD-3-Clause) from the source trees prepared under
+// Builds kaldi-native-fbank 1.23.0 (Apache-2.0), its pinned kissfft (BSD-3-Clause) and numpy's vendored pocketfft header from the source trees prepared under
 // `S5_THIRD_PARTY` (default: work/rm/s5-clone/third_party). The archives are pinned by SHA-256 in THIRD_PARTY.md; nothing is
 // downloaded at build time.
 use std::path::PathBuf;
@@ -12,6 +12,7 @@ fn main() {
     let kiss = root.join("kissfft").join("kissfft-febd4caeed32e33ad8b2e0bb5ea77542c40f18ec");
     println!("cargo:rerun-if-env-changed=S5_THIRD_PARTY");
     println!("cargo:rerun-if-changed=native/knf_shim.cc");
+    println!("cargo:rerun-if-changed=native/pocketfft_shim.cc");
 
     let mut c = cc::Build::new();
     c.file(kiss.join("kiss_fft.c")).file(kiss.join("kiss_fftr.c")).include(&kiss).opt_level(2);
@@ -36,4 +37,12 @@ fn main() {
     }
     cpp.file("native/knf_shim.cc");
     cpp.compile("knf_fbank");
+
+    // pocketfft C++ exactly as numpy 2.4.6 vendors it (numpy/fft/pocketfft, mreineck/pocketfft 33ae5dc9), compiled like numpy's
+    // MSVC build: C++17, /O2, no /arch flag, default /fp:precise.
+    let pocketfft =
+        root.join("numpy-sdist").join("src").join("numpy-2.4.6").join("numpy").join("fft").join("pocketfft");
+    let mut pf = cc::Build::new();
+    pf.cpp(true).std("c++17").opt_level(2).include(&pocketfft).file("native/pocketfft_shim.cc");
+    pf.compile("pocketfft_np");
 }

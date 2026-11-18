@@ -18,8 +18,6 @@ pub const CODEC_FRAME: usize = 3840;
 pub const CODEC_RATE: u32 = 48000;
 /// Seconds of the cleaned clip that conditioning uses (`_MAX_REF_SECONDS`).
 pub const MAX_REF_SECONDS: f64 = 8.0;
-/// Scale of the libsndfile float to int16 conversion (measured, see `wav::quantize_i16`).
-pub const PCM16_WRITE_SCALE: f32 = 32768.0;
 
 type BoxError = Box<dyn std::error::Error>;
 /// `(16 kHz signal, raw fbank, normalised fbank, embedding)`.
@@ -191,8 +189,7 @@ impl<'r> Conditioner<'r> {
         if trimmed.is_empty() {
             return Err("the trim removed the whole reference".into());
         }
-        let pcm16: Vec<f32> =
-            trimmed.iter().map(|&x| f32::from(wav::quantize_i16(x, PCM16_WRITE_SCALE)) / 32768.0).collect();
+        let pcm16: Vec<f32> = trimmed.iter().map(|&x| f32::from(wav::quantize_i16(x)) / 32768.0).collect();
         let cap = (MAX_REF_SECONDS * f64::from(sr)) as usize;
         let capped = if pcm16.len() > cap { pcm16[..cap].to_vec() } else { pcm16.clone() };
         Ok(((start, end), crop.len() / wav.channels, (t0, t1), pcm16, capped))

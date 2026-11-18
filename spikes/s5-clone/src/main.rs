@@ -85,6 +85,11 @@ fn make_resampler(args: &Args) -> Result<Box<dyn Resampler>, BoxError> {
     }
 }
 
+/// ORT intra-op threads (`--threads`, default 8 as in the 1.0.16 engine; 0 = ORT's default session for the denoiser).
+fn threads(args: &Args) -> i32 {
+    args.get("--threads").and_then(|v| v.parse().ok()).unwrap_or(8)
+}
+
 fn ort_env(args: &Args) -> Result<Env, BoxError> {
     let dll = args.get("--ort").map(PathBuf::from).unwrap_or_else(|| {
         baseline()
@@ -139,15 +144,14 @@ fn unit(args: &Args) -> Result<(), BoxError> {
         report
             .insert(format!("db_{n}"), cmp_f32(&db, &Npy::read(&fx.join("rms").join(format!("db_{n}.npy")))?.f32s()?));
     }
-    // soundfile quantisation of PCM_16 and PCM_24 under both candidate scales
+    // soundfile quantisation of PCM_16 and PCM_24
     let x = Npy::read(&fx.join("pcm").join("x.npy"))?.f32s()?;
     {
-        let (name, scale16, scale24) = ("floor_scale_0x8000", 32768.0f32, 8_388_608.0f32);
+        let name = "lrintf_2pow31_shift";
         let want16 = Npy::read(&fx.join("pcm").join("pcm16_bytes.npy"))?;
-        let got16: Vec<u8> = x.iter().flat_map(|&v| wav::quantize_i16(v, scale16).to_le_bytes()).collect();
+        let got16: Vec<u8> = x.iter().flat_map(|&v| wav::quantize_i16(v).to_le_bytes()).collect();
         let want24 = Npy::read(&fx.join("pcm").join("pcm24_bytes.npy"))?;
-        let got24: Vec<u8> =
-            x.iter().flat_map(|&v| wav::quantize_i24(v, scale24).to_le_bytes()[..3].to_vec()).collect();
+        let got24: Vec<u8> = x.iter().flat_map(|&v| wav::quantize_i24(v).to_le_bytes()[..3].to_vec()).collect();
         report.insert(
             name.to_string(),
             json!({"pcm16_equal": got16 == want16.u8s()?, "pcm24_equal": got24 == want24.u8s()?,
@@ -256,7 +260,7 @@ fn run(args: &Args) -> Result<(), BoxError> {
     let resampler = make_resampler(args)?;
     let env = ort_env(args)?;
     let model_dir = baseline().join("models").join("vieneu-v3");
-    let mut cond = Conditioner::new(&env, &model_dir, 8, resampler.as_ref())?;
+    let mut cond = Conditioner::new(&env, &model_dir, threads(args), resampler.as_ref())?;
     cond.irfft = match args.get("--irfft").as_deref() {
         Some("f64") => Irfft::F64,
         _ => Irfft::F32,
@@ -387,7 +391,8 @@ fn preview(args: &Args) -> Result<(), BoxError> {
     let g: Value = serde_json::from_slice(&fs::read(golden_dir.join("preview.json"))?)?;
     let resampler = make_resampler(args)?;
     let env = ort_env(args)?;
-    let mut cond = Conditioner::new(&env, &baseline().join("models").join("vieneu-v3"), 8, resampler.as_ref())?;
+    let mut cond =
+        Conditioner::new(&env, &baseline().join("models").join("vieneu-v3"), threads(args), resampler.as_ref())?;
     cond.irfft = match args.get("--irfft").as_deref() {
         Some("f64") => Irfft::F64,
         _ => Irfft::F32,
@@ -399,7 +404,7 @@ fn preview(args: &Args) -> Result<(), BoxError> {
         let w = wav::read(&path)?;
         let (_, _, _, _, capped) = cond.clean(&w)?;
         let denoised = cond.denoise(&capped, w.sample_rate)?;
-        let ints: Vec<i32> = denoised.out.iter().map(|&x| wav::quantize_i24(x, 8_388_608.0)).collect();
+        let ints: Vec<i32> = denoised.out.iter().map(|&x| wav::quantize_i24(x)).collect();
         let golden = wav::read(&golden_dir.join("preview").join(name))?;
         let want_ints: Vec<i32> = golden.samples.iter().map(|&x| (x * 8_388_608.0) as i32).collect();
         let n = ints.len().min(want_ints.len());
@@ -438,7 +443,7 @@ fn cond_cmd(args: &Args) -> Result<(), BoxError> {
     let resampler = make_resampler(args)?;
     let env = ort_env(args)?;
     let model_dir = baseline().join("models").join("vieneu-v3");
-    let cond = Conditioner::new(&env, &model_dir, 8, resampler.as_ref())?;
+    let cond = Conditioner::new(&env, &model_dir, threads(args), resampler.as_ref())?;
     let wavs: Vec<&String> = args
         .0
         .iter()
@@ -457,6 +462,23 @@ fn cond_cmd(args: &Args) -> Result<(), BoxError> {
     Ok(())
 }
 
+fn stftiso(_args: &Args) -> Result<(), BoxError> {
+    let dir = evidence().join("rec-stft");
+    let mut report = serde_json::Map::new();
+    for e in fs::read_dir(&dir)? {
+        let e = e?;
+        if !e.file_type()?.is_dir() {
+            continue;
+        }
+        let name = e.file_name().to_string_lossy().into_owned();
+        report.insert(name.clone(), s5_clone::s5b::iso(&e.path(), &evidence().join("rec").join(&name))?);
+        eprintln!("{name} done");
+    }
+    let text = serde_json::to_string_pretty(&Value::Object(report))?;
+    fs::write(evidence().join("stft-iso-report.json"), text)?;
+    Ok(())
+}
+
 fn main() {
     let raw: Vec<String> = std::env::args().skip(1).collect();
     let args = Args(raw.clone());
@@ -467,6 +489,7 @@ fn main() {
         Some("run") => run(&args),
         Some("cond") => cond_cmd(&args),
         Some("preview") => preview(&args),
+        Some("stftiso") => stftiso(&args),
         _ => Err("usage: s5-clone unit | resample | kb3 | run [--only <ref>] [--resampler ffmpeg|dll] [--irfft f32|f64] [--quality hq|vhq|mq] [--tag <name>]".into()),
     };
     if let Err(e) = result {

@@ -81,12 +81,15 @@ def main():
         db = librosa.amplitude_to_db(librosa.feature.rms(y=y, frame_length=2048, hop_length=512)[0], ref=np.max, top_db=None)
         np.save(OUT / 'rms' / f'db_{n}.npy', db)
 
-    # soundfile quantisation. Values: ties around +-k.5 LSB, edges, out of range, plus normal noise
+    # soundfile quantisation. Values: ties around +-k.5 LSB, edges, out of range, plus normal noise and tiny amplitudes
     base = [0.0, 1.0, -1.0, 1.0000001, -1.0000001, 1.5, -1.5, 0.99997, 0.999985, 0.9999847, -0.99997, 32767 / 32768, -32768 / 32768,
             0.5 / 32768, -0.5 / 32768, 1.5 / 32768, -1.5 / 32768, 2.5 / 32768, 0.5 / 8388608, 1.5 / 8388608, 2.5 / 8388608]
     ties = [(k + 0.5) / 32768 for k in range(-20, 20)] + [(k + 0.5) / 8388608 for k in range(-20, 20)]
+    # tiny amplitudes (|x| < 2^-8) are where libsndfile's lrintf(x * 2^31) rounding before the shift differs from floor(x * scale)
+    rng_small = np.random.default_rng(11)
+    small = [(rng_small.standard_normal(60000) * a).astype(np.float32) for a in (1e-6, 1e-5, 1e-4, 1e-3, 1e-2)]
     x = np.concatenate([np.array(base + ties, np.float32), (rng.standard_normal(5000) * 0.3).astype(np.float32),
-                        rng.uniform(-1.2, 1.2, 3000).astype(np.float32)])
+                        rng.uniform(-1.2, 1.2, 3000).astype(np.float32)] + small)
     np.save(OUT / 'pcm' / 'x.npy', x)
     for subtype, name in (('PCM_16', 'pcm16'), ('PCM_24', 'pcm24')):
         buf = io.BytesIO()
