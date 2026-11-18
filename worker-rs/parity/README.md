@@ -34,6 +34,9 @@ ORTFFI_REQUIRE=1 cargo test -p ortffi        # with ORTFFI_DLL, ORTFFI_SHERPA_DL
 ## Declared differences
 
 - `health` is not a parity row: the Rust result is `{engine, version, ort, ffmpeg, ready}` and the Python one lists its modules.
+- libopus picks SIMD paths by CPU, so an `.opus` encode is not bit-identical across machines, for the Python worker too. `x_compare.py` is exact on the machine
+  that recorded the goldens (and the release gate runs it there); `parity.yml` passes `--opus-by-cpu`, which skips only the PCM hash of `.opus` outputs and keeps
+  the exit code, events, file names, ffprobe fields and the decode check.
 - Row R replaces the text of a Python exception (`KeyError: 'x'`, `JSONDecodeError: ...`) with `<pyexc>`; its wording belongs to Python.
 - Row W event comparison ignores the retry waits: `THANHAM_HUB_SLEEP_SCALE` shortens them for the comparison (the release exe waits as the
   Python client does).
