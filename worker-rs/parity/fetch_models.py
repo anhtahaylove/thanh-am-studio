@@ -29,6 +29,8 @@ def main():
     registry = json.loads(REGISTRY.read_text(encoding='utf-8'))
     stage = Path(tempfile.mkdtemp(prefix='fetch-models-'))
     shutil.copy(args.exe, stage / 'thanham-worker.exe')
+    for dll in Path(args.exe).parent.glob('*.dll'):  # an exe built with the STT engine needs the OpenMP shim beside it
+        shutil.copy(dll, stage / dll.name)
     shutil.copy(REGISTRY, stage / 'models.json')
     failed = 0
     for model in registry['models']:
