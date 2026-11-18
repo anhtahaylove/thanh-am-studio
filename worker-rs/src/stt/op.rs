@@ -536,4 +536,51 @@ mod tests {
         assert_eq!(pass, deterministic);
         assert_eq!(features_exact, deterministic);
     }
+
+    /// Rows T1b and T2, the new side: P0-core's `stt_run.py` recording (decode, windows, `vi`, word times on every item, the
+    /// no-words retry) made with this decode, VAD and engine, in its record format for its analysis scripts. `THANHAM_T1B_ITEMS`
+    /// (a corpus file `{"items": [{id, path}]}` or the list itself), `THANHAM_T1B_MODEL` (a Whisper folder), `THANHAM_T1B_OUT`
+    /// (the .jsonl; finished ids are skipped). Start it pinned to the P-cores (O.10) with `RM_PIN=P` saying so.
+    #[test]
+    #[ignore = "local T1b recording"]
+    fn t1b_record() {
+        let var = |k: &str| std::env::var(k).unwrap_or_else(|_| panic!("{k}"));
+        let items: Value = serde_json::from_str(&std::fs::read_to_string(var("THANHAM_T1B_ITEMS")).unwrap()).unwrap();
+        let items = items.get("items").unwrap_or(&items).as_array().unwrap().clone();
+        let (model_dir, out_path) = (std::path::PathBuf::from(var("THANHAM_T1B_MODEL")), var("THANHAM_T1B_OUT"));
+        let done: Vec<String> = std::fs::read_to_string(&out_path)
+            .unwrap_or_default()
+            .lines()
+            .filter_map(|l| serde_json::from_str::<Value>(l).ok()?["id"].as_str().map(str::to_string))
+            .collect();
+        let mut out = std::fs::OpenOptions::new().create(true).append(true).open(&out_path).unwrap();
+        let sp = site_packages();
+        let transcriber = Transcriber::load(&model_dir).unwrap();
+        let mut engine = Engine {
+            whisper: Whisper::load(model_dir.to_str().unwrap(), cpu_count().min(8)).unwrap(),
+            vad: Vad::load(&sp).unwrap(),
+            progress: &|_, _| {},
+            offset: 0.0,
+            duration: 1.0,
+        };
+        println!("engine {}", crate::ct2::info());
+        for item in items.iter().filter(|i| !done.iter().any(|d| Some(d.as_str()) == i["id"].as_str())) {
+            let started = std::time::Instant::now();
+            let audio = decode_audio(&sp, &py_path(item["path"].as_str().unwrap())).unwrap();
+            let duration = f64::max(audio.len() as f64 / STT_RATE as f64, 0.01);
+            let r = transcriber.stt(&mut engine, &audio, Some("vi"), true).unwrap();
+            let record = json!({"id": item["id"], "audio_seconds": (duration * 1000.0).round() / 1000.0,
+                "wall_seconds": (started.elapsed().as_secs_f64() * 100.0).round() / 100.0, "language": r.language,
+                "words_fallback": r.words_fallback, "segments": rows_json(&r.segments), "words": words_json(&r.words),
+                "pin": {"RM_PIN": std::env::var("RM_PIN").ok()}, "engine": "rust"});
+            use std::io::Write as _;
+            writeln!(out, "{record}").unwrap();
+            println!(
+                "{} audio {duration:.0}s wall {:.1}s rows {}",
+                item["id"],
+                started.elapsed().as_secs_f64(),
+                r.segments.len()
+            );
+        }
+    }
 }
