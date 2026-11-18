@@ -73,6 +73,10 @@ PRESET_TEMPERATURE = 0.5
 # takes, Whisper Small heard the first or last word of short inputs differently more often at 40 ms ("lục" as "lúc", "không" as
 # "khùng") than at 80 ms; 80 ms still cuts a median 106 ms (max 384 ms) of trailing silence.
 EDGE_MARGIN_S = 0.08
+# One unspaced token costs about N^3 in the pinned sea-g2p's normaliser and G2P: phonemizing one token took 0.13 s at 300
+# characters, 0.73 s at 600 and 6.5 s at 1,200 (and 16,000 characters ran for minutes). 600 is more than twice a 256-character chunk,
+# so no word the chunker can split reaches it; a longer token is refused instead of stalling the batch.
+MAX_TOKEN_CHARS = 600
 
 
 # Any bracket that opens with nghỉ or pause, or with unaccented nghi when bare or followed by a digit, is a pause mark (src/domain.ts PAUSE_MARK); PAUSE_VALUE reads the valid ones, the rest are dropped.
@@ -725,6 +729,8 @@ def tts(payload, output_dir: Path, progress, emit_item=None):
         text = item.get('text', '') if isinstance(item, dict) else None
         if not isinstance(text, str) or not text.strip() or len(text) > 100000:
             raise WorkerError('INVALID_TEXT', 'Supply non-empty text, at most 100,000 characters per segment.')
+        if any(len(token) > MAX_TOKEN_CHARS for token in text.split()):
+            raise WorkerError('INVALID_TEXT', f'Có một chuỗi liền dài hơn {MAX_TOKEN_CHARS} ký tự mà không có dấu cách. Hãy thêm dấu cách để chia nhỏ.')
     offline_mode()
     import numpy as np
     import soundfile as sf

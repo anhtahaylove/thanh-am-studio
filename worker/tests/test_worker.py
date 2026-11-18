@@ -131,6 +131,23 @@ class WorkerTests(unittest.TestCase):
         # the native worker, ONNX Runtime and the VC143 runtime (scripts/stage-worker.ps1) land beside main.py
         self.assertEqual(resources.get('../worker-rs/stage/'), 'worker/')
 
+    def test_tts_refuses_an_unspaced_token_longer_than_the_cap(self):
+        from unittest import mock
+        cap = worker.MAX_TOKEN_CHARS
+        with tempfile.TemporaryDirectory() as td, mock.patch.object(worker, 'verify_model'), \
+                mock.patch.object(worker, 'offline_mode', side_effect=RuntimeError('validated')):
+            for text in ['Việt' * (cap // 4) + 'x', f'Xin chào {"a" * (cap + 1)}.']:
+                with self.subTest(text=text[:12]), self.assertRaises(worker.WorkerError) as ctx:
+                    worker.tts({'text': text}, Path(td), lambda *a: None)
+                self.assertEqual(ctx.exception.code, 'INVALID_TEXT')
+            # one bad segment refuses the whole batch, as the length check does
+            with self.assertRaises(worker.WorkerError):
+                worker.tts({'items': [{'text': 'Xin chào'}, {'text': 'b' * (cap + 1)}]}, Path(td), lambda *a: None, lambda *a, **k: None)
+            # a token of exactly the cap, and long text of short words, pass the check (and reach the engine setup)
+            for text in ['Việt' * (cap // 4), 'Xin chào ' * 2000, f'a　{"b" * cap}']:
+                with self.subTest(n=len(text)), self.assertRaisesRegex(RuntimeError, 'validated'):
+                    worker.tts({'text': text}, Path(td), lambda *a: None)
+
     def test_pause_marks_split_text_and_carry_silence(self):
         parts, trailing = worker.split_pauses('Xin chào. [nghỉ 0,5s] Tạm biệt [NGHỈ 250ms][nghỉ 1 giây]')
         self.assertEqual(parts, [('Xin chào.', 0.0), ('Tạm biệt', 0.5)])
