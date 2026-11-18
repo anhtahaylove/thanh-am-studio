@@ -23,7 +23,9 @@ use crate::media::{executable, spawn_capture};
 use crate::paths::contained_path;
 use crate::pyfmt::{float_repr, tail_chars, truthy};
 use crate::render::number;
+#[cfg(feature = "ct2")]
 pub(crate) use clone::py_path;
+#[cfg(feature = "ct2")]
 pub(crate) use engine::cpu_count;
 use engine::{Draws, Engine, Paths, Voice, CLONED_TEMPERATURE, PRESET_TEMPERATURE};
 use serde_json::{json, Map, Value};
