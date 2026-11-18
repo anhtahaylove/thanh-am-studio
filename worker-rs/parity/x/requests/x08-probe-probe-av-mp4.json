@@ -1,0 +1,10 @@
+{
+ "protocol": 1,
+ "id": "x-x08-probe-probe-av-mp4",
+ "operation": "probe",
+ "payload": {
+  "input_path": "${FIX}/probe-av.mp4"
+ },
+ "output_dir": "${OUT}",
+ "models_dir": "${OUT}"
+}

@@ -1,0 +1,576 @@
+{
+ "specs": {
+  "empty-stdin": {
+   "text": ""
+  },
+  "blank-line": {
+   "text": "\n"
+  },
+  "not-json": {
+   "text": "not json\n"
+  },
+  "truncated-json": {
+   "text": "{\"protocol\": 1, \"id\": \"r1\"\n"
+  },
+  "trailing-garbage": {
+   "text": "{\"protocol\": 1, \"id\": \"r1\", \"operation\": \"probe\", \"payload\": {}} x\n"
+  },
+  "bom-then-valid-request": {
+   "text": "﻿{\"protocol\": 1, \"id\": \"r1\", \"operation\": \"nope\", \"payload\": {}}\n"
+  },
+  "invalid-utf8": {
+   "bytes_b64": "eyJwcm90b2NvbCI6IDEsICJpZCI6ICL//iJ9Cg=="
+  },
+  "array": {
+   "text": "[]\n"
+  },
+  "null": {
+   "text": "null\n"
+  },
+  "number": {
+   "text": "5\n"
+  },
+  "string": {
+   "text": "\"x\"\n"
+  },
+  "empty-object": {
+   "text": "{}\n"
+  },
+  "protocol-2": {
+   "text": "{\"protocol\": 2, \"id\": \"r1\", \"operation\": \"probe\", \"payload\": {}}\n"
+  },
+  "protocol-string": {
+   "text": "{\"protocol\": \"1\", \"id\": \"r1\", \"operation\": \"probe\", \"payload\": {}}\n"
+  },
+  "protocol-missing": {
+   "text": "{\"id\": \"r1\", \"operation\": \"probe\", \"payload\": {}}\n"
+  },
+  "id-missing": {
+   "text": "{\"protocol\": 1, \"operation\": \"probe\", \"payload\": {}}\n"
+  },
+  "id-empty": {
+   "text": "{\"protocol\": 1, \"id\": \"\", \"operation\": \"probe\", \"payload\": {}}\n"
+  },
+  "id-number": {
+   "text": "{\"protocol\": 1, \"id\": 5, \"operation\": \"probe\", \"payload\": {}}\n"
+  },
+  "id-null": {
+   "text": "{\"protocol\": 1, \"id\": null, \"operation\": \"probe\", \"payload\": {}}\n"
+  },
+  "payload-missing": {
+   "text": "{\"protocol\": 1, \"id\": \"r1\", \"operation\": \"probe\"}\n"
+  },
+  "payload-array": {
+   "text": "{\"protocol\": 1, \"id\": \"r1\", \"operation\": \"probe\", \"payload\": []}\n"
+  },
+  "operation-missing": {
+   "text": "{\"protocol\": 1, \"id\": \"r1\", \"payload\": {}}\n"
+  },
+  "operation-unknown": {
+   "text": "{\"protocol\": 1, \"id\": \"r1\", \"operation\": \"nope\", \"payload\": {}}\n"
+  },
+  "operation-number": {
+   "text": "{\"protocol\": 1, \"id\": \"r1\", \"operation\": 7, \"payload\": {}}\n"
+  },
+  "oversize-request": {
+   "generate": "oversize"
+  },
+  "second-line-ignored": {
+   "text": "{\"protocol\": 1, \"id\": \"r1\", \"operation\": \"nope\", \"payload\": {}}\n{\"protocol\": 1, \"id\": \"r1\", \"operation\": \"probe\", \"payload\": {}}\n"
+  },
+  "probe-no-input-path": {
+   "text": "{\"protocol\": 1, \"id\": \"r1\", \"operation\": \"probe\", \"payload\": {}}\n"
+  },
+  "probe-input-path-number": {
+   "text": "{\"protocol\": 1, \"id\": \"r1\", \"operation\": \"probe\", \"payload\": {\"input_path\": 5}}\n"
+  },
+  "probe-input-missing": {
+   "text": "{\"protocol\": 1, \"id\": \"r1\", \"operation\": \"probe\", \"payload\": {\"input_path\": \"C:/nope/missing-file.wav\"}}\n"
+  },
+  "render-no-clips": {
+   "text": "{\"protocol\": 1, \"id\": \"r1\", \"operation\": \"render\", \"payload\": {}}\n"
+  },
+  "render-clips-not-a-list": {
+   "text": "{\"protocol\": 1, \"id\": \"r1\", \"operation\": \"render\", \"payload\": {\"clips\": \"x\"}}\n"
+  },
+  "render-empty-clips": {
+   "text": "{\"protocol\": 1, \"id\": \"r1\", \"operation\": \"render\", \"payload\": {\"clips\": []}}\n"
+  },
+  "render-bad-format": {
+   "text": "{\"protocol\": 1, \"id\": \"r1\", \"operation\": \"render\", \"payload\": {\"clips\": [{}], \"format\": \"ogg\"}}\n"
+  },
+  "render-no-ffmpeg": {
+   "text": "{\"protocol\": 1, \"id\": \"r1\", \"operation\": \"render\", \"payload\": {\"clips\": [{\"path\": \"C:/nope.wav\"}]}}\n"
+  },
+  "render-ffmpeg-path-missing": {
+   "text": "{\"protocol\": 1, \"id\": \"r1\", \"operation\": \"render\", \"payload\": {\"clips\": [{\"path\": \"C:/nope.wav\"}], \"ffmpeg_path\": \"C:/nope/ffmpeg.exe\"}}\n"
+  },
+  "download-no-model-id": {
+   "text": "{\"protocol\": 1, \"id\": \"r1\", \"operation\": \"download\", \"payload\": {}}\n"
+  },
+  "download-unknown-model": {
+   "text": "{\"protocol\": 1, \"id\": \"r1\", \"operation\": \"download\", \"payload\": {\"model_id\": \"nope\"}}\n"
+  },
+  "download-traversal-id": {
+   "text": "{\"protocol\": 1, \"id\": \"r1\", \"operation\": \"download\", \"payload\": {\"model_id\": \"../x\"}}\n"
+  }
+ },
+ "cases": {
+  "empty-stdin": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "unknown",
+     "event": "error",
+     "code": "WORKER_ERROR",
+     "message": "<pyexc>"
+    }
+   ]
+  },
+  "blank-line": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "unknown",
+     "event": "error",
+     "code": "WORKER_ERROR",
+     "message": "<pyexc>"
+    }
+   ]
+  },
+  "not-json": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "unknown",
+     "event": "error",
+     "code": "WORKER_ERROR",
+     "message": "<pyexc>"
+    }
+   ]
+  },
+  "truncated-json": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "unknown",
+     "event": "error",
+     "code": "WORKER_ERROR",
+     "message": "<pyexc>"
+    }
+   ]
+  },
+  "trailing-garbage": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "unknown",
+     "event": "error",
+     "code": "WORKER_ERROR",
+     "message": "<pyexc>"
+    }
+   ]
+  },
+  "bom-then-valid-request": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "r1",
+     "event": "error",
+     "code": "INVALID_REQUEST",
+     "message": "Unknown operation."
+    }
+   ]
+  },
+  "invalid-utf8": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "unknown",
+     "event": "error",
+     "code": "WORKER_ERROR",
+     "message": "<pyexc>"
+    }
+   ]
+  },
+  "array": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "unknown",
+     "event": "error",
+     "code": "INVALID_REQUEST",
+     "message": "Expected protocol version 1."
+    }
+   ]
+  },
+  "null": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "unknown",
+     "event": "error",
+     "code": "INVALID_REQUEST",
+     "message": "Expected protocol version 1."
+    }
+   ]
+  },
+  "number": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "unknown",
+     "event": "error",
+     "code": "INVALID_REQUEST",
+     "message": "Expected protocol version 1."
+    }
+   ]
+  },
+  "string": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "unknown",
+     "event": "error",
+     "code": "INVALID_REQUEST",
+     "message": "Expected protocol version 1."
+    }
+   ]
+  },
+  "empty-object": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "unknown",
+     "event": "error",
+     "code": "INVALID_REQUEST",
+     "message": "Expected protocol version 1."
+    }
+   ]
+  },
+  "protocol-2": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "r1",
+     "event": "error",
+     "code": "INVALID_REQUEST",
+     "message": "Expected protocol version 1."
+    }
+   ]
+  },
+  "protocol-string": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "r1",
+     "event": "error",
+     "code": "INVALID_REQUEST",
+     "message": "Expected protocol version 1."
+    }
+   ]
+  },
+  "protocol-missing": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "r1",
+     "event": "error",
+     "code": "INVALID_REQUEST",
+     "message": "Expected protocol version 1."
+    }
+   ]
+  },
+  "id-missing": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "unknown",
+     "event": "error",
+     "code": "INVALID_REQUEST",
+     "message": "A request id is required."
+    }
+   ]
+  },
+  "id-empty": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "",
+     "event": "error",
+     "code": "INVALID_REQUEST",
+     "message": "A request id is required."
+    }
+   ]
+  },
+  "id-number": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": 5,
+     "event": "error",
+     "code": "INVALID_REQUEST",
+     "message": "A request id is required."
+    }
+   ]
+  },
+  "id-null": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": null,
+     "event": "error",
+     "code": "INVALID_REQUEST",
+     "message": "A request id is required."
+    }
+   ]
+  },
+  "payload-missing": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "r1",
+     "event": "error",
+     "code": "INVALID_REQUEST",
+     "message": "payload must be an object."
+    }
+   ]
+  },
+  "payload-array": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "r1",
+     "event": "error",
+     "code": "INVALID_REQUEST",
+     "message": "payload must be an object."
+    }
+   ]
+  },
+  "operation-missing": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "r1",
+     "event": "error",
+     "code": "INVALID_REQUEST",
+     "message": "Unknown operation."
+    }
+   ]
+  },
+  "operation-unknown": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "r1",
+     "event": "error",
+     "code": "INVALID_REQUEST",
+     "message": "Unknown operation."
+    }
+   ]
+  },
+  "operation-number": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "r1",
+     "event": "error",
+     "code": "INVALID_REQUEST",
+     "message": "Unknown operation."
+    }
+   ]
+  },
+  "oversize-request": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "unknown",
+     "event": "error",
+     "code": "INVALID_REQUEST",
+     "message": "Request exceeds 4 MiB."
+    }
+   ]
+  },
+  "second-line-ignored": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "r1",
+     "event": "error",
+     "code": "INVALID_REQUEST",
+     "message": "Unknown operation."
+    }
+   ]
+  },
+  "probe-no-input-path": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "r1",
+     "event": "error",
+     "code": "WORKER_ERROR",
+     "message": "<pyexc>"
+    }
+   ]
+  },
+  "probe-input-path-number": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "r1",
+     "event": "error",
+     "code": "WORKER_ERROR",
+     "message": "<pyexc>"
+    }
+   ]
+  },
+  "probe-input-missing": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "r1",
+     "event": "error",
+     "code": "INPUT_MISSING",
+     "message": "The selected media file no longer exists."
+    }
+   ]
+  },
+  "render-no-clips": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "r1",
+     "event": "error",
+     "code": "INVALID_RECIPE",
+     "message": "Select at least one audio take to export."
+    }
+   ]
+  },
+  "render-clips-not-a-list": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "r1",
+     "event": "error",
+     "code": "INVALID_RECIPE",
+     "message": "Select at least one audio take to export."
+    }
+   ]
+  },
+  "render-empty-clips": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "r1",
+     "event": "error",
+     "code": "INVALID_RECIPE",
+     "message": "Select at least one audio take to export."
+    }
+   ]
+  },
+  "render-bad-format": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "r1",
+     "event": "error",
+     "code": "INVALID_RECIPE",
+     "message": "Supported export formats: wav, mp3, m4a, flac, opus."
+    }
+   ]
+  },
+  "render-no-ffmpeg": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "r1",
+     "event": "error",
+     "code": "RUNTIME_MISSING",
+     "message": "ffmpeg is missing. Install the bundled audio runtime in Settings."
+    }
+   ]
+  },
+  "render-ffmpeg-path-missing": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "r1",
+     "event": "error",
+     "code": "RUNTIME_MISSING",
+     "message": "ffmpeg is missing. Install the bundled audio runtime in Settings."
+    }
+   ]
+  },
+  "download-no-model-id": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "r1",
+     "event": "error",
+     "code": "MODEL_UNKNOWN",
+     "message": "Unknown model id."
+    }
+   ]
+  },
+  "download-unknown-model": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "r1",
+     "event": "error",
+     "code": "MODEL_UNKNOWN",
+     "message": "Unknown model id."
+    }
+   ]
+  },
+  "download-traversal-id": {
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "id": "r1",
+     "event": "error",
+     "code": "MODEL_UNKNOWN",
+     "message": "Unknown model id."
+    }
+   ]
+  }
+ }
+}

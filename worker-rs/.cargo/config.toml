@@ -1,0 +1,3 @@
+# The worker links the C runtime statically; the ORT DLL it loads brings its own VC143 CRT DLLs next to it.
+[build]
+rustflags = ["-C", "target-feature=+crt-static"]

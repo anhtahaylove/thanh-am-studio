@@ -1,0 +1,24 @@
+{
+ "protocol": 1,
+ "id": "x-x02-one-stretch",
+ "operation": "render",
+ "payload": {
+  "clips": [
+   {
+    "path": "${FIX}/take125.wav",
+    "raw_path": "${FIX}/raw125.wav",
+    "speed": 1.25,
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "at_ms": 0,
+    "rate": 1.5
+   }
+  ],
+  "normalize": false,
+  "format": "wav",
+  "timeline": true,
+  "pad_to_ms": 0
+ },
+ "output_dir": "${OUT}",
+ "models_dir": "${OUT}"
+}

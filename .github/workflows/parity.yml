@@ -1,0 +1,81 @@
+name: parity
+# The Rust worker against the v1.0.16 Python goldens (worker-rs/parity/README.md). Rows that exist run here; the engine rows (D, Z, P1,
+# P3-P5) are added to this job as their code lands. The x09-500 recipes (500 recorded takes) run at the release gate, not here.
+on:
+  push:
+    branches: [main]
+    paths: ['worker-rs/**', 'worker/models.json', 'scripts/setup-runtime.ps1', '.github/workflows/parity.yml']
+  pull_request:
+    paths: ['worker-rs/**', 'worker/models.json', 'scripts/setup-runtime.ps1', '.github/workflows/parity.yml']
+permissions:
+  contents: read
+jobs:
+  rows:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: pwsh
+        # cargo reads .cargo/config.toml (crt-static) from the working directory.
+        working-directory: worker-rs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy # worker-rs/rust-toolchain.toml
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: worker-rs
+      - run: cargo build --release --locked
+      # The goldens were recorded with the FFmpeg build that setup-runtime.ps1 pins: fetch that build and check its SHA-256.
+      - name: FFmpeg pin
+        id: ffmpeg
+        run: |
+          $s = Get-Content ../scripts/setup-runtime.ps1 -Raw
+          foreach ($k in 'FfmpegTag', 'FfmpegAsset', 'FfmpegSha256') { "$k=$([regex]::Match($s, "$k = '([^']+)'").Groups[1].Value)" >> $env:GITHUB_OUTPUT }
+      - uses: actions/cache@v4
+        id: ffmpeg-cache
+        with:
+          path: ${{ runner.temp }}/ffmpeg-parity
+          key: ffmpeg-parity-${{ steps.ffmpeg.outputs.FfmpegSha256 }}
+      - name: Fetch FFmpeg
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        run: |
+          $zip = Join-Path $env:RUNNER_TEMP 'ffmpeg.zip'
+          Invoke-WebRequest -Uri "https://github.com/BtbN/FFmpeg-Builds/releases/download/${{ steps.ffmpeg.outputs.FfmpegTag }}/${{ steps.ffmpeg.outputs.FfmpegAsset }}.zip" -OutFile $zip
+          if ((Get-FileHash $zip -Algorithm SHA256).Hash -ne '${{ steps.ffmpeg.outputs.FfmpegSha256 }}') { throw 'FFmpeg archive checksum mismatch.' }
+          $unpack = Join-Path $env:RUNNER_TEMP 'ffmpeg-unpack'
+          Expand-Archive $zip $unpack
+          Copy-Item (Join-Path $unpack '${{ steps.ffmpeg.outputs.FfmpegAsset }}/bin') (Join-Path $env:RUNNER_TEMP 'ffmpeg-parity') -Recurse
+      - name: Row X (render and probe)
+        run: python -I parity/x_compare.py --exe target/release/thanham-worker.exe --ffmpeg "$env:RUNNER_TEMP/ffmpeg-parity/ffmpeg.exe" --ffprobe "$env:RUNNER_TEMP/ffmpeg-parity/ffprobe.exe" --opus-by-cpu
+      - name: Row R (protocol and errors)
+        if: ${{ !cancelled() }}
+        run: python -I parity/r_compare.py --exe target/release/thanham-worker.exe
+      # Models come through the Rust downloader itself, so a download regression also fails here; turbo (1.6 GB) is left to the gate.
+      - uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/parity-models
+          key: parity-models-${{ hashFiles('worker/models.json') }}
+      - name: Fetch models
+        if: ${{ !cancelled() }}
+        run: python -I parity/fetch_models.py --exe target/release/thanham-worker.exe --models "$env:RUNNER_TEMP/parity-models" --skip whisper-turbo
+      - name: Row W (download)
+        if: ${{ !cancelled() }}
+        run: python -I parity/w_compare.py --exe target/release/thanham-worker.exe --models "$env:RUNNER_TEMP/parity-models"
+      # ort, faster-whisper and sherpa-onnx wheels give the runtime DLLs and the Silero asset at the layout the tests expect (<venv>/Lib/site-packages).
+      - name: ORT inputs for row F
+        if: ${{ !cancelled() }}
+        run: |
+          python -m venv "$env:RUNNER_TEMP/ortvenv"
+          & "$env:RUNNER_TEMP/ortvenv/Scripts/python.exe" -m pip install --no-deps onnxruntime==1.31.1 faster-whisper==1.2.1 sherpa-onnx==2.0.1 sherpa-onnx-core==2.0.1
+      - name: Row F (ORT FFI)
+        if: ${{ !cancelled() }}
+        env:
+          ORTFFI_REQUIRE: '1'
+          ORTFFI_MAX_ABS_DIFF: '1e-5' # ORT kernels depend on the runner's CPU; the recording is exact only on its own CPU family
+        run: |
+          $env:ORTFFI_RUNTIME = "$env:RUNNER_TEMP/ortvenv"
+          $env:ORTFFI_VIENEU = "$env:RUNNER_TEMP/parity-models/vieneu-v3"
+          cargo test -p ortffi --locked

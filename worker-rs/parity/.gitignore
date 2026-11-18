@@ -1,0 +1,7 @@
+# the recorded fixtures are small audio files; the repository root ignores media
+!*.wav
+!*.mp3
+!*.m4a
+!*.flac
+!*.opus
+__pycache__/

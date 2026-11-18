@@ -1,0 +1,10 @@
+{
+ "protocol": 1,
+ "id": "x-x08-probe-probe-mp3",
+ "operation": "probe",
+ "payload": {
+  "input_path": "${FIX}/probe.mp3"
+ },
+ "output_dir": "${OUT}",
+ "models_dir": "${OUT}"
+}

@@ -1,0 +1,21 @@
+{
+ "protocol": 1,
+ "id": "x-x04-trim-gap-fade",
+ "operation": "render",
+ "payload": {
+  "clips": [
+   {
+    "path": "${FIX}/tiếng Việt.wav",
+    "trim_start_ms": 100,
+    "trim_end_ms": 600,
+    "gap_ms": 250,
+    "fade_in_ms": 50,
+    "fade_out_ms": 50
+   }
+  ],
+  "normalize": false,
+  "format": "wav"
+ },
+ "output_dir": "${OUT}",
+ "models_dir": "${OUT}"
+}

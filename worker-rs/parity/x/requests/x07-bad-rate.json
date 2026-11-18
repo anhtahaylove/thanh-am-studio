@@ -1,0 +1,18 @@
+{
+ "protocol": 1,
+ "id": "x-x07-bad-rate",
+ "operation": "render",
+ "payload": {
+  "clips": [
+   {
+    "path": "${FIX}/voice1k.wav",
+    "at_ms": 0,
+    "rate": 3
+   }
+  ],
+  "format": "wav",
+  "timeline": true
+ },
+ "output_dir": "${OUT}",
+ "models_dir": "${OUT}"
+}

@@ -1,0 +1,16 @@
+{
+ "protocol": 1,
+ "id": "x-x07-bad-gain",
+ "operation": "render",
+ "payload": {
+  "clips": [
+   {
+    "path": "${FIX}/voice1k.wav",
+    "gain_db": 99
+   }
+  ],
+  "format": "wav"
+ },
+ "output_dir": "${OUT}",
+ "models_dir": "${OUT}"
+}

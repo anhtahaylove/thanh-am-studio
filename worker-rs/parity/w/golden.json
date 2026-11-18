@@ -1,0 +1,3040 @@
+{
+ "scenarios": {
+  "w01-fresh-diarization": {
+   "scenario": "w01-fresh-diarization",
+   "exit_code": 0,
+   "events": [
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra LICENSE"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra model.onnx"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra 3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx"
+    },
+    {
+     "event": "progress",
+     "message": "Model sẵn sàng"
+    },
+    {
+     "protocol": 1,
+     "event": "result",
+     "result": {
+      "model_id": "diarization",
+      "path": "${RUN}/fresh-diarization/models/diarization",
+      "revision": "9403a6902bb58e3d5ae8c7e77c3422de279db2e0"
+     }
+    }
+   ],
+   "stderr_tail": "",
+   "tree": [
+    {
+     "path": "diarization/embedding/model.onnx",
+     "size": 28281164,
+     "sha256": "aa3cfc16963a10586a9393f5035d6d6b57e98d358b347f80c2a30bf4f00ceba2"
+    },
+    {
+     "path": "diarization/installed.json",
+     "size": 92,
+     "sha256": "c644d410b323bbb8292a203f505dbf66f9014233955a33ae6f48d6c75f4337e5"
+    },
+    {
+     "path": "diarization/segmentation/LICENSE",
+     "size": 1061,
+     "sha256": "14d7016ad68e7394d6e6b78d96cc2ae431c905287b89674cfdf021e79e62b8ba"
+    },
+    {
+     "path": "diarization/segmentation/model.onnx",
+     "size": 5992913,
+     "sha256": "220ad67ca923bef2fa91f2390c786097bf305bceb5e261d4af67b38e938e1079"
+    }
+   ],
+   "leftovers": [
+    ".download"
+   ],
+   "server_log": [
+    {
+     "method": "HEAD",
+     "path": "LICENSE",
+     "range": null,
+     "status": 200,
+     "length": 1061
+    },
+    {
+     "method": "GET",
+     "path": "LICENSE",
+     "range": null,
+     "status": 200,
+     "sent": 1061
+    },
+    {
+     "method": "HEAD",
+     "path": "model.onnx",
+     "range": null,
+     "status": 200,
+     "length": 5992913
+    },
+    {
+     "method": "GET",
+     "path": "model.onnx",
+     "range": null,
+     "status": 200,
+     "sent": 5992913
+    },
+    {
+     "method": "HEAD",
+     "path": "3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx",
+     "range": null,
+     "status": 200,
+     "length": 28281164
+    },
+    {
+     "method": "GET",
+     "path": "3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx",
+     "range": null,
+     "status": 200,
+     "sent": 28281164
+    }
+   ],
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  },
+  "w01-fresh-htdemucs": {
+   "scenario": "w01-fresh-htdemucs",
+   "exit_code": 0,
+   "events": [
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra 955717e8.safetensors"
+    },
+    {
+     "event": "progress",
+     "message": "Model sẵn sàng"
+    },
+    {
+     "protocol": 1,
+     "event": "result",
+     "result": {
+      "model_id": "htdemucs",
+      "path": "${RUN}/fresh-htdemucs/models/htdemucs",
+      "revision": "cbc8a9b1a87023b7fd74e7b3412e6321c0eab003"
+     }
+    }
+   ],
+   "stderr_tail": "",
+   "tree": [
+    {
+     "path": "htdemucs/955717e8.safetensors",
+     "size": 84025440,
+     "sha256": "d9fa14133cfcc034a6758923bb3a8ca9f8dfd0b582134643bbf83f72c17576dd"
+    },
+    {
+     "path": "htdemucs/installed.json",
+     "size": 89,
+     "sha256": "2602e60cbd5fea970555d9aae9d62fe3f60e4788203338d85977f66dfda3de6a"
+    }
+   ],
+   "leftovers": [
+    ".download"
+   ],
+   "server_log": [
+    {
+     "method": "HEAD",
+     "path": "955717e8.safetensors",
+     "range": null,
+     "status": 200,
+     "length": 84025440
+    },
+    {
+     "method": "GET",
+     "path": "955717e8.safetensors",
+     "range": null,
+     "status": 200,
+     "sent": 84025440
+    }
+   ],
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  },
+  "w01-fresh-vieneu-v3": {
+   "scenario": "w01-fresh-vieneu-v3",
+   "exit_code": 0,
+   "events": [
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra config.json"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra denoiser.onnx"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra onnx_update/config.json"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra onnx_update/tokenizer.json"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra onnx_update/vieneu_acoustic_cached.onnx"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra onnx_update/vieneu_backbone_shared.data"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra onnx_update/vieneu_decode_step.onnx"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra onnx_update/vieneu_prefill.onnx"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra onnx_update/vieneu_v3_heads.npz"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra speaker_encoder.onnx"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra codec_browser_onnx_meta.json"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra moss_audio_tokenizer_decode_full.onnx"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra moss_audio_tokenizer_decode_shared.data"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra moss_audio_tokenizer_decode_step.onnx"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra moss_audio_tokenizer_encode.data"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra moss_audio_tokenizer_encode.onnx"
+    },
+    {
+     "event": "progress",
+     "message": "Model sẵn sàng"
+    },
+    {
+     "protocol": 1,
+     "event": "result",
+     "result": {
+      "model_id": "vieneu-v3",
+      "path": "${RUN}/fresh-vieneu-v3/models/vieneu-v3",
+      "revision": "61b85e3d937fbbacb387714180e8182823512523"
+     }
+    }
+   ],
+   "stderr_tail": "",
+   "tree": [
+    {
+     "path": "vieneu-v3/backbone/config.json",
+     "size": 1553,
+     "sha256": "eee8e032cb936a60312f594a8156c086173a9c0255a545bd11a448f22a7c77ae"
+    },
+    {
+     "path": "vieneu-v3/backbone/denoiser.onnx",
+     "size": 42661414,
+     "sha256": "b7621953291cfe05e695a9c0ff4255aa2f93239fc17c26627e18b7b6b8f72f0b"
+    },
+    {
+     "path": "vieneu-v3/backbone/onnx_update/config.json",
+     "size": 2152,
+     "sha256": "17d89d414ee302a82db7b330bf57b4cdf8541569392119c81f552178cafcb79b"
+    },
+    {
+     "path": "vieneu-v3/backbone/onnx_update/tokenizer.json",
+     "size": 22320,
+     "sha256": "6cc6bcbe380b8c37bd9f2514e37c5dfa3e00e122c6e3125dae5c4afe48e39158"
+    },
+    {
+     "path": "vieneu-v3/backbone/onnx_update/vieneu_acoustic_cached.onnx",
+     "size": 7207223,
+     "sha256": "f631e3387c788c3d8b9a5ac5df94952af5bc4c4d1049ff8a751e76a246fff2d4"
+    },
+    {
+     "path": "vieneu-v3/backbone/onnx_update/vieneu_backbone_shared.data",
+     "size": 415319040,
+     "sha256": "c7c072193db33d0542457e2612c7272c44c4279d1cafaf0aa4c379964911db2f"
+    },
+    {
+     "path": "vieneu-v3/backbone/onnx_update/vieneu_decode_step.onnx",
+     "size": 306134,
+     "sha256": "bedc379cea61ea5d616312750d95ad3924e055856662d19187a889a5edc24ceb"
+    },
+    {
+     "path": "vieneu-v3/backbone/onnx_update/vieneu_prefill.onnx",
+     "size": 324499,
+     "sha256": "27f8b064f6b57b5448e95d095f1959588c005d614678045c2b97ecccf3b7a0f7"
+    },
+    {
+     "path": "vieneu-v3/backbone/onnx_update/vieneu_v3_heads.npz",
+     "size": 52219622,
+     "sha256": "fb22484baa424bbb775133a6e5f0d00d6299b2b256fbe3312a864b85b9aed01e"
+    },
+    {
+     "path": "vieneu-v3/backbone/speaker_encoder.onnx",
+     "size": 28303423,
+     "sha256": "a6ac6a63997761ae2997373e2ee1c47040854b4b759ea41ec48e4e42df0f4d73"
+    },
+    {
+     "path": "vieneu-v3/codec/codec_browser_onnx_meta.json",
+     "size": 17036,
+     "sha256": "3e291c883bb7d11ff2fe8e964e3e495519760358859f35c951254c7741592731"
+    },
+    {
+     "path": "vieneu-v3/codec/moss_audio_tokenizer_decode_full.onnx",
+     "size": 681902,
+     "sha256": "0fbbafe3fd4afa2a019af5c5ced204af6e2d1db044fa40f021525d2aee95b4ac"
+    },
+    {
+     "path": "vieneu-v3/codec/moss_audio_tokenizer_decode_shared.data",
+     "size": 44198912,
+     "sha256": "e69d52e0f4e84ca27850557ee54face46632d3a5a16c89bd246c7c408466dcad"
+    },
+    {
+     "path": "vieneu-v3/codec/moss_audio_tokenizer_decode_step.onnx",
+     "size": 351400,
+     "sha256": "9527c86a29e1837edec1f74db57d5eeaadb3a715af3382703566460afed25855"
+    },
+    {
+     "path": "vieneu-v3/codec/moss_audio_tokenizer_encode.data",
+     "size": 44507136,
+     "sha256": "aa751265b2bab2887eac224484546b194875aa7494b607115439b3dc6b228a2c"
+    },
+    {
+     "path": "vieneu-v3/codec/moss_audio_tokenizer_encode.onnx",
+     "size": 815775,
+     "sha256": "eadea4a645abdcf98714c7aead122ee2ce7da6e080f9f80b977cd1ca8e19473a"
+    },
+    {
+     "path": "vieneu-v3/installed.json",
+     "size": 90,
+     "sha256": "7cf4d4fb7b102569d2fcf0b851060d6099f900fab9044c5ee1a4483703fc097e"
+    }
+   ],
+   "leftovers": [
+    ".download"
+   ],
+   "server_log": [
+    {
+     "method": "HEAD",
+     "path": "config.json",
+     "range": null,
+     "status": 200,
+     "length": 1553
+    },
+    {
+     "method": "GET",
+     "path": "config.json",
+     "range": null,
+     "status": 200,
+     "sent": 1553
+    },
+    {
+     "method": "HEAD",
+     "path": "denoiser.onnx",
+     "range": null,
+     "status": 200,
+     "length": 42661414
+    },
+    {
+     "method": "GET",
+     "path": "denoiser.onnx",
+     "range": null,
+     "status": 200,
+     "sent": 42661414
+    },
+    {
+     "method": "HEAD",
+     "path": "config.json",
+     "range": null,
+     "status": 200,
+     "length": 2152
+    },
+    {
+     "method": "GET",
+     "path": "config.json",
+     "range": null,
+     "status": 200,
+     "sent": 2152
+    },
+    {
+     "method": "HEAD",
+     "path": "tokenizer.json",
+     "range": null,
+     "status": 200,
+     "length": 22320
+    },
+    {
+     "method": "GET",
+     "path": "tokenizer.json",
+     "range": null,
+     "status": 200,
+     "sent": 22320
+    },
+    {
+     "method": "HEAD",
+     "path": "vieneu_acoustic_cached.onnx",
+     "range": null,
+     "status": 200,
+     "length": 7207223
+    },
+    {
+     "method": "GET",
+     "path": "vieneu_acoustic_cached.onnx",
+     "range": null,
+     "status": 200,
+     "sent": 7207223
+    },
+    {
+     "method": "HEAD",
+     "path": "vieneu_backbone_shared.data",
+     "range": null,
+     "status": 200,
+     "length": 415319040
+    },
+    {
+     "method": "GET",
+     "path": "vieneu_backbone_shared.data",
+     "range": null,
+     "status": 200,
+     "sent": 415319040
+    },
+    {
+     "method": "HEAD",
+     "path": "vieneu_decode_step.onnx",
+     "range": null,
+     "status": 200,
+     "length": 306134
+    },
+    {
+     "method": "GET",
+     "path": "vieneu_decode_step.onnx",
+     "range": null,
+     "status": 200,
+     "sent": 306134
+    },
+    {
+     "method": "HEAD",
+     "path": "vieneu_prefill.onnx",
+     "range": null,
+     "status": 200,
+     "length": 324499
+    },
+    {
+     "method": "GET",
+     "path": "vieneu_prefill.onnx",
+     "range": null,
+     "status": 200,
+     "sent": 324499
+    },
+    {
+     "method": "HEAD",
+     "path": "vieneu_v3_heads.npz",
+     "range": null,
+     "status": 200,
+     "length": 52219622
+    },
+    {
+     "method": "GET",
+     "path": "vieneu_v3_heads.npz",
+     "range": null,
+     "status": 200,
+     "sent": 52219622
+    },
+    {
+     "method": "HEAD",
+     "path": "speaker_encoder.onnx",
+     "range": null,
+     "status": 200,
+     "length": 28303423
+    },
+    {
+     "method": "GET",
+     "path": "speaker_encoder.onnx",
+     "range": null,
+     "status": 200,
+     "sent": 28303423
+    },
+    {
+     "method": "HEAD",
+     "path": "codec_browser_onnx_meta.json",
+     "range": null,
+     "status": 200,
+     "length": 17036
+    },
+    {
+     "method": "GET",
+     "path": "codec_browser_onnx_meta.json",
+     "range": null,
+     "status": 200,
+     "sent": 17036
+    },
+    {
+     "method": "HEAD",
+     "path": "moss_audio_tokenizer_decode_full.onnx",
+     "range": null,
+     "status": 200,
+     "length": 681902
+    },
+    {
+     "method": "GET",
+     "path": "moss_audio_tokenizer_decode_full.onnx",
+     "range": null,
+     "status": 200,
+     "sent": 681902
+    },
+    {
+     "method": "HEAD",
+     "path": "moss_audio_tokenizer_decode_shared.data",
+     "range": null,
+     "status": 200,
+     "length": 44198912
+    },
+    {
+     "method": "GET",
+     "path": "moss_audio_tokenizer_decode_shared.data",
+     "range": null,
+     "status": 200,
+     "sent": 44198912
+    },
+    {
+     "method": "HEAD",
+     "path": "moss_audio_tokenizer_decode_step.onnx",
+     "range": null,
+     "status": 200,
+     "length": 351400
+    },
+    {
+     "method": "GET",
+     "path": "moss_audio_tokenizer_decode_step.onnx",
+     "range": null,
+     "status": 200,
+     "sent": 351400
+    },
+    {
+     "method": "HEAD",
+     "path": "moss_audio_tokenizer_encode.data",
+     "range": null,
+     "status": 200,
+     "length": 44507136
+    },
+    {
+     "method": "GET",
+     "path": "moss_audio_tokenizer_encode.data",
+     "range": null,
+     "status": 200,
+     "sent": 44507136
+    },
+    {
+     "method": "HEAD",
+     "path": "moss_audio_tokenizer_encode.onnx",
+     "range": null,
+     "status": 200,
+     "length": 815775
+    },
+    {
+     "method": "GET",
+     "path": "moss_audio_tokenizer_encode.onnx",
+     "range": null,
+     "status": 200,
+     "sent": 815775
+    }
+   ],
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  },
+  "w01-fresh-whisper-small": {
+   "scenario": "w01-fresh-whisper-small",
+   "exit_code": 0,
+   "events": [
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra config.json"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra model.bin"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra tokenizer.json"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra vocabulary.txt"
+    },
+    {
+     "event": "progress",
+     "message": "Model sẵn sàng"
+    },
+    {
+     "protocol": 1,
+     "event": "result",
+     "result": {
+      "model_id": "whisper-small",
+      "path": "${RUN}/fresh-whisper-small/models/whisper-small",
+      "revision": "536b0662742c02347bc0e980a01041f333bce120"
+     }
+    }
+   ],
+   "stderr_tail": "",
+   "tree": [
+    {
+     "path": "whisper-small/config.json",
+     "size": 2370,
+     "sha256": "b55496ac7940a7ae47d2c01eab40edfd8701feec1229d9cce3b40014383fb828"
+    },
+    {
+     "path": "whisper-small/installed.json",
+     "size": 94,
+     "sha256": "76227002369a16857f77b242e9fdfc560558435d749766370aba61d19e7a5300"
+    },
+    {
+     "path": "whisper-small/model.bin",
+     "size": 483546902,
+     "sha256": "3e305921506d8872816023e4c273e75d2419fb89b24da97b4fe7bce14170d671"
+    },
+    {
+     "path": "whisper-small/tokenizer.json",
+     "size": 2203239,
+     "sha256": "fb7b63191e9bb045082c79fd742a3106a12c99513ab30df4a0d47fa6cb6fd0ab"
+    },
+    {
+     "path": "whisper-small/vocabulary.txt",
+     "size": 459861,
+     "sha256": "34ce3fe1c5041027b3f8d42912270993f986dbc4bb34cf27f951e34a1e453913"
+    }
+   ],
+   "leftovers": [
+    ".download"
+   ],
+   "server_log": [
+    {
+     "method": "HEAD",
+     "path": "config.json",
+     "range": null,
+     "status": 200,
+     "length": 2370
+    },
+    {
+     "method": "GET",
+     "path": "config.json",
+     "range": null,
+     "status": 200,
+     "sent": 2370
+    },
+    {
+     "method": "HEAD",
+     "path": "model.bin",
+     "range": null,
+     "status": 200,
+     "length": 483546902
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": null,
+     "status": 200,
+     "sent": 483546902
+    },
+    {
+     "method": "HEAD",
+     "path": "tokenizer.json",
+     "range": null,
+     "status": 200,
+     "length": 2203239
+    },
+    {
+     "method": "GET",
+     "path": "tokenizer.json",
+     "range": null,
+     "status": 200,
+     "sent": 2203239
+    },
+    {
+     "method": "HEAD",
+     "path": "vocabulary.txt",
+     "range": null,
+     "status": 200,
+     "length": 459861
+    },
+    {
+     "method": "GET",
+     "path": "vocabulary.txt",
+     "range": null,
+     "status": 200,
+     "sent": 459861
+    }
+   ],
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  },
+  "w01-fresh-whisper-turbo": {
+   "scenario": "w01-fresh-whisper-turbo",
+   "exit_code": 0,
+   "events": [
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra config.json"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra model.bin"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra preprocessor_config.json"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra tokenizer.json"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra vocabulary.json"
+    },
+    {
+     "event": "progress",
+     "message": "Model sẵn sàng"
+    },
+    {
+     "protocol": 1,
+     "event": "result",
+     "result": {
+      "model_id": "whisper-turbo",
+      "path": "${RUN}/fresh-whisper-turbo/models/whisper-turbo",
+      "revision": "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf"
+     }
+    }
+   ],
+   "stderr_tail": "",
+   "tree": [
+    {
+     "path": "whisper-turbo/config.json",
+     "size": 2263,
+     "sha256": "b0253ea6c0d3bea6b1e19e91a02acfd3b53f4467362efcb5a3e6b16c9b3a9b7e"
+    },
+    {
+     "path": "whisper-turbo/installed.json",
+     "size": 94,
+     "sha256": "1dfd8bd1211d8f0784c9095907bc85b2297b8174d06c52ab638d14a1ad7138e0"
+    },
+    {
+     "path": "whisper-turbo/model.bin",
+     "size": 1617884929,
+     "sha256": "e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da"
+    },
+    {
+     "path": "whisper-turbo/preprocessor_config.json",
+     "size": 340,
+     "sha256": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711"
+    },
+    {
+     "path": "whisper-turbo/tokenizer.json",
+     "size": 2710337,
+     "sha256": "297b13372ac43916285644fb9687add3cc62ee2a1adb60da3dc25cc94c1871fd"
+    },
+    {
+     "path": "whisper-turbo/vocabulary.json",
+     "size": 1068114,
+     "sha256": "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1"
+    }
+   ],
+   "leftovers": [
+    ".download"
+   ],
+   "server_log": [
+    {
+     "method": "HEAD",
+     "path": "config.json",
+     "range": null,
+     "status": 200,
+     "length": 2263
+    },
+    {
+     "method": "GET",
+     "path": "config.json",
+     "range": null,
+     "status": 200,
+     "sent": 2263
+    },
+    {
+     "method": "HEAD",
+     "path": "model.bin",
+     "range": null,
+     "status": 200,
+     "length": 1617884929
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": null,
+     "status": 200,
+     "sent": 1617884929
+    },
+    {
+     "method": "HEAD",
+     "path": "preprocessor_config.json",
+     "range": null,
+     "status": 200,
+     "length": 340
+    },
+    {
+     "method": "GET",
+     "path": "preprocessor_config.json",
+     "range": null,
+     "status": 200,
+     "sent": 340
+    },
+    {
+     "method": "HEAD",
+     "path": "tokenizer.json",
+     "range": null,
+     "status": 200,
+     "length": 2710337
+    },
+    {
+     "method": "GET",
+     "path": "tokenizer.json",
+     "range": null,
+     "status": 200,
+     "sent": 2710337
+    },
+    {
+     "method": "HEAD",
+     "path": "vocabulary.json",
+     "range": null,
+     "status": 200,
+     "length": 1068114
+    },
+    {
+     "method": "GET",
+     "path": "vocabulary.json",
+     "range": null,
+     "status": 200,
+     "sent": 1068114
+    }
+   ],
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  },
+  "w02-again-installed-diarization": {
+   "scenario": "w02-again-installed-diarization",
+   "exit_code": 0,
+   "events": [
+    {
+     "event": "progress",
+     "message": "Model sẵn sàng"
+    },
+    {
+     "protocol": 1,
+     "event": "result",
+     "result": {
+      "model_id": "diarization",
+      "path": "${RUN}/fresh-diarization/models/diarization",
+      "revision": "9403a6902bb58e3d5ae8c7e77c3422de279db2e0"
+     }
+    }
+   ],
+   "stderr_tail": "",
+   "tree": [
+    {
+     "path": "diarization/embedding/model.onnx",
+     "size": 28281164,
+     "sha256": "aa3cfc16963a10586a9393f5035d6d6b57e98d358b347f80c2a30bf4f00ceba2"
+    },
+    {
+     "path": "diarization/installed.json",
+     "size": 92,
+     "sha256": "c644d410b323bbb8292a203f505dbf66f9014233955a33ae6f48d6c75f4337e5"
+    },
+    {
+     "path": "diarization/segmentation/LICENSE",
+     "size": 1061,
+     "sha256": "14d7016ad68e7394d6e6b78d96cc2ae431c905287b89674cfdf021e79e62b8ba"
+    },
+    {
+     "path": "diarization/segmentation/model.onnx",
+     "size": 5992913,
+     "sha256": "220ad67ca923bef2fa91f2390c786097bf305bceb5e261d4af67b38e938e1079"
+    }
+   ],
+   "leftovers": [
+    ".download"
+   ],
+   "server_log": [],
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  },
+  "w03-repair-two-files-diarization": {
+   "scenario": "w03-repair-two-files-diarization",
+   "exit_code": 0,
+   "events": [
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra LICENSE"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra 3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx"
+    },
+    {
+     "event": "progress",
+     "message": "Model sẵn sàng"
+    },
+    {
+     "protocol": 1,
+     "event": "result",
+     "result": {
+      "model_id": "diarization",
+      "path": "${RUN}/fresh-diarization/models/diarization",
+      "revision": "9403a6902bb58e3d5ae8c7e77c3422de279db2e0"
+     }
+    }
+   ],
+   "stderr_tail": "",
+   "tree": [
+    {
+     "path": "diarization/embedding/model.onnx",
+     "size": 28281164,
+     "sha256": "aa3cfc16963a10586a9393f5035d6d6b57e98d358b347f80c2a30bf4f00ceba2"
+    },
+    {
+     "path": "diarization/installed.json",
+     "size": 92,
+     "sha256": "c644d410b323bbb8292a203f505dbf66f9014233955a33ae6f48d6c75f4337e5"
+    },
+    {
+     "path": "diarization/segmentation/LICENSE",
+     "size": 1061,
+     "sha256": "14d7016ad68e7394d6e6b78d96cc2ae431c905287b89674cfdf021e79e62b8ba"
+    },
+    {
+     "path": "diarization/segmentation/model.onnx",
+     "size": 5992913,
+     "sha256": "220ad67ca923bef2fa91f2390c786097bf305bceb5e261d4af67b38e938e1079"
+    }
+   ],
+   "leftovers": [
+    ".download"
+   ],
+   "server_log": [
+    {
+     "method": "HEAD",
+     "path": "LICENSE",
+     "range": null,
+     "status": 200,
+     "length": 1061
+    },
+    {
+     "method": "GET",
+     "path": "LICENSE",
+     "range": null,
+     "status": 200,
+     "sent": 1061
+    },
+    {
+     "method": "HEAD",
+     "path": "3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx",
+     "range": null,
+     "status": 200,
+     "length": 28281164
+    },
+    {
+     "method": "GET",
+     "path": "3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx",
+     "range": null,
+     "status": 200,
+     "sent": 28281164
+    }
+   ],
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  },
+  "w04-stale-marker-diarization": {
+   "scenario": "w04-stale-marker-diarization",
+   "exit_code": 0,
+   "events": [
+    {
+     "event": "progress",
+     "message": "Model sẵn sàng"
+    },
+    {
+     "protocol": 1,
+     "event": "result",
+     "result": {
+      "model_id": "diarization",
+      "path": "${RUN}/fresh-diarization/models/diarization",
+      "revision": "9403a6902bb58e3d5ae8c7e77c3422de279db2e0"
+     }
+    }
+   ],
+   "stderr_tail": "",
+   "tree": [
+    {
+     "path": "diarization/embedding/model.onnx",
+     "size": 28281164,
+     "sha256": "aa3cfc16963a10586a9393f5035d6d6b57e98d358b347f80c2a30bf4f00ceba2"
+    },
+    {
+     "path": "diarization/installed.json",
+     "size": 92,
+     "sha256": "c644d410b323bbb8292a203f505dbf66f9014233955a33ae6f48d6c75f4337e5"
+    },
+    {
+     "path": "diarization/segmentation/LICENSE",
+     "size": 1061,
+     "sha256": "14d7016ad68e7394d6e6b78d96cc2ae431c905287b89674cfdf021e79e62b8ba"
+    },
+    {
+     "path": "diarization/segmentation/model.onnx",
+     "size": 5992913,
+     "sha256": "220ad67ca923bef2fa91f2390c786097bf305bceb5e261d4af67b38e938e1079"
+    }
+   ],
+   "leftovers": [
+    ".download"
+   ],
+   "server_log": [],
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  },
+  "w08a-resume-first-run-drops": {
+   "scenario": "w08a-resume-first-run-drops",
+   "exit_code": 0,
+   "events": [
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra config.json"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra model.bin"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra tokenizer.json"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra vocabulary.txt"
+    },
+    {
+     "event": "progress",
+     "message": "Model sẵn sàng"
+    },
+    {
+     "protocol": 1,
+     "event": "result",
+     "result": {
+      "model_id": "whisper-small",
+      "path": "${RUN}/resume/models/whisper-small",
+      "revision": "536b0662742c02347bc0e980a01041f333bce120"
+     }
+    }
+   ],
+   "stderr_tail": "g to resume download...\nError while downloading from http://127.0.0.1:18081/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/model.bin: peer closed connection without sending complete message body (received 20000000 bytes, expected 22173462)\nTrying to resume download...\n",
+   "tree": [
+    {
+     "path": "whisper-small/config.json",
+     "size": 2370,
+     "sha256": "b55496ac7940a7ae47d2c01eab40edfd8701feec1229d9cce3b40014383fb828"
+    },
+    {
+     "path": "whisper-small/installed.json",
+     "size": 94,
+     "sha256": "76227002369a16857f77b242e9fdfc560558435d749766370aba61d19e7a5300"
+    },
+    {
+     "path": "whisper-small/model.bin",
+     "size": 483546902,
+     "sha256": "3e305921506d8872816023e4c273e75d2419fb89b24da97b4fe7bce14170d671"
+    },
+    {
+     "path": "whisper-small/tokenizer.json",
+     "size": 2203239,
+     "sha256": "fb7b63191e9bb045082c79fd742a3106a12c99513ab30df4a0d47fa6cb6fd0ab"
+    },
+    {
+     "path": "whisper-small/vocabulary.txt",
+     "size": 459861,
+     "sha256": "34ce3fe1c5041027b3f8d42912270993f986dbc4bb34cf27f951e34a1e453913"
+    }
+   ],
+   "leftovers": [
+    ".download"
+   ],
+   "server_log": [
+    {
+     "method": "HEAD",
+     "path": "config.json",
+     "range": null,
+     "status": 200,
+     "length": 2370
+    },
+    {
+     "method": "GET",
+     "path": "config.json",
+     "range": null,
+     "status": 200,
+     "sent": 2370
+    },
+    {
+     "method": "HEAD",
+     "path": "model.bin",
+     "range": null,
+     "status": 200,
+     "length": 483546902
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": null,
+     "status": 200,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=10485760-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=20971520-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=31457280-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=41943040-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=52428800-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=62914560-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=73400320-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=83886080-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=94371840-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=104857600-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=115343360-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=125829120-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=136314880-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=146800640-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=157286400-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=167772160-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=178257920-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=188743680-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=199229440-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=209715200-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=220200960-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=230686720-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=241172480-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=251658240-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=262144000-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=272629760-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=283115520-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=293601280-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=304087040-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=314572800-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=325058560-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=335544320-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=346030080-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=356515840-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=367001600-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=377487360-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=387973120-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=398458880-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=408944640-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=419430400-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=429916160-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=440401920-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=450887680-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=461373440-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=471859200-",
+     "status": 206,
+     "fault": "drop_after",
+     "sent": 20000000
+    },
+    {
+     "method": "HEAD",
+     "path": "tokenizer.json",
+     "range": null,
+     "status": 200,
+     "length": 2203239
+    },
+    {
+     "method": "GET",
+     "path": "tokenizer.json",
+     "range": null,
+     "status": 200,
+     "sent": 2203239
+    },
+    {
+     "method": "HEAD",
+     "path": "vocabulary.txt",
+     "range": null,
+     "status": 200,
+     "length": 459861
+    },
+    {
+     "method": "GET",
+     "path": "vocabulary.txt",
+     "range": null,
+     "status": 200,
+     "sent": 459861
+    }
+   ],
+   "partial_files": [],
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  },
+  "w08b-resume-second-run": {
+   "scenario": "w08b-resume-second-run",
+   "exit_code": 0,
+   "events": [
+    {
+     "event": "progress",
+     "message": "Model sẵn sàng"
+    },
+    {
+     "protocol": 1,
+     "event": "result",
+     "result": {
+      "model_id": "whisper-small",
+      "path": "${RUN}/resume/models/whisper-small",
+      "revision": "536b0662742c02347bc0e980a01041f333bce120"
+     }
+    }
+   ],
+   "stderr_tail": "",
+   "tree": [
+    {
+     "path": "whisper-small/config.json",
+     "size": 2370,
+     "sha256": "b55496ac7940a7ae47d2c01eab40edfd8701feec1229d9cce3b40014383fb828"
+    },
+    {
+     "path": "whisper-small/installed.json",
+     "size": 94,
+     "sha256": "76227002369a16857f77b242e9fdfc560558435d749766370aba61d19e7a5300"
+    },
+    {
+     "path": "whisper-small/model.bin",
+     "size": 483546902,
+     "sha256": "3e305921506d8872816023e4c273e75d2419fb89b24da97b4fe7bce14170d671"
+    },
+    {
+     "path": "whisper-small/tokenizer.json",
+     "size": 2203239,
+     "sha256": "fb7b63191e9bb045082c79fd742a3106a12c99513ab30df4a0d47fa6cb6fd0ab"
+    },
+    {
+     "path": "whisper-small/vocabulary.txt",
+     "size": 459861,
+     "sha256": "34ce3fe1c5041027b3f8d42912270993f986dbc4bb34cf27f951e34a1e453913"
+    }
+   ],
+   "leftovers": [
+    ".download"
+   ],
+   "server_log": [],
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  },
+  "w08c-drop-then-503-first-run": {
+   "scenario": "w08c-drop-then-503-first-run",
+   "exit_code": 1,
+   "events": [
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra config.json"
+    },
+    {
+     "protocol": 1,
+     "event": "error",
+     "code": "NETWORK",
+     "message": "Không tải được model.bin (HfHubHTTPError). Kiểm tra mạng rồi bấm thử lại; phần đã tải được giữ lại."
+    }
+   ],
+   "stderr_tail": "Error while downloading from http://127.0.0.1:18081/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/model.bin: peer closed connection without sending complete message body (received 80000000 bytes, expected 483546902)\nTrying to resume download...\n",
+   "tree": [
+    {
+     "path": ".download/whisper-small/.cache/huggingface/.gitignore",
+     "size": 1,
+     "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+    },
+    {
+     "path": ".download/whisper-small/.cache/huggingface/CACHEDIR.TAG",
+     "size": 195,
+     "sha256": "e8893e2dcb3f4545ef67a0a5b7b769113d38eef1aa61c7c7ba14659b02af955f"
+    },
+    {
+     "path": ".download/whisper-small/.cache/huggingface/download/config.json.metadata",
+     "size": null,
+     "sha256": null
+    },
+    {
+     "path": "whisper-small/config.json",
+     "size": 2370,
+     "sha256": "b55496ac7940a7ae47d2c01eab40edfd8701feec1229d9cce3b40014383fb828"
+    }
+   ],
+   "leftovers": [
+    ".download"
+   ],
+   "server_log": [
+    {
+     "method": "HEAD",
+     "path": "config.json",
+     "range": null,
+     "status": 200,
+     "length": 2370
+    },
+    {
+     "method": "GET",
+     "path": "config.json",
+     "range": null,
+     "status": 200,
+     "sent": 2370
+    },
+    {
+     "method": "HEAD",
+     "path": "model.bin",
+     "range": null,
+     "status": 200,
+     "length": 483546902
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": null,
+     "status": 200,
+     "fault": "drop_after",
+     "sent": 80000000
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": "bytes=73400320-",
+     "status": 503,
+     "fault": "status"
+    }
+   ],
+   "partial_files": [],
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  },
+  "w08d-drop-then-503-second-run": {
+   "scenario": "w08d-drop-then-503-second-run",
+   "exit_code": 0,
+   "events": [
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra model.bin"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra tokenizer.json"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra vocabulary.txt"
+    },
+    {
+     "event": "progress",
+     "message": "Model sẵn sàng"
+    },
+    {
+     "protocol": 1,
+     "event": "result",
+     "result": {
+      "model_id": "whisper-small",
+      "path": "${RUN}/resume503/models/whisper-small",
+      "revision": "536b0662742c02347bc0e980a01041f333bce120"
+     }
+    }
+   ],
+   "stderr_tail": "",
+   "tree": [
+    {
+     "path": "whisper-small/config.json",
+     "size": 2370,
+     "sha256": "b55496ac7940a7ae47d2c01eab40edfd8701feec1229d9cce3b40014383fb828"
+    },
+    {
+     "path": "whisper-small/installed.json",
+     "size": 94,
+     "sha256": "76227002369a16857f77b242e9fdfc560558435d749766370aba61d19e7a5300"
+    },
+    {
+     "path": "whisper-small/model.bin",
+     "size": 483546902,
+     "sha256": "3e305921506d8872816023e4c273e75d2419fb89b24da97b4fe7bce14170d671"
+    },
+    {
+     "path": "whisper-small/tokenizer.json",
+     "size": 2203239,
+     "sha256": "fb7b63191e9bb045082c79fd742a3106a12c99513ab30df4a0d47fa6cb6fd0ab"
+    },
+    {
+     "path": "whisper-small/vocabulary.txt",
+     "size": 459861,
+     "sha256": "34ce3fe1c5041027b3f8d42912270993f986dbc4bb34cf27f951e34a1e453913"
+    }
+   ],
+   "leftovers": [
+    ".download"
+   ],
+   "server_log": [
+    {
+     "method": "HEAD",
+     "path": "model.bin",
+     "range": null,
+     "status": 200,
+     "length": 483546902
+    },
+    {
+     "method": "GET",
+     "path": "model.bin",
+     "range": null,
+     "status": 200,
+     "sent": 483546902
+    },
+    {
+     "method": "HEAD",
+     "path": "tokenizer.json",
+     "range": null,
+     "status": 200,
+     "length": 2203239
+    },
+    {
+     "method": "GET",
+     "path": "tokenizer.json",
+     "range": null,
+     "status": 200,
+     "sent": 2203239
+    },
+    {
+     "method": "HEAD",
+     "path": "vocabulary.txt",
+     "range": null,
+     "status": 200,
+     "length": 459861
+    },
+    {
+     "method": "GET",
+     "path": "vocabulary.txt",
+     "range": null,
+     "status": 200,
+     "sent": 459861
+    }
+   ],
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  },
+  "w09a-offline-refused": {
+   "scenario": "w09a-offline-refused",
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "event": "error",
+     "code": "NETWORK",
+     "message": "Không tải được LICENSE (LocalEntryNotFoundError). Kiểm tra mạng rồi bấm thử lại; phần đã tải được giữ lại."
+    }
+   ],
+   "stderr_tail": "2de279db2e0/LICENSE\nRetrying in 8s [Retry 5/5].\n'[WinError 10061] No connection could be made because the target machine actively refused it' thrown while requesting HEAD http://127.0.0.1:18099/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/9403a6902bb58e3d5ae8c7e77c3422de279db2e0/LICENSE\n",
+   "tree": [
+    {
+     "path": ".download/diarization/.cache/huggingface/.gitignore",
+     "size": 1,
+     "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+    },
+    {
+     "path": ".download/diarization/.cache/huggingface/CACHEDIR.TAG",
+     "size": 195,
+     "sha256": "e8893e2dcb3f4545ef67a0a5b7b769113d38eef1aa61c7c7ba14659b02af955f"
+    }
+   ],
+   "leftovers": [
+    ".download"
+   ],
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  },
+  "w09b-offline-dns": {
+   "scenario": "w09b-offline-dns",
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "event": "error",
+     "code": "NETWORK",
+     "message": "Không tải được LICENSE (LocalEntryNotFoundError). Kiểm tra mạng rồi bấm thử lại; phần đã tải được giữ lại."
+    }
+   ],
+   "stderr_tail": "e-segmentation-3-0/resolve/9403a6902bb58e3d5ae8c7e77c3422de279db2e0/LICENSE\nRetrying in 8s [Retry 5/5].\n'[Errno 11001] getaddrinfo failed' thrown while requesting HEAD http://hf-offline.invalid/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/9403a6902bb58e3d5ae8c7e77c3422de279db2e0/LICENSE\n",
+   "tree": [
+    {
+     "path": ".download/diarization/.cache/huggingface/.gitignore",
+     "size": 1,
+     "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+    },
+    {
+     "path": ".download/diarization/.cache/huggingface/CACHEDIR.TAG",
+     "size": 195,
+     "sha256": "e8893e2dcb3f4545ef67a0a5b7b769113d38eef1aa61c7c7ba14659b02af955f"
+    }
+   ],
+   "leftovers": [
+    ".download"
+   ],
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  },
+  "w09c-fails-on-second-file": {
+   "scenario": "w09c-fails-on-second-file",
+   "exit_code": 1,
+   "events": [
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra LICENSE"
+    },
+    {
+     "protocol": 1,
+     "event": "error",
+     "code": "NETWORK",
+     "message": "Không tải được model.onnx (LocalEntryNotFoundError). Kiểm tra mạng rồi bấm thử lại; phần đã tải được giữ lại."
+    }
+   ],
+   "stderr_tail": "erpa-onnx-pyannote-segmentation-3-0/resolve/9403a6902bb58e3d5ae8c7e77c3422de279db2e0/model.onnx\nRetrying in 8s [Retry 5/5].\nHTTP Error 503 thrown while requesting HEAD http://127.0.0.1:18081/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/9403a6902bb58e3d5ae8c7e77c3422de279db2e0/model.onnx\n",
+   "tree": [
+    {
+     "path": ".download/diarization/.cache/huggingface/.gitignore",
+     "size": 1,
+     "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+    },
+    {
+     "path": ".download/diarization/.cache/huggingface/CACHEDIR.TAG",
+     "size": 195,
+     "sha256": "e8893e2dcb3f4545ef67a0a5b7b769113d38eef1aa61c7c7ba14659b02af955f"
+    },
+    {
+     "path": ".download/diarization/.cache/huggingface/download/LICENSE.metadata",
+     "size": null,
+     "sha256": null
+    },
+    {
+     "path": "diarization/segmentation/LICENSE",
+     "size": 1061,
+     "sha256": "14d7016ad68e7394d6e6b78d96cc2ae431c905287b89674cfdf021e79e62b8ba"
+    }
+   ],
+   "leftovers": [
+    ".download"
+   ],
+   "server_log": [
+    {
+     "method": "HEAD",
+     "path": "LICENSE",
+     "range": null,
+     "status": 200,
+     "length": 1061
+    },
+    {
+     "method": "GET",
+     "path": "LICENSE",
+     "range": null,
+     "status": 200,
+     "sent": 1061
+    },
+    {
+     "method": "HEAD",
+     "path": "model.onnx",
+     "range": null,
+     "status": 503,
+     "fault": "status"
+    },
+    {
+     "method": "HEAD",
+     "path": "model.onnx",
+     "range": null,
+     "status": 503,
+     "fault": "status"
+    },
+    {
+     "method": "HEAD",
+     "path": "model.onnx",
+     "range": null,
+     "status": 503,
+     "fault": "status"
+    },
+    {
+     "method": "HEAD",
+     "path": "model.onnx",
+     "range": null,
+     "status": 503,
+     "fault": "status"
+    },
+    {
+     "method": "HEAD",
+     "path": "model.onnx",
+     "range": null,
+     "status": 503,
+     "fault": "status"
+    },
+    {
+     "method": "HEAD",
+     "path": "model.onnx",
+     "range": null,
+     "status": 503,
+     "fault": "status"
+    },
+    {
+     "method": "HEAD",
+     "path": "model.onnx",
+     "range": null,
+     "status": 503,
+     "fault": "status"
+    }
+   ],
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  },
+  "w10-http-401": {
+   "scenario": "w10-http-401",
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "event": "error",
+     "code": "NETWORK",
+     "message": "Không tải được LICENSE (HfHubHTTPError). Kiểm tra mạng rồi bấm thử lại; phần đã tải được giữ lại."
+    }
+   ],
+   "stderr_tail": "",
+   "tree": [
+    {
+     "path": ".download/diarization/.cache/huggingface/.gitignore",
+     "size": 1,
+     "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+    },
+    {
+     "path": ".download/diarization/.cache/huggingface/CACHEDIR.TAG",
+     "size": 195,
+     "sha256": "e8893e2dcb3f4545ef67a0a5b7b769113d38eef1aa61c7c7ba14659b02af955f"
+    }
+   ],
+   "leftovers": [
+    ".download"
+   ],
+   "server_log": [
+    {
+     "method": "HEAD",
+     "path": "LICENSE",
+     "range": null,
+     "status": 401,
+     "fault": "status"
+    }
+   ],
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  },
+  "w10-http-403": {
+   "scenario": "w10-http-403",
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "event": "error",
+     "code": "NETWORK",
+     "message": "Không tải được LICENSE (LocalEntryNotFoundError). Kiểm tra mạng rồi bấm thử lại; phần đã tải được giữ lại."
+    }
+   ],
+   "stderr_tail": "",
+   "tree": [
+    {
+     "path": ".download/diarization/.cache/huggingface/.gitignore",
+     "size": 1,
+     "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+    },
+    {
+     "path": ".download/diarization/.cache/huggingface/CACHEDIR.TAG",
+     "size": 195,
+     "sha256": "e8893e2dcb3f4545ef67a0a5b7b769113d38eef1aa61c7c7ba14659b02af955f"
+    }
+   ],
+   "leftovers": [
+    ".download"
+   ],
+   "server_log": [
+    {
+     "method": "HEAD",
+     "path": "LICENSE",
+     "range": null,
+     "status": 403,
+     "fault": "status"
+    }
+   ],
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  },
+  "w10-http-404": {
+   "scenario": "w10-http-404",
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "event": "error",
+     "code": "NETWORK",
+     "message": "Không tải được LICENSE (LocalEntryNotFoundError). Kiểm tra mạng rồi bấm thử lại; phần đã tải được giữ lại."
+    }
+   ],
+   "stderr_tail": "",
+   "tree": [
+    {
+     "path": ".download/diarization/.cache/huggingface/.gitignore",
+     "size": 1,
+     "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+    },
+    {
+     "path": ".download/diarization/.cache/huggingface/CACHEDIR.TAG",
+     "size": 195,
+     "sha256": "e8893e2dcb3f4545ef67a0a5b7b769113d38eef1aa61c7c7ba14659b02af955f"
+    }
+   ],
+   "leftovers": [
+    ".download"
+   ],
+   "server_log": [
+    {
+     "method": "HEAD",
+     "path": "LICENSE",
+     "range": null,
+     "status": 404,
+     "fault": "status"
+    }
+   ],
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  },
+  "w10-http-429": {
+   "scenario": "w10-http-429",
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "event": "error",
+     "code": "NETWORK",
+     "message": "Không tải được LICENSE (LocalEntryNotFoundError). Kiểm tra mạng rồi bấm thử lại; phần đã tải được giữ lại."
+    }
+   ],
+   "stderr_tail": "gfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/9403a6902bb58e3d5ae8c7e77c3422de279db2e0/LICENSE\nRetrying in 8s [Retry 5/5].\nHTTP Error 429 thrown while requesting HEAD http://127.0.0.1:18081/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/9403a6902bb58e3d5ae8c7e77c3422de279db2e0/LICENSE\n",
+   "tree": [
+    {
+     "path": ".download/diarization/.cache/huggingface/.gitignore",
+     "size": 1,
+     "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+    },
+    {
+     "path": ".download/diarization/.cache/huggingface/CACHEDIR.TAG",
+     "size": 195,
+     "sha256": "e8893e2dcb3f4545ef67a0a5b7b769113d38eef1aa61c7c7ba14659b02af955f"
+    }
+   ],
+   "leftovers": [
+    ".download"
+   ],
+   "server_log": [
+    {
+     "method": "HEAD",
+     "path": "LICENSE",
+     "range": null,
+     "status": 429,
+     "fault": "status"
+    },
+    {
+     "method": "HEAD",
+     "path": "LICENSE",
+     "range": null,
+     "status": 429,
+     "fault": "status"
+    },
+    {
+     "method": "HEAD",
+     "path": "LICENSE",
+     "range": null,
+     "status": 429,
+     "fault": "status"
+    },
+    {
+     "method": "HEAD",
+     "path": "LICENSE",
+     "range": null,
+     "status": 429,
+     "fault": "status"
+    },
+    {
+     "method": "HEAD",
+     "path": "LICENSE",
+     "range": null,
+     "status": 429,
+     "fault": "status"
+    },
+    {
+     "method": "HEAD",
+     "path": "LICENSE",
+     "range": null,
+     "status": 429,
+     "fault": "status"
+    },
+    {
+     "method": "HEAD",
+     "path": "LICENSE",
+     "range": null,
+     "status": 429,
+     "fault": "status"
+    }
+   ],
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  },
+  "w10-http-500": {
+   "scenario": "w10-http-500",
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "event": "error",
+     "code": "NETWORK",
+     "message": "Không tải được LICENSE (LocalEntryNotFoundError). Kiểm tra mạng rồi bấm thử lại; phần đã tải được giữ lại."
+    }
+   ],
+   "stderr_tail": "gfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/9403a6902bb58e3d5ae8c7e77c3422de279db2e0/LICENSE\nRetrying in 8s [Retry 5/5].\nHTTP Error 500 thrown while requesting HEAD http://127.0.0.1:18081/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/9403a6902bb58e3d5ae8c7e77c3422de279db2e0/LICENSE\n",
+   "tree": [
+    {
+     "path": ".download/diarization/.cache/huggingface/.gitignore",
+     "size": 1,
+     "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+    },
+    {
+     "path": ".download/diarization/.cache/huggingface/CACHEDIR.TAG",
+     "size": 195,
+     "sha256": "e8893e2dcb3f4545ef67a0a5b7b769113d38eef1aa61c7c7ba14659b02af955f"
+    }
+   ],
+   "leftovers": [
+    ".download"
+   ],
+   "server_log": [
+    {
+     "method": "HEAD",
+     "path": "LICENSE",
+     "range": null,
+     "status": 500,
+     "fault": "status"
+    },
+    {
+     "method": "HEAD",
+     "path": "LICENSE",
+     "range": null,
+     "status": 500,
+     "fault": "status"
+    },
+    {
+     "method": "HEAD",
+     "path": "LICENSE",
+     "range": null,
+     "status": 500,
+     "fault": "status"
+    },
+    {
+     "method": "HEAD",
+     "path": "LICENSE",
+     "range": null,
+     "status": 500,
+     "fault": "status"
+    },
+    {
+     "method": "HEAD",
+     "path": "LICENSE",
+     "range": null,
+     "status": 500,
+     "fault": "status"
+    },
+    {
+     "method": "HEAD",
+     "path": "LICENSE",
+     "range": null,
+     "status": 500,
+     "fault": "status"
+    },
+    {
+     "method": "HEAD",
+     "path": "LICENSE",
+     "range": null,
+     "status": 500,
+     "fault": "status"
+    }
+   ],
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  },
+  "w11a-https-untrusted-ca": {
+   "scenario": "w11a-https-untrusted-ca",
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "event": "error",
+     "code": "NETWORK",
+     "message": "Không tải được LICENSE (LocalEntryNotFoundError). Kiểm tra mạng rồi bấm thử lại; phần đã tải được giữ lại."
+    }
+   ],
+   "stderr_tail": "ng in 8s [Retry 5/5].\n'('A certificate chain processed, but terminated in a root certificate which is not trusted by the trust provider.',)' thrown while requesting HEAD https://localhost:18443/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/9403a6902bb58e3d5ae8c7e77c3422de279db2e0/LICENSE\n",
+   "tree": [
+    {
+     "path": ".download/diarization/.cache/huggingface/.gitignore",
+     "size": 1,
+     "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+    },
+    {
+     "path": ".download/diarization/.cache/huggingface/CACHEDIR.TAG",
+     "size": 195,
+     "sha256": "e8893e2dcb3f4545ef67a0a5b7b769113d38eef1aa61c7c7ba14659b02af955f"
+    }
+   ],
+   "leftovers": [
+    ".download"
+   ],
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  },
+  "w11b-https-custom-ca-via-HF_HUB_CA_BUNDLE": {
+   "scenario": "w11b-https-custom-ca-via-HF_HUB_CA_BUNDLE",
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "event": "error",
+     "code": "NETWORK",
+     "message": "Không tải được LICENSE (LocalEntryNotFoundError). Kiểm tra mạng rồi bấm thử lại; phần đã tải được giữ lại."
+    }
+   ],
+   "stderr_tail": "ng in 8s [Retry 5/5].\n'('A certificate chain processed, but terminated in a root certificate which is not trusted by the trust provider.',)' thrown while requesting HEAD https://localhost:18443/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/9403a6902bb58e3d5ae8c7e77c3422de279db2e0/LICENSE\n",
+   "tree": [
+    {
+     "path": ".download/diarization/.cache/huggingface/.gitignore",
+     "size": 1,
+     "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+    },
+    {
+     "path": ".download/diarization/.cache/huggingface/CACHEDIR.TAG",
+     "size": 195,
+     "sha256": "e8893e2dcb3f4545ef67a0a5b7b769113d38eef1aa61c7c7ba14659b02af955f"
+    }
+   ],
+   "leftovers": [
+    ".download"
+   ],
+   "server_log": [],
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  },
+  "w11b-https-custom-ca-via-REQUESTS_CA_BUNDLE": {
+   "scenario": "w11b-https-custom-ca-via-REQUESTS_CA_BUNDLE",
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "event": "error",
+     "code": "NETWORK",
+     "message": "Không tải được LICENSE (LocalEntryNotFoundError). Kiểm tra mạng rồi bấm thử lại; phần đã tải được giữ lại."
+    }
+   ],
+   "stderr_tail": "ng in 8s [Retry 5/5].\n'('A certificate chain processed, but terminated in a root certificate which is not trusted by the trust provider.',)' thrown while requesting HEAD https://localhost:18443/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/9403a6902bb58e3d5ae8c7e77c3422de279db2e0/LICENSE\n",
+   "tree": [
+    {
+     "path": ".download/diarization/.cache/huggingface/.gitignore",
+     "size": 1,
+     "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+    },
+    {
+     "path": ".download/diarization/.cache/huggingface/CACHEDIR.TAG",
+     "size": 195,
+     "sha256": "e8893e2dcb3f4545ef67a0a5b7b769113d38eef1aa61c7c7ba14659b02af955f"
+    }
+   ],
+   "leftovers": [
+    ".download"
+   ],
+   "server_log": [],
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  },
+  "w11b-https-custom-ca-via-SSL_CERT_FILE": {
+   "scenario": "w11b-https-custom-ca-via-SSL_CERT_FILE",
+   "exit_code": 0,
+   "events": [
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra LICENSE"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra model.onnx"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra 3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx"
+    },
+    {
+     "event": "progress",
+     "message": "Model sẵn sàng"
+    },
+    {
+     "protocol": 1,
+     "event": "result",
+     "result": {
+      "model_id": "diarization",
+      "path": "${RUN}/tls-SSL_CERT_FILE/models/diarization",
+      "revision": "9403a6902bb58e3d5ae8c7e77c3422de279db2e0"
+     }
+    }
+   ],
+   "stderr_tail": "",
+   "tree": [
+    {
+     "path": "diarization/embedding/model.onnx",
+     "size": 28281164,
+     "sha256": "aa3cfc16963a10586a9393f5035d6d6b57e98d358b347f80c2a30bf4f00ceba2"
+    },
+    {
+     "path": "diarization/installed.json",
+     "size": 92,
+     "sha256": "c644d410b323bbb8292a203f505dbf66f9014233955a33ae6f48d6c75f4337e5"
+    },
+    {
+     "path": "diarization/segmentation/LICENSE",
+     "size": 1061,
+     "sha256": "14d7016ad68e7394d6e6b78d96cc2ae431c905287b89674cfdf021e79e62b8ba"
+    },
+    {
+     "path": "diarization/segmentation/model.onnx",
+     "size": 5992913,
+     "sha256": "220ad67ca923bef2fa91f2390c786097bf305bceb5e261d4af67b38e938e1079"
+    }
+   ],
+   "leftovers": [
+    ".download"
+   ],
+   "server_log": [
+    {
+     "method": "HEAD",
+     "path": "LICENSE",
+     "range": null,
+     "status": 200,
+     "length": 1061
+    },
+    {
+     "method": "GET",
+     "path": "LICENSE",
+     "range": null,
+     "status": 200,
+     "sent": 1061
+    },
+    {
+     "method": "HEAD",
+     "path": "model.onnx",
+     "range": null,
+     "status": 200,
+     "length": 5992913
+    },
+    {
+     "method": "GET",
+     "path": "model.onnx",
+     "range": null,
+     "status": 200,
+     "sent": 5992913
+    },
+    {
+     "method": "HEAD",
+     "path": "3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx",
+     "range": null,
+     "status": 200,
+     "length": 28281164
+    },
+    {
+     "method": "GET",
+     "path": "3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx",
+     "range": null,
+     "status": 200,
+     "sent": 28281164
+    }
+   ],
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  },
+  "w12-real-diarization": {
+   "scenario": "w12-real-diarization",
+   "exit_code": 0,
+   "events": [
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra LICENSE"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra model.onnx"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra 3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx"
+    },
+    {
+     "event": "progress",
+     "message": "Model sẵn sàng"
+    },
+    {
+     "protocol": 1,
+     "event": "result",
+     "result": {
+      "model_id": "diarization",
+      "path": "${RUN}/real-diarization/models/diarization",
+      "revision": "9403a6902bb58e3d5ae8c7e77c3422de279db2e0"
+     }
+    }
+   ],
+   "stderr_tail": "Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.\n",
+   "tree": [
+    {
+     "path": "diarization/embedding/model.onnx",
+     "size": 28281164,
+     "sha256": "aa3cfc16963a10586a9393f5035d6d6b57e98d358b347f80c2a30bf4f00ceba2"
+    },
+    {
+     "path": "diarization/installed.json",
+     "size": 92,
+     "sha256": "c644d410b323bbb8292a203f505dbf66f9014233955a33ae6f48d6c75f4337e5"
+    },
+    {
+     "path": "diarization/segmentation/LICENSE",
+     "size": 1061,
+     "sha256": "14d7016ad68e7394d6e6b78d96cc2ae431c905287b89674cfdf021e79e62b8ba"
+    },
+    {
+     "path": "diarization/segmentation/model.onnx",
+     "size": 5992913,
+     "sha256": "220ad67ca923bef2fa91f2390c786097bf305bceb5e261d4af67b38e938e1079"
+    }
+   ],
+   "leftovers": [
+    ".download"
+   ],
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  },
+  "w12-real-htdemucs": {
+   "scenario": "w12-real-htdemucs",
+   "exit_code": 0,
+   "events": [
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra 955717e8.safetensors"
+    },
+    {
+     "event": "progress",
+     "message": "Model sẵn sàng"
+    },
+    {
+     "protocol": 1,
+     "event": "result",
+     "result": {
+      "model_id": "htdemucs",
+      "path": "${RUN}/real-htdemucs/models/htdemucs",
+      "revision": "cbc8a9b1a87023b7fd74e7b3412e6321c0eab003"
+     }
+    }
+   ],
+   "stderr_tail": "Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.\n",
+   "tree": [
+    {
+     "path": "htdemucs/955717e8.safetensors",
+     "size": 84025440,
+     "sha256": "d9fa14133cfcc034a6758923bb3a8ca9f8dfd0b582134643bbf83f72c17576dd"
+    },
+    {
+     "path": "htdemucs/installed.json",
+     "size": 89,
+     "sha256": "2602e60cbd5fea970555d9aae9d62fe3f60e4788203338d85977f66dfda3de6a"
+    }
+   ],
+   "leftovers": [
+    ".download"
+   ],
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  },
+  "w13-corrupt-same-size": {
+   "scenario": "w13-corrupt-same-size",
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "event": "error",
+     "code": "MODEL_CHECKSUM",
+     "message": "Model checksum mismatch: LICENSE"
+    }
+   ],
+   "stderr_tail": "",
+   "tree": [
+    {
+     "path": ".download/diarization/.cache/huggingface/.gitignore",
+     "size": 1,
+     "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+    },
+    {
+     "path": ".download/diarization/.cache/huggingface/CACHEDIR.TAG",
+     "size": 195,
+     "sha256": "e8893e2dcb3f4545ef67a0a5b7b769113d38eef1aa61c7c7ba14659b02af955f"
+    },
+    {
+     "path": ".download/diarization/.cache/huggingface/download/LICENSE.metadata",
+     "size": null,
+     "sha256": null
+    }
+   ],
+   "leftovers": [
+    ".download"
+   ],
+   "server_log": [
+    {
+     "method": "HEAD",
+     "path": "LICENSE",
+     "range": null,
+     "status": 200,
+     "length": 1061
+    },
+    {
+     "method": "GET",
+     "path": "LICENSE",
+     "range": null,
+     "status": 200,
+     "sent": 1061
+    }
+   ],
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  },
+  "w14-truncated-body": {
+   "scenario": "w14-truncated-body",
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "event": "error",
+     "code": "NETWORK",
+     "message": "Không tải được LICENSE (OSError). Kiểm tra mạng rồi bấm thử lại; phần đã tải được giữ lại."
+    }
+   ],
+   "stderr_tail": "",
+   "tree": [
+    {
+     "path": ".download/diarization/.cache/huggingface/.gitignore",
+     "size": 1,
+     "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+    },
+    {
+     "path": ".download/diarization/.cache/huggingface/CACHEDIR.TAG",
+     "size": 195,
+     "sha256": "e8893e2dcb3f4545ef67a0a5b7b769113d38eef1aa61c7c7ba14659b02af955f"
+    }
+   ],
+   "leftovers": [
+    ".download"
+   ],
+   "server_log": [
+    {
+     "method": "HEAD",
+     "path": "LICENSE",
+     "range": null,
+     "status": 200,
+     "length": 1061
+    },
+    {
+     "method": "GET",
+     "path": "LICENSE",
+     "range": null,
+     "status": 200,
+     "sent": 10
+    }
+   ],
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  },
+  "w15-disk-full-precheck": {
+   "scenario": "w15-disk-full-precheck",
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "event": "error",
+     "code": "DISK_FULL",
+     "message": "Không đủ dung lượng: cần khoảng N MB trống, còn N MB."
+    }
+   ],
+   "stderr_tail": "",
+   "tree": [],
+   "leftovers": [],
+   "note": "registry copy with a 2 TiB artifact; message numbers are free-space dependent",
+   "free_mb_at_run": 472210,
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  },
+  "w16-no-id": {
+   "scenario": "w16-no-id",
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "event": "error",
+     "code": "MODEL_UNKNOWN",
+     "message": "Unknown model id."
+    }
+   ],
+   "stderr_tail": "",
+   "tree": [],
+   "leftovers": [],
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  },
+  "w16-number-id": {
+   "scenario": "w16-number-id",
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "event": "error",
+     "code": "MODEL_UNKNOWN",
+     "message": "Unknown model id."
+    }
+   ],
+   "stderr_tail": "",
+   "tree": [],
+   "leftovers": [],
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  },
+  "w16-traversal-id": {
+   "scenario": "w16-traversal-id",
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "event": "error",
+     "code": "MODEL_UNKNOWN",
+     "message": "Unknown model id."
+    }
+   ],
+   "stderr_tail": "",
+   "tree": [],
+   "leftovers": [],
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  },
+  "w16-unknown-id": {
+   "scenario": "w16-unknown-id",
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "event": "error",
+     "code": "MODEL_UNKNOWN",
+     "message": "Unknown model id."
+    }
+   ],
+   "stderr_tail": "",
+   "tree": [],
+   "leftovers": [],
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  },
+  "w17a-env-proxy": {
+   "scenario": "w17a-env-proxy",
+   "exit_code": 0,
+   "events": [
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra LICENSE"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra model.onnx"
+    },
+    {
+     "event": "progress",
+     "message": "Đã kiểm tra 3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx"
+    },
+    {
+     "event": "progress",
+     "message": "Model sẵn sàng"
+    },
+    {
+     "protocol": 1,
+     "event": "result",
+     "result": {
+      "model_id": "diarization",
+      "path": "${RUN}/proxy/models/diarization",
+      "revision": "9403a6902bb58e3d5ae8c7e77c3422de279db2e0"
+     }
+    }
+   ],
+   "stderr_tail": "",
+   "tree": [
+    {
+     "path": "diarization/embedding/model.onnx",
+     "size": 28281164,
+     "sha256": "aa3cfc16963a10586a9393f5035d6d6b57e98d358b347f80c2a30bf4f00ceba2"
+    },
+    {
+     "path": "diarization/installed.json",
+     "size": 92,
+     "sha256": "c644d410b323bbb8292a203f505dbf66f9014233955a33ae6f48d6c75f4337e5"
+    },
+    {
+     "path": "diarization/segmentation/LICENSE",
+     "size": 1061,
+     "sha256": "14d7016ad68e7394d6e6b78d96cc2ae431c905287b89674cfdf021e79e62b8ba"
+    },
+    {
+     "path": "diarization/segmentation/model.onnx",
+     "size": 5992913,
+     "sha256": "220ad67ca923bef2fa91f2390c786097bf305bceb5e261d4af67b38e938e1079"
+    }
+   ],
+   "leftovers": [
+    ".download"
+   ],
+   "server_log": [
+    {
+     "method": "HEAD",
+     "path": "LICENSE",
+     "range": null,
+     "status": 200,
+     "length": 1061
+    },
+    {
+     "method": "GET",
+     "path": "LICENSE",
+     "range": null,
+     "status": 200,
+     "sent": 1061
+    },
+    {
+     "method": "HEAD",
+     "path": "model.onnx",
+     "range": null,
+     "status": 200,
+     "length": 5992913
+    },
+    {
+     "method": "GET",
+     "path": "model.onnx",
+     "range": null,
+     "status": 200,
+     "sent": 5992913
+    },
+    {
+     "method": "HEAD",
+     "path": "3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx",
+     "range": null,
+     "status": 200,
+     "length": 28281164
+    },
+    {
+     "method": "GET",
+     "path": "3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx",
+     "range": null,
+     "status": 200,
+     "sent": 28281164
+    }
+   ],
+   "proxy_requests": 7,
+   "proxy_sample": [
+    {
+     "method": "GET",
+     "target": "http://hf-via-proxy.invalid/api/agent-harnesses"
+    },
+    {
+     "method": "HEAD",
+     "target": "http://hf-via-proxy.invalid/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/res"
+    },
+    {
+     "method": "GET",
+     "target": "http://hf-via-proxy.invalid/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/res"
+    }
+   ],
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  },
+  "w17b-no-proxy-same-host": {
+   "scenario": "w17b-no-proxy-same-host",
+   "exit_code": 1,
+   "events": [
+    {
+     "protocol": 1,
+     "event": "error",
+     "code": "NETWORK",
+     "message": "Không tải được LICENSE (LocalEntryNotFoundError). Kiểm tra mạng rồi bấm thử lại; phần đã tải được giữ lại."
+    }
+   ],
+   "stderr_tail": "segmentation-3-0/resolve/9403a6902bb58e3d5ae8c7e77c3422de279db2e0/LICENSE\nRetrying in 8s [Retry 5/5].\n'[Errno 11001] getaddrinfo failed' thrown while requesting HEAD http://hf-via-proxy.invalid/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/9403a6902bb58e3d5ae8c7e77c3422de279db2e0/LICENSE\n",
+   "tree": [
+    {
+     "path": ".download/diarization/.cache/huggingface/.gitignore",
+     "size": 1,
+     "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+    },
+    {
+     "path": ".download/diarization/.cache/huggingface/CACHEDIR.TAG",
+     "size": 195,
+     "sha256": "e8893e2dcb3f4545ef67a0a5b7b769113d38eef1aa61c7c7ba14659b02af955f"
+    }
+   ],
+   "leftovers": [
+    ".download"
+   ],
+   "stable": {
+    "exit_code": true,
+    "events": true,
+    "tree": true,
+    "leftovers": true,
+    "server_log": true,
+    "partial_files": true
+   }
+  }
+ },
+ "differs_between_recordings": {}
+}

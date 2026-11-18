@@ -1,0 +1,20 @@
+{
+ "protocol": 1,
+ "id": "x-x06-limiter-plain",
+ "operation": "render",
+ "payload": {
+  "clips": [
+   {
+    "path": "${FIX}/chirp.wav",
+    "at_ms": 1000,
+    "rate": 1
+   }
+  ],
+  "normalize": false,
+  "format": "wav",
+  "timeline": true,
+  "pad_to_ms": 0
+ },
+ "output_dir": "${OUT}",
+ "models_dir": "${OUT}"
+}
