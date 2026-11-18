@@ -1,9 +1,10 @@
-//! `tts` for preset voices: `tts()` in `worker/main.py` (checks, pause marks, speed, raw reading, WAV files, per-item events) over the
-//! ported VieNeu engine. Cloned voices and take checks stay on the Python worker: a request that asks for either is refused with
-//! `WORKER_ERROR` before any event, so the desktop reruns it there.
+//! `tts` and `clone_preview`: `tts()` in `worker/main.py` (checks, pause marks, speed, raw reading, WAV files, per-item events) over the
+//! ported VieNeu engine, for preset and cloned voices ([`clone`]). Take checks stay on the Python worker: a request that asks for one
+//! is refused with `WORKER_ERROR` before any event, so the desktop reruns it there.
 
 mod audio;
 mod blas;
+mod clone;
 mod engine;
 mod exp;
 mod front;
@@ -12,6 +13,7 @@ mod mt19937;
 mod np;
 mod npy;
 mod pyuni;
+mod sndfile;
 mod sort;
 mod text;
 
@@ -21,7 +23,7 @@ use crate::media::{executable, spawn_capture};
 use crate::paths::contained_path;
 use crate::pyfmt::{float_repr, tail_chars, truthy};
 use crate::render::number;
-use engine::{Draws, Engine, Paths, Voice, PRESET_TEMPERATURE};
+use engine::{Draws, Engine, Paths, Voice, CLONED_TEMPERATURE, PRESET_TEMPERATURE};
 use serde_json::{json, Map, Value};
 use std::path::{Path, PathBuf};
 
@@ -73,8 +75,60 @@ fn total(parts: &[Vec<f32>]) -> i64 {
     parts.iter().map(Vec::len).sum::<usize>() as i64
 }
 
+/// The cloned voices of one request. As in Python, each reference is cropped once per request (`crops`), and a voice is enrolled at
+/// its first engine call and kept once it succeeds.
+// shortcut: voices are keyed by path, VieNeu's memo by content (an LRU of 32); the desktop names assets by content hash, so the two
+// differ only for one recording imported in two formats or a request with over 32 references, where the takes stay the same and
+// only the K-cond trace repeats an enrollment. Key by content if such requests appear.
+struct Clones {
+    model_dir: PathBuf,
+    io: Option<clone::Io>,
+    enroller: Option<clone::Enroller>,
+    crops: Vec<(String, clone::Crop)>,
+    voices: Vec<(String, Voice)>,
+}
+
+impl Clones {
+    /// `crops[ref] = clone_reference(ref)` unless this request already cut it.
+    fn crop(&mut self, reference: &str, ffmpeg_path: Option<&str>) -> Result<()> {
+        if self.io.is_none() {
+            self.io = Some(clone::Io::load(&site_packages(), ffmpeg_path)?);
+        }
+        if !self.crops.iter().any(|(r, _)| r == reference) {
+            let crop = self.io.as_ref().expect("loaded above").crop(reference, &clone::Trace::from_env());
+            self.crops.push((reference.to_string(), crop));
+        }
+        Ok(())
+    }
+
+    /// The voice `_resolve_ref(None, crop, denoise=True, use_ref_codes=True)` enrolls from the crop of `reference`.
+    fn voice(&mut self, engine: &Engine, reference: &str) -> Result<&Voice> {
+        if let Some(at) = self.voices.iter().position(|(r, _)| r == reference) {
+            return Ok(&self.voices[at].1);
+        }
+        if self.enroller.is_none() {
+            let (env, options) = engine.sessions();
+            self.enroller = Some(clone::Enroller::load(env, options, &self.model_dir)?);
+        }
+        let crop = &self.crops.iter().find(|(r, _)| r == reference).expect("cropped before synthesis").1;
+        let io = self.io.as_ref().expect("loaded with the crop");
+        let (emb, codes) = self.enroller.as_ref().expect("loaded above").enroll(io, crop, &clone::Trace::from_env())?;
+        self.voices.push((reference.to_string(), Voice::cloned(emb, codes)));
+        Ok(&self.voices[self.voices.len() - 1].1)
+    }
+}
+
 /// `synth(item)`: one take, or the error to report for it.
-fn synth(engine: &Engine, draws: &mut Draws, item: &Value, output_dir: &Path) -> Result<Value> {
+fn synth(engine: &Engine, draws: &mut Draws, clones: &mut Clones, item: &Value, output_dir: &Path) -> Result<Value> {
+    // voice_kwargs(item): a cloned voice's reference must exist; VieNeu gets it as str(Path(reference_path))
+    let reference = match item.get("reference_path").filter(|v| truthy(v)) {
+        None => None,
+        Some(Value::String(s)) => Some(clone::py_path(s)),
+        Some(_) => return Err(WorkerError::py("TypeError", "expected str, bytes or os.PathLike object")),
+    };
+    if reference.as_ref().is_some_and(|r| !Path::new(r).is_file()) {
+        return Err(WorkerError::new("INPUT_MISSING", "Reference voice file is missing."));
+    }
     let name = match item.get("output_name") {
         Some(v) if !truthy(v) => uuid::Uuid::new_v4().to_string() + ".wav",
         Some(Value::String(s)) => s.clone(),
@@ -88,17 +142,24 @@ fn synth(engine: &Engine, draws: &mut Draws, item: &Value, output_dir: &Path) ->
     if final_path.exists() {
         return Err(WorkerError::new("OUTPUT_EXISTS", "A take already exists at that output name."));
     }
+    if let Some(r) = &reference {
+        clones.crop(r, item.get("ffmpeg_path").and_then(Value::as_str))?;
+    }
     let (parts, trailing) = text::split_pauses(item["text"].as_str().unwrap_or_default())?;
     let speed_value = item.get("speed").cloned().unwrap_or(json!(1));
     let speed = number(Some(&speed_value), "speed", 0.5, 2.0)?;
     let ffmpeg =
         if speed != 1.0 { Some(executable("ffmpeg", item.get("ffmpeg_path").and_then(Value::as_str))?) } else { None };
-    let voice: &Voice = engine.voice(item.get("voice_id").filter(|v| truthy(v)))?;
+    // A cloned voice samples at the engine's default temperature, a preset at the worker's.
+    let (voice, temperature): (&Voice, f64) = match &reference {
+        Some(r) => (clones.voice(engine, r)?, CLONED_TEMPERATURE),
+        None => (engine.voice(item.get("voice_id").filter(|v| truthy(v)))?, PRESET_TEMPERATURE),
+    };
     let (mut pieces, mut unstretched): (Vec<Vec<f32>>, Vec<Vec<f32>>) = (Vec::new(), Vec::new());
     let mut call = 0;
     for (chunk, before) in &parts {
         pieces.push(silence(audio::py_round(before * 48000.0)));
-        let reading = engine.infer(chunk, voice, PRESET_TEMPERATURE, draws, &name, &mut call)?;
+        let reading = engine.infer(chunk, voice, temperature, draws, &name, &mut call)?;
         if let Some(ff) = &ffmpeg {
             unstretched.push(silence(audio::py_round(total(&pieces) as f64 * speed) - total(&unstretched)));
             pieces.push(stretch(&reading, &speed_value, ff)?);
@@ -147,8 +208,8 @@ pub fn tts(
     let batch = payload.contains_key("items");
     let single = [Value::Object(payload.clone())];
     let listed = if batch { payload["items"].as_array().map(Vec::as_slice) } else { Some(&single[..]) };
-    if listed.unwrap_or_default().iter().any(|i| asks(i, "reference_path") || asks(i, "check_model_path")) {
-        return Err(WorkerError::new("WORKER_ERROR", "Cloned voices and take checks run on the Python worker."));
+    if listed.unwrap_or_default().iter().any(|i| asks(i, "check_model_path")) {
+        return Err(WorkerError::new("WORKER_ERROR", "Take checks run on the Python worker."));
     }
     let model_dir = match payload.get("model_path") {
         None => String::new(),
@@ -177,18 +238,24 @@ pub fn tts(
     })?;
     std::fs::create_dir_all(output_dir).map_err(|e| WorkerError::py("OSError", e))?;
     let mut draws = Draws::from_env();
+    let mut clones = Clones { model_dir, io: None, enroller: None, crops: Vec::new(), voices: Vec::new() };
     if !batch {
         progress(0.3, "Synthesizing speech");
-        return synth(&engine, &mut draws, &items[0], output_dir);
+        return synth(&engine, &mut draws, &mut clones, &items[0], output_dir);
     }
     for (i, item) in items.iter().enumerate() {
         progress(0.1 + 0.9 * i as f64 / items.len() as f64, &format!("Synthesizing {}/{}", i + 1, items.len()));
-        match synth(&engine, &mut draws, item, output_dir) {
+        match synth(&engine, &mut draws, &mut clones, item, output_dir) {
             Ok(result) => emit_item(i, "result", result),
             Err(e) => emit_item(i, "error", json!({"code": e.code, "message": e.message})),
         }
     }
     Ok(json!({"count": items.len()}))
+}
+
+/// `clone_preview(payload, output_dir, progress)`.
+pub fn clone_preview(payload: &Map<String, Value>, output_dir: &Path, progress: &dyn Fn(f64, &str)) -> Result<Value> {
+    clone::clone_preview(payload, output_dir, progress, &site_packages())
 }
 
 #[cfg(test)]
@@ -258,5 +325,54 @@ mod tests {
         }
         eprintln!("rows L and P1: {total} lines, {differ} differ");
         assert!(total > 0 && differ == 0);
+    }
+
+    /// The Rust form of `test_clone_preview_matches_what_synthesis_enrolls`: the preview is the denoised clip a cloned `tts`
+    /// enrolls, within 1e-4 as in Python (the enrollment's denoiser runs with the engine's session options, the preview's with ORT's
+    /// defaults, and the preview is PCM_24).
+    /// Runs when `THANHAM_TTS_MODEL` names the vieneu-v3 folder, `THANHAM_PYTHON` the runtime's python.exe and `THANHAM_FFMPEG` its
+    /// ffmpeg.exe.
+    #[test]
+    fn clone_preview_matches_what_synthesis_enrolls() {
+        let (Some(model), Some(_), Some(_)) = (
+            std::env::var("THANHAM_TTS_MODEL").ok(),
+            std::env::var_os("THANHAM_PYTHON"),
+            std::env::var_os("THANHAM_FFMPEG"),
+        ) else {
+            return;
+        };
+        let dir = tempfile::tempdir().unwrap();
+        // A noisy, syllable-gated harmonic tone after 1 s of near silence: something to trim, crop and denoise.
+        let sr = 24000;
+        let mut seed = 0x2545_f491u32;
+        let audio: Vec<f32> = (0..12 * sr)
+            .map(|i| {
+                let t = i as f64 / sr as f64;
+                let voiced = f64::from(u8::from((2.0 * std::f64::consts::PI * 3.0 * t).sin() > -0.3 && t > 1.0));
+                let tone: f64 =
+                    (1..=5).map(|k| (2.0 * std::f64::consts::PI * 180.0 * k as f64 * t).sin() / k as f64).sum();
+                seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                (0.2 * voiced * tone + 0.01 * (f64::from(seed >> 8) / f64::from(1u32 << 24) * 2.0 - 1.0)) as f32
+            })
+            .collect();
+        let reference = dir.path().join("reference.wav").to_string_lossy().into_owned();
+        let snd =
+            sndfile::SndFile::load_pinned(&site_packages().join("_soundfile_data").join("libsndfile_x64.dll")).unwrap();
+        snd.write(&reference, &audio, sr, sndfile::Subtype::Pcm16).unwrap();
+        let payload = |extra: Value| {
+            let mut p = json!({"model_path": model, "reference_path": reference});
+            p.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+            p.as_object().unwrap().clone()
+        };
+        let out = dir.path().join("out");
+        tts(&payload(json!({"text": "Xin chào.", "output_name": "take.wav"})), &out, &|_, _| {}, &|_, _, _| {})
+            .unwrap();
+        let preview = clone_preview(&payload(json!({"output_name": "preview.wav"})), &out, &|_, _| {}).unwrap();
+        let captured = clone::DENOISED.take();
+        let data = snd.read(preview["path"].as_str().unwrap()).unwrap();
+        assert_eq!((data.rate, captured.len()), (44100, 2));
+        assert_eq!(data.samples.len(), captured[0].len());
+        let worst = data.samples.iter().zip(&captured[0]).map(|(a, b)| (a - b).abs()).fold(0.0f32, f32::max);
+        assert!(worst <= 1e-4, "{worst}");
     }
 }

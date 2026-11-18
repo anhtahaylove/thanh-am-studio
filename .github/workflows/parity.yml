@@ -17,7 +17,7 @@ jobs:
     defaults:
       run:
         shell: pwsh
-        # cargo reads .cargo/config.toml (crt-static) from the working directory.
+        # cargo reads .cargo/config.toml (dynamic CRT) from the working directory.
         working-directory: worker-rs
     steps:
       - uses: actions/checkout@v4
@@ -113,9 +113,11 @@ jobs:
           key: parity-models-vieneu-${{ hashFiles('worker/models.json') }}
       - name: Fetch the VieNeu model
         run: '& $env:PY -I worker-rs/parity/fetch_models.py --exe worker-rs/stage/thanham-worker.exe --models "$env:RUNNER_TEMP/parity-models-vieneu" --only vieneu-v3'
+      # The tts:: tests include the Rust form of test_clone_preview_matches_what_synthesis_enrolls, which needs FFmpeg.
       - name: Rows L and P1 (text checks, pause marks, chunks, phonemes and token ids)
         env:
           THANHAM_TTS_MODEL: ${{ runner.temp }}/parity-models-vieneu/vieneu-v3
+          THANHAM_FFMPEG: ${{ github.workspace }}/runtime/ffmpeg/ffmpeg.exe
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
           $env:THANHAM_TTS_CASES = "$env:RUNNER_TEMP/tts-cases.jsonl"
@@ -130,6 +132,16 @@ jobs:
         env:
           THANHAM_TTS_MODEL: ${{ runner.temp }}/parity-models-vieneu/vieneu-v3
         run: '& $env:PY -I worker-rs/parity/tts_op.py --python $env:PY --exe worker-rs/stage/thanham-worker.exe --model $env:THANHAM_TTS_MODEL --ffmpeg runtime/ffmpeg/ffmpeg.exe --items worker-rs/parity/tts/items.json --out "$env:RUNNER_TEMP/tts-op"'
+      # Cloned voices: references made here from preset takes (no recording in the repository), then seeded cloned tts, every
+      # enrollment step (K-cond) and clone_preview on every reference, Python against Rust.
+      - name: Rows P-op and K-cond (cloned tts and clone_preview on this runner)
+        if: ${{ !cancelled() }}
+        env:
+          THANHAM_TTS_MODEL: ${{ runner.temp }}/parity-models-vieneu/vieneu-v3
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          & $env:PY -I worker-rs/parity/clone_refs.py --python $env:PY --model $env:THANHAM_TTS_MODEL --ffmpeg runtime/ffmpeg/ffmpeg.exe --out "$env:RUNNER_TEMP/clone-refs"
+          & $env:PY -I worker-rs/parity/tts_op.py --python $env:PY --exe worker-rs/stage/thanham-worker.exe --model $env:THANHAM_TTS_MODEL --ffmpeg runtime/ffmpeg/ffmpeg.exe --items worker-rs/parity/tts/clone_items.json --refs "$env:RUNNER_TEMP/clone-refs" --previews --out "$env:RUNNER_TEMP/tts-clone"
       - name: Row X Opus recipes (against the Python worker on this runner)
         if: ${{ !cancelled() }}
         run: '& $env:PY -I worker-rs/parity/x_compare.py --exe worker-rs/stage/thanham-worker.exe --ffmpeg runtime/ffmpeg/ffmpeg.exe --only x05-format-opus --opus-python $env:PY --main worker/main.py'
@@ -154,4 +166,9 @@ jobs:
             ${{ runner.temp }}/tts-op/*.jsonl
             ${{ runner.temp }}/tts-op/*.log
             ${{ runner.temp }}/tts-op/*.csv
+            ${{ runner.temp }}/tts-clone/*.json
+            ${{ runner.temp }}/tts-clone/*.jsonl
+            ${{ runner.temp }}/tts-clone/*.log
+            ${{ runner.temp }}/tts-clone/preview-*/*.jsonl
+            ${{ runner.temp }}/tts-clone/preview-*/*.log
           if-no-files-found: ignore

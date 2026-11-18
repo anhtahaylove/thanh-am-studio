@@ -12,6 +12,7 @@ make their Python reference on the machine that runs them, from the private runt
 | F | ORT FFI against the recorded Silero and VieNeu tensors | `cargo test -p ortffi` | `../crates/ortffi/fixtures/` |
 | L, P1 | preset TTS before the engine: the text check (token cap), pause marks, chunks and gaps, the readings and token ids of every chunk, and the preset voices as loaded; 10,000+ lines from `tts_corpus.py` | `tts_cases.py`, then `cargo test --release tts::` | made on the machine |
 | P-op, P3-P5 | preset `tts` seeded (`THANHAM_TTS_SEED`) in both workers: events, WAV and raw WAV bytes, and per engine call the logits (P3), codes (P4) and decoded PCM (P5); 148 items in `tts/items.json` | `tts_op.py` (with `tts_trace.py` on the Python side) | made on the machine |
+| P-op, K-cond (cloned) | cloned `tts` and `clone_preview` seeded in both workers: the P-op rows above, plus every step of reference enrollment (decode, window, trim, the PCM_16 file, each resample, the denoiser's STFT, ORT and output, fbank, embedding, codes; `THANHAM_CLONE_TRACE`) and the preview's bytes; 25 items in `tts/clone_items.json` over 20 references (rates 8 to 96 kHz, stereo, every importer format soundfile reads, and M4A) | `tts_op.py --refs --previews` | references made on the machine by `clone_refs.py` from preset takes (no recording in the repository) |
 
 Run them from `worker-rs/`, after `cargo build --release`:
 
@@ -25,6 +26,8 @@ ORTFFI_REQUIRE=1 cargo test -p ortffi        # with ORTFFI_DLL, ORTFFI_SHERPA_DL
 <py> -I -X utf8 parity/tts_cases.py --corpus corpus.jsonl --model <models>/vieneu-v3 --out cases.jsonl
 THANHAM_TTS_CASES=cases.jsonl THANHAM_TTS_MODEL=<models>/vieneu-v3 THANHAM_PYTHON=<py> cargo test --release tts::
 <py> -I parity/tts_op.py --python <py> --exe <staged thanham-worker.exe> --model <models>/vieneu-v3 --ffmpeg <ffmpeg.exe> --items parity/tts/items.json --out <dir> [--rounds N]
+<py> -I parity/clone_refs.py --python <py> --model <models>/vieneu-v3 --ffmpeg <ffmpeg.exe> --out <refs>
+<py> -I parity/tts_op.py --python <py> --exe <staged thanham-worker.exe> --model <models>/vieneu-v3 --ffmpeg <ffmpeg.exe> --items parity/tts/clone_items.json --refs <refs> --previews --out <dir>
 ```
 
 `<py>` is the private runtime's `runtime\python\python.exe` (`scripts/setup-runtime.ps1`). The staged exe is `scripts/stage-worker.ps1`'s folder plus

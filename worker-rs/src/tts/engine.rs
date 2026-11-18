@@ -17,6 +17,8 @@ use std::path::{Path, PathBuf};
 
 /// Preset sampling temperature of the worker (`PRESET_TEMPERATURE`).
 pub const PRESET_TEMPERATURE: f64 = 0.5;
+/// Sampling temperature of a cloned voice: the worker passes none, so `V3TurboVieNeuTTS.infer`'s default applies.
+pub const CLONED_TEMPERATURE: f64 = 0.8;
 const TOP_K: usize = 25;
 const TOP_P: f64 = 0.95;
 const REP_PEN: f64 = 1.2;
@@ -37,11 +39,18 @@ pub struct Paths {
     pub voices_json: PathBuf,
 }
 
-/// A preset voice.
+/// A preset voice, or a cloned one.
 pub struct Voice {
     speaker_emb: Vec<f32>,
     /// Reference codes `(T, 16)` row-major, encoder pad frame stripped.
     codes: Option<Vec<i64>>,
+}
+
+impl Voice {
+    /// What `_enroll_reference` returns for a cloned voice: the speaker embedding and the reference codes.
+    pub fn cloned(speaker_emb: Vec<f32>, codes: Vec<i64>) -> Voice {
+        Voice { speaker_emb, codes: Some(codes) }
+    }
 }
 
 struct Ids {
@@ -115,6 +124,8 @@ pub struct Engine {
     weights: Weights,
     front: Front,
     env: Env,
+    /// The engine's session options (`self._so`), which the clone sessions share.
+    options: SessionOptions,
     sess_pre: Session,
     sess_dec: Session,
     sess_ac: Session,
@@ -145,13 +156,7 @@ fn cpu_count() -> usize {
 
 /// Python's `repr()` of a list of strings, for the "voice not found" message.
 fn py_list_repr(items: &[&str]) -> String {
-    let quoted: Vec<String> = items
-        .iter()
-        .map(|s| {
-            let q = if s.contains('\'') && !s.contains('"') { '"' } else { '\'' };
-            format!("{q}{}{q}", s.replace('\\', "\\\\").replace(q, &format!("\\{q}")))
-        })
-        .collect();
+    let quoted: Vec<String> = items.iter().map(|s| crate::pyfmt::str_repr(s)).collect();
     format!("[{}]", quoted.join(", "))
 }
 
@@ -216,6 +221,7 @@ impl Engine {
             weights,
             front,
             env,
+            options: so,
             sess_pre,
             sess_dec,
             sess_ac,
@@ -226,6 +232,11 @@ impl Engine {
             default_voice,
             trace: std::env::var_os("THANHAM_TTS_TRACE").filter(|s| !s.is_empty()).map(PathBuf::from),
         })
+    }
+
+    /// The ONNX Runtime environment and the engine's session options, for the clone sessions.
+    pub fn sessions(&self) -> (&Env, &SessionOptions) {
+        (&self.env, &self.options)
     }
 
     /// `_resolve_ref(voice, None, ...)` for a preset: the named voice (or the preset an alias points to), else the default voice.

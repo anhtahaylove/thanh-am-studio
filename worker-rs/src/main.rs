@@ -1,6 +1,6 @@
 //! `thanham-worker.exe`: the native worker. Reads one protocol-v1 request on stdin and writes JSON-lines events on stdout,
-//! like `worker/main.py`. It serves `health`, `probe`, `render`, `download` and `tts` for preset voices; the other operations
-//! arrive in later phases and, until then, never reach this exe (the desktop does not route them here).
+//! like `worker/main.py`. It serves `health`, `probe`, `render`, `download`, `tts` (without take checks) and `clone_preview`; the
+//! other operations arrive in later phases and, until then, never reach this exe (the desktop does not route them here).
 
 mod download;
 mod error;
@@ -51,6 +51,9 @@ fn serve(request: &Request, out: &Arc<Emitter>) -> Result<Value> {
             &|value, message| out.progress(value, message),
             &|index, key, value| out.emit("item", serde_json::json!({"index": index, key: value})),
         ),
+        "clone_preview" => {
+            tts::clone_preview(payload, &request.output_dir, &|value, message| out.progress(value, message))
+        }
         other => {
             Err(WorkerError::py("NotImplementedError", format!("the Rust worker does not implement '{other}' yet")))
         }

@@ -39,7 +39,7 @@ jobs:
     runs-on: windows-latest
     defaults:
       run:
-        # cargo reads .cargo/config.toml (crt-static) from the working directory, not from --manifest-path.
+        # cargo reads .cargo/config.toml (dynamic CRT) from the working directory, not from --manifest-path.
         working-directory: worker-rs
     steps:
       - uses: actions/checkout@v4
