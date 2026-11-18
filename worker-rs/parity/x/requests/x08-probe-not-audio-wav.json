@@ -1,0 +1,10 @@
+{
+ "protocol": 1,
+ "id": "x-x08-probe-not-audio-wav",
+ "operation": "probe",
+ "payload": {
+  "input_path": "${FIX}/not-audio.wav"
+ },
+ "output_dir": "${OUT}",
+ "models_dir": "${OUT}"
+}

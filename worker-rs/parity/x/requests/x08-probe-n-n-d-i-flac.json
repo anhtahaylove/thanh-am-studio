@@ -1,0 +1,10 @@
+{
+ "protocol": 1,
+ "id": "x-x08-probe-n-n-d-i-flac",
+ "operation": "probe",
+ "payload": {
+  "input_path": "${FIX}/nền dài.flac"
+ },
+ "output_dir": "${OUT}",
+ "models_dir": "${OUT}"
+}

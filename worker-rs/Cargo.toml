@@ -1,0 +1,46 @@
+# Own workspace and lock file: never joins src-tauri's.
+[workspace]
+resolver = "2"
+members = [".", "crates/ortffi"]
+
+[package]
+name = "thanham-worker"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+license = "Apache-2.0"
+description = "Thanh Am Studio native worker: protocol v1 on stdin/stdout, same events and codes as worker/main.py"
+publish = false
+
+[[bin]]
+name = "thanham-worker"
+path = "src/main.rs"
+
+[dependencies]
+ortffi = { path = "crates/ortffi" }
+serde_json = { version = "1", features = ["preserve_order"] }
+sha1 = "0.10"
+sha2 = "0.10"
+uuid = { version = "1", features = ["v4"] }
+# The reqwest the updater already pulls (src-tauri/Cargo.lock), with ring and the Windows certificate store and proxy settings.
+reqwest = { version = "=0.13.5", default-features = false, features = ["blocking", "rustls-no-provider", "system-proxy"] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_Threading"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+panic = "unwind"
+opt-level = 2
+lto = "thin"
+codegen-units = 4
+strip = "debuginfo"
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+
+[lints.clippy]
+undocumented_unsafe_blocks = "deny"

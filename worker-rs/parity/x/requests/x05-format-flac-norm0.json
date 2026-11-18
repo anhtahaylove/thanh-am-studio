@@ -1,0 +1,19 @@
+{
+ "protocol": 1,
+ "id": "x-x05-format-flac-norm0",
+ "operation": "render",
+ "payload": {
+  "clips": [
+   {
+    "path": "${FIX}/tone3s.wav",
+    "trim_start_ms": 0,
+    "trim_end_ms": null,
+    "gap_ms": 250
+   }
+  ],
+  "normalize": false,
+  "format": "flac"
+ },
+ "output_dir": "${OUT}",
+ "models_dir": "${OUT}"
+}

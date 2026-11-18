@@ -1,0 +1,15 @@
+{
+ "protocol": 1,
+ "id": "x-x07-not-audio",
+ "operation": "render",
+ "payload": {
+  "clips": [
+   {
+    "path": "${FIX}/not-audio.wav"
+   }
+  ],
+  "format": "wav"
+ },
+ "output_dir": "${OUT}",
+ "models_dir": "${OUT}"
+}

@@ -1,0 +1,15 @@
+{
+ "protocol": 1,
+ "id": "x-x07-bad-format-wma",
+ "operation": "render",
+ "payload": {
+  "clips": [
+   {
+    "path": "${FIX}/voice1k.wav"
+   }
+  ],
+  "format": "wma"
+ },
+ "output_dir": "${OUT}",
+ "models_dir": "${OUT}"
+}

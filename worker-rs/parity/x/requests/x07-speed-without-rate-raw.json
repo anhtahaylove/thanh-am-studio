@@ -1,0 +1,20 @@
+{
+ "protocol": 1,
+ "id": "x-x07-speed-without-rate-raw",
+ "operation": "render",
+ "payload": {
+  "clips": [
+   {
+    "path": "${FIX}/take125.wav",
+    "raw_path": "${FIX}/raw125.wav",
+    "speed": 9,
+    "at_ms": 0,
+    "rate": 1.5
+   }
+  ],
+  "format": "wav",
+  "timeline": true
+ },
+ "output_dir": "${OUT}",
+ "models_dir": "${OUT}"
+}

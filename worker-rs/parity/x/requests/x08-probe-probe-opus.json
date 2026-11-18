@@ -1,0 +1,10 @@
+{
+ "protocol": 1,
+ "id": "x-x08-probe-probe-opus",
+ "operation": "probe",
+ "payload": {
+  "input_path": "${FIX}/probe.opus"
+ },
+ "output_dir": "${OUT}",
+ "models_dir": "${OUT}"
+}

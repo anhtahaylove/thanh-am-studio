@@ -1,0 +1,10 @@
+{
+ "protocol": 1,
+ "id": "x-x08-probe-probe-8k-wav",
+ "operation": "probe",
+ "payload": {
+  "input_path": "${FIX}/probe-8k.wav"
+ },
+ "output_dir": "${OUT}",
+ "models_dir": "${OUT}"
+}

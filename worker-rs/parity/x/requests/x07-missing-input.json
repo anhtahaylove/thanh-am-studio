@@ -1,0 +1,15 @@
+{
+ "protocol": 1,
+ "id": "x-x07-missing-input",
+ "operation": "render",
+ "payload": {
+  "clips": [
+   {
+    "path": "${FIX}/does-not-exist.wav"
+   }
+  ],
+  "format": "wav"
+ },
+ "output_dir": "${OUT}",
+ "models_dir": "${OUT}"
+}
