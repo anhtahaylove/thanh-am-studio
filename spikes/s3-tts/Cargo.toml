@@ -1,0 +1,27 @@
+[package]
+name = "s3-tts"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+license = "MIT"
+description = "Thanh Am Studio Rust migration spike S3: the VieNeu preset TTS engine, numpy float32 head reproduced bitwise (E0)"
+publish = false
+
+# Own workspace so this spike never joins src-tauri's, the ortffi spike's or the other spikes'.
+[workspace]
+
+[dependencies]
+# Reused unmodified from branch spike/ortffi (worktree outputs/wt/rust-ortffi).
+ortffi = { path = "../../../rust-ortffi/spikes/ortffi" }
+# Same pins as the S2 front-end spike (Cargo.lock copied from it): the sea_g2p 0.10.0 wheel's commit and the tokenizers 0.23.3 tag.
+sea-g2p-rs = { git = "https://github.com/pnnbao97/sea-g2p", rev = "dae5ca83ea45f356c43bdb70a1bcd42e8729ff16", default-features = false }
+tokenizers = { git = "https://github.com/huggingface/tokenizers", tag = "v0.23.3", default-features = false, features = ["fancy-regex"] }
+regex = "1"
+sha2 = "0.10"
+serde_json = "1"
+
+[build-dependencies]
+cc = "1"
+
+[profile.release]
+debug = false
