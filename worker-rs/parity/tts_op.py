@@ -4,10 +4,14 @@ the files left in the output folder, and per engine call the phonemes, token ids
 PCM (P5).
 
 usage: python -I tts_op.py --python <runtime python.exe> --exe <staged thanham-worker.exe> --model <vieneu-v3 folder>
-                           --ffmpeg <ffmpeg.exe> --items <items.json> --out <dir> [--seed 20261121] [--rounds 1]
+                           --ffmpeg <ffmpeg.exe> --items <items.json> --out <dir> [--seed 20261121] [--rounds 1] [--no-trace]
 
-Both workers get THANHAM_TTS_SEED (the N12 hook) and run at BelowNormal priority. With --rounds N the pair runs N times, interleaved
-(Python first), and each process's wall time and peak working set go to <out>/ram.csv; every round is compared. Exits 1 on a difference.
+Both workers get THANHAM_TTS_SEED (the N12 hook) and run at BelowNormal priority, opted out of Windows power throttling (EcoQoS, which
+otherwise parks BelowNormal processes on the E-cores of a hybrid CPU); they inherit this script's affinity, so pin it to one core type
+(`start /affinity FFF`). With --rounds N the pair runs N times, interleaved (Python first), and each process's wall time, peak working
+set and CPU time, the machine's available memory and CPU % just before and after it, and the cores other processes used meanwhile go to
+<out>/ram.csv; every round is compared. --no-trace (for the RTF and RAM accept) runs worker/main.py as the desktop does and the Rust
+worker without THANHAM_TTS_TRACE, so the per-call rows are skipped and only events and files are compared. Exits 1 on a difference.
 """
 import argparse
 import ctypes
@@ -31,18 +35,53 @@ class Counters(ctypes.Structure):
                                        'QuotaPeakNonPagedPoolUsage', 'QuotaNonPagedPoolUsage', 'PagefileUsage', 'PeakPagefileUsage')]
 
 
+class MemoryStatus(ctypes.Structure):
+    _fields_ = [('dwLength', ctypes.wintypes.DWORD), ('dwMemoryLoad', ctypes.wintypes.DWORD)] + [
+        (n, ctypes.c_ulonglong) for n in ('TotalPhys', 'AvailPhys', 'TotalPageFile', 'AvailPageFile', 'TotalVirtual', 'AvailVirtual',
+                                          'AvailExtendedVirtual')]
+
+
+def available_mb():
+    m = MemoryStatus(dwLength=ctypes.sizeof(MemoryStatus))
+    ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(m))
+    return m.AvailPhys / 2**20
+
+
+def busy_seconds():
+    """CPU seconds all processors have spent outside the idle process (kernel time includes idle time)."""
+    idle, kernel, user = ctypes.c_ulonglong(), ctypes.c_ulonglong(), ctypes.c_ulonglong()
+    ctypes.windll.kernel32.GetSystemTimes(ctypes.byref(idle), ctypes.byref(kernel), ctypes.byref(user))
+    return (kernel.value + user.value - idle.value) / 1e7
+
+
+def cpu_percent():
+    """Machine CPU % over the next second."""
+    b0, t0 = busy_seconds(), time.perf_counter()
+    time.sleep(1)
+    return (busy_seconds() - b0) / (time.perf_counter() - t0) / os.cpu_count() * 100
+
+
 def run(argv, request, env, out_dir):
-    """One worker process: (exit code, event lines, wall seconds, peak working set MB)."""
+    """One worker process: (exit code, event lines, wall seconds, peak working set MB, machine load)."""
     shutil.rmtree(out_dir, ignore_errors=True)
     out_dir.mkdir(parents=True)
-    t0 = time.perf_counter()
+    load = {'avail_mb_start': available_mb(), 'cpu_pct_start': cpu_percent()}
+    b0, t0 = busy_seconds(), time.perf_counter()
     p = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=open(out_dir.with_suffix('.log'), 'wb'),
                          env=env, creationflags=BELOW_NORMAL | subprocess.CREATE_NO_WINDOW)
+    handle = ctypes.wintypes.HANDLE(int(p._handle))
+    # ProcessPowerThrottling (4): {Version 1, ControlMask EXECUTION_SPEED, StateMask 0} = never throttle; set before the model loads
+    assert ctypes.windll.kernel32.SetProcessInformation(handle, 4, (ctypes.c_uint32 * 3)(1, 1, 0), 12), 'EcoQoS opt-out failed'
     stdout, _ = p.communicate((json.dumps(request, ensure_ascii=False) + '\n').encode('utf-8'))
-    wall = time.perf_counter() - t0
+    wall, busy = time.perf_counter() - t0, busy_seconds() - b0
     c = Counters(cb=ctypes.sizeof(Counters))
-    ctypes.windll.psapi.GetProcessMemoryInfo(ctypes.wintypes.HANDLE(int(p._handle)), ctypes.byref(c), c.cb)
-    return p.returncode, [ln for ln in stdout.decode('utf-8').split('\n') if ln.strip()], wall, c.PeakWorkingSetSize / 2**20
+    ctypes.windll.psapi.GetProcessMemoryInfo(handle, ctypes.byref(c), c.cb)
+    times = [ctypes.c_ulonglong() for _ in range(4)]
+    ctypes.windll.kernel32.GetProcessTimes(handle, *map(ctypes.byref, times))
+    load['worker_cpu_s'] = (times[2].value + times[3].value) / 1e7
+    load['others_cores'] = (busy - load['worker_cpu_s']) / wall
+    load.update(avail_mb_end=available_mb(), cpu_pct_end=cpu_percent())
+    return p.returncode, [ln for ln in stdout.decode('utf-8').split('\n') if ln.strip()], wall, c.PeakWorkingSetSize / 2**20, load
 
 
 def sha(path):
@@ -118,6 +157,7 @@ def main():
         ap.add_argument(a, required=True)
     ap.add_argument('--seed', default='20261121')
     ap.add_argument('--rounds', type=int, default=1)
+    ap.add_argument('--no-trace', action='store_true')
     args = ap.parse_args()
     out = Path(args.out).resolve()
     out.mkdir(parents=True, exist_ok=True)
@@ -129,7 +169,8 @@ def main():
     failed = False
     with open(out / 'ram.csv', 'a', encoding='utf-8', newline='\n') as ram:
         if ram.tell() == 0:
-            ram.write('round,engine,exit,wall_s,peak_ws_mb,audio_s\n')
+            ram.write('round,engine,exit,wall_s,peak_ws_mb,audio_s,worker_cpu_s,others_cores,avail_mb_start,cpu_pct_start,avail_mb_end,'
+                      'cpu_pct_end\n')
         for r in range(1, args.rounds + 1):
             runs = {}
             for engine in ('python', 'rust'):
@@ -138,17 +179,19 @@ def main():
                 trace.unlink(missing_ok=True)
                 request = {'protocol': 1, 'id': f'pop-{r}', 'operation': 'tts', 'output_dir': str(folder),
                            'payload': {'model_path': str(Path(args.model).resolve()), 'items': payload_items}}
-                if engine == 'python':
-                    argv, e = [args.python, '-I', '-X', 'utf8', str(HERE / 'tts_trace.py'), str(trace)], env
+                if engine == 'python':  # the desktop's command line, or the tracing wrapper around the same main()
+                    script = [str(HERE.parents[1] / 'worker' / 'main.py')] if args.no_trace else [str(HERE / 'tts_trace.py'), str(trace)]
+                    argv, e = [args.python, '-I', '-X', 'utf8', *script], env
                 else:
-                    argv, e = [args.exe], {**env, 'THANHAM_TTS_TRACE': str(trace)}
+                    argv, e = [args.exe], env if args.no_trace else {**env, 'THANHAM_TTS_TRACE': str(trace)}
                 runs[engine] = run(argv, request, e, folder)
-                code, lines, wall, peak = runs[engine]
+                code, lines, wall, peak, load = runs[engine]
                 if engine == 'python':
                     audio_s = sum(e['result']['duration_ms'] for e in map(json.loads, lines) if e.get('event') == 'item' and 'result' in e) / 1000
-                ram.write(f'{r},{engine},{code},{wall:.1f},{peak:.0f},{audio_s:.1f}\n')
+                ram.write(f'{r},{engine},{code},{wall:.1f},{peak:.0f},{audio_s:.1f},{load["worker_cpu_s"]:.1f},{load["others_cores"]:.2f},'
+                          f'{load["avail_mb_start"]:.0f},{load["cpu_pct_start"]:.0f},{load["avail_mb_end"]:.0f},{load["cpu_pct_end"]:.0f}\n')
                 ram.flush()
-                print(f'round {r} {engine}: exit {code}, {wall:.1f} s, peak working set {peak:.0f} MB', flush=True)
+                print(f'round {r} {engine}: exit {code}, {wall:.1f} s, peak working set {peak:.0f} MB, load {json.dumps(load)}', flush=True)
             diffs, rows = compare(runs['python'], runs['rust'], out / f'python{r}', out / f'rust{r}', out / f'python{r}.trace.jsonl', out / f'rust{r}.trace.jsonl')
             rows['audio_s'] = round(audio_s, 1)
             rows['rtf'] = {e: round(runs[e][2] / audio_s, 3) if audio_s else None for e in runs}
