@@ -64,7 +64,7 @@ class RangeHandler(http.server.BaseHTTPRequestHandler):
 class PackTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
-        self.tmp = Path(self._tmp.name)
+        self.tmp = Path(self._tmp.name).resolve()  # the worker resolves its folders: a short 8.3 temp path would otherwise expand
         self.addCleanup(self._tmp.cleanup)
 
     def serve(self, asset: Path):
