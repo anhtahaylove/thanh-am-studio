@@ -1530,7 +1530,6 @@ name = "thanham-worker"
 version = "0.1.0"
 dependencies = [
  "cc",
- "fancy-regex 0.17.0",
  "ortffi",
  "regex",
  "reqwest",

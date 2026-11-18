@@ -6,7 +6,6 @@
 
 use super::pyuni::{self, is_space};
 use crate::error::{Result, WorkerError};
-use fancy_regex::Regex as FancyRegex;
 use regex::Regex;
 use sea_g2p_rs::lang::vi::Normalizer;
 use sea_g2p_rs::punc::apply_punc_norm;
@@ -54,11 +53,12 @@ fn folded(word: &str) -> String {
     word.chars().map(|l| format!("[{}]", class_body(pyuni::fold_set(l).iter().map(|&c| (c, c))))).collect()
 }
 
-/// `PAUSE_MARK` (`main.py:79`).
+/// `PAUSE_MARK` (`main.py:79`). `(?!\w)[^\]]*\]` is written `(?:[^\]\w][^\]]*)?\]`, which matches the same spans, so the linear-time
+/// `regex` crate runs it: a backtracking engine is quadratic on long whitespace runs, and fancy-regex then stops at its backtrack limit.
 fn pause_mark_pattern() -> String {
     let (s, d, w) = (py_s(), py_d(), class_body(pyuni::word_ranges()));
     format!(
-        r"\[[{s}]*(?:(?:{}|{})(?![{w}])[^\]]*|{}[{s}]*(?:[{d}][^\]]*)?)\]",
+        r"\[[{s}]*(?:(?:{}|{})(?:[^\]{w}][^\]]*)?|{}[{s}]*(?:[{d}][^\]]*)?)\]",
         folded("nghỉ"),
         folded("pause"),
         folded("nghi")
@@ -66,14 +66,14 @@ fn pause_mark_pattern() -> String {
 }
 
 struct Patterns {
-    mark: FancyRegex,
-    run: FancyRegex,
+    mark: Regex,
+    run: Regex,
     value: Regex,
     emotion_split: Regex,
     emotion_token: Regex,
     frame_markup: Regex,
     newline: Regex,
-    minor_punct: FancyRegex,
+    minor_punct: Regex,
     token_keep_en: Regex,
 }
 
@@ -83,8 +83,8 @@ fn patterns() -> &'static Patterns {
         let (s, d, mark) = (py_s(), py_d(), pause_mark_pattern());
         let unit = ["ms", "second", "sec", "s", "giây", "giay"].map(folded);
         Patterns {
-            run: FancyRegex::new(&format!("[{s}]*(?:{mark}[{s}]*)+")).unwrap(),
-            mark: FancyRegex::new(&mark).unwrap(),
+            run: Regex::new(&format!("[{s}]*(?:{mark}[{s}]*)+")).unwrap(),
+            mark: Regex::new(&mark).unwrap(),
             // PAUSE_VALUE (`main.py:80`), as `fullmatch`.
             value: Regex::new(&format!(
                 r"\A\[[{s}]*(?:{}|{}|{})[{s}]*(?:([{d}]+(?:[.,][{d}]+)?)[{s}]*({}|{}{}?|{}|{}|{}|{})?[{s}]*)?\]\z",
@@ -104,7 +104,8 @@ fn patterns() -> &'static Patterns {
             emotion_token: Regex::new(&format!(r"<\|emotion_[{d}]+\|>")).unwrap(),
             frame_markup: Regex::new(&format!(r"<\|emotion_[{d}]+\|>|</?en>")).unwrap(),
             newline: Regex::new(r"[\r\n]+").unwrap(),
-            minor_punct: FancyRegex::new(&format!(r"(?<=[,;:\-–—])[{s}]+")).unwrap(),
+            // `(?<=[,;:\-–—])\s+` as the group of `[,;:\-–—](\s+)`: the punctuation is never whitespace, so the spans are the same.
+            minor_punct: Regex::new(&format!(r"[,;:\-–—]([{s}]+)")).unwrap(),
             // `<en>.*?</en>|\S+` with IGNORECASE | DOTALL; `e` and `n` fold only to their ASCII capitals.
             token_keep_en: Regex::new(&format!(r"(?s)<[eE][nN]>.*?</[eE][nN]>|[^{s}]+")).unwrap(),
         }
@@ -132,12 +133,10 @@ pub fn split_pauses(text: &str) -> Result<(Vec<(String, f64)>, f64)> {
     let mut replaced = String::with_capacity(text.len());
     let mut last = 0;
     for run in p.run.find_iter(text) {
-        let run = run.map_err(|e| WorkerError::py("RuntimeError", e))?;
         replaced.push_str(&text[last..run.start()]);
         let kept: String = p
             .mark
             .find_iter(run.as_str())
-            .filter_map(|m| m.ok())
             .filter(|m| pause_seconds(m.as_str()).is_some())
             .map(|m| m.as_str())
             .collect();
@@ -155,7 +154,6 @@ pub fn split_pauses(text: &str) -> Result<(Vec<(String, f64)>, f64)> {
     let text = replaced;
     let (mut parts, mut pause, mut pos) = (Vec::new(), 0.0f64, 0);
     for m in p.mark.find_iter(&text) {
-        let m = m.map_err(|e| WorkerError::py("RuntimeError", e))?;
         let chunk = pyuni::strip(&text[pos..m.start()]);
         if !chunk.is_empty() {
             parts.push((chunk.to_string(), pause));
@@ -433,7 +431,8 @@ fn split_long_part(part: &str, max_chars: usize) -> Vec<String> {
 fn minor_punct_split(sentence: &str) -> Vec<&str> {
     let mut parts = Vec::new();
     let mut pos = 0;
-    for m in patterns().minor_punct.find_iter(sentence).filter_map(|m| m.ok()) {
+    for c in patterns().minor_punct.captures_iter(sentence) {
+        let m = c.get(1).unwrap();
         parts.push(&sentence[pos..m.start()]);
         pos = m.end();
     }
@@ -598,6 +597,22 @@ mod tests {
         assert_eq!(split_pauses("Hôm nay [nghỉ abc], trời").unwrap().0, [("Hôm nay, trời".to_string(), 0.0)]);
         assert_eq!(split_pauses("[nghỉ 1s]").unwrap_err().message, "Đoạn chỉ có khoảng nghỉ, chưa có lời để đọc.");
         assert_eq!(split_pauses("A [nghỉ 0] B").unwrap_err().message, "Khoảng nghỉ phải từ 0,05 đến 10 giây.");
+    }
+
+    /// Long runs that a backtracking engine retries at every position (CI row P1 found `a` + spaces + `bê`); answers from Python.
+    #[test]
+    fn long_runs_match_like_python() {
+        let spaces = " ".repeat(5000);
+        let ws = format!("a{spaces}bê");
+        assert_eq!(split_pauses(&ws).unwrap(), (vec![(ws.clone(), 0.0)], 0.0));
+        let marked = format!("a{spaces}[nghỉ 1s]{spaces}b");
+        assert_eq!(split_pauses(&marked).unwrap(), (vec![("a".to_string(), 0.0), ("b".to_string(), 1.0)], 0.0));
+        let open = format!("x [pause{}", " y".repeat(3000));
+        assert_eq!(split_pauses(&open).unwrap().0, [(open.clone(), 0.0)]);
+        assert_eq!(split_pauses(&format!("a {}b", "[nghi 3x] ".repeat(200))).unwrap().0, [("a b".to_string(), 0.0)]);
+        let long = format!("a,{}b;-  c —\td", " ".repeat(4000));
+        assert_eq!(minor_punct_split(&long).iter().map(|p| pyuni::len(p)).collect::<Vec<_>>(), [2, 3, 3, 1]);
+        assert_eq!(minor_punct_split("a, b;c -  d — e,f"), ["a,", "b;c -", "d —", "e,f"]);
     }
 
     #[test]
