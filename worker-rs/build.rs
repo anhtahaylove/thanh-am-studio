@@ -50,7 +50,7 @@ fn main() {
         .compile("pocketfft_np");
 
     // Feature `ct2`: the STT engine from engine/build-engine.ps1, whose output folder THANHAM_CT2_ENGINE names (ct2rs-sys links
-    // ctranslate2, cpu_features, the cublas stubs and iomp5 from its lib\; MKLROOT must be its mklroot\).
+    // ctranslate2, cpu_features, the cublas stubs and iomp5 from LIBRARY_PATH, which must be its lib\; MKLROOT must be its mklroot\).
     if std::env::var_os("CARGO_FEATURE_CT2").is_some() {
         println!("cargo:rerun-if-env-changed=THANHAM_CT2_ENGINE");
         let engine = std::path::PathBuf::from(

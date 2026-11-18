@@ -225,6 +225,7 @@ jobs:
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
           $env:MKLROOT = "$env:THANHAM_CT2_ENGINE/mklroot"
+          $env:LIBRARY_PATH = "$env:THANHAM_CT2_ENGINE/lib"  # ct2rs-sys links its static libraries from here
           Push-Location worker-rs
           cargo clippy --release --locked --features ct2 --all-targets -- -D warnings
           cargo build --release --locked --features ct2
@@ -249,6 +250,7 @@ jobs:
           $PSNativeCommandUseErrorActionPreference = $true
           & $env:PY -I worker-rs/parity/ct2_encode.py $env:THANHAM_CT2_MODEL $env:THANHAM_CT2_REFERENCE
           $env:MKLROOT = "$env:THANHAM_CT2_ENGINE/mklroot"
+          $env:LIBRARY_PATH = "$env:THANHAM_CT2_ENGINE/lib"  # ct2rs-sys links its static libraries from here
           # The test binary imports the shim like the exe does.
           $env:PATH = "$((Resolve-Path worker-rs/stage).Path);$env:PATH"
           Push-Location worker-rs
