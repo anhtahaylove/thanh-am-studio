@@ -7,7 +7,10 @@ The fixtures follow P0-core's row D (6 containers x 4 rates x mono/stereo, a two
 groups) and add what the decode branches on: a 16 kHz mono s16 WAV (the resampler's passthrough), other sample formats (u8, s24,
 f32, 5.1), no audio stream, files FFmpeg cannot open, a truncated and a damaged file, a missing file and a non-ASCII name.
 
-usage: python -I decode_cases.py --ffmpeg <ffmpeg.exe> --dir <fixtures dir> --out <cases.jsonl> [--extra <dir> ...]
+With --vad, each decoded case also records faster-whisper's VAD on it (get_speech_timestamps with VadOptions(), as transcribe runs
+it): the Silero probabilities' SHA-256 and the speech chunks, for stt::vad::tests::vad_matches_python.
+
+usage: python -I decode_cases.py --ffmpeg <ffmpeg.exe> --dir <fixtures dir> --out <cases.jsonl> [--extra <dir> ...] [--vad]
 Every file of an --extra folder is a case too (for instance the clone references of clone_refs.py, which are speech).
 """
 import argparse
@@ -18,6 +21,7 @@ from pathlib import Path
 
 import numpy as np
 from faster_whisper.audio import decode_audio
+from faster_whisper.vad import VadOptions, get_speech_timestamps, get_vad_model
 
 CODECS = {'wav': ['-c:a', 'pcm_s16le'], 'mp3': ['-c:a', 'libmp3lame', '-b:a', '128k'], 'm4a': ['-c:a', 'aac', '-b:a', '128k'],
           'mp4': ['-c:v', 'mpeg4', '-q:v', '8', '-c:a', 'aac', '-b:a', '128k'], 'opus': ['-c:a', 'libopus', '-b:a', '96k'], 'flac': ['-c:a', 'flac']}
@@ -35,6 +39,7 @@ def main():
     ap.add_argument('--dir', required=True)
     ap.add_argument('--out', required=True)
     ap.add_argument('--extra', action='append', default=[])
+    ap.add_argument('--vad', action='store_true')
     a = ap.parse_args()
     fix = Path(a.dir).resolve()
     fix.mkdir(parents=True, exist_ok=True)
@@ -99,7 +104,12 @@ def main():
                 expected = {'n': int(len(i16)), 'sha256': hashlib.sha256(i16.tobytes()).hexdigest()}
             except Exception as e:  # the worker reports these as WORKER_ERROR "Type: text"
                 expected = {'error': f'{type(e).__name__}: {e}'}
-            out.write(json.dumps({'path': str(path), 'expected': expected}, ensure_ascii=False) + '\n')
+            case = {'path': str(path), 'expected': expected}
+            if a.vad and 'n' in expected:
+                probs = get_vad_model()(np.pad(pcm, (0, 512 - pcm.shape[0] % 512)))
+                case['vad'] = {'windows': int(len(probs)), 'probs_sha256': hashlib.sha256(probs.astype('<f4').tobytes()).hexdigest(),
+                               'speeches': [[c['start'], c['end']] for c in get_speech_timestamps(pcm, VadOptions())]}
+            out.write(json.dumps(case, ensure_ascii=False) + '\n')
             print(path.name, expected, flush=True)
     print(len(files), 'cases')
 
