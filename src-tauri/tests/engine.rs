@@ -151,6 +151,22 @@ fn the_separation_runtime_download_stays_on_python(){
  let j=e.store.enqueue("model_download",None,json!({"model_id":"separation-runtime"})).unwrap();let job=e.store.claim_next().unwrap().unwrap();e.rt.execute(&e.store,&[job]).unwrap();
  let job=e.store.job(j["id"].as_str().unwrap()).unwrap();assert_eq!((job["result"]["engine"].as_str(),job["result"]["fallback"].as_bool()),(Some("python"),Some(false)));assert!(e.calls("rust").is_empty());
 }
+fn cloned_voices_take_checks_and_clone_previews_stay_on_python(){
+ let routed=|kind:&str,payloads:Vec<Value>|{
+  let n=if kind=="tts"{payloads.len()}else{0};let mut py:Vec<Value>=(0..n).map(|i|json!({"do":"item","index":i})).collect();py.push(ok(json!({"count":n})));
+  let e=setup(json!([ok(json!({"done":"rust"}))]),json!(py));
+  let wav=e.dir.path().join("ref.wav");fs::write(&wav,b"RIFF0000WAVE").unwrap();let a=e.store.import_asset(&wav).unwrap();
+  let ids:Vec<String>=payloads.iter().map(|p|{let mut p=p.clone();for k in ["reference_asset_id","asset_id"]{if p[k]=="REF"{p[k]=a["id"].clone();}}e.store.enqueue(kind,None,p).unwrap()["id"].as_str().unwrap().to_string()}).collect();
+  let first=e.store.claim_next().unwrap().unwrap();let mut jobs=vec![first];jobs.extend(e.store.claim_queued(kind,31).unwrap());
+  let _=e.rt.execute(&e.store,&jobs);
+  assert!(e.calls("rust").is_empty()&&e.log().is_empty(),"{kind} {payloads:?}");assert_eq!(e.calls("python").len(),1,"{kind} {payloads:?}");
+  if kind=="tts"{for id in &ids{let j=e.store.job(id).unwrap();assert_eq!((j["status"].as_str(),j["result"]["engine"].as_str(),j["result"]["fallback"].as_bool()),(Some("succeeded"),Some("python"),Some(false)),"{payloads:?}");}}
+ };
+ routed("tts",vec![json!({"text":"câu","reference_asset_id":"REF"})]);
+ routed("tts",vec![json!({"text":"câu","check":true})]);
+ routed("tts",vec![json!({"text":"câu một"}),json!({"text":"câu hai","check":true})]); // one checked item takes the whole batch to Python
+ routed("clone_preview",vec![json!({"asset_id":"REF"})]);
+}
 fn status_reports_the_native_worker(){
  let e=setup(json!([]),json!([]));let s=e.rt.status();assert_eq!(s["native_worker_ready"],true);assert!(s["native_worker_path"].as_str().unwrap().ends_with("thanham-worker.exe"));
  let bare=Runtime::new(e.dir.path().join("none"),e.dir.path().join("none"));assert_eq!((bare.status()["native_worker_ready"].as_bool(),bare.status()["native_worker_path"].is_null()),(Some(false),true));
@@ -191,6 +207,7 @@ fn main(){
   ("a_model_check_failure_keeps_the_transcript_without_speakers",a_model_check_failure_keeps_the_transcript_without_speakers),
   ("the_user_can_pin_an_operation_to_python_and_the_change_is_logged",the_user_can_pin_an_operation_to_python_and_the_change_is_logged),
   ("the_separation_runtime_download_stays_on_python",the_separation_runtime_download_stays_on_python),
+  ("cloned_voices_take_checks_and_clone_previews_stay_on_python",cloned_voices_take_checks_and_clone_previews_stay_on_python),
   ("status_reports_the_native_worker",status_reports_the_native_worker),
   ("diagnostics_hold_the_settings_and_both_logs",diagnostics_hold_the_settings_and_both_logs),
   ("cancelling_a_job_kills_what_its_worker_started",cancelling_a_job_kills_what_its_worker_started)];

@@ -20,6 +20,15 @@ impl Engine{pub fn name(self)->&'static str{match self{Engine::Python=>"python",
 /// Error codes of the native worker that mean "its engine failed", not "your input is wrong".
 pub fn eligible_code(code:&str)->bool{matches!(code,"RUST_PANIC"|"WORKER_ERROR"|"RUNTIME_MISSING")}
 pub fn eligible_exit(code:Option<i32>)->bool{code.is_some_and(|c|FALLBACK_EXITS.contains(&(c as u32)))}
+/// What the native worker can run of a routed operation: `tts` only with preset voices and no take check (a batch with one cloned or
+/// checked item runs whole on Python), and no `clone_preview`. Cloned voices and take checks stay on Python until their phase.
+pub fn native_can_run(request:&Value)->bool{
+ let p=&request["payload"];
+ match request["operation"].as_str().unwrap_or(""){
+  "tts"=>p["items"].as_array().map_or(std::slice::from_ref(p),Vec::as_slice).iter().all(|i|i["reference_path"].is_null()&&i["check_model_path"].is_null()),
+  "clone_preview"=>false,
+  _=>true}
+}
 
 fn cpu()->String{
  let brand=std::env::var("PROCESSOR_IDENTIFIER").unwrap_or_default();
