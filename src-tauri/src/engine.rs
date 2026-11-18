@@ -20,13 +20,20 @@ impl Engine{pub fn name(self)->&'static str{match self{Engine::Python=>"python",
 /// Error codes of the native worker that mean "its engine failed", not "your input is wrong".
 pub fn eligible_code(code:&str)->bool{matches!(code,"RUST_PANIC"|"WORKER_ERROR"|"RUNTIME_MISSING")}
 pub fn eligible_exit(code:Option<i32>)->bool{code.is_some_and(|c|FALLBACK_EXITS.contains(&(c as u32)))}
-/// What the native worker can run of a routed operation: `tts` only with preset voices and no take check (a batch with one cloned or
-/// checked item runs whole on Python), and no `clone_preview`. Cloned voices and take checks stay on Python until their phase.
+/// Reference formats the parity rows proved bitwise in both workers (A4b, K-cond and P-op). The importer's other formats stay on
+/// Python: soundfile cannot read M4A, AAC, WMA or the video containers, so both workers would fail them.
+const NATIVE_REFERENCES:&[&str]=&["wav","flac","ogg","opus","mp3","aiff"];
+fn native_reference(path:&Value)->bool{
+ path.is_null()||path.as_str().and_then(|p|Path::new(p).extension()?.to_str()).is_some_and(|e|NATIVE_REFERENCES.contains(&e.to_ascii_lowercase().as_str()))
+}
+/// What the native worker can run of a routed operation: `tts` with no take check and only preset voices or references in a proven
+/// format (a batch with one other item runs whole on Python), and `clone_preview` of such a reference. Take checks stay on Python
+/// until their phase.
 pub fn native_can_run(request:&Value)->bool{
  let p=&request["payload"];
  match request["operation"].as_str().unwrap_or(""){
-  "tts"=>p["items"].as_array().map_or(std::slice::from_ref(p),Vec::as_slice).iter().all(|i|i["reference_path"].is_null()&&i["check_model_path"].is_null()),
-  "clone_preview"=>false,
+  "tts"=>p["items"].as_array().map_or(std::slice::from_ref(p),Vec::as_slice).iter().all(|i|native_reference(&i["reference_path"])&&i["check_model_path"].is_null()),
+  "clone_preview"=>native_reference(&p["reference_path"]),
   _=>true}
 }
 
