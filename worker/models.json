@@ -294,12 +294,12 @@
       "artifacts": [],
       "pack": {
         "url": "https://github.com/anhtahaylove/thanh-am-studio/releases/download/pack-separation-v1/separation-runtime-v1.zip",
-        "size": 0,
-        "unpacked_size": 0,
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-        "manifest_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-        "files": 0,
-        "longest_path": 0
+        "size": 173988339,
+        "unpacked_size": 573999243,
+        "sha256": "637e2d34d08e828bf7305b6e0317663e90ac67b79fc300709cc0f94c192567ec",
+        "manifest_sha256": "eb186ba68b9cd45e8de1cb8a040c7a05f3068134fadc8a0f86821c13335ac2ce",
+        "files": 8789,
+        "longest_path": 134
       }
     }
   ]
