@@ -31,3 +31,8 @@ windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Securit
 
 [dev-dependencies]
 tempfile = "3"
+
+# Its own binary is the fake worker (tests/engine.rs), so it brings its own main.
+[[test]]
+name = "engine"
+harness = false
