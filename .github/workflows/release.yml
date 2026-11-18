@@ -19,6 +19,15 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: npm ci
       - run: npm test
+      # The installer does not carry the separation runtime: the app downloads the pack pinned in worker/models.json,
+      # so a release needs that pack published (pack.yml on a pack-separation-v<N> tag) and pinned (scripts/pin_pack.py).
+      - name: The separation pack is published and pinned
+        shell: pwsh
+        run: |
+          $entry = ((Get-Content worker/models.json -Raw -Encoding utf8 | ConvertFrom-Json).models | Where-Object id -eq 'separation-runtime')
+          if (-not $entry.pack.size -or $entry.pack.sha256 -match '^0+$') { throw 'worker/models.json still has the placeholder pin of the separation pack: publish a pack-separation-v<N> tag and run scripts/pin_pack.py.' }
+          $head = Invoke-WebRequest -Uri $entry.pack.url -Method Head -MaximumRedirection 5
+          if ([long]$head.Headers['Content-Length'] -ne $entry.pack.size) { throw "the published pack is $($head.Headers['Content-Length']) bytes, worker/models.json pins $($entry.pack.size)" }
       # setup-runtime.ps1 reuses a FFmpeg zip in %TEMP% whose SHA-256 matches its pin (BtbN autobuild tags expire).
       - name: FFmpeg archive location
         id: ffmpeg

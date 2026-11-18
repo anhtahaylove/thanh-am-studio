@@ -1,6 +1,6 @@
 import {test,expect} from '@playwright/test';
 // Tauri is mocked as in clone-preview.spec.ts: every command is recorded in window.__calls, enqueued jobs stay queued.
-const mock=(o:{model:boolean;source:string|null;cues?:boolean;jobs?:any[]})=>{
+const mock=(o:{model:boolean;pack?:boolean;source:string|null;cues?:boolean;jobs?:any[]})=>{
  const w=window as any,calls:any[]=[],jobs:any[]=o.jobs??[];w.isTauri=true;w.__calls=calls;w.__jobs=jobs;
  const take=(id:string)=>({id,asset_id:'a'+id,path:id+'.wav',duration_ms:3000,sample_rate:48000,created_at:new Date().toISOString()});
  const seg=(id:string,cue:number)=>({id,text:'Câu '+id+'.',normalized_text:'Câu '+id+'.',voice_id:null,speaker:'Người dẫn',gap_ms:300,takes:[take('t'+id)],selected_take_id:'t'+id,trim_start_ms:0,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0,gain_db:0,...(o.cues===false?{}:{cue_start_ms:cue,cue_end_ms:cue+2000})});
@@ -8,7 +8,7 @@ const mock=(o:{model:boolean;source:string|null;cues?:boolean;jobs?:any[]})=>{
  w.__TAURI_INTERNALS__={convertFileSrc:(p:string)=>p,transformCallback:()=>1,unregisterCallback:()=>{},metadata:{currentWindow:{label:'main'},currentWebview:{label:'main',windowLabel:'main'}},
   invoke:async(cmd:string,args:any)=>{calls.push({cmd,args});switch(cmd){
    case 'list_projects':return [project];case 'load_project':return project;case 'list_voices':return [];case 'get_settings':return {dictionary:{}};
-   case 'list_models':return o.model?[{id:'htdemucs',name:'Tách giọng và nhạc nền (HTDemucs)',engine:'separation',installed:true,revision:'r',license:'',description:''}]:[];
+   case 'list_models':return o.model?[{id:'htdemucs',name:'Tách giọng và nhạc nền (HTDemucs)',engine:'separation',installed:true,revision:'r',license:'',description:''},{id:'separation-runtime',name:'Gói chạy tách nhạc nền (Python + PyTorch)',engine:'runtime',kind:'runtime',installed:o.pack!==false,revision:'separation-v1',license:'',description:''}]:[];
    case 'list_jobs':return [...jobs].reverse();
    case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,python_path:null,ffmpeg_path:null,message:''};
    case 'get_asset':return {id:args.id,path:`C:\\media\\${args.id}.mp4`,name:'nguồn có nhạc.mp4',duration_ms:null,sample_rate:null};
@@ -38,6 +38,13 @@ test('the option comes with the subtitle timing and is off, pointing to the mode
  await page.getByRole('checkbox',{name:'Theo mốc phụ đề'}).check();
  await expect(keep(page)).toBeDisabled();
  await expect(page.locator('label',{has:keep(page)})).toHaveAttribute('title','Tải Tách giọng và nhạc nền (HTDemucs) trong Model & cài đặt để bật');
+});
+
+test('with the HTDemucs weights but without the runtime pack the option is off and says to download the pack',async({page})=>{
+ await open(page,{model:true,pack:false,source:'src'});
+ await page.getByRole('checkbox',{name:'Theo mốc phụ đề'}).check();
+ await expect(keep(page)).toBeDisabled();
+ await expect(page.locator('label',{has:keep(page)})).toHaveAttribute('title','Chưa có gói chạy tách nhạc nền. Kết nối mạng rồi bấm Tải.');
 });
 
 test('with a source, checking separates that source without asking for a file',async({page})=>{

@@ -54,6 +54,14 @@ differs.
   changed. Then `python scripts/pin_pack.py <pin file>` writes the pin into `worker/models.json` (the entry's
   `revision` must already be `separation-v<N>`), reviewed in a normal PR. Upload the zip to VirusTotal before the
   release that pins it (the release gate below).
+- **Install**: the worker downloads the zip (resumable), checks size and SHA-256, the manifest against its pin and
+  the folder plus the longest path against 259 characters (`PACK_PATH_TOO_LONG`), extracts straight into
+  `models/separation-runtime/` hashing every file, and writes `installed.json` (with `license_accepted_at`: the
+  dialog shows the oneMKL licence) last. A separation job runs on the pack's python with `-B -I -X utf8`; at job
+  start the app checks that every manifest file exists with its size. **Kiểm tra lại gói** re-hashes the tree and
+  reports files that are not in the manifest (`MODEL_CHECKSUM`). A new revision replaces the old tree.
+- **Installer**: its hook deletes `torch`, `demucs`, `julius`, `einops`, `safetensors` and their `*.dist-info` from an
+  older installation when it updates over it.
 
 ## Acceptance gates (on the installer built from the tagged revision)
 
@@ -73,7 +81,16 @@ differs.
    `-Gate 500` runs the long-project gate inside the Sandbox.
    `update` serves the release's own `latest.json` and installer (both next to the installer) from a local
    feed: a cut-off package must be refused, the signed one must install itself and reopen the app with its
-   projects, and the installer copy the updater leaves in `%TEMP%` must be gone after the next start.
+   projects, and the installer copy the updater leaves in `%TEMP%` must be gone after the next start (and
+   `torch`, `demucs`, `julius`, `einops` and `safetensors` with their dist-info must be gone from an earlier release).
+   `update-seeded` runs after it in the same Sandbox when `-Seed <folder>` copied
+   `vieneu-v3`, `whisper-small`, `diarization` and `htdemucs` (map the folder, for example as `C:\seed`) into
+   the data folder before the first install: TTS, speaker-labelled STT and the models must work with no
+   `model_download` job and no changed model file, a separation must first say the pack is missing, then
+   download it through the consent dialog, then separate, and the pack tree must equal its manifest.
+   `-From <previous installer> -Only update,update-seeded -Seed <folder>` is the release run.
+   The `dub` phase installs the pack through the UI and re-checks it after its separations, and `full` asserts that
+   the installer's runtime has no torch and that no shipped `.pyc` changed.
 
    Which Sandbox runs a release needs (owner decision 2026-11-16; one Sandbox holds 8 GB of RAM and the
    full set takes 1-1.5 h):
@@ -117,7 +134,8 @@ redistributed. The optional HTDemucs weights (code MIT; the weights' license is 
 trained on MusDB-HQ, which is for research only, plus 800 unpublished songs) are also a user-started download; say so in the
 release notes.
 
-The only Intel binary in the runtime is Intel oneMKL (linked into torch and ctranslate2; Intel
+The only Intel binary in the runtime is Intel oneMKL (linked into ctranslate2 in the installer and into torch
+in the separation pack, whose download dialog shows the licence; Intel
 Simplified Software License, text in `scripts/licenses/` from the `mkl` 2026.2.1 wheel). Its terms forbid
 reverse engineering and modifying it, so the installer shows `src-tauri/installer-license.txt` as an
 "I agree" page (silent `/S` installs and the updater's passive install skip it) and installs

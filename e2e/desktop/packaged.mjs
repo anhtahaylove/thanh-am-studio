@@ -1,9 +1,10 @@
 // Acceptance run against the packaged desktop app (UI -> Rust -> worker -> files).
-// usage: node packaged.mjs <app.exe> <outDir> <phase: full|reopen|turbo|offline|export|clone|dpi|longstt|ux|features|dub|scripts|update>
+// usage: node packaged.mjs <app.exe> <outDir> <phase: full|reopen|turbo|offline|export|clone|dpi|longstt|ux|features|dub|scripts|update|update-seeded>
 // Drives the real WebView2 over CDP; native file dialogs are filled by file-dialog.ps1.
 import {chromium} from 'playwright-core';
 import {spawn, execFileSync} from 'node:child_process';
-import {existsSync, mkdirSync, writeFileSync, appendFileSync, statSync, copyFileSync, readdirSync, readFileSync, createReadStream, rmSync, openSync, closeSync} from 'node:fs';
+import {existsSync, mkdirSync, writeFileSync, appendFileSync, statSync, copyFileSync, readdirSync, readFileSync, createReadStream, rmSync, openSync, closeSync, readSync} from 'node:fs';
+import {createHash} from 'node:crypto';
 import {createServer} from 'node:http';
 import {tmpdir} from 'node:os';
 import {join, dirname} from 'node:path';
@@ -128,6 +129,38 @@ async function voiceModel() {
   await waitJobs('model_download', before + 1, 20 * 60000);
   return 'downloaded through the UI';
 }
+const sha256File = (path) => { const h = createHash('sha256'), fd = openSync(path, 'r'), buf = Buffer.alloc(4 << 20); try { for (let n; (n = readSync(fd, buf, 0, buf.length, null)) > 0;) h.update(buf.subarray(0, n)); } finally { closeSync(fd); } return h.digest('hex'); };
+const relFiles = (dir) => readdirSync(dir, {recursive: true}).map(String).filter((f) => statSync(join(dir, f)).isFile()).map((f) => f.replaceAll('\\', '/')).sort();
+// The separation pack (a download, not part of the installer) lives in the data folder; its manifest lists every file as `<sha256>  <size>  <path>`.
+const PACK = 'separation-runtime', packDir = () => join(process.env.LOCALAPPDATA, 'studio.thanham.desktop', 'models', PACK);
+async function separationPack() {
+  if ((await invoke('list_models')).find((m) => m.id === PACK)?.installed) return 'already installed';
+  const before = await done('model_download');
+  await nav('Model & cài đặt');
+  await page.locator('article', {has: page.getByRole('heading', {name: 'Gói chạy tách nhạc nền (Python + PyTorch)', exact: true})}).getByRole('button', {name: 'Tải gói'}).click();
+  await page.getByRole('dialog', {name: 'Tải gói chạy tách nhạc nền'}).getByRole('button', {name: 'Đồng ý và tải'}).click();
+  await waitJobs('model_download', before + 1, 30 * 60000);
+  const record = JSON.parse(readFileSync(join(packDir(), 'installed.json'), 'utf8'));
+  if (!record.license_accepted_at) throw Error(`no licence consent recorded: ${JSON.stringify(record)}`);
+  // Only the pack carries torch: its own python loads it, with `-B` so that nothing is written into the pack.
+  const request = JSON.stringify({protocol: 1, id: 'health', operation: 'health', payload: {profile: 'separation'}});
+  const {result} = JSON.parse(execFileSync(join(packDir(), 'python.exe'), ['-B', '-I', '-X', 'utf8', join(dirname(exe), 'worker', 'main.py')], {input: request, encoding: 'utf8'}).trim().split('\n').at(-1));
+  if (!result?.ready || !result.modules.torch) throw Error(JSON.stringify(result));
+  return `downloaded through the UI, licence accepted at ${record.license_accepted_at}; torch loads from the pack`;
+}
+// After a separation: "Kiểm tra lại gói" passes and the pack tree is exactly its manifest (same files, same hashes, nothing new).
+async function packRecheck() {
+  const before = await done('model_download');
+  await nav('Model & cài đặt');
+  await page.locator('article', {has: page.getByRole('heading', {name: 'Gói chạy tách nhạc nền (Python + PyTorch)', exact: true})}).getByRole('button', {name: 'Kiểm tra lại gói'}).click();
+  await waitJobs('model_download', before + 1, 15 * 60000);
+  const listed = new Map(readFileSync(join(packDir(), 'MANIFEST.sha256'), 'utf8').split('\n').filter(Boolean).map((l) => { const [, hash, size, rel] = l.match(/^(\w{64}) {2}(\d+) {2}(.+)$/); return [rel, [hash, Number(size)]]; }));
+  const files = relFiles(packDir()).filter((f) => f !== 'MANIFEST.sha256' && f !== 'installed.json'), problems = [];
+  for (const f of files) { const entry = listed.get(f); if (!entry) problems.push(`new: ${f}`); else if (statSync(join(packDir(), f)).size !== entry[1] || sha256File(join(packDir(), f)) !== entry[0]) problems.push(`changed: ${f}`); }
+  for (const f of listed.keys()) if (!files.includes(f)) problems.push(`missing: ${f}`);
+  if (problems.length) throw Error(`${problems.length} differences from MANIFEST.sha256, first: ${problems.slice(0, 5).join(' | ')}`);
+  return `re-check passed; ${files.length} files equal MANIFEST.sha256`;
+}
 async function newProject(prefix) {
   const name = `${prefix} ${Date.now()}`;
   await nav('Dự án');
@@ -233,10 +266,12 @@ try {
     return s.python_path;
   });
   if (phase === 'full') {
-    await step('runtime health: torch ships and the engines do not load it', async () => {
-      const root = dirname(exe), request = JSON.stringify({protocol: 1, id: 'health', operation: 'health', payload: {}});
+    await step('runtime health: the installer ships the engines and no torch', async () => {
+      const root = dirname(exe), request = JSON.stringify({protocol: 1, id: 'health', operation: 'health', payload: {profile: 'base'}});
       const {result} = JSON.parse(execFileSync(join(root, 'runtime', 'python', 'python.exe'), ['-I', '-X', 'utf8', join(root, 'worker', 'main.py')], {input: request, encoding: 'utf8'}).trim().split('\n').at(-1));
-      if (!result?.ready || !result.modules.torch || result.torch_imported_by_engines !== false) throw Error(JSON.stringify(result));
+      if (!result?.ready || 'torch' in result.modules || result.torch_imported_by_engines !== false) throw Error(JSON.stringify(result));
+      const site = join(root, 'runtime', 'python', 'Lib', 'site-packages'), stale = ['torch', 'demucs', 'julius', 'einops', 'safetensors'].filter((p) => existsSync(join(site, p)));
+      if (stale.length) throw Error(`the installer still ships ${stale.join(', ')}`);
       const bytes = readdirSync(root, {recursive: true}).map((f) => statSync(join(root, f))).reduce((sum, s) => sum + (s.isFile() ? s.size : 0), 0);
       return `ready; installed ${(bytes / 2 ** 20).toFixed(0)} MiB`; // size is information, not a gate
     });
@@ -284,6 +319,14 @@ try {
       await page.getByText('2 take').first().waitFor({timeout: 15000});
     });
     await exportSteps();
+    // The shipped .pyc headers stay valid after install (and update); .pyc files Python wrote on this machine are information only.
+    await step('shipped bytecode is unchanged after the jobs', async () => {
+      const python = join(dirname(exe), 'runtime', 'python'), listed = readFileSync(join(python, 'pyc-sha256.txt'), 'utf8').split('\n').filter(Boolean).map((l) => { const [, hash, rel] = l.match(/^(\w{64}) {2}(.+)$/); return [rel, hash]; });
+      const changed = listed.filter(([rel, hash]) => !existsSync(join(python, rel)) || sha256File(join(python, rel)) !== hash).map(([rel]) => rel);
+      if (changed.length) throw Error(`${changed.length} of ${listed.length} shipped .pyc files changed or are gone, first: ${changed.slice(0, 5).join(' | ')}`);
+      const known = new Set(listed.map(([rel]) => rel)), added = relFiles(python).filter((f) => f.endsWith('.pyc') && !known.has(f));
+      return `${listed.length} shipped .pyc files unchanged; ${added.length} new ones written by the jobs (information)${added.length ? `: ${added.slice(0, 5).join(', ')}` : ''}`;
+    });
   }
   if (phase === 'turbo') {
     await step('download whisper turbo via UI', async () => {
@@ -853,6 +896,7 @@ try {
       await waitJobs('model_download', before + 1, 20 * 60000);
       return 'downloaded through the UI';
     });
+    await step('separation runtime pack ready', separationPack);
     await step('a source video with music under the takes', async () => {
       // Irregular plucked tones (three harmonics, decaying) at -18 dBFS RMS, as worker/tests tone_bed(); seeded, so every run is alike.
       let seed = 7; const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647, rate = 48000, n = mediaMs * rate / 1000, bed = new Float32Array(n);
@@ -924,11 +968,12 @@ try {
       await invoke('cancel_job', {id: again.id});
       await page.waitForTimeout(10000);
       j = (await invoke('list_jobs')).find((x) => x.id === again.id);
-      const workers = [JSON.parse(execFileSync('powershell', ['-NoProfile', '-Command', `@(Get-Process python,ffmpeg -EA SilentlyContinue | Where-Object { $_.Path -like '${dirname(exe)}\\*' } | Select-Object ProcessName,Id) | ConvertTo-Json -Compress`], {encoding: 'utf8'}) || '[]')].flat();
+      const workers = [JSON.parse(execFileSync('powershell', ['-NoProfile', '-Command', `@(Get-Process python,ffmpeg -EA SilentlyContinue | Where-Object { $_.Path -like '${dirname(exe)}\\*' -or $_.Path -like '*\\models\\separation-runtime\\*' } | Select-Object ProcessName,Id) | ConvertTo-Json -Compress`], {encoding: 'utf8'}) || '[]')].flat();
       const folder = join(process.env.LOCALAPPDATA, 'studio.thanham.desktop', 'jobs', again.id), files = existsSync(folder) ? readdirSync(folder) : [];
       if (j.status !== 'cancelled' || workers.length || files.some((f) => /\.flac$/i.test(f))) throw Error(JSON.stringify({status: j.status, workers, files}));
       return `cancelled at ${Math.round(j.progress * 100)} %; no worker python or ffmpeg after 10 s; job folder: ${files.join(', ') || 'none'}`;
     });
+    await step('after separations the pack passes its re-check and equals its manifest', packRecheck);
   }
   if (phase === 'update') {
     await step('update refuses a package that does not match its signature', async () => {
@@ -949,7 +994,10 @@ try {
       rmSync(sentinel, {force: true}); // the installer writes it again near its end (Sandbox only: a failed install would leave no uninstaller)
       // 1.0.15 shipped these and later versions do not; the updater installs without uninstalling, so src-tauri/installer-hooks.nsh deletes them.
       const site = join(dirname(exe), 'runtime', 'python', 'Lib', 'site-packages');
-      const leftovers = () => [join(site, 'torch', 'lib', 'libiompstubs5md.dll'), join(site, 'ctranslate2', 'cudnn64_9.dll')].filter((f) => existsSync(f));
+      // The separation packages left the installer in 1.0.17: the hook removes them and their dist-info as well.
+      const gone = ['torch', 'demucs', 'julius', 'einops', 'safetensors'];
+      const leftovers = () => [join(site, 'torch', 'lib', 'libiompstubs5md.dll'), join(site, 'ctranslate2', 'cudnn64_9.dll'), ...gone.map((p) => join(site, p)),
+        ...(existsSync(site) ? readdirSync(site).filter((n) => gone.some((p) => n.startsWith(`${p}-`) && n.endsWith('.dist-info'))).map((n) => join(site, n)) : [])].filter((f) => existsSync(f));
       const before = leftovers().length;
       feed('/good');
       await page.getByRole('button', {name: 'Kiểm tra ngay'}).click();
@@ -981,6 +1029,61 @@ try {
       if (after !== projects) throw Error(`projects ${projects} -> ${after}`);
       if (leftovers().length) throw Error(`left behind by the update: ${leftovers().join(' | ')}`);
       return `${from} -> ${now}, reopened; ${after} projects kept; installer copy ${left.join(' | ')} removed; ${before} of 2 files the new version no longer ships were present, none left; requests ${served.join(' ')}`;
+    });
+  }
+  if (phase === 'update-seeded') {
+    // After `update -From <previous> -Seed <folder>`: the models seeded before the first install are used as they are, with no
+    // download job and no changed file, and the separation pack, which the installer no longer carries, is offered, downloaded and used.
+    const models = join(process.env.LOCALAPPDATA, 'studio.thanham.desktop', 'models'), seeded = ['vieneu-v3', 'whisper-small', 'diarization', 'htdemucs'];
+    const treeHash = (dir) => { const h = createHash('sha256'); for (const f of relFiles(dir)) h.update(`${f}\0${sha256File(join(dir, f))}\n`); return h.digest('hex'); };
+    const audio = process.env.THANHAM_UX_AUDIO;
+    if (!audio || !existsSync(audio)) throw Error('THANHAM_UX_AUDIO (dialogue.wav next to the installer) is required');
+    const baseline = {}, downloadsBefore = (await invoke('list_jobs')).filter((j) => j.kind === 'model_download').length;
+    await step('seeded models are installed and untouched by the update', async () => {
+      const list = await invoke('list_models');
+      for (const id of seeded) {
+        if (!list.find((m) => m.id === id)?.installed) throw Error(`${id} is not installed: ${JSON.stringify(list.map((m) => [m.id, m.installed]))}`);
+        baseline[id] = treeHash(join(models, id));
+        if (process.env.THANHAM_SEED && baseline[id] !== treeHash(join(process.env.THANHAM_SEED, id))) throw Error(`${id} differs from the seed`);
+      }
+      const pack = list.find((m) => m.id === PACK);
+      if (!pack || pack.kind !== 'runtime' || pack.installed) throw Error(`the pack should be offered, not installed: ${JSON.stringify(pack)}`);
+      return `${seeded.length} models equal their seed; the separation pack is offered`;
+    });
+    await step('tts runs on the seeded model without a download', async () => {
+      await page.getByRole('navigation', {name: 'Điều hướng chính'}).getByRole('button').first().click();
+      await page.getByRole('button', {name: 'Thêm nội dung', exact: true}).click();
+      await page.getByRole('textbox', {name: 'Nội dung cần thêm'}).fill(fixture);
+      await page.getByRole('button', {name: 'Thêm vào kịch bản'}).click();
+      await page.getByRole('textbox', {name: 'Nội dung đoạn 2'}).waitFor();
+      await page.waitForTimeout(1500); // autosave
+      const before = await done('tts');
+      await page.getByRole('button', {name: 'Tạo giọng tất cả'}).click();
+      await waitJobs('tts', before + 2, 10 * 60000);
+    });
+    const asset = await invoke('import_asset', {path: audio});
+    await step('stt with speakers runs on the seeded models without a download', async () => {
+      const before = await done('stt'), queued = await invoke('enqueue_job', {kind: 'stt', projectId: null, payload: {asset_id: asset.id, model_id: 'whisper-small', language: 'vi', diarize: true, num_speakers: 2}});
+      const job = (await waitJobs('stt', before + 1, 20 * 60000)).find((j) => j.id === queued.id);
+      if (!job || job.result.diarize_error || !job.result.transcript.some((r) => typeof r.speaker === 'number')) throw Error(JSON.stringify(job?.result?.diarize_error ?? job?.result));
+      return `${job.result.transcript.length} rows with speakers`;
+    });
+    await step('separation asks for the pack, downloads it, then separates', async () => {
+      const queued = await invoke('enqueue_job', {kind: 'separate', projectId: null, payload: {asset_id: asset.id}});
+      for (let i = 0; i < 120; i++) { const j = (await invoke('list_jobs')).find((x) => x.id === queued.id); if (j.status === 'failed') break; if (j.status === 'succeeded') throw Error('separation ran without the pack'); await page.waitForTimeout(500); }
+      const failed = (await invoke('list_jobs')).find((x) => x.id === queued.id);
+      if (failed.status !== 'failed' || !String(failed.error).startsWith('MODEL_NOT_READY') || !String(failed.error).includes('Chưa có gói chạy tách nhạc nền')) throw Error(`expected the missing-pack message, got ${failed.status}: ${failed.error}`);
+      await separationPack();
+      const before = await done('separate'), again = await invoke('enqueue_job', {kind: 'separate', projectId: null, payload: {asset_id: asset.id}});
+      const job = (await waitJobs('separate', before + 1, 20 * 60000)).find((j) => j.id === again.id);
+      return `${failed.error.split('.')[0]}; then separated in ${Math.round((Date.parse(job.updated_at) - Date.parse(job.created_at)) / 1000)} s`;
+    });
+    await step('after separations the pack passes its re-check and equals its manifest', packRecheck);
+    await step('no model download but the pack, and no seeded model file changed', async () => {
+      const downloads = (await invoke('list_jobs')).filter((j) => j.kind === 'model_download' && j.payload.model_id !== PACK);
+      if (downloads.length !== downloadsBefore) throw Error(`model_download jobs: ${downloadsBefore} before, ${downloads.length} now`);
+      for (const id of seeded) if (treeHash(join(models, id)) !== baseline[id]) throw Error(`${id} changed`);
+      return `${seeded.length} models unchanged; ${downloads.length} model downloads besides the pack`;
     });
   }
   if (phase === 'export') {

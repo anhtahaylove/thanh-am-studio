@@ -8,5 +8,5 @@ export interface AppSettings {dictionary:Record<string,string>}
 export interface Asset{id:string;path:string;name:string;duration_ms:number|null;sample_rate:number|null}
 export interface Voice {id:string;name:string;kind:'preset'|'reference';reference_asset_id:string|null;consent:boolean;engine_voice_id:string|null}
 export interface Job {id:string;kind:string;project_id:string|null;payload:Record<string,unknown>;status:'queued'|'running'|'succeeded'|'failed'|'cancelled'|'interrupted';progress:number;error:string|null;result:Record<string,unknown>|null;created_at:string;updated_at:string}
-export interface RuntimeStatus {python_ready:boolean;ffmpeg_ready:boolean;worker_ready:boolean;python_path:string|null;ffmpeg_path:string|null;message:string}
-export interface ModelInfo {id:string;name:string;engine:string;installed:boolean;revision:string;license:string;description:string}
+export interface RuntimeStatus {python_ready:boolean;separation_runtime_ready?:boolean;ffmpeg_ready:boolean;worker_ready:boolean;python_path:string|null;ffmpeg_path:string|null;message:string}
+export interface ModelInfo {id:string;name:string;engine:string;kind?:'model'|'runtime';installed:boolean;revision:string;license:string;description:string}
