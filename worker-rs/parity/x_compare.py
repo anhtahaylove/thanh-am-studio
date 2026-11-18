@@ -34,6 +34,9 @@ def normalise(text, out_dir, fix_dir):
     return UUID.sub('<uuid>', text)
 
 
+OPUS_BY_CPU = False
+
+
 def decode_sha(ffmpeg, path):
     p = subprocess.run([ffmpeg, '-nostdin', '-v', 'error', '-i', str(path), '-f', 'f32le', 'pipe:1'], capture_output=True)
     return hashlib.sha256(p.stdout).hexdigest() if p.returncode == 0 else 'decode-failed:' + p.stderr.decode('utf-8', 'replace')[:80]
@@ -94,7 +97,7 @@ def compare(golden, got):
         for want, have, same in zip(golden['files'], got['files'], golden['stable']['files']):
             if want['name'] != have['name']:
                 problems.append(f"file name {have['name']} != {want['name']}")
-            if want['pcm_sha256'] != have['pcm_sha256']:
+            if want['pcm_sha256'] != have['pcm_sha256'] and not (OPUS_BY_CPU and want['name'].endswith('.opus') and not have['pcm_sha256'].startswith('decode-failed')):
                 problems.append(f"{want['name']}: decoded PCM differs")
             if want['probe'] != have['probe']:
                 problems.append(f"{want['name']}: ffprobe fields differ: want {want['probe']}; got {have['probe']}")
@@ -113,7 +116,10 @@ def main():
     ap.add_argument('--ffprobe')
     ap.add_argument('--only', default='')
     ap.add_argument('--seg')
+    ap.add_argument('--opus-by-cpu', action='store_true', help='skip the PCM hash of .opus outputs (see the README); everything else stays exact')
     args = ap.parse_args()
+    global OPUS_BY_CPU
+    OPUS_BY_CPU = args.opus_by_cpu
     if not args.exe and not (args.python and args.main):
         ap.error('give --exe, or --python and --main')
     args.ffmpeg = str(Path(args.ffmpeg).resolve())

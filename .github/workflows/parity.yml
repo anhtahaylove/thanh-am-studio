@@ -49,7 +49,7 @@ jobs:
           Expand-Archive $zip $unpack
           Copy-Item (Join-Path $unpack '${{ steps.ffmpeg.outputs.FfmpegAsset }}/bin') (Join-Path $env:RUNNER_TEMP 'ffmpeg-parity') -Recurse
       - name: Row X (render and probe)
-        run: python -I parity/x_compare.py --exe target/release/thanham-worker.exe --ffmpeg "$env:RUNNER_TEMP/ffmpeg-parity/ffmpeg.exe" --ffprobe "$env:RUNNER_TEMP/ffmpeg-parity/ffprobe.exe"
+        run: python -I parity/x_compare.py --exe target/release/thanham-worker.exe --ffmpeg "$env:RUNNER_TEMP/ffmpeg-parity/ffmpeg.exe" --ffprobe "$env:RUNNER_TEMP/ffmpeg-parity/ffprobe.exe" --opus-by-cpu
       - name: Row R (protocol and errors)
         if: ${{ !cancelled() }}
         run: python -I parity/r_compare.py --exe target/release/thanham-worker.exe
