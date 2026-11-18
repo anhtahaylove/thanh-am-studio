@@ -1,12 +1,13 @@
 name: parity
-# The Rust worker against the v1.0.16 Python goldens (worker-rs/parity/README.md). Rows that exist run here; the engine rows (D, Z, P1,
-# P3-P5) are added to this job as their code lands. The x09-500 recipes (500 recorded takes) run at the release gate, not here.
+# The Rust worker against the v1.0.16 Python goldens (worker-rs/parity/README.md), and against the Python worker run on the same runner
+# for preset TTS (job tts). The other engine rows (D, Z) are added as their code lands. The x09-500 recipes (500 recorded takes) run at
+# the release gate, not here.
 on:
   push:
     branches: [main]
-    paths: ['worker-rs/**', 'worker/models.json', 'scripts/setup-runtime.ps1', '.github/workflows/parity.yml']
+    paths: ['worker-rs/**', 'worker/models.json', 'worker/main.py', 'worker/requirements-*.lock', 'scripts/setup-runtime.ps1', 'scripts/stage-worker.ps1', '.github/workflows/parity.yml']
   pull_request:
-    paths: ['worker-rs/**', 'worker/models.json', 'scripts/setup-runtime.ps1', '.github/workflows/parity.yml']
+    paths: ['worker-rs/**', 'worker/models.json', 'worker/main.py', 'worker/requirements-*.lock', 'scripts/setup-runtime.ps1', 'scripts/stage-worker.ps1', '.github/workflows/parity.yml']
 permissions:
   contents: read
 jobs:
@@ -48,8 +49,9 @@ jobs:
           $unpack = Join-Path $env:RUNNER_TEMP 'ffmpeg-unpack'
           Expand-Archive $zip $unpack
           Copy-Item (Join-Path $unpack '${{ steps.ffmpeg.outputs.FfmpegAsset }}/bin') (Join-Path $env:RUNNER_TEMP 'ffmpeg-parity') -Recurse
+      # The two Opus recipes run in job tts, against the Python worker on that runner (libopus picks its code paths by CPU).
       - name: Row X (render and probe)
-        run: python -I parity/x_compare.py --exe target/release/thanham-worker.exe --ffmpeg "$env:RUNNER_TEMP/ffmpeg-parity/ffmpeg.exe" --ffprobe "$env:RUNNER_TEMP/ffmpeg-parity/ffprobe.exe" --opus-by-cpu
+        run: python -I parity/x_compare.py --exe target/release/thanham-worker.exe --ffmpeg "$env:RUNNER_TEMP/ffmpeg-parity/ffmpeg.exe" --ffprobe "$env:RUNNER_TEMP/ffmpeg-parity/ffprobe.exe" --skip x05-format-opus
       - name: Row R (protocol and errors)
         if: ${{ !cancelled() }}
         run: python -I parity/r_compare.py --exe target/release/thanham-worker.exe
@@ -64,18 +66,92 @@ jobs:
       - name: Row W (download)
         if: ${{ !cancelled() }}
         run: python -I parity/w_compare.py --exe target/release/thanham-worker.exe --models "$env:RUNNER_TEMP/parity-models"
-      # ort, faster-whisper and sherpa-onnx wheels give the runtime DLLs and the Silero asset at the layout the tests expect (<venv>/Lib/site-packages).
-      - name: ORT inputs for row F
-        if: ${{ !cancelled() }}
+  tts:
+    # Rows L, P1, P3, P4, P5 and P-op for preset TTS. The Python reference is made here, by the private runtime that setup-runtime.ps1
+    # builds (as release.yml does), so both workers run on the same CPU and every comparison is bitwise.
+    runs-on: windows-latest
+    timeout-minutes: 150
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      PY: ${{ github.workspace }}/runtime/python/python.exe
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: worker/requirements-*.lock
+      - name: FFmpeg archive location
+        id: ffmpeg
         run: |
-          python -m venv "$env:RUNNER_TEMP/ortvenv"
-          & "$env:RUNNER_TEMP/ortvenv/Scripts/python.exe" -m pip install --no-deps onnxruntime==1.31.1 faster-whisper==1.2.1 sherpa-onnx==2.0.1 sherpa-onnx-core==2.0.1
-      - name: Row F (ORT FFI)
+          $s = Get-Content scripts/setup-runtime.ps1 -Raw
+          "path=$([IO.Path]::GetTempPath())$([regex]::Match($s, "FfmpegAsset = '([^']+)'").Groups[1].Value).zip" >> $env:GITHUB_OUTPUT
+          "key=ffmpeg-$([regex]::Match($s, "FfmpegSha256 = '([^']+)'").Groups[1].Value)" >> $env:GITHUB_OUTPUT
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.ffmpeg.outputs.path }}
+          key: ${{ steps.ffmpeg.outputs.key }}
+      - name: Build private runtime (Python + FFmpeg)
+        run: ./scripts/setup-runtime.ps1
+      - run: rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy # worker-rs/rust-toolchain.toml
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: worker-rs
+      # The staged folder is the installer's worker/ folder: the exe, the runtime's onnxruntime.dll, the VC143 DLLs and the registry.
+      - name: Build and stage the worker
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          Push-Location worker-rs
+          cargo build --release --locked
+          Pop-Location
+          ./scripts/stage-worker.ps1
+          Copy-Item worker/models.json worker-rs/stage/
+      - uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/parity-models-vieneu
+          key: parity-models-vieneu-${{ hashFiles('worker/models.json') }}
+      - name: Fetch the VieNeu model
+        run: '& $env:PY -I worker-rs/parity/fetch_models.py --exe worker-rs/stage/thanham-worker.exe --models "$env:RUNNER_TEMP/parity-models-vieneu" --only vieneu-v3'
+      - name: Rows L and P1 (text checks, pause marks, chunks, phonemes and token ids)
+        env:
+          THANHAM_TTS_MODEL: ${{ runner.temp }}/parity-models-vieneu/vieneu-v3
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $env:THANHAM_TTS_CASES = "$env:RUNNER_TEMP/tts-cases.jsonl"
+          $env:THANHAM_PYTHON = $env:PY
+          & $env:PY -I -X utf8 worker-rs/parity/tts_corpus.py . "$env:RUNNER_TEMP/tts-corpus.jsonl"
+          & $env:PY -I -X utf8 worker-rs/parity/tts_cases.py --corpus "$env:RUNNER_TEMP/tts-corpus.jsonl" --model $env:THANHAM_TTS_MODEL --out $env:THANHAM_TTS_CASES
+          Push-Location worker-rs
+          cargo test --release --locked tts:: -- --nocapture
+          Pop-Location
+      - name: Rows P-op, P3, P4 and P5 (seeded Python and Rust tts on this runner)
+        if: ${{ !cancelled() }}
+        env:
+          THANHAM_TTS_MODEL: ${{ runner.temp }}/parity-models-vieneu/vieneu-v3
+        run: '& $env:PY -I worker-rs/parity/tts_op.py --python $env:PY --exe worker-rs/stage/thanham-worker.exe --model $env:THANHAM_TTS_MODEL --ffmpeg runtime/ffmpeg/ffmpeg.exe --items worker-rs/parity/tts/items.json --out "$env:RUNNER_TEMP/tts-op"'
+      - name: Row X Opus recipes (against the Python worker on this runner)
+        if: ${{ !cancelled() }}
+        run: '& $env:PY -I worker-rs/parity/x_compare.py --exe worker-rs/stage/thanham-worker.exe --ffmpeg runtime/ffmpeg/ffmpeg.exe --only x05-format-opus --opus-python $env:PY --main worker/main.py'
+      # Row F: the fixtures are recorded again here by the private runtime's onnxruntime, so the comparison is exact on this CPU.
+      - name: Row F (ORT FFI against Python's onnxruntime on this runner)
         if: ${{ !cancelled() }}
         env:
           ORTFFI_REQUIRE: '1'
-          ORTFFI_MAX_ABS_DIFF: '1e-5' # ORT kernels depend on the runner's CPU; the recording is exact only on its own CPU family
+          ORTFFI_VIENEU: ${{ runner.temp }}/parity-models-vieneu/vieneu-v3
         run: |
-          $env:ORTFFI_RUNTIME = "$env:RUNNER_TEMP/ortvenv"
-          $env:ORTFFI_VIENEU = "$env:RUNNER_TEMP/parity-models/vieneu-v3"
+          $PSNativeCommandUseErrorActionPreference = $true
+          & $env:PY -I worker-rs/crates/ortffi/tools/gen_fixtures.py --runtime runtime/python --vieneu $env:ORTFFI_VIENEU --out worker-rs/crates/ortffi/fixtures
+          Push-Location worker-rs
           cargo test -p ortffi --locked
+          Pop-Location
+      - uses: actions/upload-artifact@v4
+        if: ${{ failure() }}
+        with:
+          name: tts-parity
+          path: |
+            ${{ runner.temp }}/tts-op/*.json
+            ${{ runner.temp }}/tts-op/*.jsonl
+            ${{ runner.temp }}/tts-op/*.log
+            ${{ runner.temp }}/tts-op/*.csv
+          if-no-files-found: ignore

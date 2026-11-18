@@ -1,0 +1,743 @@
+[
+ {
+  "id": "x01-pause-hd",
+  "text": "Xin chào các bạn [nghỉ 0.5s] hôm nay trời đẹp. [nghỉ 1 giây] Chúng ta cùng bắt đầu.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "x02-pause-lead-tl",
+  "text": "[nghỉ 0.3s] Đây là câu bắt đầu bằng khoảng nghỉ. [nghỉ 0.4s]",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "x03-cue-hd",
+  "text": "Chuyện này buồn cười thật [cười] nhưng mà cũng đáng nhớ.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "x04-sigh-tl",
+  "text": "Một ngày dài đã trôi qua [thở dài] và mọi thứ vẫn như cũ.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "x05-short-hd",
+  "text": "Vâng.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "x06-short2-tl",
+  "text": "Được không?",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "x07-en-hd",
+  "text": "Tôi dùng <en>Windows</en> và thích phần mềm này.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "x08-speed125-hd",
+  "text": "Người dẫn chuyện ở Hà Nội kể lại một kỷ niệm đẹp về mùa thu năm ấy. Mọi người lắng nghe rất chăm chú và mỉm cười. Ai cũng mong sẽ có dịp quay lại nơi này thêm nhiều lần nữa.",
+  "voice_id": "Hải Đăng",
+  "speed": 1.25
+ },
+ {
+  "id": "x09-speed08-tl",
+  "text": "Cô giáo trẻ giữa chợ Bến Thành đọc một bài thơ về quê hương yêu dấu. Câu chuyện khiến ai cũng nhớ về tuổi thơ. Câu chuyện được kể lại cho cả gia đình nghe trong bữa cơm tối.",
+  "voice_id": "Trúc Ly",
+  "speed": 0.8
+ },
+ {
+  "id": "x10-para-hd",
+  "text": "Bác nông dân gần bến xe hướng dẫn mọi người tiết kiệm điện mỗi ngày. Cuối cùng cả nhóm cùng nhau ra về. Đứa trẻ ngồi bên cạnh hỏi thêm rất nhiều câu hỏi ngây thơ.\n\nAnh kỹ sư bên bờ sông Hồng nói về những chuyến đi xa đầy thú vị. Sau đó trời bắt đầu đổ mưa nhẹ. Tiếng chim hót vang khắp con đường nhỏ dẫn vào làng.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "x11-num-tl",
+  "text": "Ngày 18 tháng 11 năm 2026, giá là 1.250.000 đồng, tăng 12,5%.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "x12-ascii-hd",
+  "text": "y in to do",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g01-1-hd",
+  "text": "Người dẫn chuyện ở Hà Nội kể lại một kỷ niệm đẹp về mùa thu năm ấy.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g01-1-tl",
+  "text": "Người dẫn chuyện ở Hà Nội kể lại một kỷ niệm đẹp về mùa thu năm ấy.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g01-2-hd",
+  "text": "Mọi người lắng nghe rất chăm chú và mỉm cười.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g01-2-tl",
+  "text": "Mọi người lắng nghe rất chăm chú và mỉm cười.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g01-3-hd",
+  "text": "Ai cũng mong sẽ có dịp quay lại nơi này thêm nhiều lần nữa.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g01-3-tl",
+  "text": "Ai cũng mong sẽ có dịp quay lại nơi này thêm nhiều lần nữa.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g02-1-hd",
+  "text": "Cô giáo trẻ giữa chợ Bến Thành đọc một bài thơ về quê hương yêu dấu.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g02-1-tl",
+  "text": "Cô giáo trẻ giữa chợ Bến Thành đọc một bài thơ về quê hương yêu dấu.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g02-2-hd",
+  "text": "Câu chuyện khiến ai cũng nhớ về tuổi thơ.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g02-2-tl",
+  "text": "Câu chuyện khiến ai cũng nhớ về tuổi thơ.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g02-3-hd",
+  "text": "Câu chuyện được kể lại cho cả gia đình nghe trong bữa cơm tối.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g02-3-tl",
+  "text": "Câu chuyện được kể lại cho cả gia đình nghe trong bữa cơm tối.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g03-1-hd",
+  "text": "Bác nông dân gần bến xe hướng dẫn mọi người tiết kiệm điện mỗi ngày.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g03-1-tl",
+  "text": "Bác nông dân gần bến xe hướng dẫn mọi người tiết kiệm điện mỗi ngày.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g03-2-hd",
+  "text": "Cuối cùng cả nhóm cùng nhau ra về.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g03-2-tl",
+  "text": "Cuối cùng cả nhóm cùng nhau ra về.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g03-3-hd",
+  "text": "Đứa trẻ ngồi bên cạnh hỏi thêm rất nhiều câu hỏi ngây thơ.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g03-3-tl",
+  "text": "Đứa trẻ ngồi bên cạnh hỏi thêm rất nhiều câu hỏi ngây thơ.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g04-1-hd",
+  "text": "Anh kỹ sư bên bờ sông Hồng nói về những chuyến đi xa đầy thú vị.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g04-1-tl",
+  "text": "Anh kỹ sư bên bờ sông Hồng nói về những chuyến đi xa đầy thú vị.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g04-2-hd",
+  "text": "Sau đó trời bắt đầu đổ mưa nhẹ.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g04-2-tl",
+  "text": "Sau đó trời bắt đầu đổ mưa nhẹ.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g04-3-hd",
+  "text": "Tiếng chim hót vang khắp con đường nhỏ dẫn vào làng.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g04-3-tl",
+  "text": "Tiếng chim hót vang khắp con đường nhỏ dẫn vào làng.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g05-1-hd",
+  "text": "Chị bán hàng trong làng nhỏ chia sẻ bí quyết nấu bát phở thơm ngon.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g05-1-tl",
+  "text": "Chị bán hàng trong làng nhỏ chia sẻ bí quyết nấu bát phở thơm ngon.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g05-2-hd",
+  "text": "Buổi chiều trôi qua thật nhẹ nhàng và bình yên.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g05-2-tl",
+  "text": "Buổi chiều trôi qua thật nhẹ nhàng và bình yên.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g05-3-hd",
+  "text": "Ánh nắng chiều chiếu xuống mặt hồ làm nước lấp lánh như bạc.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g05-3-tl",
+  "text": "Ánh nắng chiều chiếu xuống mặt hồ làm nước lấp lánh như bạc.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g06-1-hd",
+  "text": "Cậu học trò trên con đường quê giải thích cách trồng lúa cho thật tốt.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g06-1-tl",
+  "text": "Cậu học trò trên con đường quê giải thích cách trồng lúa cho thật tốt.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g06-2-hd",
+  "text": "Mọi người lắng nghe rất chăm chú và mỉm cười.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g06-2-tl",
+  "text": "Mọi người lắng nghe rất chăm chú và mỉm cười.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g06-3-hd",
+  "text": "Những người bạn cũ hẹn nhau cuối tuần sau sẽ gặp lại ở quán quen.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g06-3-tl",
+  "text": "Những người bạn cũ hẹn nhau cuối tuần sau sẽ gặp lại ở quán quen.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g07-1-hd",
+  "text": "Ông cụ trên cao nguyên kể lại một kỷ niệm đẹp về mùa thu năm ấy.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g07-1-tl",
+  "text": "Ông cụ trên cao nguyên kể lại một kỷ niệm đẹp về mùa thu năm ấy.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g07-2-hd",
+  "text": "Câu chuyện khiến ai cũng nhớ về tuổi thơ.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g07-2-tl",
+  "text": "Câu chuyện khiến ai cũng nhớ về tuổi thơ.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g07-3-hd",
+  "text": "Mọi việc diễn ra đúng như kế hoạch đã đặt ra từ tuần trước.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g07-3-tl",
+  "text": "Mọi việc diễn ra đúng như kế hoạch đã đặt ra từ tuần trước.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g08-1-hd",
+  "text": "Bà ngoại ở Đà Nẵng đọc một bài thơ về quê hương yêu dấu.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g08-1-tl",
+  "text": "Bà ngoại ở Đà Nẵng đọc một bài thơ về quê hương yêu dấu.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g08-2-hd",
+  "text": "Cuối cùng cả nhóm cùng nhau ra về.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g08-2-tl",
+  "text": "Cuối cùng cả nhóm cùng nhau ra về.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g08-3-hd",
+  "text": "Ai cũng mong sẽ có dịp quay lại nơi này thêm nhiều lần nữa.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g08-3-tl",
+  "text": "Ai cũng mong sẽ có dịp quay lại nơi này thêm nhiều lần nữa.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g09-1-hd",
+  "text": "Người dẫn chuyện ở Hà Nội hướng dẫn mọi người tiết kiệm điện mỗi ngày.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g09-1-tl",
+  "text": "Người dẫn chuyện ở Hà Nội hướng dẫn mọi người tiết kiệm điện mỗi ngày.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g09-2-hd",
+  "text": "Sau đó trời bắt đầu đổ mưa nhẹ.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g09-2-tl",
+  "text": "Sau đó trời bắt đầu đổ mưa nhẹ.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g09-3-hd",
+  "text": "Câu chuyện được kể lại cho cả gia đình nghe trong bữa cơm tối.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g09-3-tl",
+  "text": "Câu chuyện được kể lại cho cả gia đình nghe trong bữa cơm tối.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g10-1-hd",
+  "text": "Cô giáo trẻ giữa chợ Bến Thành nói về những chuyến đi xa đầy thú vị.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g10-1-tl",
+  "text": "Cô giáo trẻ giữa chợ Bến Thành nói về những chuyến đi xa đầy thú vị.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g10-2-hd",
+  "text": "Buổi chiều trôi qua thật nhẹ nhàng và bình yên.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g10-2-tl",
+  "text": "Buổi chiều trôi qua thật nhẹ nhàng và bình yên.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g10-3-hd",
+  "text": "Đứa trẻ ngồi bên cạnh hỏi thêm rất nhiều câu hỏi ngây thơ.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g10-3-tl",
+  "text": "Đứa trẻ ngồi bên cạnh hỏi thêm rất nhiều câu hỏi ngây thơ.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g11-1-hd",
+  "text": "Bác nông dân gần bến xe chia sẻ bí quyết nấu bát phở thơm ngon.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g11-1-tl",
+  "text": "Bác nông dân gần bến xe chia sẻ bí quyết nấu bát phở thơm ngon.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g11-2-hd",
+  "text": "Mọi người lắng nghe rất chăm chú và mỉm cười.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g11-2-tl",
+  "text": "Mọi người lắng nghe rất chăm chú và mỉm cười.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g11-3-hd",
+  "text": "Tiếng chim hót vang khắp con đường nhỏ dẫn vào làng.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g11-3-tl",
+  "text": "Tiếng chim hót vang khắp con đường nhỏ dẫn vào làng.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g12-1-hd",
+  "text": "Anh kỹ sư bên bờ sông Hồng giải thích cách trồng lúa cho thật tốt.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g12-1-tl",
+  "text": "Anh kỹ sư bên bờ sông Hồng giải thích cách trồng lúa cho thật tốt.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g12-2-hd",
+  "text": "Câu chuyện khiến ai cũng nhớ về tuổi thơ.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g12-2-tl",
+  "text": "Câu chuyện khiến ai cũng nhớ về tuổi thơ.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g12-3-hd",
+  "text": "Ánh nắng chiều chiếu xuống mặt hồ làm nước lấp lánh như bạc.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g12-3-tl",
+  "text": "Ánh nắng chiều chiếu xuống mặt hồ làm nước lấp lánh như bạc.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g13-1-hd",
+  "text": "Chị bán hàng trong làng nhỏ kể lại một kỷ niệm đẹp về mùa thu năm ấy.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g13-1-tl",
+  "text": "Chị bán hàng trong làng nhỏ kể lại một kỷ niệm đẹp về mùa thu năm ấy.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g13-2-hd",
+  "text": "Cuối cùng cả nhóm cùng nhau ra về.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g13-2-tl",
+  "text": "Cuối cùng cả nhóm cùng nhau ra về.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g13-3-hd",
+  "text": "Những người bạn cũ hẹn nhau cuối tuần sau sẽ gặp lại ở quán quen.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g13-3-tl",
+  "text": "Những người bạn cũ hẹn nhau cuối tuần sau sẽ gặp lại ở quán quen.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g14-1-hd",
+  "text": "Cậu học trò trên con đường quê đọc một bài thơ về quê hương yêu dấu.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g14-1-tl",
+  "text": "Cậu học trò trên con đường quê đọc một bài thơ về quê hương yêu dấu.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g14-2-hd",
+  "text": "Sau đó trời bắt đầu đổ mưa nhẹ.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g14-2-tl",
+  "text": "Sau đó trời bắt đầu đổ mưa nhẹ.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g14-3-hd",
+  "text": "Mọi việc diễn ra đúng như kế hoạch đã đặt ra từ tuần trước.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g14-3-tl",
+  "text": "Mọi việc diễn ra đúng như kế hoạch đã đặt ra từ tuần trước.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g15-1-hd",
+  "text": "Ông cụ trên cao nguyên hướng dẫn mọi người tiết kiệm điện mỗi ngày.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g15-1-tl",
+  "text": "Ông cụ trên cao nguyên hướng dẫn mọi người tiết kiệm điện mỗi ngày.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g15-2-hd",
+  "text": "Buổi chiều trôi qua thật nhẹ nhàng và bình yên.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g15-2-tl",
+  "text": "Buổi chiều trôi qua thật nhẹ nhàng và bình yên.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g15-3-hd",
+  "text": "Ai cũng mong sẽ có dịp quay lại nơi này thêm nhiều lần nữa.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g15-3-tl",
+  "text": "Ai cũng mong sẽ có dịp quay lại nơi này thêm nhiều lần nữa.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g16-1-hd",
+  "text": "Bà ngoại ở Đà Nẵng nói về những chuyến đi xa đầy thú vị.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g16-1-tl",
+  "text": "Bà ngoại ở Đà Nẵng nói về những chuyến đi xa đầy thú vị.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g16-2-hd",
+  "text": "Mọi người lắng nghe rất chăm chú và mỉm cười.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g16-2-tl",
+  "text": "Mọi người lắng nghe rất chăm chú và mỉm cười.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g16-3-hd",
+  "text": "Câu chuyện được kể lại cho cả gia đình nghe trong bữa cơm tối.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g16-3-tl",
+  "text": "Câu chuyện được kể lại cho cả gia đình nghe trong bữa cơm tối.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g17-1-hd",
+  "text": "Người dẫn chuyện ở Hà Nội chia sẻ bí quyết nấu bát phở thơm ngon.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g17-1-tl",
+  "text": "Người dẫn chuyện ở Hà Nội chia sẻ bí quyết nấu bát phở thơm ngon.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g17-2-hd",
+  "text": "Câu chuyện khiến ai cũng nhớ về tuổi thơ.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g17-2-tl",
+  "text": "Câu chuyện khiến ai cũng nhớ về tuổi thơ.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g17-3-hd",
+  "text": "Đứa trẻ ngồi bên cạnh hỏi thêm rất nhiều câu hỏi ngây thơ.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g17-3-tl",
+  "text": "Đứa trẻ ngồi bên cạnh hỏi thêm rất nhiều câu hỏi ngây thơ.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g18-1-hd",
+  "text": "Cô giáo trẻ giữa chợ Bến Thành giải thích cách trồng lúa cho thật tốt.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g18-1-tl",
+  "text": "Cô giáo trẻ giữa chợ Bến Thành giải thích cách trồng lúa cho thật tốt.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g18-2-hd",
+  "text": "Cuối cùng cả nhóm cùng nhau ra về.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g18-2-tl",
+  "text": "Cuối cùng cả nhóm cùng nhau ra về.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g18-3-hd",
+  "text": "Tiếng chim hót vang khắp con đường nhỏ dẫn vào làng.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g18-3-tl",
+  "text": "Tiếng chim hót vang khắp con đường nhỏ dẫn vào làng.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g19-1-hd",
+  "text": "Bác nông dân gần bến xe kể lại một kỷ niệm đẹp về mùa thu năm ấy.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g19-1-tl",
+  "text": "Bác nông dân gần bến xe kể lại một kỷ niệm đẹp về mùa thu năm ấy.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g19-2-hd",
+  "text": "Sau đó trời bắt đầu đổ mưa nhẹ.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g19-2-tl",
+  "text": "Sau đó trời bắt đầu đổ mưa nhẹ.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g19-3-hd",
+  "text": "Ánh nắng chiều chiếu xuống mặt hồ làm nước lấp lánh như bạc.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g19-3-tl",
+  "text": "Ánh nắng chiều chiếu xuống mặt hồ làm nước lấp lánh như bạc.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g20-1-hd",
+  "text": "Anh kỹ sư bên bờ sông Hồng đọc một bài thơ về quê hương yêu dấu.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g20-1-tl",
+  "text": "Anh kỹ sư bên bờ sông Hồng đọc một bài thơ về quê hương yêu dấu.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g20-2-hd",
+  "text": "Buổi chiều trôi qua thật nhẹ nhàng và bình yên.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g20-2-tl",
+  "text": "Buổi chiều trôi qua thật nhẹ nhàng và bình yên.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "g20-3-hd",
+  "text": "Những người bạn cũ hẹn nhau cuối tuần sau sẽ gặp lại ở quán quen.",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "g20-3-tl",
+  "text": "Những người bạn cũ hẹn nhau cuối tuần sau sẽ gặp lại ở quán quen.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "e01-default",
+  "text": "Giọng mặc định đọc câu này khi không chọn giọng nào."
+ },
+ {
+  "id": "e02-default-num",
+  "text": "Còn 3 ngày nữa là đến hạn, mời bạn chuẩn bị.",
+  "voice_id": 5
+ },
+ {
+  "id": "e03-alias",
+  "text": "Tên gọi khác của một giọng có sẵn vẫn dùng được.",
+  "voice_id": "Minh Quân"
+ },
+ {
+  "id": "e04-huyen",
+  "text": "Chào buổi sáng, chúc bạn một ngày làm việc hiệu quả.",
+  "voice_id": "Ngọc Huyền"
+ },
+ {
+  "id": "e05-tuan",
+  "text": "Bản tin thời tiết: chiều nay có mưa rào rải rác.",
+  "voice_id": "Quốc Tuấn"
+ },
+ {
+  "id": "e06-adam",
+  "text": "Xin chào, tôi là Adam.",
+  "voice_id": "Adam"
+ },
+ {
+  "id": "e07-speed2",
+  "text": "Câu này được đọc nhanh gấp đôi bình thường.",
+  "voice_id": "Trúc Ly",
+  "speed": 2
+ },
+ {
+  "id": "e08-speed05",
+  "text": "Câu này được đọc chậm lại một nửa.",
+  "voice_id": "Hải Đăng",
+  "speed": 0.5
+ },
+ {
+  "id": "e09-emotion",
+  "text": "Thật là vui <|emotion_1|> và bất ngờ.",
+  "voice_id": "Trúc Ly"
+ },
+ {
+  "id": "e10-cues",
+  "text": "[hắng giọng] Xin phép bắt đầu. [nghỉ 0,2s] Cảm ơn mọi người [cười].",
+  "voice_id": "Hải Đăng"
+ },
+ {
+  "id": "e11-unknown-voice",
+  "text": "Giọng này không có.",
+  "voice_id": "Không Có Giọng"
+ },
+ {
+  "id": "e12-bad-name",
+  "text": "Tên tệp phải là WAV.",
+  "output_name": "e12-bad-name.mp3"
+ },
+ {
+  "id": "e13-exists",
+  "text": "Trùng tên với một bản đã có.",
+  "output_name": "e01-default.wav"
+ },
+ {
+  "id": "e14-pause-only",
+  "text": "[nghỉ 1s]"
+ },
+ {
+  "id": "e15-speed-range",
+  "text": "Tốc độ ngoài khoảng cho phép.",
+  "speed": 3
+ },
+ {
+  "id": "e16-long",
+  "text": "Người dẫn chuyện ở Hà Nội kể lại một kỷ niệm đẹp về mùa thu năm ấy. Mọi người lắng nghe rất chăm chú và mỉm cười. Ai cũng mong sẽ có dịp quay lại nơi này thêm nhiều lần nữa. Cô giáo trẻ giữa chợ Bến Thành đọc một bài thơ về quê hương yêu dấu. Câu chuyện khiến ai cũng nhớ về tuổi thơ. Câu chuyện được kể lại cho cả gia đình nghe trong bữa cơm tối. Bác nông dân gần bến xe hướng dẫn mọi người tiết kiệm điện mỗi ngày. Cuối cùng cả nhóm cùng nhau ra về. Đứa trẻ ngồi bên cạnh hỏi thêm rất nhiều câu hỏi ngây thơ. Anh kỹ sư bên bờ sông Hồng nói về những chuyến đi xa đầy thú vị. Sau đó trời bắt đầu đổ mưa nhẹ. Tiếng chim hót vang khắp con đường nhỏ dẫn vào làng."
+ }
+]

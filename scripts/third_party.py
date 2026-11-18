@@ -1,7 +1,7 @@
 """Generate the release SBOM (CycloneDX 1.5 JSON) and THIRD-PARTY-NOTICES.txt.
 
 usage: python scripts/third_party.py <out_dir>
-Inventories what the installer ships: Rust crates linked into the app, npm packages bundled
+Inventories what the installer ships: Rust crates linked into the app and the native worker, npm packages bundled
 into the UI, the private Python runtime packages and the FFmpeg build. Run after
 scripts/setup-runtime.ps1 and npm install.
 """
@@ -42,21 +42,29 @@ def add(kind, name, version, license_, purl, files):
     if not texts: no_text.append(f'{name} {version} ({kind})')
     notices.append(f"{'=' * 78}\n{name} {version} ({kind}) — {license_ or 'NOASSERTION'}\n{'=' * 78}\n" + '\n\n'.join(texts))
 
-# Rust: normal (non-dev, non-build) dependencies reachable from the app crate.
-meta = json.loads(subprocess.check_output(['cargo', 'metadata', '--format-version', '1', '--locked', '--filter-platform', 'x86_64-pc-windows-msvc'],
-                                          cwd=ROOT / 'src-tauri'))
-pkgs = {p['id']: p for p in meta['packages']}
-nodes = {n['id']: n for n in meta['resolve']['nodes']}
-seen, stack = set(), [meta['resolve']['root']]
-while stack:
-    pid = stack.pop()
-    if pid in seen: continue
-    seen.add(pid)
-    for d in nodes[pid]['deps']:
-        if any(k['kind'] in (None, 'normal') for k in d['dep_kinds']): stack.append(d['pkg'])
-for pid in sorted(seen - {meta['resolve']['root']}, key=lambda i: pkgs[i]['name']):
-    p = pkgs[pid]; d = pathlib.Path(p['manifest_path']).parent
-    add('cargo', p['name'], p['version'], p.get('license'), f"pkg:cargo/{p['name']}@{p['version']}", [f for f in sorted(d.iterdir()) if LICENSE_FILE.match(f.name) and f.is_file()])
+# Rust: normal (non-dev, non-build) dependencies reachable from the app crate and from the native worker (worker-rs), each once.
+# The worker's own path crates (ortffi) are this project's code.
+crates = set()
+for crate_dir in ('src-tauri', 'worker-rs'):
+    meta = json.loads(subprocess.check_output(['cargo', 'metadata', '--format-version', '1', '--locked', '--filter-platform', 'x86_64-pc-windows-msvc'],
+                                              cwd=ROOT / crate_dir))
+    pkgs = {p['id']: p for p in meta['packages']}
+    nodes = {n['id']: n for n in meta['resolve']['nodes']}
+    seen, stack = set(), [meta['resolve']['root']]
+    while stack:
+        pid = stack.pop()
+        if pid in seen: continue
+        seen.add(pid)
+        for d in nodes[pid]['deps']:
+            if any(k['kind'] in (None, 'normal') for k in d['dep_kinds']): stack.append(d['pkg'])
+    for pid in sorted(seen - {meta['resolve']['root']}, key=lambda i: pkgs[i]['name']):
+        p = pkgs[pid]; d = pathlib.Path(p['manifest_path']).parent
+        if p['source'] is None or (p['name'], p['version']) in crates: continue
+        crates.add((p['name'], p['version']))
+        lic = p.get('license') or {'sea-g2p-rs': 'Apache-2.0'}.get(p['name'])  # metadata omits it; verified from its LICENSE file
+        add('cargo', p['name'], p['version'], lic, f"pkg:cargo/{p['name']}@{p['version']}", [f for f in sorted(d.iterdir()) if LICENSE_FILE.match(f.name) and f.is_file()])
+# C++ headers compiled into the native worker, as numpy 2.4.6 vendors them (worker-rs/third_party/x86-simd-sort/PROVENANCE.txt).
+add('vendored', 'x86-simd-sort', 'numpy-2.4.6', 'BSD-3-Clause', 'pkg:github/intel/x86-simd-sort', [ROOT / 'worker-rs/third_party/x86-simd-sort/LICENSE.md'])
 
 # npm: production dependency tree bundled by Vite.
 def walk(tree, acc):

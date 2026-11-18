@@ -1,6 +1,7 @@
 r"""x_compare.py: row X (render, probe) of the Rust worker against the v1.0.16 Python goldens.
 
-usage:  python x_compare.py --exe <thanham-worker.exe> --ffmpeg <ffmpeg.exe> [--ffprobe <ffprobe.exe>] [--only <substring>] [--seg <folder>]
+usage:  python x_compare.py --exe <thanham-worker.exe> --ffmpeg <ffmpeg.exe> [--ffprobe <ffprobe.exe>] [--only <substring>] [--skip <substring>]
+                            [--seg <folder>] [--opus-python <python.exe> --main <worker/main.py>]
         python x_compare.py --python <python.exe> --main <worker/main.py> ...   (the same rule against the Python worker: a harness self-check)
 
 Every request in requests\ runs through the engine as production does (one request on stdin, protocol 1), and the result is
@@ -9,7 +10,8 @@ compared with golden.json, which was recorded twice from the unchanged v1.0.16 w
     (the uuid of an output name, the ${OUT} and ${FIX} paths, only the first line of an FFmpeg error text);
   - the files left in the output folder: same names, the SHA-256 of the decoded float PCM, the ffprobe fields, and, where both
     recordings agreed, the SHA-256 and size of the file itself (Opus bytes differ between two runs, so Opus is compared by
-    PCM and ffprobe fields).
+    PCM and ffprobe fields). libopus picks its code paths by CPU, so the golden Opus PCM holds only on the recording machine: with
+    --opus-python, the decoded PCM of each .opus output is compared with the Python worker's, run on this machine on the same recipe.
 The three 500-segment recipes need the 500 real TTS takes (fixtures\seg, 182 MB, not in the repository): pass --seg <folder>
 (checked against seg.sha256); without it they are reported as skipped, and the local gate runs them.
 Exit code 0 when every compared recipe matches."""
@@ -34,9 +36,6 @@ def normalise(text, out_dir, fix_dir):
     return UUID.sub('<uuid>', text)
 
 
-OPUS_BY_CPU = False
-
-
 def decode_sha(ffmpeg, path):
     p = subprocess.run([ffmpeg, '-nostdin', '-v', 'error', '-i', str(path), '-f', 'f32le', 'pipe:1'], capture_output=True)
     return hashlib.sha256(p.stdout).hexdigest() if p.returncode == 0 else 'decode-failed:' + p.stderr.decode('utf-8', 'replace')[:80]
@@ -52,13 +51,13 @@ def probe_fields(ffprobe, path):
             'format': {k: d['format'].get(k) for k in ('format_name', 'duration', 'bit_rate', 'size', 'tags', 'nb_streams')}}
 
 
-def run_recipe(args, name, request_path, fix_dir):
+def run_recipe(args, name, request_path, fix_dir, cmd=None):
     work = Path(tempfile.mkdtemp(prefix='xc-')).resolve()  # the long name: a runner's TEMP may be an 8.3 short path the worker never prints
     try:
         text = request_path.read_text(encoding='utf-8').replace('${FIX}', str(fix_dir).replace('\\', '\\\\')).replace('${OUT}', str(work).replace('\\', '\\\\'))
         request = json.dumps(json.loads(text), ensure_ascii=False)
         env = {**__import__('os').environ, 'THANHAM_FFMPEG': args.ffmpeg, 'THANHAM_FFPROBE': args.ffprobe}
-        cmd = [args.exe] if args.exe else [args.python, '-I', '-X', 'utf8', args.main]
+        cmd = cmd or ([args.exe] if args.exe else [args.python, '-I', '-X', 'utf8', args.main])
         p = subprocess.run(cmd, input=request + '\n', capture_output=True, text=True, encoding='utf-8', env=env)
         events = []
         for line in p.stdout.splitlines():
@@ -83,7 +82,8 @@ def first_line_of_errors(events):
     return [{**e, 'message': e['message'].split('\n', 1)[0]} if e.get('event') == 'error' and isinstance(e.get('message'), str) else e for e in events]
 
 
-def compare(golden, got):
+def compare(golden, got, opus_pcm=None):
+    """`opus_pcm`: the decoded PCM SHA-256 of each .opus file as the Python worker wrote it on this machine, in place of the golden's."""
     problems = []
     if golden['exit_code'] != got['exit_code']:
         problems.append(f"exit code {got['exit_code']} != {golden['exit_code']}")
@@ -97,7 +97,7 @@ def compare(golden, got):
         for want, have, same in zip(golden['files'], got['files'], golden['stable']['files']):
             if want['name'] != have['name']:
                 problems.append(f"file name {have['name']} != {want['name']}")
-            if want['pcm_sha256'] != have['pcm_sha256'] and not (OPUS_BY_CPU and want['name'].endswith('.opus') and not have['pcm_sha256'].startswith('decode-failed')):
+            if (opus_pcm or {}).get(want['name'], want['pcm_sha256']) != have['pcm_sha256']:
                 problems.append(f"{want['name']}: decoded PCM differs")
             if want['probe'] != have['probe']:
                 problems.append(f"{want['name']}: ffprobe fields differ: want {want['probe']}; got {have['probe']}")
@@ -116,12 +116,13 @@ def main():
     ap.add_argument('--ffprobe')
     ap.add_argument('--only', default='')
     ap.add_argument('--seg')
-    ap.add_argument('--opus-by-cpu', action='store_true', help='skip the PCM hash of .opus outputs (see the README); everything else stays exact')
+    ap.add_argument('--skip', default='')
+    ap.add_argument('--opus-python', help="the private runtime's python.exe: the Opus PCM reference is the Python worker (--main) on this machine")
     args = ap.parse_args()
-    global OPUS_BY_CPU
-    OPUS_BY_CPU = args.opus_by_cpu
     if not args.exe and not (args.python and args.main):
         ap.error('give --exe, or --python and --main')
+    if args.opus_python and not args.main:
+        ap.error('--opus-python needs --main')
     args.ffmpeg = str(Path(args.ffmpeg).resolve())
     args.ffprobe = str(Path(args.ffprobe).resolve()) if args.ffprobe else str(Path(args.ffmpeg).with_name('ffprobe.exe'))
     golden = json.loads((HERE / 'golden.json').read_text(encoding='utf-8'))['recipes']
@@ -142,13 +143,17 @@ def main():
     try:
         for request_path in sorted((HERE / 'requests').glob('*.json')):
             name = request_path.stem
-            if args.only not in name:
+            if args.only not in name or (args.skip and args.skip in name):
                 continue
             if name.startswith('x09-500') and not seg_dir:
                 skipped.append(name)
                 continue
             got = run_recipe(args, name, request_path, fix_dir)
-            problems = compare(golden[name], got)
+            opus_pcm = None
+            if args.opus_python and any(f['name'].endswith('.opus') for f in golden[name]['files']):
+                ref = run_recipe(args, name, request_path, fix_dir, [args.opus_python, '-I', '-X', 'utf8', args.main])
+                opus_pcm = {f['name']: f['pcm_sha256'] for f in ref['files'] if f['name'].endswith('.opus')}
+            problems = compare(golden[name], got, opus_pcm)
             if problems:
                 failed.append(name)
                 print('FAIL', name, *problems, sep='\n   ', flush=True)
