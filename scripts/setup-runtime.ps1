@@ -191,10 +191,11 @@ try {
     if (-not ($health | Select-Object -Last 1 | ConvertFrom-Json).result.ready) { throw "Worker health is not ready: $health" }
     Write-Output $health
     if ($Profile -eq 'base') {
-        # The health run above may have written .pyc files, and 419 .py files (mostly stdlib) shipped without one. Compile
-        # everything in timestamp mode now: NSIS restores each file's build-time write time on install and on update, so
-        # the shipped headers stay valid and a job writes almost nothing. py312_intrinsics.py is a SyntaxError under 3.11.
-        & $python -I -m compileall -q -x py312_intrinsics (Join-Path $pythonDir 'Lib')
+        # The health run above may have written .pyc files, and 419 .py files (mostly stdlib) shipped without one. Recompile
+        # everything as unchecked-hash .pyc: the NSIS installer stores write times rounded to an even second, so a timestamp
+        # .pyc of a source written at an odd second goes stale on install (1.0.18 gate: 208 rewritten by the jobs). A hash .pyc
+        # does not depend on the source's write time. py312_intrinsics.py is a SyntaxError under 3.11.
+        & $python -I -m compileall -q -f --invalidation-mode unchecked-hash -x py312_intrinsics (Join-Path $pythonDir 'Lib')
         if ($LASTEXITCODE -ne 0) { throw 'Bytecode compilation failed.' }
         # The Sandbox gate hashes every shipped .pyc against this list after its jobs (new .pyc files are information only).
         $sha = [Security.Cryptography.SHA256]::Create()
