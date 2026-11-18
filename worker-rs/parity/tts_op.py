@@ -1,10 +1,15 @@
-r"""tts_op.py: rows P-op, P3, P4 and P5. The seeded Python worker and the seeded Rust worker run the same preset `tts` request on this
+r"""tts_op.py: rows P-op, P3, P4, P5 and K-cond. The seeded Python worker and the seeded Rust worker run the same `tts` request on this
 machine, and everything must be identical: exit code, every event (paths compared by file name), the bytes of every WAV and raw WAV,
-the files left in the output folder, and per engine call the phonemes, token ids (P1), audio-head logits (P3), codes (P4) and decoded
-PCM (P5).
+the files left in the output folder, per engine call the phonemes, token ids (P1), audio-head logits (P3), codes (P4) and decoded
+PCM (P5), and for cloned voices every step of reference enrollment (K-cond, THANHAM_CLONE_TRACE).
 
 usage: python -I tts_op.py --python <runtime python.exe> --exe <staged thanham-worker.exe> --model <vieneu-v3 folder>
                            --ffmpeg <ffmpeg.exe> --items <items.json> --out <dir> [--seed 20261121] [--rounds 1] [--no-trace]
+                           [--refs <folder> [--previews]]
+
+An item with "reference": "<file>" is a cloned voice: its reference_path is <folder>/<file> (clone_refs.py makes the folder). With
+--previews, each round also runs `clone_preview` in both workers on every reference listed in <folder>/refs.json and compares the
+events, the preview's bytes and the enrollment steps.
 
 Both workers get THANHAM_TTS_SEED (the N12 hook) and run at BelowNormal priority, opted out of Windows power throttling (EcoQoS, which
 otherwise parks BelowNormal processes on the E-cores of a hybrid CPU); they inherit this script's affinity, so pin it to one core type
@@ -112,6 +117,27 @@ def traces(path):
     return out
 
 
+def clone_steps(py_path, rs_path, counts, diffs, label):
+    """Row K-cond: the enrollment steps of both workers, line by line (a 'decode' line starts each reference)."""
+    load = lambda p: [json.loads(ln) for ln in Path(p).read_text(encoding='utf-8').split('\n') if ln.strip()] if Path(p).is_file() else []
+    pl, rl = load(py_path), load(rs_path)
+    if [x['step'] for x in pl] != [x['step'] for x in rl]:
+        diffs.append(f'{label}: enrollment steps differ: python {[x["step"] for x in pl][:40]}, rust {[x["step"] for x in rl][:40]}')
+    refs, bad = 0, set()
+    for a, b in zip(pl, rl):
+        refs += a['step'] == 'decode'
+        c = counts.setdefault('soxr' if a['step'].startswith('soxr_') else a['step'], [0, 0])
+        c[1] += 1
+        if a == b:
+            c[0] += 1
+        else:
+            diffs.append(f'{label}: {a["step"]} differs: python {a["value"]}, rust {b["value"]}')
+            bad.add(refs)
+    if len(pl) != len(rl):
+        bad.add(refs)
+    return refs, refs - len(bad - {0})
+
+
 def compare(py, rs, py_dir, rs_dir, py_trace, rs_trace):
     """Differences between the two runs, as readable lines, and the per-row counts."""
     diffs, rows = [], {}
@@ -147,6 +173,46 @@ def compare(py, rs, py_dir, rs_dir, py_trace, rs_trace):
     gens = sum(len(pt[k]['gens']) for k in common)
     frames = sum(len(g) for k in common for g in pt[k]['gens'])
     rows['engine'] = {'calls': len(common), 'generations': gens, 'frames': frames, **{f'{row}_identical_calls': n for row, n in counts.items()}}
+    steps = {}
+    refs, same = clone_steps(Path(str(py_trace).replace('.trace.', '.clone.')), Path(str(rs_trace).replace('.trace.', '.clone.')), steps, diffs, 'tts')
+    if refs:
+        rows['K-cond'] = {'references': refs, 'identical': same, 'steps': {k: f'{a}/{b}' for k, (a, b) in steps.items()}}
+    return diffs, rows
+
+
+def previews(args, refs, out, r, env):
+    """clone_preview in both workers on every reference of <refs>/refs.json: (differences, rows)."""
+    diffs, steps, rows = [], {}, {'references': 0, 'identical': 0, 'results': 0}
+    for name in json.loads((refs / 'refs.json').read_text(encoding='utf-8')):
+        stem = name.replace('.', '_')  # r1.wav and r1.flac are two references
+        runs = {}
+        for engine in ('python', 'rust'):
+            folder = out / f'preview-{engine}{r}' / stem
+            ctrace = out / f'preview-{engine}{r}' / f'{stem}.clone.jsonl'
+            folder.parent.mkdir(parents=True, exist_ok=True)
+            ctrace.unlink(missing_ok=True)
+            request = {'protocol': 1, 'id': f'preview-{r}-{stem}', 'operation': 'clone_preview', 'output_dir': str(folder),
+                       'payload': {'model_path': str(Path(args.model).resolve()), 'reference_path': str(refs / name), 'output_name': f'{stem}.wav'}}
+            e = {**env, 'THANHAM_CLONE_TRACE': str(ctrace)}
+            argv = [args.python, '-I', '-X', 'utf8', str(HERE / 'tts_trace.py'), str(out / 'preview-unused.jsonl')] if engine == 'python' else [args.exe]
+            runs[engine] = run(argv, request, e, folder)
+        (pc, pl, *_), (rc, rl, *_) = runs['python'], runs['rust']
+        pd, rd = out / f'preview-python{r}' / stem, out / f'preview-rust{r}' / stem
+        before = len(diffs)
+        if pc != rc:
+            diffs.append(f'preview {name}: exit code: python {pc}, rust {rc}')
+        if events(pl, pd) != events(rl, rd):
+            diffs.append(f'preview {name}: events: python {pl}, rust {rl}')
+        fp, fr = sorted(p.name for p in pd.iterdir()), sorted(p.name for p in rd.iterdir())
+        if fp != fr:
+            diffs.append(f'preview {name}: files: python {fp}, rust {fr}')
+        diffs += [f'preview {name}: bytes differ: {n}' for n in fp if n in fr and sha(pd / n) != sha(rd / n)]
+        clone_steps(out / f'preview-python{r}' / f'{stem}.clone.jsonl', ctrace, steps, diffs, f'preview {name}')
+        rows['references'] += 1
+        rows['results'] += any(json.loads(ln).get('event') == 'result' for ln in pl)
+        rows['identical'] += len(diffs) == before
+        print(f'preview {name}: {"identical" if len(diffs) == before else "DIFFERS"}', flush=True)
+    rows['steps'] = {k: f'{a}/{b}' for k, (a, b) in steps.items()}
     return diffs, rows
 
 
@@ -158,11 +224,15 @@ def main():
     ap.add_argument('--seed', default='20261121')
     ap.add_argument('--rounds', type=int, default=1)
     ap.add_argument('--no-trace', action='store_true')
+    ap.add_argument('--refs')
+    ap.add_argument('--previews', action='store_true')
     args = ap.parse_args()
     out = Path(args.out).resolve()
     out.mkdir(parents=True, exist_ok=True)
+    refs = Path(args.refs).resolve() if args.refs else None
     items = json.loads(Path(args.items).read_text(encoding='utf-8'))
-    payload_items = [{'output_name': f"{i['id']}.wav", **{k: v for k, v in i.items() if k != 'id'}} for i in items]
+    payload_items = [{'output_name': f"{i['id']}.wav", **{k: v for k, v in i.items() if k not in ('id', 'reference')},
+                      **({'reference_path': str(refs / i['reference'])} if 'reference' in i else {})} for i in items]
     audio_s = 0.0
     env = {**os.environ, 'THANHAM_TTS_SEED': args.seed, 'THANHAM_FFMPEG': str(Path(args.ffmpeg).resolve()),
            'THANHAM_PYTHON': str(Path(args.python).resolve()), 'PYTHONUTF8': '1', 'PYTHONIOENCODING': 'utf-8'}
@@ -176,14 +246,17 @@ def main():
             for engine in ('python', 'rust'):
                 folder = out / f'{engine}{r}'
                 trace = out / f'{engine}{r}.trace.jsonl'
+                ctrace = out / f'{engine}{r}.clone.jsonl'
                 trace.unlink(missing_ok=True)
+                ctrace.unlink(missing_ok=True)
                 request = {'protocol': 1, 'id': f'pop-{r}', 'operation': 'tts', 'output_dir': str(folder),
                            'payload': {'model_path': str(Path(args.model).resolve()), 'items': payload_items}}
+                cenv = {'THANHAM_CLONE_TRACE': str(ctrace)} if refs and not args.no_trace else {}
                 if engine == 'python':  # the desktop's command line, or the tracing wrapper around the same main()
                     script = [str(HERE.parents[1] / 'worker' / 'main.py')] if args.no_trace else [str(HERE / 'tts_trace.py'), str(trace)]
-                    argv, e = [args.python, '-I', '-X', 'utf8', *script], env
+                    argv, e = [args.python, '-I', '-X', 'utf8', *script], {**env, **cenv}
                 else:
-                    argv, e = [args.exe], env if args.no_trace else {**env, 'THANHAM_TTS_TRACE': str(trace)}
+                    argv, e = [args.exe], env if args.no_trace else {**env, 'THANHAM_TTS_TRACE': str(trace), **cenv}
                 runs[engine] = run(argv, request, e, folder)
                 code, lines, wall, peak, load = runs[engine]
                 if engine == 'python':
@@ -195,6 +268,9 @@ def main():
             diffs, rows = compare(runs['python'], runs['rust'], out / f'python{r}', out / f'rust{r}', out / f'python{r}.trace.jsonl', out / f'rust{r}.trace.jsonl')
             rows['audio_s'] = round(audio_s, 1)
             rows['rtf'] = {e: round(runs[e][2] / audio_s, 3) if audio_s else None for e in runs}
+            if args.previews:
+                more, rows['clone_preview'] = previews(args, refs, out, r, env)
+                diffs += more
             print(json.dumps(rows, ensure_ascii=False, indent=1))
             for d in diffs[:40]:
                 print('DIFF', d)

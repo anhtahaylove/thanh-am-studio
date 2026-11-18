@@ -1,0 +1,10 @@
+pocketfft as numpy 2.4.6 vendors it: numpy/fft/pocketfft/{LICENSE.md,pocketfft_hdronly.h} from the numpy-2.4.6.tar.gz sdist
+(SHA-256 f3a3570c4a2a16746ac2c31a7c7c7b0c186b95ce902e33db6f28094ed7387dda, equal to PyPI's digest), which is the git submodule
+mreineck/pocketfft at commit 33ae5dc94c9cdc7f1c78346504a85de87cadaa12 (the gitlink at numpy tag v2.4.6); copied unmodified. BSD-3-Clause
+(LICENSE.md). The worker compiles it as numpy's MSVC build does (C++17, /O2, no /arch: MSVC takes pocketfft's scalar path) behind
+../../native/pocketfft_shim.cc, which repeats numpy's rfft_impl and irfft_loop (numpy/fft/_pocketfft_umath.cpp): the clone denoiser's
+STFT and iSTFT, bitwise equal to numpy (spike S5b).
+
+SHA-256 of each file:
+a85ca13fdf90160b64a0698215868c13b74d835ad0a4e2ba44713b8c5058a056 *./LICENSE.md
+50f4ddbe60432325f560c706b6f1c49f9e0949fc7f20ae6499f2299e37d9790c *./pocketfft_hdronly.h

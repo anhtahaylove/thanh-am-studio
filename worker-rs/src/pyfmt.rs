@@ -67,6 +67,12 @@ pub fn truthy(value: &Value) -> bool {
     }
 }
 
+/// Python's `repr()` of a str with printable characters: single quotes unless the text has a single quote and no double quote.
+pub fn str_repr(s: &str) -> String {
+    let q = if s.contains('\'') && !s.contains('"') { '"' } else { '\'' };
+    format!("{q}{}{q}", s.replace('\\', "\\\\").replace(q, &format!("\\{q}")))
+}
+
 /// Python's `round(x)` for a float: halves go to the even neighbour.
 pub fn round_half_even(x: f64) -> i64 {
     x.round_ties_even() as i64

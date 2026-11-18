@@ -1,3 +1,5 @@
-# The worker links the C runtime statically; the ORT DLL it loads brings its own VC143 CRT DLLs next to it.
+# The worker links the C runtime dynamically (the MSVC default, stated here so it is not changed by accident): the clone path's
+# FFTs, fbank and float64 libm calls must reach the system ucrtbase.dll that numpy and kaldi-native-fbank call, or they are not
+# bitwise equal to Python (spike S5, section 7.4). The VC143 runtime DLLs ship next to the exe (scripts/stage-worker.ps1).
 [build]
-rustflags = ["-C", "target-feature=+crt-static"]
+rustflags = ["-C", "target-feature=-crt-static"]

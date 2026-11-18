@@ -1,0 +1,28 @@
+kaldi-native-fbank 1.23.0 (csukuangfj/kaldi-native-fbank, tag v1.23.0, commit 018d7bc92c3d4ac1a44c8c0e5c7d5c8e489ca509; archive
+SHA-256 58ca5ce20c8687ba5ac24137ed7aec93b6e338ec1545216f1766dea46fd2ad0f), the version of the Python wheel the speaker encoder uses.
+Only the files the fbank needs are copied, unmodified. Apache-2.0 (LICENSE). Built with ../kissfft by ../../build.rs behind
+../../native/knf_shim.cc (the options of vieneu's speaker/audio_utils.py _kaldi_fbank).
+
+SHA-256 of each file:
+cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30 *./LICENSE
+e4c1fde4bec1b3295d87e469e779eb74919364725242eb5e69f41e36c6919663 *./kaldi-native-fbank/csrc/feature-fbank.cc
+a2088a5bef29f01a2ecfb5ebcc92d358553c297182cef9f896b32d2ed9ef1b78 *./kaldi-native-fbank/csrc/feature-fbank.h
+3cd0aa6090a1f8ddfb8a7f1428b405abbc9c78ec7e01768b801d34ab4158becd *./kaldi-native-fbank/csrc/feature-functions.cc
+3cbf43f8732e407b5b8d9814df5b4e64b6c0aa291d8242ba8933b76777ba7b1f *./kaldi-native-fbank/csrc/feature-functions.h
+bc87e7d44cb4a170dbbbeab696bde6626774139870ff2d31a6d05488dd927531 *./kaldi-native-fbank/csrc/feature-mfcc.cc
+1741d17b351aba74d6dc5fe83af29bed7f6c365878905dece5dc8b7a9f8f620d *./kaldi-native-fbank/csrc/feature-mfcc.h
+3631bf7eb29dbefd6653321d5b69c9ad31cd541ef2761d8e587dbcc03cbd4b95 *./kaldi-native-fbank/csrc/feature-raw-audio-samples.cc
+2d0af7f027ad18f094217b030215e0f4e0c4e59393cfe35088e62cb73d805c0a *./kaldi-native-fbank/csrc/feature-raw-audio-samples.h
+7715adf2dd214bc699172f9f390b4605a9e0161ba483be48a4267f01ff48dc90 *./kaldi-native-fbank/csrc/feature-window.cc
+0a84ef9ff831bf135e98de76114174df0f91cf647a5313d73da20b27f8bb952a *./kaldi-native-fbank/csrc/feature-window.h
+03bb082f34137c67e7bd7264f4c732b2a0b65e5d8ba4c5eaa7d028eb3c9e01cd *./kaldi-native-fbank/csrc/kaldi-math.cc
+7128d94a7212c022e627780998d77ae3dd977ff50aa4ed355fd799207eb435d7 *./kaldi-native-fbank/csrc/kaldi-math.h
+3b15647a8c919c93508d8271de30314e8a98f8d710c6757c449cf0d55ddf2988 *./kaldi-native-fbank/csrc/macros.h
+8295cb6944955189794308ca7cbba591bf1cff817bc0ad3401b2a28e5cb3fb77 *./kaldi-native-fbank/csrc/mel-computations.cc
+d29f58a0303a70a9b9cbcf135f294dcb070ad1534bdab100c744b417159b9f3c *./kaldi-native-fbank/csrc/mel-computations.h
+0ab3ec82cf8ab8f4599b20435f30dc5207b5e5e620577bf4edc112234f17aded *./kaldi-native-fbank/csrc/online-feature.cc
+a603d978682133e21ecda341d555780107038a19b190053c290aa850f9547750 *./kaldi-native-fbank/csrc/online-feature.h
+44bee5f4c945b18ba873ecebee9d20e5128b0b1821c552373b06378723e6eeb3 *./kaldi-native-fbank/csrc/rfft.cc
+582b4d5017290dc057ff6c1dde1d5f798b65480be2278f7faa3d8da8c23b1e82 *./kaldi-native-fbank/csrc/rfft.h
+d956b525c1d7ac82f5eeed4a475e07706cec58a444422e77fb452fb6b3d58116 *./kaldi-native-fbank/csrc/whisper-feature.cc
+d6d43ec5804063433a072e35b5af03fc8b6aafc84fb621150ee63e18c9a6dfcd *./kaldi-native-fbank/csrc/whisper-feature.h

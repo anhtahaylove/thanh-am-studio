@@ -1,0 +1,14 @@
+kissfft at commit febd4caeed32e33ad8b2e0bb5ea77542c40f18ec (mborgerding/kissfft; the commit kaldi-native-fbank 1.23.0's cmake pins;
+archive SHA-256 497103e664168ebe39580b757adbe616f6cf85a16572af581ca7bc42d0ab13fd, equal to knf's kissfft_HASH). Only the real-FFT
+sources kaldi-native-fbank uses are copied, unmodified. BSD-3-Clause (COPYING, LICENSES/).
+
+SHA-256 of each file:
+a2840585f8411be8e6826a31ef15ae65c950bd74a2437a73b013398a934ad0c6 *./COPYING
+4d6bcab46f27d6d0c878e8305d4bdcfe040d52bf6656b9771f04c9fb9902c0ed *./LICENSES/BSD-3-Clause
+c543dab3c100d8741a83b02f397746b1e10fc0046f30b942f308191a68e99407 *./LICENSES/Unlicense
+3e8af99313c7e94f952ac12db46d3d5c5dd4a9bf93e0c32d43efa5fe39724051 *./kiss_fft.c
+9d6c7ddf520932c0aad669c86c064a24e571e594681be9f1491c14c9c9c75693 *./kiss_fft.h
+128b651120725e8d55f6b9edf5d44b06dc022b260894eac078c6ff8aa7159561 *./kiss_fftr.c
+a0f72c1bddc3126d7a51ad80e965b58f6af77e4419aa882a0b11951e783632a8 *./kiss_fftr.h
+dd1731891d0fff0e297198847de39216c5c8b9677ea4fe53160d1f6c74218d40 *./_kiss_fft_guts.h
+f954cb6890ec999f7fbc80cdd1c8c0194bbaeb0f1c27e11bd23450f53871cf8c *./kiss_fft_log.h

@@ -49,7 +49,7 @@ jobs:
       - name: SBOM and notices
         run: python scripts/third_party.py release
       - name: Build the native worker
-        working-directory: worker-rs  # .cargo/config.toml (crt-static) and rust-toolchain.toml are read from here
+        working-directory: worker-rs  # .cargo/config.toml (dynamic CRT) and rust-toolchain.toml are read from here
         run: |
           rustup toolchain install 1.99.1 --profile minimal
           cargo build --release --locked

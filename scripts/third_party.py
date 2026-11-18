@@ -65,6 +65,10 @@ for crate_dir in ('src-tauri', 'worker-rs'):
         add('cargo', p['name'], p['version'], lic, f"pkg:cargo/{p['name']}@{p['version']}", [f for f in sorted(d.iterdir()) if LICENSE_FILE.match(f.name) and f.is_file()])
 # C++ headers compiled into the native worker, as numpy 2.4.6 vendors them (worker-rs/third_party/x86-simd-sort/PROVENANCE.txt).
 add('vendored', 'x86-simd-sort', 'numpy-2.4.6', 'BSD-3-Clause', 'pkg:github/intel/x86-simd-sort', [ROOT / 'worker-rs/third_party/x86-simd-sort/LICENSE.md'])
+# The cloned-voice path's FFTs and fbank, compiled into the native worker (each folder's PROVENANCE.txt).
+add('vendored', 'pocketfft', 'numpy-2.4.6', 'BSD-3-Clause', 'pkg:github/mreineck/pocketfft@33ae5dc94c9cdc7f1c78346504a85de87cadaa12', [ROOT / 'worker-rs/third_party/pocketfft/LICENSE.md'])
+add('vendored', 'kaldi-native-fbank', '1.23.0', 'Apache-2.0', 'pkg:github/csukuangfj/kaldi-native-fbank@v1.23.0', [ROOT / 'worker-rs/third_party/kaldi-native-fbank/LICENSE'])
+add('vendored', 'kissfft', 'febd4caeed32e33ad8b2e0bb5ea77542c40f18ec', 'BSD-3-Clause', 'pkg:github/mborgerding/kissfft@febd4caeed32e33ad8b2e0bb5ea77542c40f18ec', [ROOT / 'worker-rs/third_party/kissfft/COPYING', ROOT / 'worker-rs/third_party/kissfft/LICENSES/BSD-3-Clause'])
 
 # npm: production dependency tree bundled by Vite.
 def walk(tree, acc):

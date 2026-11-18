@@ -3,9 +3,10 @@ param(
     [string]$OnnxRuntime = (Join-Path $PSScriptRoot '..\runtime\python\Lib\site-packages\onnxruntime\capi\onnxruntime.dll'),
     [string]$Stage = (Join-Path $PSScriptRoot '..\worker-rs\stage')
 )
-# Stages the native worker for the installer: tauri.conf.json maps worker-rs/stage/ to worker/ next to main.py. The exe is
-# +crt-static; the VC143 runtime DLLs go beside it because onnxruntime.dll (loaded by full path from this folder) imports them,
-# and the pinned ONNX Runtime comes from the private runtime's wheel so both workers run the same build.
+# Stages the native worker for the installer: tauri.conf.json maps worker-rs/stage/ to worker/ next to main.py. The exe links
+# the C runtime dynamically (worker-rs/.cargo/config.toml), so it and onnxruntime.dll (loaded by full path from this folder) both
+# import the VC143 runtime DLLs that go beside it; the pinned ONNX Runtime comes from the private runtime's wheel so both workers
+# run the same build.
 $ErrorActionPreference = 'Stop'
 foreach ($f in $Exe, $OnnxRuntime) { if (-not (Test-Path -LiteralPath $f -PathType Leaf)) { throw "Missing $f" } }
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
