@@ -57,6 +57,11 @@ fn main() {
             std::env::var_os("THANHAM_CT2_ENGINE")
                 .expect("THANHAM_CT2_ENGINE: the output folder of engine/build-engine.ps1"),
         );
+        // Only an engine from the toolset build-engine.ps1 pins (the wheel's); check-link.ps1 verifies the objects themselves.
+        let compiler = std::fs::read_to_string(engine.join("compiler.txt")).expect("compiler.txt of the engine");
+        assert!(compiler.starts_with("19.44."), "the engine was built with cl {compiler}; the worker needs cl 19.44");
+        println!("cargo:rerun-if-changed={}", engine.join("compiler.txt").display());
+        println!("cargo:rustc-env=THANHAM_CT2_COMPILER={compiler}");
         println!("cargo:rustc-link-search=native={}", engine.join("lib").display());
         // oneDNN 3.1.1 from the recipe: ct2rs-sys's own `dnnl` feature would build a 2026 oneDNN (plan F37).
         println!("cargo:rustc-link-lib=static=dnnl");

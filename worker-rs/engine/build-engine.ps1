@@ -167,4 +167,7 @@ Copy-Item -Recurse (Join-Path $ct2 'include') $Out
 Copy-Item -Recurse (Join-Path $mkl 'include') (Join-Path $Out 'mklroot')
 foreach ($n in 'mkl_core.lib', 'mkl_intel_ilp64.lib', 'mkl_intel_thread.lib', 'libiomp5md.lib') { Copy-Item (Join-Path $mkl "lib\$n") (Join-Path $Out 'mklroot\lib') }
 Copy-Item (Join-Path $omp 'libiomp5md.dll'), (Join-Path $omp 'libomp.dll') (Join-Path $Out 'bin')
+# compiler.txt: the cl version every C/C++ object was built with, which the worker's build.rs requires and check-link.ps1 verifies
+# against the objects' own compiler ids.
+Set-Content -LiteralPath (Join-Path $Out 'compiler.txt') -Encoding ascii -NoNewline -Value ([regex]::Match($cl, 'Version (\d+\.\d+\.\d+)').Groups[1].Value)
 Get-ChildItem -LiteralPath $Out -Recurse -File -Include *.lib, *.dll | ForEach-Object { '{0,12}  {1}' -f $_.Length, $_.FullName.Substring($Out.Length + 1) }

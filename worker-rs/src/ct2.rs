@@ -38,6 +38,7 @@ pub fn info() -> Value {
     }
     json!({
         "ctranslate2": "4.8.5",
+        "compiler": env!("THANHAM_CT2_COMPILER"),
         "cpu_vendor": cpu_vendor(),
         "gemm_int8": c_string(&name),
         "ct2_use_mkl": std::env::var("CT2_USE_MKL").ok(),

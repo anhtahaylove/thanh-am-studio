@@ -38,6 +38,20 @@ if ($deps -match '^vcomp') { $fail += "the exe depends on $($deps -match '^vcomp
 foreach ($n in 'cublas', 'cublasLt') {
     if ((& dumpbin /nologo /linkermember:1 (Join-Path $Engine "lib\$n.lib") | Out-String) -notmatch '\b0 public symbols') { $fail += "lib\$n.lib has symbols" }
 }
+# (c) every object of the engine's own libraries comes from the cl that compiler.txt names, of the wheel's toolset (cl 19.44): the
+#     @comp.id each object carries, (product << 16) | build.
+$compiler = (Get-Content -LiteralPath (Join-Path $Engine 'compiler.txt') -Raw).Trim()
+$build = if ($compiler -match '^19\.44\.(\d+)$') { [uint32]$Matches[1] } else { $fail += "compiler.txt names cl $compiler, not 19.44"; 0 }
+foreach ($n in 'ctranslate2.lib', 'cpu_features.lib', 'dnnl.lib') {
+    $other = foreach ($l in & dumpbin /nologo /symbols (Join-Path $Engine "lib\$n")) {
+        if ($l -match '^\S+\s+([0-9A-F]{8})\s.*@comp\.id') {
+            $id = [Convert]::ToUInt32($Matches[1], 16)
+            if (($id -shr 16) -ne 0 -and ($id -band 0xFFFF) -ne $build) { '{0:X8}' -f $id }
+        }
+    }
+    if ($other) { $fail += "lib\$n has objects from another compiler: $(($other | Sort-Object -Unique) -join ', ')" }
+}
+"engine compiler: cl $compiler"
 "imports from libiomp5md.dll: $($imports.Count) ($(($imports | Sort-Object) -join ', '))"
 "dependents: $($deps -join ', ')"
 
@@ -51,4 +65,4 @@ $want = if ($useMkl) { 'MKL' } else { 'DNNL' }
 if ($stt.gemm_int8 -cne $want) { $fail += "CTranslate2 chose $($stt.gemm_int8) on a $($stt.cpu_vendor) CPU; the wheel chooses $want" }
 
 if ($fail) { throw "Link checks failed:`n$($fail -join "`n")" }
-'OK: link-only names declared and not imported; every libiomp5md.dll import exported by the shim; no VCOMP; empty cublas stubs; backend as the wheel'
+'OK: link-only names declared and not imported; every libiomp5md.dll import exported by the shim; no VCOMP; empty cublas stubs; engine objects from cl 19.44; backend as the wheel'
