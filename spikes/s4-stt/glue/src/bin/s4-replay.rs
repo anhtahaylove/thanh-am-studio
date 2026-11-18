@@ -247,7 +247,8 @@ fn main() -> ExitCode {
         }
     };
     let text = std::fs::read_to_string(dir.join("events.jsonl")).expect("events.jsonl");
-    let (lang0, diarizing) = (if mode == "a" { None } else { Some("vi") }, mode != "p");
+    let base = &mode[..1]; // a trailing `i` marks a fault-injected recording (same path)
+    let (lang0, diarizing) = (if base == "a" { None } else { Some("vi") }, base != "p");
     let (mut n_items, mut n_ok, mut max_feat, mut calls, mut cr) = (0usize, 0usize, 0f64, [0usize; 4], (0usize, 0usize, 0usize));
     let (mut cr_max_diff, mut cr_min_margin) = (0f64, f64::INFINITY);
     for line in text.lines().filter(|l| !l.trim().is_empty()) {

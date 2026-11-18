@@ -2,7 +2,8 @@
 
 usage: runtime\\python\\python.exe -I record_stt.py <jobs.txt>
   jobs.txt: one job per line, `<corpus> <small|turbo> <w|p|a> [id,id,...]` (corpora as in P0-core's stt_run.py; `#` comments).
-  modes: w = language vi + word times, p = vi without word times, a = auto language + word times (THRESHOLDS-S4.md).
+  modes: w = language vi + word times, p = vi without word times, a = auto language + word times (THRESHOLDS-S4.md);
+  a trailing `i` (wi, pi) records with fault injection (see Recorder).
 
 Path per item, as in P0-core's stt_run.py and the worker's stt(): load_audio -> stt_windows -> stt_window (beam 5, VAD on, no
 previous-text conditioning) with stt()'s IndexError retry without word times. The recorder wraps the ctranslate2.models.Whisper object
@@ -34,11 +35,24 @@ def sha(b):
     return hashlib.sha256(b).hexdigest()
 
 
-class Recorder:
-    """Proxy for ctranslate2.models.Whisper: forwards everything, logs the four engine calls."""
+class Result:
+    """Stand-in for a CTranslate2 result object (only the attributes faster-whisper reads)."""
 
-    def __init__(self, inner):
+    def __init__(self, **kw):
+        self.__dict__.update(kw)
+
+
+class Recorder:
+    """Proxy for ctranslate2.models.Whisper: forwards everything, logs the four engine calls.
+    inject=True (modes ending in `i`, glue-only test): perturbs engine outputs so the unchanged Python glue takes its rare branches.
+    By encode index n: n % 4 == 1 scales the temperature-0 scores by 10 (one fallback), == 2 scales every decode's scores by 10
+    (all temperatures fail, best-of selection), == 3 also sets no_speech_prob 0.95 (no-speech skip); the 2nd align call of each window
+    returns empty alignments (faster-whisper's IndexError, the worker's retry without word times)."""
+
+    def __init__(self, inner, inject=False):
         self.inner = inner
+        self.inject = inject
+        self.n_align = 0
         self.events = []
         self.feat = None  # open file for this item's encode inputs
         self.enc_dir = None  # where to keep encode outputs (T1e items) or None
@@ -70,6 +84,10 @@ class Recorder:
 
     def generate(self, encoder_output, prompts, **kw):
         res = self.inner.generate(encoder_output, prompts, **kw)
+        n = self.handle(encoder_output)
+        if self.inject and n % 4 and (n % 4 > 1 or kw.get('sampling_temperature', 0) == 0):
+            res = [Result(sequences_ids=r.sequences_ids, sequences=r.sequences, scores=[s * 10 for s in r.scores],
+                          no_speech_prob=0.95 if n % 4 == 3 else r.no_speech_prob) for r in res]
         self.events.append({'k': 'generate', 'enc': self.handle(encoder_output), 'prompts': [list(p) for p in prompts],
                             'kw': {k: (list(v) if isinstance(v, tuple) else v) for k, v in kw.items()},
                             'out': [{'seq': [list(s) for s in r.sequences_ids], 'scores': list(r.scores), 'nsp': r.no_speech_prob} for r in res]})
@@ -77,6 +95,9 @@ class Recorder:
 
     def align(self, encoder_output, start_sequence, text_tokens, num_frames, **kw):
         res = self.inner.align(encoder_output, start_sequence, text_tokens, num_frames, **kw)
+        self.n_align += 1
+        if self.inject and self.n_align == 2:
+            res = [Result(alignments=[], text_token_probs=list(r.text_token_probs)) for r in res]
         self.events.append({'k': 'align', 'enc': self.handle(encoder_output), 'start': list(start_sequence),
                             'text': [list(t) for t in text_tokens], 'num_frames': num_frames, 'kw': kw,
                             'out': [{'al': [list(p) for p in r.alignments], 'probs': list(r.text_token_probs)} for r in res]})
@@ -89,6 +110,8 @@ class Recorder:
 
 
 def manifest(corpus):
+    if corpus == 'edge':  # S4's own edge set (tools/make_edge.py)
+        return json.loads((S4 / 'edge' / 'edge.json').read_text(encoding='utf-8'))['items']
     if corpus == 'viyt':
         files = sorted((EV.parent.parent / 'diarization-natural' / 'extract').glob('*.wav'))
         return [{'id': f'viyt-{f.stem}', 'path': str(f)} for f in files]
@@ -132,7 +155,8 @@ def main():
         (out_dir / 'feat').mkdir(parents=True, exist_ok=True)
         events_file = out_dir / 'events.jsonl'
         done = {json.loads(line)['id'] for line in events_file.read_text(encoding='utf-8').splitlines() if line.strip()} if events_file.exists() else set()
-        lang0, with_words = (None if mode == 'a' else 'vi'), mode in ('w', 'a')
+        lang0, with_words = (None if mode[0] == 'a' else 'vi'), mode[0] in ('w', 'a')
+        rec.inject = mode.endswith('i')
         t_job = time.time()
         for it in manifest(corpus):
             if (only and it['id'] not in only) or it['id'] in done:
@@ -155,6 +179,7 @@ def main():
                 cuts = worker.stt_windows(audio)
                 for start, end in zip(cuts, cuts[1:]):
                     rec.live.clear()
+                    rec.n_align = 0
                     rec.events.append({'k': 'window', 'start': int(start), 'end': int(end), 'lang': lang, 'words': with_words})
                     try:
                         r, w, lang = worker.stt_window(model, audio[start:end], start / worker.STT_RATE, lang, with_words, duration, lambda *a: None)
