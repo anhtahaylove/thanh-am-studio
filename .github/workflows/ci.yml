@@ -59,6 +59,8 @@ jobs:
         run: |
           python -m venv "$env:RUNNER_TEMP/ortvenv"
           & "$env:RUNNER_TEMP/ortvenv/Scripts/python.exe" -m pip install --no-deps onnxruntime==1.31.1 faster-whisper==1.2.1 sherpa-onnx==2.0.1 sherpa-onnx-core==2.0.1
+      # `cargo test` builds no exe for a package without integration tests; the worker's diarization test runs this one.
+      - run: cargo build -p thanham-diarize --locked
       - run: cargo test --workspace --locked
         env:
           ORTFFI_RUNTIME: ${{ runner.temp }}/ortvenv
