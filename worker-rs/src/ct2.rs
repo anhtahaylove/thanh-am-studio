@@ -1,8 +1,9 @@
 //! The statically linked STT engine (feature `ct2`): CTranslate2 4.8.5 built to match the Python wheel's engine
 //! (`engine/build-engine.ps1`), and what `health` reports about it.
 
+use crate::stt::glue::{AlignResult, GenOptions, GenResult};
 use serde_json::{json, Value};
-use std::ffi::{c_char, c_int};
+use std::ffi::{c_char, c_int, c_void, CString};
 
 // Keeps the MKL libraries in the link (ct2rs-sys references the crate the same way), and CTranslate2 itself: rustc drops a crate
 // nothing names from the link, with its native libraries, and only native/ct2_glue.cc calls into CTranslate2 outside the tests.
@@ -44,6 +45,277 @@ pub fn info() -> Value {
         "ct2_use_mkl": std::env::var("CT2_USE_MKL").ok(),
         "mkl": c_string(&mkl),
     })
+}
+
+/// `thanham_ct2_error` of native/ct2_glue.cc: the Python exception class the wheel's binding raises, and its message.
+#[repr(C)]
+struct Ct2Error {
+    kind: [c_char; 32],
+    message: [c_char; 1024],
+}
+
+impl Ct2Error {
+    fn new() -> Self {
+        Ct2Error { kind: [0; 32], message: [0; 1024] }
+    }
+
+    /// The worker's message for it: Python's `{type}: {str(exception)}`.
+    fn text(&self) -> String {
+        let text = |buf: &[c_char]| {
+            let bytes: Vec<u8> = buf.iter().take_while(|&&c| c != 0).map(|&c| c as u8).collect();
+            String::from_utf8_lossy(&bytes).into_owned()
+        };
+        format!("{}: {}", text(&self.kind), text(&self.message))
+    }
+}
+
+/// `thanham_whisper_options` of native/ct2_glue.cc.
+#[repr(C)]
+struct Options {
+    beam_size: usize,
+    patience: f32,
+    num_hypotheses: usize,
+    length_penalty: f32,
+    repetition_penalty: f32,
+    no_repeat_ngram_size: usize,
+    max_length: usize,
+    max_initial_timestamp_index: usize,
+    suppress_blank: c_int,
+    suppress_tokens: *const c_int,
+    suppress_tokens_len: usize,
+    sampling_topk: usize,
+    sampling_temperature: f32,
+}
+
+extern "C" {
+    fn thanham_whisper_load(model_dir: *const c_char, threads: usize, error: *mut Ct2Error) -> *mut c_void;
+    fn thanham_whisper_free(whisper: *mut c_void);
+    fn thanham_whisper_n_mels(whisper: *const c_void) -> usize;
+    fn thanham_whisper_encode(
+        whisper: *mut c_void,
+        features: *const f32,
+        n_mels: usize,
+        frames: usize,
+        error: *mut Ct2Error,
+    ) -> *mut c_void;
+    fn thanham_sv_free(sv: *mut c_void);
+    fn thanham_whisper_generate(
+        whisper: *mut c_void,
+        features: *const c_void,
+        prompt: *const usize,
+        prompt_len: usize,
+        options: *const Options,
+        no_speech_prob: *mut f32,
+        ctx: *mut c_void,
+        sequence: unsafe extern "C" fn(*mut c_void, *const usize, usize, f32),
+        error: *mut Ct2Error,
+    ) -> c_int;
+    fn thanham_whisper_align(
+        whisper: *mut c_void,
+        features: *const c_void,
+        start: *const usize,
+        start_len: usize,
+        tokens: *const usize,
+        token_lens: *const usize,
+        texts: usize,
+        num_frames: usize,
+        median_filter_width: usize,
+        ctx: *mut c_void,
+        alignment: unsafe extern "C" fn(*mut c_void, *const i64, usize, *const f32, usize),
+        error: *mut Ct2Error,
+    ) -> c_int;
+    fn thanham_whisper_detect_language(
+        whisper: *mut c_void,
+        features: *const c_void,
+        ctx: *mut c_void,
+        language: unsafe extern "C" fn(*mut c_void, *const c_char, f32),
+        error: *mut Ct2Error,
+    ) -> c_int;
+}
+
+/// A CTranslate2 Whisper model, loaded as faster-whisper's `WhisperModel(model_dir, device='cpu', compute_type='int8',
+/// cpu_threads=threads)` loads it.
+pub struct Whisper(*mut c_void);
+
+/// An encoder output (`model.encode(...)`), owned.
+pub struct Encoded(*mut c_void);
+
+impl Drop for Whisper {
+    fn drop(&mut self) {
+        // SAFETY: the pointer came from thanham_whisper_load and is freed once.
+        unsafe { thanham_whisper_free(self.0) }
+    }
+}
+
+impl Drop for Encoded {
+    fn drop(&mut self) {
+        // SAFETY: the pointer came from thanham_whisper_encode and is freed once.
+        unsafe { thanham_sv_free(self.0) }
+    }
+}
+
+// The engine's result callbacks: each pushes into the Vec its context points to.
+unsafe extern "C" fn push_sequence(ctx: *mut c_void, ids: *const usize, n: usize, score: f32) {
+    // SAFETY: `ctx` is the `Vec<(Vec<u32>, f64)>` of `generate`, alive and not otherwise borrowed during the call.
+    let out = unsafe { &mut *(ctx as *mut Vec<(Vec<u32>, f64)>) };
+    // SAFETY: the engine passes `n` readable ids.
+    let ids = if n == 0 { &[][..] } else { unsafe { std::slice::from_raw_parts(ids, n) } };
+    out.push((ids.iter().map(|&i| i as u32).collect(), f64::from(score)));
+}
+
+unsafe extern "C" fn push_alignment(ctx: *mut c_void, pairs: *const i64, n: usize, probs: *const f32, m: usize) {
+    // SAFETY: `ctx` is the `Vec<AlignResult>` of `align`, alive and not otherwise borrowed during the call.
+    let out = unsafe { &mut *(ctx as *mut Vec<AlignResult>) };
+    // SAFETY: the engine passes `n` pairs as 2n readable values.
+    let pairs = if n == 0 { &[][..] } else { unsafe { std::slice::from_raw_parts(pairs, 2 * n) } };
+    // SAFETY: the engine passes `m` readable probabilities.
+    let probs = if m == 0 { &[][..] } else { unsafe { std::slice::from_raw_parts(probs, m) } };
+    out.push(AlignResult {
+        alignments: pairs.chunks_exact(2).map(|p| (p[0], p[1])).collect(),
+        text_token_probs: probs.iter().map(|&p| f64::from(p)).collect(),
+    });
+}
+
+unsafe extern "C" fn push_language(ctx: *mut c_void, token: *const c_char, probability: f32) {
+    // SAFETY: `ctx` is the `Vec<(String, f64)>` of `detect_language`, alive and not otherwise borrowed during the call.
+    let out = unsafe { &mut *(ctx as *mut Vec<(String, f64)>) };
+    // SAFETY: the engine passes a NUL-terminated token.
+    let token = unsafe { std::ffi::CStr::from_ptr(token) }.to_string_lossy().into_owned();
+    out.push((token, f64::from(probability)));
+}
+
+impl Whisper {
+    /// `threads` is the worker's `cpu_threads`. The error is the worker's message (`RuntimeError: ...` and the like).
+    pub fn load(model_dir: &str, threads: usize) -> Result<Whisper, String> {
+        let path = CString::new(model_dir).map_err(|_| "ValueError: embedded null character".to_string())?;
+        let mut error = Ct2Error::new();
+        // SAFETY: a NUL-terminated path and a writable error buffer.
+        let whisper = unsafe { thanham_whisper_load(path.as_ptr(), threads, &mut error) };
+        if whisper.is_null() {
+            Err(error.text())
+        } else {
+            Ok(Whisper(whisper))
+        }
+    }
+
+    pub fn n_mels(&self) -> usize {
+        // SAFETY: a loaded model.
+        unsafe { thanham_whisper_n_mels(self.0) }
+    }
+
+    /// `model.encode(features)`: `features` is `[1, n_mels, frames]` row-major.
+    pub fn encode(&self, features: &[f32], n_mels: usize) -> Result<Encoded, String> {
+        let mut error = Ct2Error::new();
+        // SAFETY: `features` holds n_mels * frames floats and outlives the call (the engine only reads it during it).
+        let out =
+            unsafe { thanham_whisper_encode(self.0, features.as_ptr(), n_mels, features.len() / n_mels, &mut error) };
+        if out.is_null() {
+            Err(error.text())
+        } else {
+            Ok(Encoded(out))
+        }
+    }
+
+    /// `generate_with_fallback`'s `self.model.generate(encoder_output, [prompt], ..., **kwargs)[0]`, with faster-whisper's
+    /// kwargs: beam search at temperature 0, else `num_hypotheses=best_of`, `sampling_topk=0` and the temperature.
+    pub fn generate(&self, enc: &Encoded, prompt: &[u32], o: &GenOptions) -> Result<GenResult, String> {
+        let sampling = o.temperature > 0.0;
+        let suppress: Vec<c_int> = o.suppress_tokens.iter().map(|&t| t as c_int).collect();
+        let options = Options {
+            beam_size: if sampling { 1 } else { o.beam_size },
+            patience: if sampling { 1.0 } else { o.patience as f32 },
+            num_hypotheses: if sampling { o.best_of } else { 1 },
+            length_penalty: o.length_penalty as f32,
+            repetition_penalty: o.repetition_penalty as f32,
+            no_repeat_ngram_size: o.no_repeat_ngram_size,
+            max_length: o.max_length,
+            max_initial_timestamp_index: o.max_initial_timestamp_index,
+            suppress_blank: c_int::from(o.suppress_blank),
+            suppress_tokens: suppress.as_ptr(),
+            suppress_tokens_len: suppress.len(),
+            sampling_topk: if sampling { 0 } else { 1 },
+            sampling_temperature: if sampling { o.temperature as f32 } else { 1.0 },
+        };
+        let prompt: Vec<usize> = prompt.iter().map(|&t| t as usize).collect();
+        let mut sequences: Vec<(Vec<u32>, f64)> = Vec::new();
+        let (mut no_speech_prob, mut error) = (0f32, Ct2Error::new());
+        // SAFETY: every pointer is valid for the call; push_sequence gets `sequences` as its context.
+        let status = unsafe {
+            thanham_whisper_generate(
+                self.0,
+                enc.0,
+                prompt.as_ptr(),
+                prompt.len(),
+                &options,
+                &mut no_speech_prob,
+                (&mut sequences as *mut Vec<(Vec<u32>, f64)>).cast(),
+                push_sequence,
+                &mut error,
+            )
+        };
+        if status != 0 {
+            return Err(error.text());
+        }
+        let (sequences_ids, scores) = sequences.into_iter().unzip();
+        Ok(GenResult { sequences_ids, scores, no_speech_prob: f64::from(no_speech_prob) })
+    }
+
+    /// `model.align(encoder_output, start, text_tokens, num_frames, median_filter_width=...)`.
+    pub fn align(
+        &self,
+        enc: &Encoded,
+        start: &[u32],
+        text: &[Vec<u32>],
+        num_frames: usize,
+        median_filter_width: usize,
+    ) -> Result<Vec<AlignResult>, String> {
+        let start: Vec<usize> = start.iter().map(|&t| t as usize).collect();
+        let tokens: Vec<usize> = text.iter().flatten().map(|&t| t as usize).collect();
+        let lens: Vec<usize> = text.iter().map(Vec::len).collect();
+        let mut out: Vec<AlignResult> = Vec::new();
+        let mut error = Ct2Error::new();
+        // SAFETY: every pointer is valid for the call; push_alignment gets `out` as its context.
+        let status = unsafe {
+            thanham_whisper_align(
+                self.0,
+                enc.0,
+                start.as_ptr(),
+                start.len(),
+                tokens.as_ptr(),
+                lens.as_ptr(),
+                text.len(),
+                num_frames,
+                median_filter_width,
+                (&mut out as *mut Vec<AlignResult>).cast(),
+                push_alignment,
+                &mut error,
+            )
+        };
+        if status != 0 {
+            return Err(error.text());
+        }
+        Ok(out)
+    }
+
+    /// `model.detect_language(encoder_output)[0]`.
+    pub fn detect_language(&self, enc: &Encoded) -> Result<Vec<(String, f64)>, String> {
+        let mut out: Vec<(String, f64)> = Vec::new();
+        let mut error = Ct2Error::new();
+        // SAFETY: every pointer is valid for the call; push_language gets `out` as its context.
+        let status = unsafe {
+            thanham_whisper_detect_language(
+                self.0,
+                enc.0,
+                (&mut out as *mut Vec<(String, f64)>).cast(),
+                push_language,
+                &mut error,
+            )
+        };
+        if status != 0 {
+            return Err(error.text());
+        }
+        Ok(out)
+    }
 }
 
 #[cfg(test)]

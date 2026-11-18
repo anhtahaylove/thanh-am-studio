@@ -575,7 +575,7 @@ pub fn clone_preview(
         Some(Json::String(s)) => PathBuf::from(s),
         Some(_) => return Err(type_error()),
     };
-    crate::download::verify_model(&model_dir, "vieneu-v3")?;
+    crate::download::verify_model(&model_dir, Some("vieneu-v3"))?;
     let reference = text_or("reference_path", String::new())?;
     if reference.is_empty() || !Path::new(&reference).is_file() {
         return Err(WorkerError::new("INPUT_MISSING", "Reference voice file is missing."));

@@ -1,6 +1,7 @@
 //! `thanham-worker.exe`: the native worker. Reads one protocol-v1 request on stdin and writes JSON-lines events on stdout,
-//! like `worker/main.py`. It serves `health`, `probe`, `render`, `download`, `tts` (without take checks) and `clone_preview`; the
-//! other operations arrive in later phases and, until then, never reach this exe (the desktop does not route them here).
+//! like `worker/main.py`. It serves `health`, `probe`, `render`, `download`, `tts` (without take checks), `clone_preview` and, built
+//! with the STT engine, `stt` (without speakers); the other operations arrive in later phases and, until then, never reach this
+//! exe (the desktop does not route them here).
 
 #[cfg(feature = "ct2")]
 mod ct2;
@@ -13,8 +14,8 @@ mod paths;
 mod protocol;
 mod pyfmt;
 mod render;
-// The stt operation arrives in a later step of bundle 2; until then only the parity tests call into it.
-#[allow(dead_code)]
+// Without the STT engine (feature `ct2`) the stt operation is not built and only the parity tests call into this module.
+#[cfg_attr(not(feature = "ct2"), allow(dead_code))]
 mod stt;
 mod tts;
 
@@ -59,6 +60,8 @@ fn serve(request: &Request, out: &Arc<Emitter>) -> Result<Value> {
         "clone_preview" => {
             tts::clone_preview(payload, &request.output_dir, &|value, message| out.progress(value, message))
         }
+        #[cfg(feature = "ct2")]
+        "stt" => stt::stt(payload, &|value, message| out.progress(value, message)),
         other => {
             Err(WorkerError::py("NotImplementedError", format!("the Rust worker does not implement '{other}' yet")))
         }

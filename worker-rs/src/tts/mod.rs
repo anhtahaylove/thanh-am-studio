@@ -23,6 +23,8 @@ use crate::media::{executable, spawn_capture};
 use crate::paths::contained_path;
 use crate::pyfmt::{float_repr, tail_chars, truthy};
 use crate::render::number;
+pub(crate) use clone::py_path;
+pub(crate) use engine::cpu_count;
 use engine::{Draws, Engine, Paths, Voice, CLONED_TEMPERATURE, PRESET_TEMPERATURE};
 use serde_json::{json, Map, Value};
 use std::path::{Path, PathBuf};
@@ -31,7 +33,7 @@ use std::path::{Path, PathBuf};
 const OPENBLAS_DLL: &str = "libscipy_openblas64_-63c857e738469261263c764a36be9436.dll";
 
 /// The private Python runtime's `site-packages`: next to `THANHAM_PYTHON` when set, else `runtime\python` beside the `worker` folder.
-fn site_packages() -> PathBuf {
+pub(crate) fn site_packages() -> PathBuf {
     let python = std::env::var_os("THANHAM_PYTHON").filter(|p| !p.is_empty()).map(PathBuf::from).unwrap_or_else(|| {
         let exe = std::env::current_exe().unwrap_or_default();
         exe.parent().and_then(Path::parent).unwrap_or(Path::new(".")).join("runtime").join("python").join("python.exe")
@@ -217,7 +219,7 @@ pub fn tts(
         Some(_) => return Err(WorkerError::py("TypeError", "expected str, bytes or os.PathLike object")),
     };
     let model_dir = PathBuf::from(model_dir);
-    verify_model(&model_dir, "vieneu-v3")?;
+    verify_model(&model_dir, Some("vieneu-v3"))?;
     let items = match listed {
         Some(items) if (1..=1000).contains(&items.len()) => items,
         _ => return Err(WorkerError::new("INVALID_REQUEST", "items must list 1..1000 segments.")),

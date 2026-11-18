@@ -553,6 +553,11 @@ pub trait WhisperEngine {
     fn trace_index_error(&mut self) -> Result<(), GlueError> {
         Ok(())
     }
+    /// A segment as `transcribe`'s generator yields it to `stt_window` (restored to window time), where the worker reports
+    /// progress: also for a window that later fails with the `IndexError` and runs again.
+    fn trace_segment(&mut self, _end: f64) -> Result<(), GlueError> {
+        Ok(())
+    }
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------
@@ -740,10 +745,7 @@ impl Transcriber {
             .token_to_id(&format!("<|{language}|>"))
             .ok_or_else(|| GlueError::Engine(format!("unknown language {language}")))?;
         let sot_sequence = [self.tok.sot, lang_id, self.tok.transcribe];
-        let mut segments = self.generate_segments(e, &features, frames, &sot_sequence, words)?;
-        if !chunks.is_empty() {
-            restore_speech_timestamps(&mut segments, &chunks);
-        }
+        let segments = self.generate_segments(e, &features, frames, &sot_sequence, words, &chunks)?;
         Ok((segments, language))
     }
 
@@ -768,6 +770,7 @@ impl Transcriber {
         frames: usize,
         sot_sequence: &[u32],
         words: bool,
+        chunks: &[(i64, i64)],
     ) -> Result<Vec<Segment>, GlueError> {
         let content_frames = frames as i64 - 1;
         let clip = (0i64, content_frames); // clip_timestamps "0"
@@ -828,7 +831,14 @@ impl Transcriber {
                 if s.start.v() == s.end.v() || py_strip(&text).is_empty() {
                     continue;
                 }
-                out.push(Segment { start: s.start, end: s.end, text, words: if words { Some(s.words) } else { None } });
+                let mut segment =
+                    Segment { start: s.start, end: s.end, text, words: if words { Some(s.words) } else { None } };
+                // `if speech_chunks: segments = restore_speech_timestamps(segments, ...)`, a generator: one segment at a time.
+                if !chunks.is_empty() {
+                    restore_speech_timestamps(std::slice::from_mut(&mut segment), chunks);
+                }
+                e.trace_segment(segment.end.v())?;
+                out.push(segment);
             }
         }
         Ok(out)
