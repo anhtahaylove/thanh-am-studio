@@ -31,6 +31,9 @@ jobs that none changed (new `.pyc` files are information only).
 `SHA256SUMS.txt`, the SBOM and notices to a **draft pre-release**. Publishing the draft is a
 manual decision after the acceptance gates below pass on that exact tag. Users verify a download
 with `sha256sum -c SHA256SUMS.txt` (or compare `Get-FileHash <file>` with the listed hash).
+Before tagging, run the workflow once as a dry run on the release commit (`gh workflow run release.yml --ref main`):
+it builds and checks everything and uploads the files as a workflow artifact instead of creating a release, so a
+workflow error cannot burn a version tag (tags are never moved; `v1.0.17` was burned by such an error).
 
 ## Separation runtime pack
 

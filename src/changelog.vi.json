@@ -1,5 +1,5 @@
 [
- {"version": "1.0.17", "date": "2026-11-18", "changes": [
+ {"version": "1.0.18", "date": "2026-11-18", "changes": [
   "Bộ cài nhẹ hơn: phần tách nhạc nền (PyTorch, Demucs) chuyển thành gói tải riêng. Lần đầu dùng lồng tiếng giữ nhạc nền, app hỏi bạn đồng ý giấy phép oneMKL rồi tải gói khoảng 170 MB một lần; bản cập nhật tự xoá các thư viện này khỏi thư mục cài cũ.",
   "Xuất âm thanh và tải model giờ chạy bằng bộ xử lý gốc viết bằng Rust, cho kết quả giống hệt từng bit như trước. Nếu bộ xử lý gốc gặp lỗi, app tự chạy lại bằng Python; trong Model & cài đặt, mục Bộ xử lý cho chọn \"Luôn dùng Python\" cho từng thao tác.",
   "Thêm nút \"Xuất nhật ký chẩn đoán\" trong Model & cài đặt để gửi kèm khi báo lỗi."
