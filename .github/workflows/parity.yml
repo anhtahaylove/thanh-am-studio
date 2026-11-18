@@ -74,6 +74,7 @@ jobs:
         if: ${{ !cancelled() }}
         env:
           ORTFFI_REQUIRE: '1'
+          ORTFFI_MAX_ABS_DIFF: '1e-5' # ORT kernels depend on the runner's CPU; the recording is exact only on its own CPU family
         run: |
           $env:ORTFFI_RUNTIME = "$env:RUNNER_TEMP/ortvenv"
           $env:ORTFFI_VIENEU = "$env:RUNNER_TEMP/parity-models/vieneu-v3"

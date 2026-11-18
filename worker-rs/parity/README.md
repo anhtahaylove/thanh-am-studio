@@ -34,6 +34,8 @@ ORTFFI_REQUIRE=1 cargo test -p ortffi        # with ORTFFI_DLL, ORTFFI_SHERPA_DL
 ## Declared differences
 
 - `health` is not a parity row: the Rust result is `{engine, version, ort, ffmpeg, ready}` and the Python one lists its modules.
+- Row F is bit-exact on a CPU of the family that recorded the tensors (ORT picks kernels by CPU). On a GitHub runner the VieNeu outputs differed in the last
+  digits on one runner and matched on another (max abs diff 2.6e-6), so `parity.yml` sets `ORTFFI_MAX_ABS_DIFF=1e-5`; unset, the test is exact.
 - The `.opus` encodes of the two x05 recipes differed on a GitHub runner while every other recipe matched. The likely cause is libopus choosing SIMD paths by CPU (not
   proven: the Python worker was not run on that runner). `x_compare.py` is exact on the machine that recorded the goldens (and the release gate runs it there); `parity.yml` passes `--opus-by-cpu`, which skips only the PCM hash of `.opus` outputs and keeps
   the exit code, events, file names, ffprobe fields and the decode check.
