@@ -31,7 +31,7 @@ THANHAM_TTS_CASES=cases.jsonl THANHAM_TTS_MODEL=<models>/vieneu-v3 THANHAM_PYTHO
 <py> -I parity/tts_op.py --python <py> --exe <staged thanham-worker.exe> --model <models>/vieneu-v3 --ffmpeg <ffmpeg.exe> --items parity/tts/items.json --out <dir> [--rounds N]
 <py> -I parity/clone_refs.py --python <py> --model <models>/vieneu-v3 --ffmpeg <ffmpeg.exe> --out <refs>
 <py> -I parity/tts_op.py --python <py> --exe <staged thanham-worker.exe> --model <models>/vieneu-v3 --ffmpeg <ffmpeg.exe> --items parity/tts/clone_items.json --refs <refs> --previews --out <dir>
-<py> -I parity/stt_op.py --python <py> --exe <staged thanham-worker.exe> --model <models>/whisper-small --input <audio> --out <dir> [--rounds N] [--language auto] [--speakers 2 --diarize-model <folder>]
+<py> -I parity/stt_op.py --python <py> --exe <staged thanham-worker.exe> --model <models>/whisper-small --input <audio> --out <dir> [--rounds N] [--language auto] [--diarize-model <folder> [--speakers 2]]
 ```
 
 `<py>` is the private runtime's `runtime\python\python.exe` (`scripts/setup-runtime.ps1`). The staged exe is `scripts/stage-worker.ps1`'s folder plus

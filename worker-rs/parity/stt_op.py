@@ -5,7 +5,7 @@ columns), and every round compares the two runs' events (progress and result: ro
 back to a sampling temperature is unseeded on both sides, so such a difference is reported here and judged by rows T1b/T2.
 
 usage: python -I stt_op.py --python <runtime python.exe> --exe <staged thanham-worker.exe> --model <Whisper folder> --input <audio>
-                           --out <dir> [--rounds 1] [--language vi|auto] [--speakers N --diarize-model <folder>]
+                           --out <dir> [--rounds 1] [--language vi|auto] [--diarize-model <folder> [--speakers N]]
 
 Both workers run at BelowNormal, opted out of EcoQoS, and inherit this script's affinity: pin it to one core type
 (`start /affinity FFF`). Exits 1 on a difference or a failed run."""
@@ -34,8 +34,10 @@ def main():
     from faster_whisper.audio import decode_audio
     audio_s = len(decode_audio(args.input, sampling_rate=16000)) / 16000  # the worker's load_audio
     payload = {'model_path': str(Path(args.model).resolve()), 'input_path': str(Path(args.input).resolve()), 'language': args.language}
-    if args.speakers:
-        payload |= {'diarize_model_path': str(Path(args.diarize_model).resolve()), 'num_speakers': args.speakers}
+    if args.diarize_model:  # speakers: the count given, or found by the diarizer without --speakers
+        payload['diarize_model_path'] = str(Path(args.diarize_model).resolve())
+        if args.speakers:
+            payload['num_speakers'] = args.speakers
     env = {**os.environ, 'THANHAM_PYTHON': str(Path(args.python).resolve()), 'PYTHONUTF8': '1', 'PYTHONIOENCODING': 'utf-8'}
     failed = False
     with open(out / 'ram.csv', 'a', encoding='utf-8', newline='\n') as ram:
