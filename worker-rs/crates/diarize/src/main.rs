@@ -127,7 +127,9 @@ impl Sherpa {
         let dll = std::path::absolute(dir.join("sherpa-onnx-c-api.dll")).map_err(|e| Fail::new("OSError", e))?;
         let wide: Vec<u16> = dll.as_os_str().encode_wide().chain(std::iter::once(0)).collect();
         // SAFETY: `wide` is a NUL-terminated absolute path that outlives the call; the file handle must be null.
-        let module = unsafe { LoadLibraryExW(wide.as_ptr(), std::ptr::null_mut(), LOAD_FLAGS) };
+        let module = ortffi::without_error_dialogs(|| unsafe {
+            LoadLibraryExW(wide.as_ptr(), std::ptr::null_mut(), LOAD_FLAGS)
+        });
         if module.is_null() {
             // SAFETY: a thread-local error read right after the failed call.
             let code = unsafe { GetLastError() };

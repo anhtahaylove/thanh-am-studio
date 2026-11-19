@@ -12,6 +12,7 @@ name = "thanham-diarize"
 path = "src/main.rs"
 
 [dependencies]
+ortffi = { path = "../ortffi" }
 serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
 
 [lints.rust]

@@ -1864,6 +1864,7 @@ dependencies = [
 name = "thanham-diarize"
 version = "0.1.0"
 dependencies = [
+ "ortffi",
  "serde_json",
 ]
 
