@@ -22,6 +22,9 @@ NO_LICENSE_FILE = {
     # also ships Microsoft's WebView2 loader, which the app links statically
     'webview2-com-sys': ['scripts/licenses/webview2-com-LICENSE.txt', 'scripts/licenses/webview2-sdk-LICENSE.txt'],
     'ctranslate2': ['scripts/licenses/ctranslate2-LICENSE.txt'],
+    # vendors CTranslate2 4.8.5, built into the native worker's STT engine with these third-party parts
+    'ct2rs-sys': ['scripts/licenses/ctranslate2-LICENSE.txt', 'scripts/licenses/cpu_features-LICENSE.txt', 'scripts/licenses/spdlog-LICENSE.txt',
+                  'scripts/licenses/ctranslate2-third-party-headers.txt'],
     'flatbuffers': ['scripts/licenses/flatbuffers-LICENSE.txt'],
     'onnxruntime': ['runtime/python/Lib/site-packages/onnxruntime/LICENSE', 'runtime/python/Lib/site-packages/onnxruntime/ThirdPartyNotices.txt'],
     'sherpa-onnx-core': ['scripts/licenses/sherpa-onnx-LICENSE.txt'],
@@ -42,21 +45,30 @@ def add(kind, name, version, license_, purl, files):
     if not texts: no_text.append(f'{name} {version} ({kind})')
     notices.append(f"{'=' * 78}\n{name} {version} ({kind}) — {license_ or 'NOASSERTION'}\n{'=' * 78}\n" + '\n\n'.join(texts))
 
-# Rust: normal (non-dev, non-build) dependencies reachable from the app crate and from the native worker (worker-rs), each once.
-# The worker's own path crates (ortffi) are this project's code.
+# Rust: normal (non-dev, non-build) dependencies reachable from the app crate and from the native worker (worker-rs, built with
+# its STT engine, feature ct2), each once. The worker's own path crates (ortffi, thanham-diarize) are this project's code.
 crates = set()
-for crate_dir in ('src-tauri', 'worker-rs'):
-    meta = json.loads(subprocess.check_output(['cargo', 'metadata', '--format-version', '1', '--locked', '--filter-platform', 'x86_64-pc-windows-msvc'],
-                                              cwd=ROOT / crate_dir))
+for crate_dir, features in (('src-tauri', []), ('worker-rs', ['--features', 'ct2'])):
+    meta = json.loads(subprocess.check_output(['cargo', 'metadata', '--format-version', '1', '--locked', '--filter-platform', 'x86_64-pc-windows-msvc',
+                                               *features], cwd=ROOT / crate_dir))
     pkgs = {p['id']: p for p in meta['packages']}
     nodes = {n['id']: n for n in meta['resolve']['nodes']}
+
+    def built(pid, dep):
+        """metadata's resolve also keeps an optional dependency that only a weak feature (`dep?/feature`) names, which the build
+        leaves out (ct2rs-sys's openblas-src); an optional one is built when an enabled feature turns it on."""
+        specs = [s for s in pkgs[pid]['dependencies'] if s['name'] == dep]
+        if not specs or any(not s['optional'] for s in specs): return True
+        on = nodes[pid]['features']
+        return dep in on or any(v == f'dep:{dep}' or v.startswith(f'{dep}/') for f in on for v in pkgs[pid]['features'].get(f, []))
+
     seen, stack = set(), [meta['resolve']['root']]
     while stack:
         pid = stack.pop()
         if pid in seen: continue
         seen.add(pid)
         for d in nodes[pid]['deps']:
-            if any(k['kind'] in (None, 'normal') for k in d['dep_kinds']): stack.append(d['pkg'])
+            if any(k['kind'] in (None, 'normal') for k in d['dep_kinds']) and built(pid, pkgs[d['pkg']]['name']): stack.append(d['pkg'])
     for pid in sorted(seen - {meta['resolve']['root']}, key=lambda i: pkgs[i]['name']):
         p = pkgs[pid]; d = pathlib.Path(p['manifest_path']).parent
         if p['source'] is None or (p['name'], p['version']) in crates: continue
@@ -69,6 +81,12 @@ add('vendored', 'x86-simd-sort', 'numpy-2.4.6', 'BSD-3-Clause', 'pkg:github/inte
 add('vendored', 'pocketfft', 'numpy-2.4.6', 'BSD-3-Clause', 'pkg:github/mreineck/pocketfft@33ae5dc94c9cdc7f1c78346504a85de87cadaa12', [ROOT / 'worker-rs/third_party/pocketfft/LICENSE.md'])
 add('vendored', 'kaldi-native-fbank', '1.23.0', 'Apache-2.0', 'pkg:github/csukuangfj/kaldi-native-fbank@v1.23.0', [ROOT / 'worker-rs/third_party/kaldi-native-fbank/LICENSE'])
 add('vendored', 'kissfft', 'febd4caeed32e33ad8b2e0bb5ea77542c40f18ec', 'BSD-3-Clause', 'pkg:github/mborgerding/kissfft@febd4caeed32e33ad8b2e0bb5ea77542c40f18ec', [ROOT / 'worker-rs/third_party/kissfft/COPYING', ROOT / 'worker-rs/third_party/kissfft/LICENSES/BSD-3-Clause'])
+# The STT engine linked statically into the native worker (worker-rs/engine/build-engine.ps1; CTranslate2 itself is ct2rs-sys
+# above). The worker imports the OpenMP shim and LLVM's libomp.dll, copies of the runtime's ones (listed below) placed beside it.
+add('native', 'oneDNN (linked into thanham-worker.exe)', '3.1.1', 'Apache-2.0', 'pkg:github/oneapi-src/oneDNN@v3.1.1',
+    [ROOT / 'scripts/licenses/onednn-3.1.1-LICENSE.txt', ROOT / 'scripts/licenses/onednn-3.1.1-THIRD-PARTY-PROGRAMS.txt'])
+add('native', 'Intel oneMKL (linked into thanham-worker.exe)', '2025.3.0', 'LicenseRef-Intel-Simplified-Software-License', 'pkg:pypi/mkl-static@2025.3.0',
+    [ROOT / 'scripts/licenses/intel-simplified-software-license.txt', ROOT / 'scripts/licenses/onemkl-2025.3.0-third-party-programs.txt'])
 
 # npm: production dependency tree bundled by Vite.
 def walk(tree, acc):
@@ -99,7 +117,7 @@ add('runtime', 'Microsoft Visual C++ Redistributable CRT (app-local DLLs next to
 # carries no Intel text; it comes from the dist-info of the mkl 2026.2.1 wheel. torch (with its own oneMKL and
 # OpenMP) is not in the installer: it ships in the separation pack, whose notices scripts/build_pack.py writes.
 licenses = ROOT / 'scripts' / 'licenses'
-add('runtime', 'LLVM OpenMP runtime (libomp.dll in ctranslate2)', '23.1.5', 'Apache-2.0 WITH LLVM-exception',
+add('runtime', 'LLVM OpenMP runtime (libomp.dll in ctranslate2 and beside the native worker)', '23.1.5', 'Apache-2.0 WITH LLVM-exception',
     'pkg:conda/llvm-openmp@23.1.5?build=h49e36cd_0&channel=conda-forge&subdir=win-64', [licenses / 'llvm-openmp-LICENSE.txt'])
 add('runtime', 'Intel oneMKL (linked into ctranslate2)', 'build 20251007 (ctranslate2)', 'LicenseRef-Intel-Simplified-Software-License', 'pkg:generic/intel-onemkl@2026.2',
     [licenses / 'intel-simplified-software-license.txt'])
@@ -145,7 +163,7 @@ stale = [f for f in [*site.rglob('libiomp5md.dll'), *site.glob('av.libs/libx26[4
 stale += [*site.rglob('libiompstubs5md.dll'), *site.rglob('cudnn64_*.dll')]
 if stale: sys.exit('runtime not built by the current scripts/setup-runtime.ps1: ' + ', '.join(str(f.relative_to(site)) for f in stale))
 app_version = json.loads((ROOT / 'package.json').read_text())['version']
-add('runtime', 'Thanh Âm Studio stand-in DLLs, part of this project: the OpenMP shim libiomp5md.dll in ctranslate2 '
+add('runtime', 'Thanh Âm Studio stand-in DLLs, part of this project: the OpenMP shim libiomp5md.dll in ctranslate2 and beside the native worker '
     '(scripts/openmp-shim) and the libx264 and libx265 stubs in av.libs, which contain no x264 or x265 code (scripts/encoder-stubs)',
     app_version, 'Apache-2.0', f'pkg:github/anhtahaylove/thanh-am-studio@{app_version}', [ROOT / 'LICENSE'])
 # soundfile's libsndfile_x64.dll links its codec libraries in statically (scripts/licenses/libsndfile-SOURCE.txt).
