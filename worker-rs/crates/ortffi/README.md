@@ -16,7 +16,9 @@ and loaded at run time from one DLL path. Spike for the Thanh Am Studio Rust wor
 
 1. The path must be absolute (`LoadError::NotAbsolute`). The DLL is loaded with
    `LoadLibraryExW(..., LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32)`: the DLL's own
-   folder, then System32. Never `PATH`, the current directory or the application directory.
+   folder, then System32. Never `PATH`, the current directory or the application directory. The call
+   runs inside `without_error_dialogs` (which the worker's other DLL loads use too), so Windows fails it
+   instead of showing a modal box such as "Bad Image".
 2. `LoadFailed { os_error }`: missing file, not a PE file, missing dependency.
 3. `MissingExport`: no `OrtGetApiBase`, so not an ONNX Runtime.
 4. `BadApiBase`: `OrtGetApiBase()` or `GetVersionString()` returned null.

@@ -92,9 +92,9 @@ fn load(site_packages: &Path) -> Result<()> {
                 }
                 let wide: Vec<u16> = dll.as_os_str().encode_wide().chain(std::iter::once(0)).collect();
                 // SAFETY: a NUL-terminated wide path; the flags resolve its dependencies only from its folder and System32.
-                *slot = unsafe {
+                *slot = ortffi::without_error_dialogs(|| unsafe {
                     LoadLibraryExW(wide.as_ptr(), 0, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32)
-                };
+                });
                 if *slot == 0 {
                     return Err(format!("cannot load {}: {}", dll.display(), std::io::Error::last_os_error()));
                 }

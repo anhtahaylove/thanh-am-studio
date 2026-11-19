@@ -9,6 +9,7 @@
 //! The safe layer (`crate::safe`) builds only on this surface and forbids `unsafe` itself.
 
 mod loader;
+pub use loader::without_error_dialogs;
 pub mod sys;
 #[rustfmt::skip]
 pub mod table;

@@ -5,6 +5,8 @@ mod common;
 
 use common::*;
 use ortffi::{Env, Error, LoadError, ORT_API_VERSION, ORT_VERSION, RUNTIME_MISSING};
+use std::ffi::{c_char, c_void};
+use std::os::windows::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -60,6 +62,47 @@ fn a_file_that_is_not_a_dll_is_refused() {
     match refused(&fake) {
         LoadError::LoadFailed { os_error, .. } => assert_eq!(os_error, 193, "ERROR_BAD_EXE_FORMAT"),
         other => panic!("{other:?}"),
+    }
+}
+
+#[link(name = "kernel32")]
+extern "system" {
+    fn GetThreadErrorMode() -> u32;
+    fn SetThreadErrorMode(mode: u32, old: *mut u32) -> i32;
+    fn GetModuleHandleW(name: *const u16) -> *mut c_void;
+    fn GetProcAddress(module: *mut c_void, name: *const c_char) -> *mut c_void;
+    fn SetLastError(code: u32);
+    fn GetLastError() -> u32;
+}
+
+/// `SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX`.
+const QUIET_ERROR_MODE: u32 = 0x0001 | 0x8000;
+
+#[test]
+fn loads_run_without_error_dialogs() {
+    // SAFETY: thread-local mode call. Mode 0 is the default, under which a bad image raises Windows' modal "Bad Image" box.
+    unsafe { SetThreadErrorMode(0, std::ptr::null_mut()) };
+    let bad = scratch("bad-image.dll");
+    std::fs::write(&bad, b"this is not a PE file").unwrap();
+    assert!(matches!(refused(&bad), LoadError::LoadFailed { os_error: 193, .. }));
+    // The mode the loader ran DllMain under, recorded by the fake DLL.
+    let dll = fake_dll("errormode");
+    assert!(matches!(refused(&dll), LoadError::ApiUnavailable { .. }));
+    let wide: Vec<u16> = dll.as_os_str().encode_wide().chain([0]).collect();
+    // SAFETY: the DLL stays loaded (the loader never unloads); `fake_error_mode` is `extern "system" fn() -> u32`.
+    let seen = unsafe {
+        let module = GetModuleHandleW(wide.as_ptr());
+        assert!(!module.is_null());
+        let f = GetProcAddress(module, c"fake_error_mode".as_ptr());
+        assert!(!f.is_null());
+        std::mem::transmute::<*mut c_void, extern "system" fn() -> u32>(f)()
+    };
+    assert_eq!(seen & QUIET_ERROR_MODE, QUIET_ERROR_MODE, "error mode during the load: {seen:#x}");
+    // SAFETY: thread-local calls.
+    unsafe {
+        assert_eq!(GetThreadErrorMode(), 0, "the old mode is restored");
+        ortffi::without_error_dialogs(|| SetLastError(1234));
+        assert_eq!(GetLastError(), 1234, "the wrapped call's last error survives the restore");
     }
 }
 
