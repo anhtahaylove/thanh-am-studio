@@ -61,8 +61,9 @@ pub fn verify_file(path: &Path, entry: &Value) -> Result<()> {
     Ok(())
 }
 
-/// `verify_model(model_dir, expected_id)`: the install marker, its revision against the registry, then every artifact.
-pub fn verify_model(model_dir: &Path, expected_id: &str) -> Result<Value> {
+/// `verify_model(model_dir, expected_id)`: the install marker, its revision against the registry, then every artifact. Without an
+/// expected id the marker's own `model_id` names the registry entry.
+pub fn verify_model(model_dir: &Path, expected_id: Option<&str>) -> Result<Value> {
     let marker = model_dir.join("installed.json");
     if !marker.is_file() {
         return Err(WorkerError::new("MODEL_NOT_READY", "Download this model in Model & settings first."));
@@ -72,7 +73,10 @@ pub fn verify_model(model_dir: &Path, expected_id: &str) -> Result<Value> {
     if !record.is_object() {
         return Err(WorkerError::py("AttributeError", "the install marker is not an object"));
     }
-    let spec = model_spec(Some(&json!(expected_id)))?;
+    let spec = match expected_id {
+        Some(id) => model_spec(Some(&json!(id)))?,
+        None => model_spec(record.get("model_id"))?,
+    };
     if record.get("model_id") != spec.get("id") || record.get("revision") != spec.get("revision") {
         return Err(WorkerError::new(
             "MODEL_CHECKSUM",

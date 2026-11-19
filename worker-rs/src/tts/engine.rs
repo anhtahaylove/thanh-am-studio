@@ -142,7 +142,7 @@ pub struct Engine {
 }
 
 /// `os.cpu_count()` on Windows: every active logical processor, whatever the affinity.
-fn cpu_count() -> usize {
+pub(crate) fn cpu_count() -> usize {
     #[cfg(windows)]
     {
         // SAFETY: a plain query; ALL_PROCESSOR_GROUPS (0xFFFF) counts every group.

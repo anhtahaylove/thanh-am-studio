@@ -10,7 +10,11 @@ f32, 5.1), no audio stream, files FFmpeg cannot open, a truncated and a damaged 
 With --vad, each decoded case also records faster-whisper's VAD on it (get_speech_timestamps with VadOptions(), as transcribe runs
 it): the Silero probabilities' SHA-256 and the speech chunks, for stt::vad::tests::vad_matches_python.
 
-usage: python -I decode_cases.py --ffmpeg <ffmpeg.exe> --dir <fixtures dir> --out <cases.jsonl> [--extra <dir> ...] [--vad]
+With --mel, each decoded case also records faster-whisper's log-Mel spectrogram (FeatureExtractor with 80 and 128 mels) of the
+whole case and of its first 100 samples (one frame: numpy's matrix @ vector path): frame count and the SHA-256 of the float32
+values, for stt::glue::tests::mel_matches_python.
+
+usage: python -I decode_cases.py --ffmpeg <ffmpeg.exe> --dir <fixtures dir> --out <cases.jsonl> [--extra <dir> ...] [--vad] [--mel]
 Every file of an --extra folder is a case too (for instance the clone references of clone_refs.py, which are speech).
 """
 import argparse
@@ -21,6 +25,7 @@ from pathlib import Path
 
 import numpy as np
 from faster_whisper.audio import decode_audio
+from faster_whisper.feature_extractor import FeatureExtractor
 from faster_whisper.vad import VadOptions, get_speech_timestamps, get_vad_model
 
 CODECS = {'wav': ['-c:a', 'pcm_s16le'], 'mp3': ['-c:a', 'libmp3lame', '-b:a', '128k'], 'm4a': ['-c:a', 'aac', '-b:a', '128k'],
@@ -33,6 +38,10 @@ LEFT = '0.45*sin(2*PI*(180+120*sin(2*PI*0.4*t))*t)*(0.6+0.4*sin(2*PI*3*t))+0.03*
 RIGHT = '0.35*sin(2*PI*(420+200*sin(2*PI*0.25*t))*t)*(0.5+0.5*sin(2*PI*1.7*t))+0.03*(random(2)-0.5)'
 
 
+def mel_sig(features):
+    return {'frames': int(features.shape[1]), 'sha256': hashlib.sha256(np.ascontiguousarray(features, '<f4').tobytes()).hexdigest()}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--ffmpeg', required=True)
@@ -40,6 +49,7 @@ def main():
     ap.add_argument('--out', required=True)
     ap.add_argument('--extra', action='append', default=[])
     ap.add_argument('--vad', action='store_true')
+    ap.add_argument('--mel', action='store_true')
     a = ap.parse_args()
     fix = Path(a.dir).resolve()
     fix.mkdir(parents=True, exist_ok=True)
@@ -109,6 +119,9 @@ def main():
                 probs = get_vad_model()(np.pad(pcm, (0, 512 - pcm.shape[0] % 512)))
                 case['vad'] = {'windows': int(len(probs)), 'probs_sha256': hashlib.sha256(probs.astype('<f4').tobytes()).hexdigest(),
                                'speeches': [[c['start'], c['end']] for c in get_speech_timestamps(pcm, VadOptions())]}
+            if a.mel and 'n' in expected:
+                case['mel'] = {str(n): {part: mel_sig(fe(x)) for part, x in (('full', pcm), ('head', pcm[:100]))}
+                               for n, fe in ((n, FeatureExtractor(feature_size=n)) for n in (80, 128))}
             out.write(json.dumps(case, ensure_ascii=False) + '\n')
             print(path.name, expected, flush=True)
     print(len(files), 'cases')
