@@ -174,6 +174,10 @@ fn cloned_voices_route_by_reference_format_and_take_checks_stay_on_python(){
  routed("tts","wav",vec![json!({"text":"câu","reference_asset_id":"REF","check":true})],"python");
  routed("tts","wav",vec![json!({"text":"câu một"}),json!({"text":"câu hai","check":true})],"python"); // one checked item takes the whole batch to Python
 }
+fn the_release_routes_stt_with_speakers_to_the_native_worker(){
+ assert!(engine::RUST_OPS.contains(&"stt"));
+ for payload in [json!({"language":"vi"}),json!({"language":"auto","diarize_model_path":"d","num_speakers":2})]{assert!(engine::native_can_run(&json!({"operation":"stt","payload":payload})),"{payload}")}
+}
 fn status_reports_the_native_worker(){
  let e=setup(json!([]),json!([]));let s=e.rt.status();assert_eq!(s["native_worker_ready"],true);assert!(s["native_worker_path"].as_str().unwrap().ends_with("thanham-worker.exe"));
  let bare=Runtime::new(e.dir.path().join("none"),e.dir.path().join("none"));assert_eq!((bare.status()["native_worker_ready"].as_bool(),bare.status()["native_worker_path"].is_null()),(Some(false),true));
@@ -215,6 +219,7 @@ fn main(){
   ("the_user_can_pin_an_operation_to_python_and_the_change_is_logged",the_user_can_pin_an_operation_to_python_and_the_change_is_logged),
   ("the_separation_runtime_download_stays_on_python",the_separation_runtime_download_stays_on_python),
   ("cloned_voices_route_by_reference_format_and_take_checks_stay_on_python",cloned_voices_route_by_reference_format_and_take_checks_stay_on_python),
+  ("the_release_routes_stt_with_speakers_to_the_native_worker",the_release_routes_stt_with_speakers_to_the_native_worker),
   ("status_reports_the_native_worker",status_reports_the_native_worker),
   ("diagnostics_hold_the_settings_and_both_logs",diagnostics_hold_the_settings_and_both_logs),
   ("cancelling_a_job_kills_what_its_worker_started",cancelling_a_job_kills_what_its_worker_started)];
