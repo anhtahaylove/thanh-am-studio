@@ -316,6 +316,18 @@ mod tests {
         fn thanham_sv_copy_f32(sv: *const c_void, dst: *mut f32, cap: usize) -> usize;
     }
 
+    impl super::Encoded {
+        /// The encoder output as float32 (the T1a check against the recorded one).
+        pub(crate) fn floats(&self) -> Vec<f32> {
+            // SAFETY: `self.0` is the live StorageView of this output; a null destination only asks for the count.
+            let count = unsafe { thanham_sv_copy_f32(self.0, std::ptr::null_mut(), 0) };
+            let mut out = vec![0f32; count];
+            // SAFETY: `out` holds exactly `count` writable floats.
+            assert_eq!(unsafe { thanham_sv_copy_f32(self.0, out.as_mut_ptr(), count) }, count);
+            out
+        }
+    }
+
     /// Deterministic encoder input `[1, n_mels, 3000]` (spike S1's): `k / 1024` for `k` in `-2048..2048`, exact in float32.
     fn features(n: usize) -> Vec<f32> {
         (0..n as u64)
