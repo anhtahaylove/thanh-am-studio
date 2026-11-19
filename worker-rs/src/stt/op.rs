@@ -1,9 +1,10 @@
 //! The `stt` operation of `worker/main.py` (feature `ct2`): validation, the model, `load_audio`, the window loop of the glue with
-//! the CTranslate2 engine and the Silero VAD, and the progress `stt_window` reports. A job that asks for speakers
-//! (`diarize_model_path`) stays on the Python worker until diarization is ported.
+//! the CTranslate2 engine and the Silero VAD, the progress `stt_window` reports, and the speakers (`diarize_model_path`) through
+//! `thanham-diarize.exe`.
 
 use super::decode::decode_audio;
-use super::glue::{AlignResult, GenOptions, GenResult, GlueError, Transcriber, WhisperEngine, STT_RATE};
+use super::diarize::{diarize_exe, diarize_isolated, split_rows, Failure, SpeakerRow};
+use super::glue::{AlignResult, GenOptions, GenResult, GlueError, SttResult, Transcriber, WhisperEngine, STT_RATE};
 use super::vad::Vad;
 use crate::ct2::{Encoded, Whisper};
 use crate::download::verify_model;
@@ -79,11 +80,43 @@ fn path_arg<'a>(payload: &'a Map<String, Value>, key: &str) -> Result<&'a str> {
     }
 }
 
-/// `stt(payload, progress)` without diarization: `{"segments": [{start, end, text}], "language": ...}`.
+/// The `try` block of `stt` that adds speakers: the rows split by speaker, or `str(error)` and, for the desktop's fallback,
+/// `DIARIZE_PROCESS` (the child process failed) or the `MODEL_*` code of the model check.
+fn separate_speakers(
+    payload: &Map<String, Value>,
+    result: &SttResult,
+    audio: &[f32],
+    counts: [Option<i64>; 3],
+) -> std::result::Result<Vec<SpeakerRow>, (String, Option<String>)> {
+    let model = match payload.get("diarize_model_path") {
+        Some(Value::String(s)) => py_path(s),
+        other => {
+            let kind = match other {
+                Some(Value::Bool(_)) => "bool",
+                Some(Value::Number(n)) if n.is_f64() => "float",
+                Some(Value::Number(_)) => "int",
+                Some(Value::Array(_)) => "list",
+                _ => "dict",
+            };
+            return Err((format!("expected str, bytes or os.PathLike object, not {kind}"), None));
+        }
+    };
+    verify_model(Path::new(&model), Some("diarization"))
+        .map_err(|e| (e.message, e.code.starts_with("MODEL_").then_some(e.code)))?;
+    // A known count goes in as min = max (main.py: the automatic result is kept when it already has that many speakers).
+    let [speakers, low, high] = counts;
+    let (low, high) = if speakers.is_some() { (speakers, speakers) } else { (low, high) };
+    let sherpa = site_packages().join("sherpa_onnx").join("lib");
+    let turns = diarize_isolated(&diarize_exe(), &sherpa, audio, &model, low, high).map_err(|e| match e {
+        Failure::Process(m) => (m, Some("DIARIZE_PROCESS".to_string())),
+        Failure::Other(m) => (m, None),
+    })?;
+    Ok(split_rows(&result.segments, &result.words, &turns))
+}
+
+/// `stt(payload, progress)`: `{"segments": [{start, end, text[, speaker, overlap]}], "language": ...}`, plus `diarize_error` and
+/// `diarize_error_code` when speakers were asked for and could not be found.
 pub fn stt(payload: &Map<String, Value>, progress: &dyn Fn(f64, &str)) -> Result<Value> {
-    if payload.get("diarize_model_path").is_some_and(truthy) {
-        return Err(WorkerError::new("WORKER_ERROR", "Speaker separation runs on the Python worker."));
-    }
     let count = |key: &str| payload.get(key).filter(|v| !v.is_null());
     let (speakers, low, high) = (count("num_speakers"), count("min_speakers"), count("max_speakers"));
     // `isinstance(n, bool) or not isinstance(n, int) or not 1 <= n <= 8`: JSON true/false and 2.0 are not ints.
@@ -99,6 +132,7 @@ pub fn stt(payload: &Map<String, Value>, progress: &dyn Fn(f64, &str)) -> Result
             "num_speakers excludes min_speakers/max_speakers, and min_speakers must not exceed max_speakers.",
         ));
     }
+    let counts = [int(speakers), int(low), int(high)];
     let model_dir = path_arg(payload, "model_path")?;
     let spec = verify_model(Path::new(model_dir), None)?;
     if spec.get("engine").and_then(Value::as_str) != Some("faster-whisper") {
@@ -128,13 +162,27 @@ pub fn stt(payload: &Map<String, Value>, progress: &dyn Fn(f64, &str)) -> Result
     let vad = Vad::load(&sp)?;
     let mut engine = Engine { whisper, vad, progress, offset: 0.0, duration };
     let lang = if language == "auto" { None } else { Some(language) };
-    let result = transcriber.stt(&mut engine, &audio, lang, false).map_err(|e| match e {
+    let diarizing = payload.get("diarize_model_path").is_some_and(truthy); // word times let rows split where the speaker changes
+    let result = transcriber.stt(&mut engine, &audio, lang, diarizing).map_err(|e| match e {
         GlueError::Index(m) => WorkerError::py("IndexError", m),
         GlueError::Engine(m) => WorkerError::new("WORKER_ERROR", m),
     })?;
     let segments: Vec<Value> =
         result.segments.iter().map(|r| json!({"start": r.start, "end": r.end, "text": r.text})).collect();
-    Ok(json!({"segments": segments, "language": result.language}))
+    let mut response = json!({"segments": segments, "language": result.language});
+    if diarizing {
+        progress(0.99, "Separating speakers");
+        match separate_speakers(payload, &result, &audio, counts) {
+            Ok(rows) => response["segments"] = rows.iter().map(SpeakerRow::json).collect(),
+            Err((message, code)) => {
+                response["diarize_error"] = json!(message.chars().take(300).collect::<String>()); // `str(error)[:300]`
+                if let Some(code) = code {
+                    response["diarize_error_code"] = json!(code);
+                }
+            }
+        }
+    }
+    Ok(response)
 }
 
 #[cfg(test)]
@@ -201,7 +249,12 @@ mod tests {
     /// |difference|; output by SHA-256), generate, align, detect_language and VAD call, and every compression ratio and window
     /// trace. `diffs` lists what differed; after a call of another kind the sequence is lost and the rest runs unchecked. With
     /// `substitute` (the T1a diagnostic `THANHAM_T1A_FEATURES=recorded`) the engine gets the recorded encoder input instead,
-    /// which isolates the glue and the engine from the log-mel.
+    /// which isolates the glue and the engine from the log-mel. With `inject` (S4's fault-injected modes wi and pi, row T5) the
+    /// engine's outputs are perturbed as S4's recorder perturbed them, so the glue takes its rare branches on both sides: by
+    /// encode index n, n % 4 == 1 scales the temperature-0 scores by 10, == 2 scales every decode's scores by 10, == 3 also sets
+    /// the no-speech probability to 0.95, and the 2nd align call of each window returns empty alignments (the IndexError retry).
+    /// With `samples` (`THANHAM_T1A_SAMPLES=recorded`) a sampling generate (temperature above 0, unseeded on both sides) has its
+    /// inputs checked and returns Python's recorded output, so the rest of a sampled item stays comparable call by call.
     struct Recorded<'a, 'e> {
         engine: &'a mut Engine<'e>,
         events: &'a [Value],
@@ -211,6 +264,9 @@ mod tests {
         encodes: usize,
         max_diff: f32,
         substitute: bool,
+        inject: bool,
+        samples: bool,
+        aligns: usize,
         diffs: Vec<String>,
     }
 
@@ -274,7 +330,27 @@ mod tests {
             prompt: &[u32],
             o: &GenOptions,
         ) -> std::result::Result<GenResult, GlueError> {
-            let out = self.engine.generate(&enc.1, prompt, o)?;
+            if self.samples && o.temperature > 0.0 {
+                let Some(ev) = self.next("generate") else {
+                    return Err(GlueError::Engine(format!("sampling generate on encode {} was not recorded", enc.0)));
+                };
+                let rust = json!({"enc": enc.0, "prompts": [prompt], "kw": kw(o)});
+                self.check("generate", rust, json!({"enc": ev["enc"], "prompts": ev["prompts"], "kw": ev["kw"]}));
+                let r = &ev["out"][0]; // recorded after S4's injection, so it is not injected again
+                return Ok(GenResult {
+                    sequences_ids: serde_json::from_value(r["seq"].clone()).unwrap(),
+                    scores: serde_json::from_value(r["scores"].clone()).unwrap(),
+                    no_speech_prob: r["nsp"].as_f64().unwrap(),
+                });
+            }
+            let mut out = self.engine.generate(&enc.1, prompt, o)?;
+            let n = enc.0 % 4;
+            if self.inject && n != 0 && (n > 1 || o.temperature == 0.0) {
+                out.scores.iter_mut().for_each(|s| *s *= 10.0);
+                if n == 3 {
+                    out.no_speech_prob = 0.95;
+                }
+            }
             if let Some(ev) = self.next("generate") {
                 let rust = json!({"enc": enc.0, "prompts": [prompt], "kw": kw(o),
                     "out": [{"seq": out.sequences_ids, "scores": out.scores, "nsp": out.no_speech_prob}]});
@@ -295,7 +371,11 @@ mod tests {
             num_frames: usize,
             median_filter_width: usize,
         ) -> std::result::Result<Vec<AlignResult>, GlueError> {
-            let out = self.engine.align(&enc.1, start, text, num_frames, median_filter_width)?;
+            let mut out = self.engine.align(&enc.1, start, text, num_frames, median_filter_width)?;
+            self.aligns += 1;
+            if self.inject && self.aligns == 2 {
+                out.iter_mut().for_each(|r| r.alignments.clear());
+            }
             if let Some(ev) = self.next("align") {
                 // The worker drops faster-whisper's word probabilities, so the engine wrapper does not return them.
                 let al: Vec<Value> = out.iter().map(|r| json!({"al": r.alignments})).collect();
@@ -350,6 +430,7 @@ mod tests {
             lang: Option<&str>,
             words: bool,
         ) -> std::result::Result<(), GlueError> {
+            self.aligns = 0;
             if let Some(ev) = self.next("window") {
                 let rust = json!({"start": start, "end": end, "lang": lang, "words": words});
                 self.check(
@@ -387,8 +468,8 @@ mod tests {
     /// Row T1a under the real engine: spike S4's recorded items (`rec\<corpus>\<model>\<mode>\events.jsonl`, the item PCM in
     /// `rec\pcm`) through the glue with this CTranslate2 engine and the Silero VAD, each result (segments, words, language, retry)
     /// against the Python worker's, bitwise. Items whose Python run sampled (a fallback temperature above 0) are unseeded on both
-    /// sides and reported apart (row T1b). `THANHAM_T1A_REC` (the rec folder), `THANHAM_T1A_JOBS` (`corpus model mode` per line,
-    /// modes w, p or a), `THANHAM_MODELS` (holding whisper-small and whisper-turbo), `THANHAM_T1A_OUT` (per-item JSON lines).
+    /// sides and reported apart (row T1b), unless `THANHAM_T1A_SAMPLES=recorded` feeds their recorded samples. `THANHAM_T1A_REC` (the rec folder), `THANHAM_T1A_JOBS` (`corpus model mode` per line,
+    /// modes w, p or a, and wi or pi with S4's fault injection), `THANHAM_MODELS` (holding whisper-small and whisper-turbo), `THANHAM_T1A_OUT` (per-item JSON lines).
     #[test]
     #[ignore = "local T1a runs on recorded items"]
     fn t1a_real_engine() {
@@ -397,6 +478,7 @@ mod tests {
             (std::path::PathBuf::from(var("THANHAM_T1A_REC")), std::path::PathBuf::from(var("THANHAM_MODELS")));
         let mut out = std::fs::File::create(var("THANHAM_T1A_OUT")).unwrap();
         let recorded_features = std::env::var("THANHAM_T1A_FEATURES").is_ok_and(|v| v == "recorded");
+        let recorded_samples = std::env::var("THANHAM_T1A_SAMPLES").is_ok_and(|v| v == "recorded");
         let sp = site_packages();
         let (mut deterministic, mut pass, mut sampled, mut sampled_same, mut features_exact, mut checked) =
             (0, 0, 0, 0, 0, 0);
@@ -405,7 +487,7 @@ mod tests {
             let [corpus, model, mode] = job.split_whitespace().collect::<Vec<_>>()[..] else {
                 panic!("bad job: {job}")
             };
-            let (lang0, words) = (if mode == "a" { None } else { Some("vi") }, mode != "p");
+            let (lang0, words) = (if mode.starts_with('a') { None } else { Some("vi") }, !mode.starts_with('p'));
             let model_dir = models.join(format!("whisper-{model}"));
             let blas = OpenBlas::load_pinned(&sp.join("numpy.libs").join(OPENBLAS_DLL)).unwrap();
             let transcriber = Transcriber::load(&model_dir, blas).unwrap();
@@ -442,6 +524,9 @@ mod tests {
                     encodes: 0,
                     max_diff: 0.0,
                     substitute: recorded_features,
+                    inject: mode.ends_with('i'),
+                    samples: recorded_samples,
+                    aligns: 0,
                     diffs: Vec::new(),
                 };
                 let result = transcriber.stt(&mut fed, &pcm, lang0, words);
@@ -461,7 +546,8 @@ mod tests {
                     item["events"].as_array().unwrap().iter().any(|e| {
                         e["k"] == "generate" && e["kw"]["sampling_temperature"].as_f64().is_some_and(|t| t > 0.0)
                     });
-                if sampling {
+                // With the recorded samples fed, a sampled item is judged like a deterministic one.
+                if sampling && !recorded_samples {
                     sampled += 1;
                     sampled_same += usize::from(ok);
                 } else {
@@ -487,5 +573,98 @@ mod tests {
         assert!(deterministic > 0);
         assert_eq!(pass, deterministic);
         assert_eq!(features_exact, deterministic);
+    }
+
+    /// The engine, noting whether a `generate` sampled (a fallback temperature above 0), so T1b can report those items apart.
+    struct Sampling<'a, 'e> {
+        engine: &'a mut Engine<'e>,
+        sampled: bool,
+    }
+
+    impl WhisperEngine for Sampling<'_, '_> {
+        type Enc = Encoded;
+
+        fn encode(&mut self, features: &[f32], n_mels: usize) -> std::result::Result<Encoded, GlueError> {
+            self.engine.encode(features, n_mels)
+        }
+
+        fn generate(
+            &mut self,
+            enc: &Encoded,
+            prompt: &[u32],
+            o: &GenOptions,
+        ) -> std::result::Result<GenResult, GlueError> {
+            self.sampled |= o.temperature > 0.0;
+            self.engine.generate(enc, prompt, o)
+        }
+
+        fn align(
+            &mut self,
+            enc: &Encoded,
+            start: &[u32],
+            text: &[Vec<u32>],
+            num_frames: usize,
+            median_filter_width: usize,
+        ) -> std::result::Result<Vec<AlignResult>, GlueError> {
+            self.engine.align(enc, start, text, num_frames, median_filter_width)
+        }
+
+        fn detect_language(&mut self, enc: &Encoded) -> std::result::Result<Vec<(String, f64)>, GlueError> {
+            self.engine.detect_language(enc)
+        }
+
+        fn speech_timestamps(&mut self, audio: &[f32]) -> std::result::Result<Vec<(i64, i64)>, GlueError> {
+            self.engine.speech_timestamps(audio)
+        }
+    }
+
+    /// Rows T1b and T2, the new side: P0-core's `stt_run.py` recording (decode, windows, `vi`, word times on every item, the
+    /// no-words retry) made with this decode, VAD and engine, in its record format for its analysis scripts, plus `sampled`
+    /// (whether a fallback temperature above 0 ran: those items are unseeded on both sides). `THANHAM_T1B_ITEMS`
+    /// (a corpus file `{"items": [{id, path}]}` or the list itself), `THANHAM_T1B_MODEL` (a Whisper folder), `THANHAM_T1B_OUT`
+    /// (the .jsonl; finished ids are skipped). Start it pinned to the P-cores (O.10) with `RM_PIN=P` saying so.
+    #[test]
+    #[ignore = "local T1b recording"]
+    fn t1b_record() {
+        let var = |k: &str| std::env::var(k).unwrap_or_else(|_| panic!("{k}"));
+        let items: Value = serde_json::from_str(&std::fs::read_to_string(var("THANHAM_T1B_ITEMS")).unwrap()).unwrap();
+        let items = items.get("items").unwrap_or(&items).as_array().unwrap().clone();
+        let (model_dir, out_path) = (std::path::PathBuf::from(var("THANHAM_T1B_MODEL")), var("THANHAM_T1B_OUT"));
+        let done: Vec<String> = std::fs::read_to_string(&out_path)
+            .unwrap_or_default()
+            .lines()
+            .filter_map(|l| serde_json::from_str::<Value>(l).ok()?["id"].as_str().map(str::to_string))
+            .collect();
+        let mut out = std::fs::OpenOptions::new().create(true).append(true).open(&out_path).unwrap();
+        let sp = site_packages();
+        let blas = OpenBlas::load_pinned(&sp.join("numpy.libs").join(OPENBLAS_DLL)).unwrap();
+        let transcriber = Transcriber::load(&model_dir, blas).unwrap();
+        let mut engine = Engine {
+            whisper: Whisper::load(model_dir.to_str().unwrap(), cpu_count().min(8)).unwrap(),
+            vad: Vad::load(&sp).unwrap(),
+            progress: &|_, _| {},
+            offset: 0.0,
+            duration: 1.0,
+        };
+        println!("engine {}", crate::ct2::info());
+        for item in items.iter().filter(|i| !done.iter().any(|d| Some(d.as_str()) == i["id"].as_str())) {
+            let started = std::time::Instant::now();
+            let audio = decode_audio(&sp, &py_path(item["path"].as_str().unwrap())).unwrap();
+            let duration = f64::max(audio.len() as f64 / STT_RATE as f64, 0.01);
+            let mut fed = Sampling { engine: &mut engine, sampled: false };
+            let r = transcriber.stt(&mut fed, &audio, Some("vi"), true).unwrap();
+            let record = json!({"id": item["id"], "audio_seconds": (duration * 1000.0).round() / 1000.0,
+                "wall_seconds": (started.elapsed().as_secs_f64() * 100.0).round() / 100.0, "language": r.language,
+                "words_fallback": r.words_fallback, "segments": rows_json(&r.segments), "words": words_json(&r.words),
+                "pin": {"RM_PIN": std::env::var("RM_PIN").ok()}, "engine": "rust", "sampled": fed.sampled});
+            use std::io::Write as _;
+            writeln!(out, "{record}").unwrap();
+            println!(
+                "{} audio {duration:.0}s wall {:.1}s rows {}",
+                item["id"],
+                started.elapsed().as_secs_f64(),
+                r.segments.len()
+            );
+        }
     }
 }

@@ -2,6 +2,7 @@
 //! (feature `ct2`), the operation.
 
 pub mod decode;
+pub mod diarize;
 pub mod glue;
 #[cfg(feature = "ct2")]
 mod op;
