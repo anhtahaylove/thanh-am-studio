@@ -253,6 +253,8 @@ mod tests {
     /// engine's outputs are perturbed as S4's recorder perturbed them, so the glue takes its rare branches on both sides: by
     /// encode index n, n % 4 == 1 scales the temperature-0 scores by 10, == 2 scales every decode's scores by 10, == 3 also sets
     /// the no-speech probability to 0.95, and the 2nd align call of each window returns empty alignments (the IndexError retry).
+    /// With `samples` (`THANHAM_T1A_SAMPLES=recorded`) a sampling generate (temperature above 0, unseeded on both sides) has its
+    /// inputs checked and returns Python's recorded output, so the rest of a sampled item stays comparable call by call.
     struct Recorded<'a, 'e> {
         engine: &'a mut Engine<'e>,
         events: &'a [Value],
@@ -263,6 +265,7 @@ mod tests {
         max_diff: f32,
         substitute: bool,
         inject: bool,
+        samples: bool,
         aligns: usize,
         diffs: Vec<String>,
     }
@@ -327,6 +330,19 @@ mod tests {
             prompt: &[u32],
             o: &GenOptions,
         ) -> std::result::Result<GenResult, GlueError> {
+            if self.samples && o.temperature > 0.0 {
+                let Some(ev) = self.next("generate") else {
+                    return Err(GlueError::Engine(format!("sampling generate on encode {} was not recorded", enc.0)));
+                };
+                let rust = json!({"enc": enc.0, "prompts": [prompt], "kw": kw(o)});
+                self.check("generate", rust, json!({"enc": ev["enc"], "prompts": ev["prompts"], "kw": ev["kw"]}));
+                let r = &ev["out"][0]; // recorded after S4's injection, so it is not injected again
+                return Ok(GenResult {
+                    sequences_ids: serde_json::from_value(r["seq"].clone()).unwrap(),
+                    scores: serde_json::from_value(r["scores"].clone()).unwrap(),
+                    no_speech_prob: r["nsp"].as_f64().unwrap(),
+                });
+            }
             let mut out = self.engine.generate(&enc.1, prompt, o)?;
             let n = enc.0 % 4;
             if self.inject && n != 0 && (n > 1 || o.temperature == 0.0) {
@@ -452,7 +468,7 @@ mod tests {
     /// Row T1a under the real engine: spike S4's recorded items (`rec\<corpus>\<model>\<mode>\events.jsonl`, the item PCM in
     /// `rec\pcm`) through the glue with this CTranslate2 engine and the Silero VAD, each result (segments, words, language, retry)
     /// against the Python worker's, bitwise. Items whose Python run sampled (a fallback temperature above 0) are unseeded on both
-    /// sides and reported apart (row T1b). `THANHAM_T1A_REC` (the rec folder), `THANHAM_T1A_JOBS` (`corpus model mode` per line,
+    /// sides and reported apart (row T1b), unless `THANHAM_T1A_SAMPLES=recorded` feeds their recorded samples. `THANHAM_T1A_REC` (the rec folder), `THANHAM_T1A_JOBS` (`corpus model mode` per line,
     /// modes w, p or a, and wi or pi with S4's fault injection), `THANHAM_MODELS` (holding whisper-small and whisper-turbo), `THANHAM_T1A_OUT` (per-item JSON lines).
     #[test]
     #[ignore = "local T1a runs on recorded items"]
@@ -462,6 +478,7 @@ mod tests {
             (std::path::PathBuf::from(var("THANHAM_T1A_REC")), std::path::PathBuf::from(var("THANHAM_MODELS")));
         let mut out = std::fs::File::create(var("THANHAM_T1A_OUT")).unwrap();
         let recorded_features = std::env::var("THANHAM_T1A_FEATURES").is_ok_and(|v| v == "recorded");
+        let recorded_samples = std::env::var("THANHAM_T1A_SAMPLES").is_ok_and(|v| v == "recorded");
         let sp = site_packages();
         let (mut deterministic, mut pass, mut sampled, mut sampled_same, mut features_exact, mut checked) =
             (0, 0, 0, 0, 0, 0);
@@ -508,6 +525,7 @@ mod tests {
                     max_diff: 0.0,
                     substitute: recorded_features,
                     inject: mode.ends_with('i'),
+                    samples: recorded_samples,
                     aligns: 0,
                     diffs: Vec::new(),
                 };
@@ -528,7 +546,8 @@ mod tests {
                     item["events"].as_array().unwrap().iter().any(|e| {
                         e["k"] == "generate" && e["kw"]["sampling_temperature"].as_f64().is_some_and(|t| t > 0.0)
                     });
-                if sampling {
+                // With the recorded samples fed, a sampled item is judged like a deterministic one.
+                if sampling && !recorded_samples {
                     sampled += 1;
                     sampled_same += usize::from(ok);
                 } else {
