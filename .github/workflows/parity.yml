@@ -144,16 +144,17 @@ jobs:
           $PSNativeCommandUseErrorActionPreference = $true
           & $env:PY -I worker-rs/parity/clone_refs.py --python $env:PY --model $env:THANHAM_TTS_MODEL --ffmpeg runtime/ffmpeg/ffmpeg.exe --out "$env:RUNNER_TEMP/clone-refs"
           & $env:PY -I worker-rs/parity/tts_op.py --python $env:PY --exe worker-rs/stage/thanham-worker.exe --model $env:THANHAM_TTS_MODEL --ffmpeg runtime/ffmpeg/ffmpeg.exe --items worker-rs/parity/tts/clone_items.json --refs "$env:RUNNER_TEMP/clone-refs" --previews --out "$env:RUNNER_TEMP/tts-clone"
-      # Row D and the VAD: the STT decode (faster-whisper's decode_audio, PyAV on its own FFmpeg DLLs) and get_speech_timestamps,
-      # on fixtures FFmpeg makes here and on the clone references above (speech), Python against Rust on this runner, bitwise.
-      - name: Row D and VAD (STT decode and VAD against faster-whisper on this runner)
+      # Row D, the VAD and the log-Mel: the STT decode (faster-whisper's decode_audio, PyAV on its own FFmpeg DLLs),
+      # get_speech_timestamps and the FeatureExtractor (80 and 128 mels), on fixtures FFmpeg makes here and on the clone references
+      # above (speech), Python against Rust on this runner, bitwise.
+      - name: Row D, VAD and log-Mel (STT decode, VAD and features against faster-whisper on this runner)
         if: ${{ !cancelled() }}
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
           $env:THANHAM_DECODE_CASES = "$env:RUNNER_TEMP/decode-cases.jsonl"
           $env:THANHAM_PYTHON = $env:PY
           $extra = if (Test-Path "$env:RUNNER_TEMP/clone-refs") { @('--extra', "$env:RUNNER_TEMP/clone-refs") } else { @() }
-          & $env:PY -I -X utf8 worker-rs/parity/decode_cases.py --ffmpeg runtime/ffmpeg/ffmpeg.exe --dir "$env:RUNNER_TEMP/decode-fixtures" --out $env:THANHAM_DECODE_CASES --vad @extra
+          & $env:PY -I -X utf8 worker-rs/parity/decode_cases.py --ffmpeg runtime/ffmpeg/ffmpeg.exe --dir "$env:RUNNER_TEMP/decode-fixtures" --out $env:THANHAM_DECODE_CASES --vad --mel @extra
           Push-Location worker-rs
           cargo test --release --locked stt:: -- --nocapture
           Pop-Location

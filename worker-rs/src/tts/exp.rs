@@ -7,7 +7,7 @@
 //!   `ucrtbase.dll!expf`, the one numpy's wheel imports.
 
 use std::arch::x86_64::*;
-use std::ffi::c_void;
+use std::ffi::{c_void, CStr};
 use std::os::windows::ffi::OsStrExt;
 use std::sync::OnceLock;
 
@@ -52,21 +52,32 @@ pub fn isa() -> Isa {
     }
 }
 
-fn ucrt_expf() -> unsafe extern "C" fn(f32) -> f32 {
-    static F: OnceLock<usize> = OnceLock::new();
-    let addr = *F.get_or_init(|| {
+/// `name(float) -> float` from the system `ucrtbase.dll` (the C runtime numpy's wheel imports its float math from), once per cell.
+fn ucrt_f32(cell: &OnceLock<usize>, name: &CStr) -> unsafe extern "C" fn(f32) -> f32 {
+    let addr = *cell.get_or_init(|| {
         let wide: Vec<u16> = std::ffi::OsStr::new("ucrtbase.dll").encode_wide().chain(std::iter::once(0)).collect();
         // SAFETY: LOAD_LIBRARY_SEARCH_SYSTEM32 only; the symbol name is NUL-terminated.
         unsafe {
             let module = ortffi::without_error_dialogs(|| LoadLibraryExW(wide.as_ptr(), 0, 0x800));
             assert!(module != 0, "ucrtbase.dll is missing");
-            let p = GetProcAddress(module, c"expf".as_ptr().cast());
-            assert!(!p.is_null(), "ucrtbase.dll has no expf");
+            let p = GetProcAddress(module, name.as_ptr().cast());
+            assert!(!p.is_null(), "ucrtbase.dll has no {name:?}");
             p as usize
         }
     });
-    // SAFETY: `addr` is the address of `expf(float) -> float`.
+    // SAFETY: `addr` is the address of a `float(float)` C function.
     unsafe { std::mem::transmute::<usize, unsafe extern "C" fn(f32) -> f32>(addr) }
+}
+
+fn ucrt_expf() -> unsafe extern "C" fn(f32) -> f32 {
+    static F: OnceLock<usize> = OnceLock::new();
+    ucrt_f32(&F, c"expf")
+}
+
+/// `npy_log10f`: numpy's float32 `log10` loop on Windows on every ISA (its SVML path is Linux-only).
+pub fn ucrt_log10f() -> unsafe extern "C" fn(f32) -> f32 {
+    static F: OnceLock<usize> = OnceLock::new();
+    ucrt_f32(&F, c"log10f")
 }
 
 /// numpy's `fma_scalef_ps`.

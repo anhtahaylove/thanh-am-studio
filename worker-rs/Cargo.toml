@@ -32,7 +32,6 @@ tokenizers = { git = "https://github.com/huggingface/tokenizers", tag = "v0.23.3
 regex = "1"
 # The STT glue (stt/glue.rs, from spike S4): the log-Mel FFT, and stock C zlib for the compression ratio, which decides the
 # temperature fallback at 2.4 (zlib-rs gave other compressed lengths than CPython's zlib in S4, off by up to 0.045).
-realfft = "=3.5.1"
 flate2 = { version = "1", default-features = false, features = ["zlib"] }
 libz-sys = { version = "1", default-features = false, features = ["static", "libc"] }
 # The STT engine (feature `ct2`): CTranslate2 4.8.5 linked against the prebuilt engine of engine/build-engine.ps1 (plan section 3),

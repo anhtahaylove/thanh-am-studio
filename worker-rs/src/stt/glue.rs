@@ -13,7 +13,7 @@
 use std::io::Write as _;
 use std::path::Path;
 
-use realfft::RealFftPlanner;
+use crate::tts::{isa, ucrt_log10f, Isa, OpenBlas};
 
 pub const STT_RATE: usize = 16000;
 pub const STT_WINDOW_S: usize = 600;
@@ -239,22 +239,51 @@ pub fn stt_windows(audio: &[f32]) -> Vec<usize> {
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------
-// Feature extractor (faster_whisper/feature_extractor.py), computed in f64 from the float32 inputs
+// Feature extractor (faster_whisper/feature_extractor.py), in float32 step for step as numpy 2.4.6 runs it on Windows. A 1-ulp
+// difference here (the earlier f64 path) changed ~6% of the words downstream, so every step mirrors numpy's own loop.
 // ---------------------------------------------------------------------------------------------------------------------------
+
+extern "C" {
+    fn thanham_pf_rfft_f64(input: *const f64, rows: usize, npts: usize, out: *mut f64, fct: f64) -> i32;
+}
 
 pub struct FeatureExtractor {
     pub n_mels: usize,
-    filters: Vec<f64>, // n_mels x 201, float32 values (numpy casts the filters to float32)
+    filters: Vec<f32>, // n_mels x 201: `get_mel_filters(...).astype("float32")`
     window: Vec<f32>,
+    blas: OpenBlas,
+    /// numpy's complex64 `absolute` loop fuses `ratio * ratio + 1` on its X86_V3/X86_V4 targets, not on the X86_V2 baseline.
+    fused: bool,
+}
+
+/// `np.abs(stft) ** 2` over interleaved complex64 `spec`: numpy's `simd_cabsolute_f32` (loops_unary_complex.dispatch.c.src), which
+/// its `CFLOAT_absolute` runs for strided and contiguous input alike, then `square`. shortcut: numpy's inf/NaN selects are left
+/// out, as an FFT of decoded (finite) samples is finite; add them if non-finite input can ever reach here.
+#[inline(always)]
+fn power<const FUSED: bool>(spec: &[f32], out: &mut [f32]) {
+    for (o, c) in out.iter_mut().zip(spec.chunks_exact(2)) {
+        let (re, im) = (c[0].abs(), c[1].abs());
+        let (larger, smaller) = (re.max(im), im.min(re));
+        let ratio = if larger == 0.0 || smaller == f32::INFINITY { 0.0 } else { smaller / larger };
+        let a = if FUSED { ratio.mul_add(ratio, 1.0) } else { ratio * ratio + 1.0 }.sqrt() * larger;
+        *o = a * a;
+    }
+}
+
+#[target_feature(enable = "fma")]
+fn power_fma(spec: &[f32], out: &mut [f32]) {
+    power::<true>(spec, out)
 }
 
 const N_FFT: usize = 400;
 const HOP: usize = 160;
 const N_BINS: usize = N_FFT / 2 + 1;
 pub const NB_MAX_FRAMES: usize = 3000;
+const FFT_ROWS: usize = 256; // frames per pocketfft call, which bounds the float64 buffers
 
 impl FeatureExtractor {
-    pub fn new(n_mels: usize) -> Self {
+    /// `blas`: numpy's own OpenBLAS DLL, for `mel_filters @ magnitudes`.
+    pub fn new(n_mels: usize, blas: OpenBlas) -> Self {
         let sr = 16000.0f64;
         let val = 1.0 / (N_FFT as f64 * (1.0 / sr)); // np.fft.rfftfreq
         let fftfreqs: Vec<f64> = (0..N_BINS).map(|k| k as f64 * val).collect();
@@ -274,14 +303,14 @@ impl FeatureExtractor {
             }
         }
         let fdiff: Vec<f64> = freqs.windows(2).map(|w| w[1] - w[0]).collect();
-        let mut filters = vec![0f64; n_mels * N_BINS];
+        let mut filters = vec![0f32; n_mels * N_BINS];
         for i in 0..n_mels {
             let enorm = 2.0 / (freqs[i + 2] - freqs[i]);
             for k in 0..N_BINS {
                 let lower = -(freqs[i] - fftfreqs[k]) / fdiff[i];
                 let upper = (freqs[i + 2] - fftfreqs[k]) / fdiff[i + 1];
                 let w = 0f64.max(lower.min(upper)) * enorm;
-                filters[i * N_BINS + k] = w as f32 as f64;
+                filters[i * N_BINS + k] = w as f32;
             }
         }
         // np.hanning(401)[:-1].astype(float32): 0.5 + 0.5 * cos(pi * n / 400), n = -400, -398, ...
@@ -291,10 +320,13 @@ impl FeatureExtractor {
                 (0.5 + 0.5 * (std::f64::consts::PI * n / N_FFT as f64).cos()) as f32
             })
             .collect();
-        FeatureExtractor { n_mels, filters, window }
+        FeatureExtractor { n_mels, filters, window, blas, fused: isa() != Isa::Baseline }
     }
 
-    /// The log-Mel spectrogram of `waveform` as `[n_mels][frames]` (row-major) and the frame count.
+    /// The log-Mel spectrogram of `waveform` as `[n_mels][frames]` (row-major) and the frame count, bitwise as numpy computes it:
+    /// frames x window, pocketfft's `rfft` (in float64, as numpy runs it), `np.abs(stft) ** 2`, `mel_filters @ magnitudes`
+    /// through numpy's OpenBLAS with numpy's arguments, ucrtbase `log10f`, then the clip, `max() - 8.0` and `(x + 4.0) / 4.0` in
+    /// float32.
     pub fn compute(&self, waveform: &[f32]) -> (Vec<f32>, usize) {
         let mut x = waveform.to_vec();
         x.extend(std::iter::repeat(0f32).take(HOP)); // padding=160
@@ -315,32 +347,46 @@ impl FeatureExtractor {
         let total = len + 2 * pad;
         let y: Vec<f32> = (0..total).map(|i| reflect(i as isize - pad as isize)).collect();
         let frames = 1 + (total - N_FFT) / HOP - 1; // stft[..., :-1]
-        let mut planner = RealFftPlanner::<f64>::new();
-        let fft = planner.plan_fft_forward(N_FFT);
-        let mut input = fft.make_input_vec();
-        let mut spectrum = fft.make_output_vec();
-        let mut mel = vec![0f64; self.n_mels * frames];
-        let mut power = [0f64; N_BINS];
-        for f in 0..frames {
-            for (k, slot) in input.iter_mut().enumerate() {
-                *slot = (y[f * HOP + k] * self.window[k]) as f64; // float32 product, as numpy's frames * window
+
+        // `np.fft.rfft` passes fct as the int 1, so numpy's (legacy) loop resolution picks the float64 loop for the float32 frames
+        // and casts its complex128 result into the complex64 output: pocketfft in double, then each part rounded to float32.
+        let mut spec = vec![0f32; frames * N_BINS * 2];
+        let (mut rows, mut out) = (vec![0f64; FFT_ROWS * N_FFT], vec![0f64; FFT_ROWS * N_BINS * 2]);
+        for (chunk, dst) in spec.chunks_mut(FFT_ROWS * N_BINS * 2).enumerate() {
+            let n = dst.len() / (N_BINS * 2);
+            for (i, row) in rows.chunks_exact_mut(N_FFT).take(n).enumerate() {
+                let f = chunk * FFT_ROWS + i;
+                for (k, v) in row.iter_mut().enumerate() {
+                    *v = (y[f * HOP + k] * self.window[k]) as f64; // the float32 product numpy's frames * window gives
+                }
             }
-            fft.process(&mut input, &mut spectrum).expect("fft");
-            for (p, c) in power.iter_mut().zip(&spectrum) {
-                *p = c.re * c.re + c.im * c.im;
-            }
-            for m in 0..self.n_mels {
-                let row = &self.filters[m * N_BINS..(m + 1) * N_BINS];
-                mel[m * frames + f] = row.iter().zip(&power).map(|(w, p)| w * p).sum();
-            }
+            // SAFETY: `rows` holds n x N_FFT doubles and `out` n x N_BINS interleaved complex, what the shim reads and writes.
+            let rc = unsafe { thanham_pf_rfft_f64(rows.as_ptr(), n, N_FFT, out.as_mut_ptr(), 1.0) };
+            assert_eq!(rc, 0, "pocketfft rfft");
+            dst.iter_mut().zip(&out).for_each(|(d, &v)| *d = v as f32);
         }
-        let mut max = f64::NEG_INFINITY;
-        for v in mel.iter_mut() {
-            *v = v.max(1e-10).log10();
-            max = max.max(*v);
+        // The stft's transpose and astype keep this frames x bins memory order: `magnitudes` is an F-ordered bins x frames array.
+        let mut magnitudes = vec![0f32; frames * N_BINS];
+        if self.fused {
+            // SAFETY: `fused` is set only on CPUs with numpy's X86_V3 features, FMA3 among them.
+            unsafe { power_fma(&spec, &mut magnitudes) }
+        } else {
+            power::<false>(&spec, &mut magnitudes)
         }
-        let floor = max - 8.0;
-        let out = mel.iter().map(|v| ((v.max(floor) + 4.0) / 4.0) as f32).collect();
+        let mut mel = vec![0f32; self.n_mels * frames];
+        if frames == 1 {
+            // numpy's matrix @ vector case
+            self.blas.vec_mat_t(&self.filters, self.n_mels, N_BINS, &magnitudes, &mut mel);
+        } else {
+            self.blas.mat_mat_t(&self.filters, self.n_mels, N_BINS, &magnitudes, frames, &mut mel);
+        }
+        let log10f = ucrt_log10f();
+        // a_min, a Python float, cast to float32
+        let clip = 1e-10f64 as f32;
+        // SAFETY: ucrtbase's `float log10f(float)`.
+        mel.iter_mut().for_each(|v| *v = unsafe { log10f(v.max(clip)) });
+        let floor = mel.iter().fold(f32::NEG_INFINITY, |m, &v| m.max(v)) - 8.0;
+        let out = mel.iter().map(|&v| (v.max(floor) + 4.0) / 4.0).collect();
         (out, frames)
     }
 }
@@ -637,8 +683,9 @@ pub struct Transcriber {
 pub type WindowResult = (Vec<Row>, Vec<Vec<Word>>, String);
 
 impl Transcriber {
-    /// Loads the tokenizer and the feature size of a CTranslate2 Whisper model folder (`preprocessor_config.json` when present).
-    pub fn load(model_dir: &Path) -> Result<Self, GlueError> {
+    /// Loads the tokenizer and the feature size of a CTranslate2 Whisper model folder (`preprocessor_config.json` when present);
+    /// `blas` is numpy's OpenBLAS for the feature extractor.
+    pub fn load(model_dir: &Path, blas: OpenBlas) -> Result<Self, GlueError> {
         let mut n_mels = 80;
         let pre = model_dir.join("preprocessor_config.json");
         if pre.is_file() {
@@ -656,7 +703,7 @@ impl Transcriber {
         }
         let tok = Tok::load(model_dir)?;
         let suppress = tok.suppressed_tokens();
-        Ok(Transcriber { fe: FeatureExtractor::new(n_mels), tok, suppress })
+        Ok(Transcriber { fe: FeatureExtractor::new(n_mels, blas), tok, suppress })
     }
 
     /// worker `stt()`'s window loop: `language` None = auto; `diarizing` turns word times on (with the `IndexError` retry).
@@ -1209,5 +1256,44 @@ mod tests {
         let cuts = stt_windows(&ramp);
         assert_eq!(cuts.len(), 3);
         assert!(cuts[1] >= 570 * 16000 && cuts[1] < 600 * 16000);
+    }
+    /// Every decode case with a `mel` record (`decode_cases.py --mel`): the log-Mel spectrogram with 80 and 128 mels, of the whole
+    /// case and of its first 100 samples, bitwise against faster-whisper's on this machine (frame count and SHA-256).
+    #[test]
+    fn mel_matches_python() {
+        use sha2::{Digest, Sha256};
+        let Some(cases) = std::env::var_os("THANHAM_DECODE_CASES") else {
+            eprintln!("THANHAM_DECODE_CASES not set: skipped");
+            return;
+        };
+        let sp = crate::tts::site_packages();
+        let blas = || OpenBlas::load_pinned(&sp.join("numpy.libs").join(crate::tts::OPENBLAS_DLL)).unwrap();
+        let extractors = [FeatureExtractor::new(80, blas()), FeatureExtractor::new(128, blas())];
+        println!(
+            "mel: complex absolute {}",
+            if extractors[0].fused { "fused (X86_V3/V4)" } else { "unfused (X86_V2)" }
+        );
+        let (mut same, mut differ) = (0, Vec::new());
+        for line in std::fs::read_to_string(cases).unwrap().lines().filter(|l| !l.trim().is_empty()) {
+            let case: serde_json::Value = serde_json::from_str(line).unwrap();
+            let Some(want) = case.get("mel") else { continue };
+            let path = case["path"].as_str().unwrap();
+            let pcm = crate::stt::decode::decode_audio(&sp, path).unwrap();
+            for fe in &extractors {
+                for (part, audio) in [("full", &pcm[..]), ("head", &pcm[..pcm.len().min(100)])] {
+                    let (features, frames) = fe.compute(audio);
+                    let bytes: Vec<u8> = features.iter().flat_map(|v| v.to_le_bytes()).collect();
+                    let sha: String = Sha256::digest(&bytes).iter().map(|b| format!("{b:02x}")).collect();
+                    let w = &want[fe.n_mels.to_string()][part];
+                    if w["frames"].as_u64() == Some(frames as u64) && w["sha256"].as_str() == Some(sha.as_str()) {
+                        same += 1;
+                    } else {
+                        differ.push(format!("{path} {} {part}: {frames} frames {sha}, Python {w}", fe.n_mels));
+                    }
+                }
+            }
+        }
+        println!("mel: {same} identical, {} differ", differ.len());
+        assert!(differ.is_empty(), "{differ:#?}");
     }
 }

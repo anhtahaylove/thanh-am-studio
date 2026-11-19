@@ -23,16 +23,18 @@ use crate::media::{executable, spawn_capture};
 use crate::paths::contained_path;
 use crate::pyfmt::{float_repr, tail_chars, truthy};
 use crate::render::number;
+pub(crate) use blas::OpenBlas;
 #[cfg(feature = "ct2")]
 pub(crate) use clone::py_path;
 #[cfg(feature = "ct2")]
 pub(crate) use engine::cpu_count;
 use engine::{Draws, Engine, Paths, Voice, CLONED_TEMPERATURE, PRESET_TEMPERATURE};
+pub(crate) use exp::{isa, ucrt_log10f, Isa};
 use serde_json::{json, Map, Value};
 use std::path::{Path, PathBuf};
 
 /// numpy's OpenBLAS, which the engine head loads from the private Python runtime.
-const OPENBLAS_DLL: &str = "libscipy_openblas64_-63c857e738469261263c764a36be9436.dll";
+pub(crate) const OPENBLAS_DLL: &str = "libscipy_openblas64_-63c857e738469261263c764a36be9436.dll";
 
 /// The private Python runtime's `site-packages`: next to `THANHAM_PYTHON` when set, else `runtime\python` beside the `worker` folder.
 pub(crate) fn site_packages() -> PathBuf {

@@ -9,7 +9,7 @@ use crate::ct2::{Encoded, Whisper};
 use crate::download::verify_model;
 use crate::error::{Result, WorkerError};
 use crate::pyfmt::truthy;
-use crate::tts::{cpu_count, py_path, site_packages};
+use crate::tts::{cpu_count, py_path, site_packages, OpenBlas, OPENBLAS_DLL};
 use serde_json::{json, Map, Value};
 use std::path::Path;
 
@@ -118,9 +118,11 @@ pub fn stt(payload: &Map<String, Value>, progress: &dyn Fn(f64, &str)) -> Result
     progress(0.05, "Loading local Whisper CPU model");
     let model_dir = py_path(model_dir);
     let whisper = Whisper::load(&model_dir, cpu_count().min(8)).map_err(|m| WorkerError::new("WORKER_ERROR", m))?;
-    let transcriber =
-        Transcriber::load(Path::new(&model_dir)).map_err(|e| WorkerError::new("WORKER_ERROR", e.to_string()))?;
     let sp = site_packages();
+    let blas = OpenBlas::load_pinned(&sp.join("numpy.libs").join(OPENBLAS_DLL))
+        .map_err(|e| WorkerError::new("RUNTIME_MISSING", e.to_string()))?;
+    let transcriber =
+        Transcriber::load(Path::new(&model_dir), blas).map_err(|e| WorkerError::new("WORKER_ERROR", e.to_string()))?;
     let audio = decode_audio(&sp, &py_path(source))?;
     let duration = f64::max(audio.len() as f64 / STT_RATE as f64, 0.01);
     let vad = Vad::load(&sp)?;
@@ -168,15 +170,16 @@ mod tests {
         }
     }
 
-    /// T1a diagnostic (`THANHAM_T1A_FEATURES=recorded`): the engine is fed the recorded encoder inputs (`feat\<id>.f32` at each
-    /// `encode` event's byte offset) in place of this glue's log-mel, which the plan holds to E1 (<= 1e-4) only, so the result
-    /// isolates the glue and the engine. `max_diff` is the largest |Rust log-mel - recorded| seen.
+    /// Each `encode` input against the recorded one (`feat\<id>.f32` at each `encode` event's byte offset): `max_diff` is the
+    /// largest |Rust log-mel - recorded| seen. With `substitute` (the T1a diagnostic `THANHAM_T1A_FEATURES=recorded`) the engine
+    /// gets the recorded input instead, which isolates the glue and the engine from the log-mel.
     struct RecordedFeatures<'a, 'e> {
         engine: &'a mut Engine<'e>,
         feat: Vec<f32>,
         offsets: Vec<usize>,
         calls: usize,
         max_diff: f32,
+        substitute: bool,
     }
 
     impl WhisperEngine for RecordedFeatures<'_, '_> {
@@ -184,12 +187,15 @@ mod tests {
 
         fn encode(&mut self, features: &[f32], n_mels: usize) -> std::result::Result<Encoded, GlueError> {
             let Some(&off) = self.offsets.get(self.calls) else {
-                return Err(GlueError::Engine(format!("encode call {} was not recorded", self.calls)));
+                if self.substitute {
+                    return Err(GlueError::Engine(format!("encode call {} was not recorded", self.calls)));
+                }
+                return self.engine.encode(features, n_mels); // the run already left the recorded call sequence
             };
             self.calls += 1;
             let recorded = &self.feat[off..off + features.len()];
             self.max_diff = features.iter().zip(recorded).fold(self.max_diff, |m, (a, b)| m.max((a - b).abs()));
-            self.engine.encode(recorded, n_mels)
+            self.engine.encode(if self.substitute { recorded } else { features }, n_mels)
         }
 
         fn generate(
@@ -235,7 +241,7 @@ mod tests {
         let mut out = std::fs::File::create(var("THANHAM_T1A_OUT")).unwrap();
         let recorded_features = std::env::var("THANHAM_T1A_FEATURES").is_ok_and(|v| v == "recorded");
         let sp = site_packages();
-        let (mut deterministic, mut pass, mut sampled, mut sampled_same) = (0, 0, 0, 0);
+        let (mut deterministic, mut pass, mut sampled, mut sampled_same, mut features_exact) = (0, 0, 0, 0, 0);
         println!("engine {}", crate::ct2::info());
         for job in var("THANHAM_T1A_JOBS").lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')) {
             let [corpus, model, mode] = job.split_whitespace().collect::<Vec<_>>()[..] else {
@@ -243,7 +249,8 @@ mod tests {
             };
             let (lang0, words) = (if mode == "a" { None } else { Some("vi") }, mode != "p");
             let model_dir = models.join(format!("whisper-{model}"));
-            let transcriber = Transcriber::load(&model_dir).unwrap();
+            let blas = OpenBlas::load_pinned(&sp.join("numpy.libs").join(OPENBLAS_DLL)).unwrap();
+            let transcriber = Transcriber::load(&model_dir, blas).unwrap();
             let mut engine = Engine {
                 whisper: Whisper::load(model_dir.to_str().unwrap(), cpu_count().min(8)).unwrap(),
                 vad: Vad::load(&sp).unwrap(),
@@ -262,23 +269,24 @@ mod tests {
                     bytes.chunks_exact(4).map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect();
                 let python = json!({"segments": item["segments"], "words": item["words"], "language": item["language"],
                     "words_fallback": item["words_fallback"]});
-                let mut max_diff = None;
-                let result = if recorded_features {
-                    let feat =
-                        std::fs::read(rec.join(corpus).join(model).join(mode).join("feat").join(format!("{id}.f32")))
-                            .unwrap()
-                            .chunks_exact(4)
-                            .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
-                            .collect();
-                    let offsets = item["events"].as_array().unwrap().iter().filter(|e| e["k"] == "encode");
-                    let offsets = offsets.map(|e| e["off"].as_u64().unwrap() as usize / 4).collect();
-                    let mut fed = RecordedFeatures { engine: &mut engine, feat, offsets, calls: 0, max_diff: 0.0 };
-                    let result = transcriber.stt(&mut fed, &pcm, lang0, words);
-                    max_diff = Some(fed.max_diff);
-                    result
-                } else {
-                    transcriber.stt(&mut engine, &pcm, lang0, words)
+                let feat =
+                    std::fs::read(rec.join(corpus).join(model).join(mode).join("feat").join(format!("{id}.f32")))
+                        .unwrap()
+                        .chunks_exact(4)
+                        .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+                        .collect();
+                let offsets = item["events"].as_array().unwrap().iter().filter(|e| e["k"] == "encode");
+                let offsets = offsets.map(|e| e["off"].as_u64().unwrap() as usize / 4).collect();
+                let mut fed = RecordedFeatures {
+                    engine: &mut engine,
+                    feat,
+                    offsets,
+                    calls: 0,
+                    max_diff: 0.0,
+                    substitute: recorded_features,
                 };
+                let result = transcriber.stt(&mut fed, &pcm, lang0, words);
+                let max_diff = fed.max_diff;
                 let rust = match result {
                     Ok(r) => {
                         json!({"segments": rows_json(&r.segments), "words": words_json(&r.words), "language": r.language,
@@ -297,6 +305,7 @@ mod tests {
                 } else {
                     deterministic += 1;
                     pass += usize::from(ok);
+                    features_exact += usize::from(max_diff == 0.0);
                 }
                 use std::io::Write as _;
                 writeln!(
@@ -310,7 +319,9 @@ mod tests {
             }
         }
         println!("T1a real engine: {pass}/{deterministic} deterministic items identical; sampled items {sampled_same}/{sampled}");
+        println!("T1a features: {features_exact}/{deterministic} deterministic items bitwise equal to the recorded encoder inputs");
         assert!(deterministic > 0);
         assert_eq!(pass, deterministic);
+        assert_eq!(features_exact, deterministic);
     }
 }

@@ -26,14 +26,19 @@ extern "system" {
 
 const LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR: u32 = 0x100;
 const LOAD_LIBRARY_SEARCH_SYSTEM32: u32 = 0x800;
+const CBLAS_ROW_MAJOR: i32 = 101;
 const CBLAS_COL_MAJOR: i32 = 102;
+const CBLAS_NO_TRANS: i32 = 111;
 const CBLAS_TRANS: i32 = 112;
 
 type Sgemv = unsafe extern "C" fn(i32, i32, i64, i64, f32, *const f32, i64, *const f32, i64, f32, *mut f32, i64);
+type Sgemm =
+    unsafe extern "C" fn(i32, i32, i32, i64, i64, i64, f32, *const f32, i64, *const f32, i64, f32, *mut f32, i64);
 
 /// A loaded numpy OpenBLAS (ILP64, `scipy_` prefix).
 pub struct OpenBlas {
     sgemv: Sgemv,
+    sgemm: Sgemm,
 }
 
 fn bad(msg: String) -> io::Error {
@@ -81,7 +86,38 @@ impl OpenBlas {
             }
         };
         // SAFETY: the signatures are those of the exported ILP64 symbols (cblas.h of OpenBLAS 0.3.31 with `-DOPENBLAS_USE64BITINT`).
-        unsafe { Ok(OpenBlas { sgemv: std::mem::transmute::<*const c_void, Sgemv>(sym("scipy_cblas_sgemv64_")?) }) }
+        unsafe {
+            Ok(OpenBlas {
+                sgemv: std::mem::transmute::<*const c_void, Sgemv>(sym("scipy_cblas_sgemv64_")?),
+                sgemm: std::mem::transmute::<*const c_void, Sgemm>(sym("scipy_cblas_sgemm64_")?),
+            })
+        }
+    }
+
+    /// `out = a @ b.T` (row-major `m x n`) where `a` is a row-major `m x k` matrix and `b` a row-major `n x k` one (numpy: `a @ bt`
+    /// with `bt` the F-ordered `k x n` view of `b`, which `matmul` hands to `cblas_sgemm(RowMajor, NoTrans, Trans, m, n, k, 1, a, k,
+    /// b, k, 0, out, n)`; with n = 1 numpy calls gemv instead, see [`Self::vec_mat_t`]).
+    pub fn mat_mat_t(&self, a: &[f32], m: usize, k: usize, b: &[f32], n: usize, out: &mut [f32]) {
+        assert!(a.len() == m * k && b.len() == n * k && out.len() == m * n);
+        // SAFETY: the slices have the lengths the call reads and writes (checked above); lda = ldb = k, ldc = n.
+        unsafe {
+            (self.sgemm)(
+                CBLAS_ROW_MAJOR,
+                CBLAS_NO_TRANS,
+                CBLAS_TRANS,
+                m as i64,
+                n as i64,
+                k as i64,
+                1.0,
+                a.as_ptr(),
+                k as i64,
+                b.as_ptr(),
+                k as i64,
+                0.0,
+                out.as_mut_ptr(),
+                n as i64,
+            );
+        }
     }
 
     /// `out = x @ m.T` where `m` is a row-major `rows x cols` matrix, `x` has `cols` elements and `out` has `rows`
