@@ -249,7 +249,10 @@ mod tests {
     /// |difference|; output by SHA-256), generate, align, detect_language and VAD call, and every compression ratio and window
     /// trace. `diffs` lists what differed; after a call of another kind the sequence is lost and the rest runs unchecked. With
     /// `substitute` (the T1a diagnostic `THANHAM_T1A_FEATURES=recorded`) the engine gets the recorded encoder input instead,
-    /// which isolates the glue and the engine from the log-mel.
+    /// which isolates the glue and the engine from the log-mel. With `inject` (S4's fault-injected modes wi and pi, row T5) the
+    /// engine's outputs are perturbed as S4's recorder perturbed them, so the glue takes its rare branches on both sides: by
+    /// encode index n, n % 4 == 1 scales the temperature-0 scores by 10, == 2 scales every decode's scores by 10, == 3 also sets
+    /// the no-speech probability to 0.95, and the 2nd align call of each window returns empty alignments (the IndexError retry).
     struct Recorded<'a, 'e> {
         engine: &'a mut Engine<'e>,
         events: &'a [Value],
@@ -259,6 +262,8 @@ mod tests {
         encodes: usize,
         max_diff: f32,
         substitute: bool,
+        inject: bool,
+        aligns: usize,
         diffs: Vec<String>,
     }
 
@@ -322,7 +327,14 @@ mod tests {
             prompt: &[u32],
             o: &GenOptions,
         ) -> std::result::Result<GenResult, GlueError> {
-            let out = self.engine.generate(&enc.1, prompt, o)?;
+            let mut out = self.engine.generate(&enc.1, prompt, o)?;
+            let n = enc.0 % 4;
+            if self.inject && n != 0 && (n > 1 || o.temperature == 0.0) {
+                out.scores.iter_mut().for_each(|s| *s *= 10.0);
+                if n == 3 {
+                    out.no_speech_prob = 0.95;
+                }
+            }
             if let Some(ev) = self.next("generate") {
                 let rust = json!({"enc": enc.0, "prompts": [prompt], "kw": kw(o),
                     "out": [{"seq": out.sequences_ids, "scores": out.scores, "nsp": out.no_speech_prob}]});
@@ -343,7 +355,11 @@ mod tests {
             num_frames: usize,
             median_filter_width: usize,
         ) -> std::result::Result<Vec<AlignResult>, GlueError> {
-            let out = self.engine.align(&enc.1, start, text, num_frames, median_filter_width)?;
+            let mut out = self.engine.align(&enc.1, start, text, num_frames, median_filter_width)?;
+            self.aligns += 1;
+            if self.inject && self.aligns == 2 {
+                out.iter_mut().for_each(|r| r.alignments.clear());
+            }
             if let Some(ev) = self.next("align") {
                 // The worker drops faster-whisper's word probabilities, so the engine wrapper does not return them.
                 let al: Vec<Value> = out.iter().map(|r| json!({"al": r.alignments})).collect();
@@ -398,6 +414,7 @@ mod tests {
             lang: Option<&str>,
             words: bool,
         ) -> std::result::Result<(), GlueError> {
+            self.aligns = 0;
             if let Some(ev) = self.next("window") {
                 let rust = json!({"start": start, "end": end, "lang": lang, "words": words});
                 self.check(
@@ -436,7 +453,7 @@ mod tests {
     /// `rec\pcm`) through the glue with this CTranslate2 engine and the Silero VAD, each result (segments, words, language, retry)
     /// against the Python worker's, bitwise. Items whose Python run sampled (a fallback temperature above 0) are unseeded on both
     /// sides and reported apart (row T1b). `THANHAM_T1A_REC` (the rec folder), `THANHAM_T1A_JOBS` (`corpus model mode` per line,
-    /// modes w, p or a), `THANHAM_MODELS` (holding whisper-small and whisper-turbo), `THANHAM_T1A_OUT` (per-item JSON lines).
+    /// modes w, p or a, and wi or pi with S4's fault injection), `THANHAM_MODELS` (holding whisper-small and whisper-turbo), `THANHAM_T1A_OUT` (per-item JSON lines).
     #[test]
     #[ignore = "local T1a runs on recorded items"]
     fn t1a_real_engine() {
@@ -453,7 +470,7 @@ mod tests {
             let [corpus, model, mode] = job.split_whitespace().collect::<Vec<_>>()[..] else {
                 panic!("bad job: {job}")
             };
-            let (lang0, words) = (if mode == "a" { None } else { Some("vi") }, mode != "p");
+            let (lang0, words) = (if mode.starts_with('a') { None } else { Some("vi") }, !mode.starts_with('p'));
             let model_dir = models.join(format!("whisper-{model}"));
             let blas = OpenBlas::load_pinned(&sp.join("numpy.libs").join(OPENBLAS_DLL)).unwrap();
             let transcriber = Transcriber::load(&model_dir, blas).unwrap();
@@ -490,6 +507,8 @@ mod tests {
                     encodes: 0,
                     max_diff: 0.0,
                     substitute: recorded_features,
+                    inject: mode.ends_with('i'),
+                    aligns: 0,
                     diffs: Vec::new(),
                 };
                 let result = transcriber.stt(&mut fed, &pcm, lang0, words);
@@ -550,7 +569,12 @@ mod tests {
             self.engine.encode(features, n_mels)
         }
 
-        fn generate(&mut self, enc: &Encoded, prompt: &[u32], o: &GenOptions) -> std::result::Result<GenResult, GlueError> {
+        fn generate(
+            &mut self,
+            enc: &Encoded,
+            prompt: &[u32],
+            o: &GenOptions,
+        ) -> std::result::Result<GenResult, GlueError> {
             self.sampled |= o.temperature > 0.0;
             self.engine.generate(enc, prompt, o)
         }
