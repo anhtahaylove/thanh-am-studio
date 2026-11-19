@@ -1092,9 +1092,9 @@ try {
     });
   }
   if (phase === 'ab') {
-    // The operations this build routes to the native worker (RUST_OPS: render, download, preset and cloned tts, clone_preview), each run on
-    // Python and on the native worker: same job, the chosen engine with no fallback, same output bytes (for tts, under a fixed seed on the
-    // installed workers).
+    // The operations this build routes to the native worker (RUST_OPS: render, download, preset and cloned tts, clone_preview, stt), each
+    // run on Python and on the native worker: same job, the chosen engine with no fallback, same output bytes (for tts, under a fixed seed
+    // on the installed workers) and the same transcript (for stt, also every event of the installed workers).
     await step('voice model ready', voiceModel);
     const wav = join(saves, 'ab-tone.wav'), n = 24000, pcm = Buffer.alloc(n * 2);
     for (let i = 0; i < n; i++) pcm.writeInt16LE(Math.round(8000 * Math.sin(i * 0.05)), i * 2);
@@ -1117,6 +1117,16 @@ try {
     await invoke('save_project', {project});
     const tts = (i, text, voice, reference = null) => ({kind: 'tts', projectId: project.id, payload: {segment_id: `ab${i}`, text, voice_id: voice, speed: 1, reference_asset_id: reference, check: false}});
     let ref, voiceId;
+    // An installed worker run as the app runs it (runtime.rs attempt: command line and env), plus the parity seed that only tts reads.
+    const runWorker = (rs, engine, request) => new Promise((ok, fail) => {
+      const dir = request.output_dir; rmSync(dir, {recursive: true, force: true}); mkdirSync(dir, {recursive: true});
+      const [cmd, args, env] = engine === 'python' ? [rs.python_path, ['-I', '-X', 'utf8', join(dirname(exe), 'worker', 'main.py')], {PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8'}] : [rs.native_worker_path, [], {}];
+      const p = spawn(cmd, args, {env: {...process.env, ...env, THANHAM_FFMPEG: rs.ffmpeg_path, THANHAM_FFPROBE: join(dirname(rs.ffmpeg_path), 'ffprobe.exe'), HF_HUB_DISABLE_TELEMETRY: '1', THANHAM_TTS_SEED: '7'}, windowsHide: true});
+      const timer = setTimeout(() => p.kill(), 20 * 60000);
+      let text = '', log = ''; p.stdout.setEncoding('utf8').on('data', (d) => { text += d; }); p.stderr.setEncoding('utf8').on('data', (d) => { log += d; });
+      p.on('error', fail).on('close', (code) => { clearTimeout(timer); writeFileSync(join(dir, 'worker.log'), log); ok({code, text}); });
+      p.stdin.end(JSON.stringify(request) + '\n');
+    });
     await step('reference clip from preset voice', async () => {
       // As in the clone phase, the app's own preset clip, so no third-party voice is involved; its WAV take is a format that passed parity.
       [ref] = await enqueue([tts(0, refText, 'Trúc Ly')]);
@@ -1131,16 +1141,7 @@ try {
       const requests = {'preset tts': {operation: 'tts', payload: {model_path: model, items: texts.map((t, i) => item(i + 1, t, 'Trúc Ly', null))}},
         'cloned tts': {operation: 'tts', payload: {model_path: model, items: texts.map((t, i) => item(i + 1, t, null, ref.result.path))}},
         clone_preview: {operation: 'clone_preview', payload: {reference_path: ref.result.path, model_path: model, output_name: 'ab-preview.wav'}}};
-      // The app's worker command lines and env (runtime.rs attempt), plus the seed.
-      const run = (engine, request) => new Promise((ok, fail) => {
-        const dir = request.output_dir; rmSync(dir, {recursive: true, force: true}); mkdirSync(dir, {recursive: true});
-        const [cmd, args, env] = engine === 'python' ? [rs.python_path, ['-I', '-X', 'utf8', join(dirname(exe), 'worker', 'main.py')], {PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8'}] : [rs.native_worker_path, [], {}];
-        const p = spawn(cmd, args, {env: {...process.env, ...env, THANHAM_FFMPEG: rs.ffmpeg_path, THANHAM_FFPROBE: join(dirname(rs.ffmpeg_path), 'ffprobe.exe'), HF_HUB_DISABLE_TELEMETRY: '1', THANHAM_TTS_SEED: '7'}, windowsHide: true});
-        const timer = setTimeout(() => p.kill(), 20 * 60000);
-        let text = '', log = ''; p.stdout.setEncoding('utf8').on('data', (d) => { text += d; }); p.stderr.setEncoding('utf8').on('data', (d) => { log += d; });
-        p.on('error', fail).on('close', (code) => { clearTimeout(timer); writeFileSync(join(dir, 'worker.log'), log); ok({code, text}); });
-        p.stdin.end(JSON.stringify(request) + '\n');
-      });
+      const run = (engine, request) => runWorker(rs, engine, request);
       const diffs = [], rows = [];
       for (const [name, r] of Object.entries(requests)) { // every request runs, so one difference does not hide the others
         const slug = name.replace(' ', '-'), dirs = {}, wavs = {};
@@ -1162,11 +1163,12 @@ try {
       return rows.join('; ');
     }).catch(() => {}); // recorded as FAIL; the app-level runs below still run
     const jobs = {render: [{kind: 'render', projectId: null, payload: {segments, normalize: false, format: 'wav'}}], download: [{kind: 'model_download', projectId: null, payload: {model_id: 'diarization'}}],
-      tts: texts.map((t, i) => tts(i + 1, t, 'Trúc Ly')), 'cloned tts': texts.map((t, i) => tts(i + 1, t, voiceId, ref.result.asset_id)), clone_preview: [{kind: 'clone_preview', projectId: null, payload: {asset_id: ref.result.asset_id}}]};
+      tts: texts.map((t, i) => tts(i + 1, t, 'Trúc Ly')), 'cloned tts': texts.map((t, i) => tts(i + 1, t, voiceId, ref.result.asset_id)), clone_preview: [{kind: 'clone_preview', projectId: null, payload: {asset_id: ref.result.asset_id}}],
+      stt: [{kind: 'stt', projectId: null, payload: {asset_id: ref.result.asset_id, model_id: 'whisper-small', language: 'vi', diarize: true}}]};
     const ran = {};
     try {
       for (const engine of ['python', 'auto']) {
-        await invoke('save_settings', {settings: {...base, worker_engines: {render: engine, download: engine, tts: engine, clone_preview: engine}}});
+        await invoke('save_settings', {settings: {...base, worker_engines: {render: engine, download: engine, tts: engine, clone_preview: engine, stt: engine}}});
         for (const [kind, list] of Object.entries(jobs)) {
           await step(`${kind} on ${engine}`, async () => {
             const got = ran[`${kind}-${engine}`] = await enqueue(list);
@@ -1191,6 +1193,33 @@ try {
         const [a, b] = ['python', 'auto'].map((e) => sha256File(ran[`clone_preview-${e}`][0].result.path));
         if (a !== b) throw Error(`clone_preview sha256 differs: ${a} vs ${b}`);
         return a.slice(0, 16);
+      }).catch(() => {});
+      // Whisper decodes at temperature 0 unless a window falls back to sampling, which a clean preset clip does not: the rows, their
+      // speakers and the language must match.
+      await step('stt transcript is identical on both engines', async () => {
+        const [a, b] = ['python', 'auto'].map((e) => JSON.stringify({transcript: ran[`stt-${e}`][0].result.transcript, language: ran[`stt-${e}`][0].result.language}));
+        if (a !== b) throw Error(`${a} vs ${b}`);
+        return `${JSON.parse(a).transcript.length} rows`;
+      }).catch(() => {});
+      // The installed workers on the app's stt request (runtime.rs prepare_request), with speakers and with automatic language: every
+      // event, progress included, must be the same.
+      await step('installed workers transcribe identically', async () => {
+        const rs = await invoke('runtime_status'), models = join(process.env.LOCALAPPDATA, 'studio.thanham.desktop', 'models');
+        const stt = (language, speakers) => ({operation: 'stt', payload: {input_path: ref.result.path, model_path: join(models, 'whisper-small'), language,
+          diarize_model_path: speakers ? join(models, 'diarization') : null, num_speakers: null, min_speakers: null, max_speakers: null}});
+        const diffs = [], rows = [];
+        for (const [name, r] of Object.entries({'stt vi with speakers': stt('vi', true), 'stt auto': stt('auto', false)})) {
+          const events = {};
+          for (const engine of ['python', 'rust']) {
+            const {code, text} = await runWorker(rs, engine, {protocol: 1, id: `ab-${name.replaceAll(' ', '-')}`, ...r, output_dir: join(tmpdir(), 'thanham-ab-stt', engine), models_dir: models});
+            events[engine] = text.split('\n').filter((l) => l.trim()).map((l) => { try { return JSON.parse(l); } catch { return l; } });
+            if (code !== 0 || !events[engine].some((e) => e.event === 'result')) diffs.push(`${name} on ${engine}: exit ${code}, ${JSON.stringify(events[engine].at(-1))}`);
+          }
+          if (JSON.stringify(events.python) !== JSON.stringify(events.rust)) diffs.push(`${name}: python ${JSON.stringify(events.python)} vs rust ${JSON.stringify(events.rust)}`);
+          else rows.push(`${name}: ${events.python.length} events identical`);
+        }
+        if (diffs.length) throw Error(diffs.join(' | '));
+        return rows.join('; ');
       }).catch(() => {});
       // App takes are sampled (see the fixed-seed step), so each is checked on its own: the take and, when the speed is not 1, its
       // reading before the speed change (raw_asset_id).
