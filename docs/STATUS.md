@@ -1,6 +1,6 @@
 # Thanh Âm Studio status
 
-Last updated 2026-11-18. Evidence below was observed, not inferred; anything not listed is unverified.
+Last updated 2026-11-19. Evidence below was observed, not inferred; anything not listed is unverified.
 
 ## Implemented
 
@@ -923,6 +923,25 @@ There is no 1.0.17. The tag `v1.0.17` exists, but its release build stopped at t
 | Not run | `update-seeded`, `dub` (installing the separation pack through the app, then separating), `scripts`, `ab`, the default runner's `reopen`/`offline`/`export`, and `-Gate 500`. The pack download was tested on the development PC only (resume, checksum, and a corrupted file refused) |
 
 Evidence: `work\release-v1.0.18-sandbox` (`out1018r1p`, `out1018r2`, `out1018r2b`, `out1018r2c`, `x09-parity.log`, `r2*-job-engines.txt`, `pyc-check`), `work\release-v1.0.18-vt`, `work\release-v1.0.18-notices`.
+
+### v1.0.19 release (built by `.github/workflows/release.yml` from tag `v1.0.19` at `1ebd289`)
+
+Preset and cloned `tts` and `clone_preview` run on the native worker (`RUST_OPS` = `render`, `download`, `tts`, `clone_preview`; #141). `native_can_run` keeps a batch with a self-checked take, and a cloned voice whose reference is M4A, AAC or a video container, on Python. The worker links the C runtime dynamically (A4b), so the VC143 DLLs ship next to it. The release also carries the unchecked-hash `.pyc` (#135), the complete notices and the corrected licence page (#136).
+
+| Check | Result |
+|---|---|
+| Tests | CI green on the tagged commit; the release workflow's dry run (44305372768) passed on it before the tag |
+| TTS parity (same seed in both workers) | CI, same runner: preset P-op 148 items, 147/147 WAVs, 149/149 engine calls; cloned 23/23 WAVs, K-cond 19/19 references; `clone_preview` 20/20. Development PC (i5-13400F): K-cond on 20 real references, every step; Intel SDE `-snb` `clone_preview` 15/15 steps. The CPU vendor of those CI runs was not logged |
+| Speed and memory (interleaved local rounds) | preset: wall 0.856x, CPU 0.965x, peak RAM within +0.4%; cloned: 0.954x over the equal-load rounds, CPU 0.976x, RAM 0.934-1.011x; `clone_preview`: wall 0.449x, RAM -33% |
+| Installer SHA-256 | `43daab74b4212a91184a596b15787661760d1a8a0363e5f7643d81b2450fc74e` (215,363,991 bytes). `sha256sum -c` OK after an anonymous download from `/releases/download/v1.0.19/` |
+| Update feed | the anonymous `/releases/latest/download/latest.json` names 1.0.19, points to the v1.0.19 installer and carries a signature |
+| Reduced Sandbox gate | other sessions kept the machine below 8 GB free, so the runs used 4 to 6 GB; the owner then asked to skip every run not strictly needed |
+| Clean Sandbox, `-Only update -From` the published 1.0.18 (4 GB) | updated itself to 1.0.19; the native worker was ready after the update, with `msvcp140`, `msvcp140_1`, `vcruntime140` and `vcruntime140_1` next to it. 4 PASS, 0 FAIL |
+| Clean Sandbox, `-Only full,features,turbo,clone,dpi,ux` (6 GB) | 43 PASS, 0 FAIL; 892 MiB installed; 3,792 shipped `.pyc` unchanged after the jobs, 0 rewritten. Every `tts` without a check, every `clone_preview`, `render` and model download ran with `engine: rust, fallback: false`; checked takes stayed on Python |
+| Clean Sandbox, `-Only full,ab` (6 GB) | 31 PASS. Engine routing passed for every operation (python under python, rust under auto, no fallback) and the render was byte-identical. The step "tts output is identical on both engines" failed in the harness: it compared unseeded, sampled readings whose output names differ per job. #146 replaced it with a WAV check plus a seeded comparison of the installed workers; the corrected phase has not run yet, and the phase stopped before comparing cloned `tts` and `clone_preview` |
+| Not run | `ab` with the corrected harness, `dub`, `scripts`, `-Gate 500`, `update-seeded`, `reopen`/`offline`/`export`, `longstt`; no VirusTotal upload before publication |
+
+Evidence: `work\release-v1.0.19-sandbox` (`out1019r1`, `out1019r2`, `out1019r3`, `r2-job-engines.txt`, `r3-job-engines.txt`, `run1019.log`), `work\rm\a4a\RESULTS.md`, `work\rm\a4b\RESULTS.md`, `work\rm\a4b\rtf-analysis.md`.
 
 ## Not verified / known gaps
 
