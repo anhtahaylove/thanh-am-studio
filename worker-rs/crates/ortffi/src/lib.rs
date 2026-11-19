@@ -16,5 +16,5 @@ pub mod safe;
 
 pub use error::{Error, ErrorCode, LoadError, OrtError, RUNTIME_MISSING, WORKER_ERROR};
 pub use raw::sys::{ORT_API_VERSION, ORT_VERSION};
-pub use raw::{Element, ElementType, TensorInfo};
+pub use raw::{without_error_dialogs, Element, ElementType, TensorInfo};
 pub use safe::{Env, ExecutionMode, GraphOptimizationLevel, IoInfo, Session, SessionOptions, Value};

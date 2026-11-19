@@ -58,7 +58,7 @@ fn ucrt_expf() -> unsafe extern "C" fn(f32) -> f32 {
         let wide: Vec<u16> = std::ffi::OsStr::new("ucrtbase.dll").encode_wide().chain(std::iter::once(0)).collect();
         // SAFETY: LOAD_LIBRARY_SEARCH_SYSTEM32 only; the symbol name is NUL-terminated.
         unsafe {
-            let module = LoadLibraryExW(wide.as_ptr(), 0, 0x800);
+            let module = ortffi::without_error_dialogs(|| LoadLibraryExW(wide.as_ptr(), 0, 0x800));
             assert!(module != 0, "ucrtbase.dll is missing");
             let p = GetProcAddress(module, c"expf".as_ptr().cast());
             assert!(!p.is_null(), "ucrtbase.dll has no expf");

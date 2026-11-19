@@ -1,4 +1,4 @@
-//! `LoadLibraryExW` of one DLL by absolute path, then the ABI pin check.
+//! `LoadLibraryExW` of one DLL by absolute path (without the loader's error dialogs), then the ABI pin check.
 
 use super::sys::{OrtApiBase, ORT_API_VERSION, ORT_VERSION};
 use super::Api;
@@ -11,15 +11,37 @@ use std::path::Path;
 /// `LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32`; both need an absolute path.
 const LOAD_FLAGS: u32 = 0x0000_0100 | 0x0000_0800;
 const ERROR_INVALID_NAME: u32 = 123;
+/// `SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX`.
+const QUIET_ERROR_MODE: u32 = 0x0001 | 0x8000;
 
 #[link(name = "kernel32")]
 extern "system" {
     fn LoadLibraryExW(file_name: *const u16, file: *mut c_void, flags: u32) -> *mut c_void;
     fn GetProcAddress(module: *mut c_void, name: *const c_char) -> *mut c_void;
     fn GetLastError() -> u32;
+    fn SetLastError(code: u32);
+    fn GetThreadErrorMode() -> u32;
+    fn SetThreadErrorMode(mode: u32, old: *mut u32) -> i32;
 }
 
 type GetApiBaseFn = unsafe extern "system" fn() -> *const OrtApiBase;
+
+/// Runs `f` (a `LoadLibraryExW` call) with `SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX` added to this thread's error
+/// mode, then restores the old mode and keeps `f`'s `GetLastError`. Without it a broken or foreign DLL ("Bad Image", a missing
+/// entry point) stops the process behind a modal box until someone clicks it, instead of failing the load.
+pub fn without_error_dialogs<T>(f: impl FnOnce() -> T) -> T {
+    let mut old = 0;
+    // SAFETY: thread-local mode calls; `old` outlives the call that writes it.
+    unsafe { SetThreadErrorMode(GetThreadErrorMode() | QUIET_ERROR_MODE, &mut old) };
+    let out = f();
+    // SAFETY: thread-local calls; `f`'s last error is read before the restore and written back after it.
+    unsafe {
+        let error = GetLastError();
+        SetThreadErrorMode(old, std::ptr::null_mut());
+        SetLastError(error);
+    }
+    out
+}
 
 impl Api {
     /// Loads `dll` (an absolute path) and checks that it is ONNX Runtime 1.31.1 with C API 31.
@@ -36,7 +58,8 @@ impl Api {
             return Err(failed(ERROR_INVALID_NAME));
         }
         // SAFETY: `wide` is NUL-terminated and outlives the call; the file handle must be null.
-        let module = unsafe { LoadLibraryExW(wide.as_ptr(), std::ptr::null_mut(), LOAD_FLAGS) };
+        let module =
+            without_error_dialogs(|| unsafe { LoadLibraryExW(wide.as_ptr(), std::ptr::null_mut(), LOAD_FLAGS) });
         if module.is_null() {
             // SAFETY: plain thread-local error read right after the failed call.
             return Err(failed(unsafe { GetLastError() }));

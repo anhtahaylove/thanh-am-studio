@@ -154,9 +154,9 @@ impl SndFile {
         }
         let wide: Vec<u16> = dll.as_os_str().encode_wide().chain(std::iter::once(0)).collect();
         // SAFETY: a NUL-terminated wide path; the flags restrict the search to the DLL's folder and System32.
-        let module = unsafe {
+        let module = ortffi::without_error_dialogs(|| unsafe {
             LoadLibraryExW(wide.as_ptr(), 0, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32)
-        };
+        });
         if module == 0 {
             return Err(missing(format!("cannot load {}", dll.display())));
         }
