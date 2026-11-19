@@ -168,6 +168,59 @@ mod tests {
         }
     }
 
+    /// T1a diagnostic (`THANHAM_T1A_FEATURES=recorded`): the engine is fed the recorded encoder inputs (`feat\<id>.f32` at each
+    /// `encode` event's byte offset) in place of this glue's log-mel, which the plan holds to E1 (<= 1e-4) only, so the result
+    /// isolates the glue and the engine. `max_diff` is the largest |Rust log-mel - recorded| seen.
+    struct RecordedFeatures<'a, 'e> {
+        engine: &'a mut Engine<'e>,
+        feat: Vec<f32>,
+        offsets: Vec<usize>,
+        calls: usize,
+        max_diff: f32,
+    }
+
+    impl WhisperEngine for RecordedFeatures<'_, '_> {
+        type Enc = Encoded;
+
+        fn encode(&mut self, features: &[f32], n_mels: usize) -> std::result::Result<Encoded, GlueError> {
+            let Some(&off) = self.offsets.get(self.calls) else {
+                return Err(GlueError::Engine(format!("encode call {} was not recorded", self.calls)));
+            };
+            self.calls += 1;
+            let recorded = &self.feat[off..off + features.len()];
+            self.max_diff = features.iter().zip(recorded).fold(self.max_diff, |m, (a, b)| m.max((a - b).abs()));
+            self.engine.encode(recorded, n_mels)
+        }
+
+        fn generate(
+            &mut self,
+            enc: &Encoded,
+            prompt: &[u32],
+            o: &GenOptions,
+        ) -> std::result::Result<GenResult, GlueError> {
+            self.engine.generate(enc, prompt, o)
+        }
+
+        fn align(
+            &mut self,
+            enc: &Encoded,
+            start: &[u32],
+            text: &[Vec<u32>],
+            num_frames: usize,
+            median_filter_width: usize,
+        ) -> std::result::Result<Vec<AlignResult>, GlueError> {
+            self.engine.align(enc, start, text, num_frames, median_filter_width)
+        }
+
+        fn detect_language(&mut self, enc: &Encoded) -> std::result::Result<Vec<(String, f64)>, GlueError> {
+            self.engine.detect_language(enc)
+        }
+
+        fn speech_timestamps(&mut self, audio: &[f32]) -> std::result::Result<Vec<(i64, i64)>, GlueError> {
+            self.engine.speech_timestamps(audio)
+        }
+    }
+
     /// Row T1a under the real engine: spike S4's recorded items (`rec\<corpus>\<model>\<mode>\events.jsonl`, the item PCM in
     /// `rec\pcm`) through the glue with this CTranslate2 engine and the Silero VAD, each result (segments, words, language, retry)
     /// against the Python worker's, bitwise. Items whose Python run sampled (a fallback temperature above 0) are unseeded on both
@@ -180,6 +233,7 @@ mod tests {
         let (rec, models) =
             (std::path::PathBuf::from(var("THANHAM_T1A_REC")), std::path::PathBuf::from(var("THANHAM_MODELS")));
         let mut out = std::fs::File::create(var("THANHAM_T1A_OUT")).unwrap();
+        let recorded_features = std::env::var("THANHAM_T1A_FEATURES").is_ok_and(|v| v == "recorded");
         let sp = site_packages();
         let (mut deterministic, mut pass, mut sampled, mut sampled_same) = (0, 0, 0, 0);
         println!("engine {}", crate::ct2::info());
@@ -208,7 +262,24 @@ mod tests {
                     bytes.chunks_exact(4).map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect();
                 let python = json!({"segments": item["segments"], "words": item["words"], "language": item["language"],
                     "words_fallback": item["words_fallback"]});
-                let rust = match transcriber.stt(&mut engine, &pcm, lang0, words) {
+                let mut max_diff = None;
+                let result = if recorded_features {
+                    let feat =
+                        std::fs::read(rec.join(corpus).join(model).join(mode).join("feat").join(format!("{id}.f32")))
+                            .unwrap()
+                            .chunks_exact(4)
+                            .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+                            .collect();
+                    let offsets = item["events"].as_array().unwrap().iter().filter(|e| e["k"] == "encode");
+                    let offsets = offsets.map(|e| e["off"].as_u64().unwrap() as usize / 4).collect();
+                    let mut fed = RecordedFeatures { engine: &mut engine, feat, offsets, calls: 0, max_diff: 0.0 };
+                    let result = transcriber.stt(&mut fed, &pcm, lang0, words);
+                    max_diff = Some(fed.max_diff);
+                    result
+                } else {
+                    transcriber.stt(&mut engine, &pcm, lang0, words)
+                };
+                let rust = match result {
                     Ok(r) => {
                         json!({"segments": rows_json(&r.segments), "words": words_json(&r.words), "language": r.language,
                         "words_fallback": r.words_fallback})
@@ -231,7 +302,8 @@ mod tests {
                 writeln!(
                     out,
                     "{}",
-                    json!({"job": job, "id": id, "same": ok, "sampled": sampling, "rust": rust, "python": python})
+                    json!({"job": job, "id": id, "same": ok, "sampled": sampling, "max_feature_diff": max_diff, "rust": rust,
+                        "python": python})
                 )
                 .unwrap();
                 println!("{job} {id}: {}", if ok { "same" } else { "DIFFERS" });
