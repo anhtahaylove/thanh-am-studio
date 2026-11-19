@@ -15,6 +15,7 @@ make their Python reference on the machine that runs them, from the private runt
 | P-op, K-cond (cloned) | cloned `tts` and `clone_preview` seeded in both workers: the P-op rows above, plus every step of reference enrollment (decode, window, trim, the PCM_16 file, each resample, the denoiser's STFT, ORT and output, fbank, embedding, codes; `THANHAM_CLONE_TRACE`) and the preview's bytes; 25 items in `tts/clone_items.json` over 20 references (rates 8 to 96 kHz, stereo, every importer format soundfile reads, and M4A) | `tts_op.py --refs --previews` | references made on the machine by `clone_refs.py` from preset takes (no recording in the repository) |
 | Engine (STT) | the CTranslate2 engine of `engine/build-engine.ps1` linked into the worker (feature `ct2`): the S1 F-a link checks and the backend CTranslate2 chose, then the encoder on S1's deterministic input against the Python wheel, bitwise | `engine/check-link.ps1`; `cargo test --release --features ct2 ct2::` with the output of `ct2_encode.py` | made on the machine |
 | D | the STT decode: faster-whisper's `decode_audio` (PyAV 18.1.0 on its own FFmpeg 8.1.2 DLLs) against `stt/decode.rs` on the same DLLs, bitwise: the int16 samples, or the exception's type and text; 6 containers x 4 rates x mono/stereo, the resampler's passthrough, u8/s24/f32/5.1 input, two audio tracks, several 500000-sample groups, no audio stream, unreadable, truncated and damaged files, a missing file, a non-ASCII name, plus the clone references ; with `--vad`, faster-whisper's VAD on every decoded case too (`get_speech_timestamps` with `VadOptions()`: the Silero probabilities bitwise and the speech chunks) | `decode_cases.py --vad`, then `cargo test --release stt::` | made on the machine |
+| T4, T5 | `stt` in both workers on the same file and options (language, speakers), interleaved rounds: wall time, peak working set and CPU time per process (`ram.csv`), and the events compared (progress, rows, speakers, language) | `stt_op.py --rounds N` | the machine's audio |
 
 Run them from `worker-rs/`, after `cargo build --release`:
 
@@ -30,6 +31,7 @@ THANHAM_TTS_CASES=cases.jsonl THANHAM_TTS_MODEL=<models>/vieneu-v3 THANHAM_PYTHO
 <py> -I parity/tts_op.py --python <py> --exe <staged thanham-worker.exe> --model <models>/vieneu-v3 --ffmpeg <ffmpeg.exe> --items parity/tts/items.json --out <dir> [--rounds N]
 <py> -I parity/clone_refs.py --python <py> --model <models>/vieneu-v3 --ffmpeg <ffmpeg.exe> --out <refs>
 <py> -I parity/tts_op.py --python <py> --exe <staged thanham-worker.exe> --model <models>/vieneu-v3 --ffmpeg <ffmpeg.exe> --items parity/tts/clone_items.json --refs <refs> --previews --out <dir>
+<py> -I parity/stt_op.py --python <py> --exe <staged thanham-worker.exe> --model <models>/whisper-small --input <audio> --out <dir> [--rounds N] [--language auto] [--speakers 2 --diarize-model <folder>]
 ```
 
 `<py>` is the private runtime's `runtime\python\python.exe` (`scripts/setup-runtime.ps1`). The staged exe is `scripts/stage-worker.ps1`'s folder plus
