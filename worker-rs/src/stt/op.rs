@@ -537,8 +537,47 @@ mod tests {
         assert_eq!(features_exact, deterministic);
     }
 
+    /// The engine, noting whether a `generate` sampled (a fallback temperature above 0), so T1b can report those items apart.
+    struct Sampling<'a, 'e> {
+        engine: &'a mut Engine<'e>,
+        sampled: bool,
+    }
+
+    impl WhisperEngine for Sampling<'_, '_> {
+        type Enc = Encoded;
+
+        fn encode(&mut self, features: &[f32], n_mels: usize) -> std::result::Result<Encoded, GlueError> {
+            self.engine.encode(features, n_mels)
+        }
+
+        fn generate(&mut self, enc: &Encoded, prompt: &[u32], o: &GenOptions) -> std::result::Result<GenResult, GlueError> {
+            self.sampled |= o.temperature > 0.0;
+            self.engine.generate(enc, prompt, o)
+        }
+
+        fn align(
+            &mut self,
+            enc: &Encoded,
+            start: &[u32],
+            text: &[Vec<u32>],
+            num_frames: usize,
+            median_filter_width: usize,
+        ) -> std::result::Result<Vec<AlignResult>, GlueError> {
+            self.engine.align(enc, start, text, num_frames, median_filter_width)
+        }
+
+        fn detect_language(&mut self, enc: &Encoded) -> std::result::Result<Vec<(String, f64)>, GlueError> {
+            self.engine.detect_language(enc)
+        }
+
+        fn speech_timestamps(&mut self, audio: &[f32]) -> std::result::Result<Vec<(i64, i64)>, GlueError> {
+            self.engine.speech_timestamps(audio)
+        }
+    }
+
     /// Rows T1b and T2, the new side: P0-core's `stt_run.py` recording (decode, windows, `vi`, word times on every item, the
-    /// no-words retry) made with this decode, VAD and engine, in its record format for its analysis scripts. `THANHAM_T1B_ITEMS`
+    /// no-words retry) made with this decode, VAD and engine, in its record format for its analysis scripts, plus `sampled`
+    /// (whether a fallback temperature above 0 ran: those items are unseeded on both sides). `THANHAM_T1B_ITEMS`
     /// (a corpus file `{"items": [{id, path}]}` or the list itself), `THANHAM_T1B_MODEL` (a Whisper folder), `THANHAM_T1B_OUT`
     /// (the .jsonl; finished ids are skipped). Start it pinned to the P-cores (O.10) with `RM_PIN=P` saying so.
     #[test]
@@ -555,7 +594,8 @@ mod tests {
             .collect();
         let mut out = std::fs::OpenOptions::new().create(true).append(true).open(&out_path).unwrap();
         let sp = site_packages();
-        let transcriber = Transcriber::load(&model_dir).unwrap();
+        let blas = OpenBlas::load_pinned(&sp.join("numpy.libs").join(OPENBLAS_DLL)).unwrap();
+        let transcriber = Transcriber::load(&model_dir, blas).unwrap();
         let mut engine = Engine {
             whisper: Whisper::load(model_dir.to_str().unwrap(), cpu_count().min(8)).unwrap(),
             vad: Vad::load(&sp).unwrap(),
@@ -568,11 +608,12 @@ mod tests {
             let started = std::time::Instant::now();
             let audio = decode_audio(&sp, &py_path(item["path"].as_str().unwrap())).unwrap();
             let duration = f64::max(audio.len() as f64 / STT_RATE as f64, 0.01);
-            let r = transcriber.stt(&mut engine, &audio, Some("vi"), true).unwrap();
+            let mut fed = Sampling { engine: &mut engine, sampled: false };
+            let r = transcriber.stt(&mut fed, &audio, Some("vi"), true).unwrap();
             let record = json!({"id": item["id"], "audio_seconds": (duration * 1000.0).round() / 1000.0,
                 "wall_seconds": (started.elapsed().as_secs_f64() * 100.0).round() / 100.0, "language": r.language,
                 "words_fallback": r.words_fallback, "segments": rows_json(&r.segments), "words": words_json(&r.words),
-                "pin": {"RM_PIN": std::env::var("RM_PIN").ok()}, "engine": "rust"});
+                "pin": {"RM_PIN": std::env::var("RM_PIN").ok()}, "engine": "rust", "sampled": fed.sampled});
             use std::io::Write as _;
             writeln!(out, "{record}").unwrap();
             println!(
