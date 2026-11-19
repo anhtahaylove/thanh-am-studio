@@ -5,10 +5,11 @@ columns), and every round compares the two runs' events (progress and result: ro
 back to a sampling temperature is unseeded on both sides, so such a difference is reported here and judged by rows T1b/T2.
 
 usage: python -I stt_op.py --python <runtime python.exe> --exe <staged thanham-worker.exe> --model <Whisper folder> --input <audio>
-                           --out <dir> [--rounds 1] [--language vi|auto] [--diarize-model <folder> [--speakers N]]
+                           --out <dir> [--rounds 1] [--start-round 1] [--priority belownormal|normal] [--language vi|auto]
+                           [--diarize-model <folder> [--speakers N]]
 
-Both workers run at BelowNormal, opted out of EcoQoS, and inherit this script's affinity: pin it to one core type
-(`start /affinity FFF`). Exits 1 on a difference or a failed run."""
+Both workers run at --priority (BelowNormal by default; the app runs its worker at Normal), opted out of EcoQoS, and inherit
+this script's affinity: pin it to one core type (`start /affinity FFF`). Exits 1 on a difference or a failed run."""
 import argparse
 import json
 import os
@@ -16,7 +17,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from tts_op import HERE, run  # noqa: E402  (-I leaves this folder off sys.path)
+from tts_op import BELOW_NORMAL, HERE, NORMAL, run  # noqa: E402  (-I leaves this folder off sys.path)
 
 
 def main():
@@ -25,6 +26,8 @@ def main():
     for a in ('--python', '--exe', '--model', '--input', '--out'):
         ap.add_argument(a, required=True)
     ap.add_argument('--rounds', type=int, default=1)
+    ap.add_argument('--start-round', type=int, default=1)  # more rounds into the same <out> continue its numbering
+    ap.add_argument('--priority', choices=('belownormal', 'normal'), default='belownormal')
     ap.add_argument('--language', default='vi')
     ap.add_argument('--speakers', type=int)
     ap.add_argument('--diarize-model')
@@ -43,15 +46,17 @@ def main():
     with open(out / 'ram.csv', 'a', encoding='utf-8', newline='\n') as ram:
         if ram.tell() == 0:
             ram.write('round,engine,exit,wall_s,peak_ws_mb,audio_s,worker_cpu_s,others_cores,avail_mb_start,cpu_pct_start,avail_mb_end,'
-                      'cpu_pct_end\n')
-        for r in range(1, args.rounds + 1):
+                      'cpu_pct_end,priority\n')
+        for r in range(args.start_round, args.start_round + args.rounds):
             runs = {}
             for engine in ('python', 'rust'):
                 request = {'protocol': 1, 'id': f'stt-{r}', 'operation': 'stt', 'output_dir': str(out / f'{engine}{r}'), 'payload': payload}
                 argv = [args.python, '-I', '-X', 'utf8', str(HERE.parents[1] / 'worker' / 'main.py')] if engine == 'python' else [args.exe]
-                code, lines, wall, peak, load = runs[engine] = run(argv, request, env, out / f'{engine}{r}')
+                code, lines, wall, peak, load = runs[engine] = run(argv, request, env, out / f'{engine}{r}',
+                                                                   NORMAL if args.priority == 'normal' else BELOW_NORMAL)
                 ram.write(f'{r},{engine},{code},{wall:.1f},{peak:.0f},{audio_s:.1f},{load["worker_cpu_s"]:.1f},{load["others_cores"]:.2f},'
-                          f'{load["avail_mb_start"]:.0f},{load["cpu_pct_start"]:.0f},{load["avail_mb_end"]:.0f},{load["cpu_pct_end"]:.0f}\n')
+                          f'{load["avail_mb_start"]:.0f},{load["cpu_pct_start"]:.0f},{load["avail_mb_end"]:.0f},{load["cpu_pct_end"]:.0f},'
+                          f'{load["priority"]}\n')
                 ram.flush()
                 print(f'round {r} {engine}: exit {code}, {wall:.1f} s, peak working set {peak:.0f} MB, load {json.dumps(load)}', flush=True)
             pe, re_ = ([json.loads(ln) for ln in runs[e][1]] for e in ('python', 'rust'))

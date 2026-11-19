@@ -31,7 +31,7 @@ import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-BELOW_NORMAL = 0x4000
+BELOW_NORMAL, NORMAL = 0x4000, 0x20  # priority classes (CreateProcess flags, GetPriorityClass values)
 
 
 class Counters(ctypes.Structure):
@@ -66,17 +66,19 @@ def cpu_percent():
     return (busy_seconds() - b0) / (time.perf_counter() - t0) / os.cpu_count() * 100
 
 
-def run(argv, request, env, out_dir):
-    """One worker process: (exit code, event lines, wall seconds, peak working set MB, machine load)."""
+def run(argv, request, env, out_dir, priority=BELOW_NORMAL):
+    """One worker process: (exit code, event lines, wall seconds, peak working set MB, machine load with the worker's priority
+    class as Windows reports it)."""
     shutil.rmtree(out_dir, ignore_errors=True)
     out_dir.mkdir(parents=True)
     load = {'avail_mb_start': available_mb(), 'cpu_pct_start': cpu_percent()}
     b0, t0 = busy_seconds(), time.perf_counter()
     p = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=open(out_dir.with_suffix('.log'), 'wb'),
-                         env=env, creationflags=BELOW_NORMAL | subprocess.CREATE_NO_WINDOW)
+                         env=env, creationflags=priority | subprocess.CREATE_NO_WINDOW)
     handle = ctypes.wintypes.HANDLE(int(p._handle))
     # ProcessPowerThrottling (4): {Version 1, ControlMask EXECUTION_SPEED, StateMask 0} = never throttle; set before the model loads
     assert ctypes.windll.kernel32.SetProcessInformation(handle, 4, (ctypes.c_uint32 * 3)(1, 1, 0), 12), 'EcoQoS opt-out failed'
+    load['priority'] = {BELOW_NORMAL: 'belownormal', NORMAL: 'normal'}.get(ctypes.windll.kernel32.GetPriorityClass(handle), 'other')
     stdout, _ = p.communicate((json.dumps(request, ensure_ascii=False) + '\n').encode('utf-8'))
     wall, busy = time.perf_counter() - t0, busy_seconds() - b0
     c = Counters(cb=ctypes.sizeof(Counters))
