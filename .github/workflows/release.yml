@@ -48,14 +48,39 @@ jobs:
         run: ./scripts/setup-runtime.ps1
       - name: SBOM and notices
         run: python scripts/third_party.py release
-      - name: Build the native worker
-        working-directory: worker-rs  # .cargo/config.toml (dynamic CRT) and rust-toolchain.toml are read from here
-        run: |
-          rustup toolchain install 1.99.1 --profile minimal
-          cargo build --release --locked
-      - name: Stage the native worker (exe, ONNX Runtime, VC143 runtime)
+      # The STT engine (plan section 3): CTranslate2 4.8.5 matched to the Python wheel, cached by its recipe's hash. The parity
+      # workflow saves it on main, which a tag run can restore; a miss builds it here (about 40 minutes).
+      - run: '"THANHAM_CT2_ENGINE=$env:RUNNER_TEMP\ct2-engine" >> $env:GITHUB_ENV'
         shell: pwsh
-        run: ./scripts/stage-worker.ps1
+      - uses: actions/cache/restore@v4
+        id: engine
+        with:
+          path: ${{ env.THANHAM_CT2_ENGINE }}
+          key: ct2-engine-${{ hashFiles('worker-rs/engine/build-engine.ps1', 'scripts/openmp-shim/*') }}
+      - name: Build the STT engine (cache miss)
+        if: steps.engine.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: ./worker-rs/engine/build-engine.ps1 -Out $env:THANHAM_CT2_ENGINE -Work "$env:RUNNER_TEMP/e"
+      - name: Build the native worker with the STT engine, and thanham-diarize
+        working-directory: worker-rs  # .cargo/config.toml (dynamic CRT) and rust-toolchain.toml are read from here
+        shell: pwsh
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $env:MKLROOT = "$env:THANHAM_CT2_ENGINE/mklroot"
+          $env:LIBRARY_PATH = "$env:THANHAM_CT2_ENGINE/lib"  # ct2rs-sys links its static libraries from here
+          rustup toolchain install 1.99.1 --profile minimal
+          cargo build --release --locked --features ct2
+          cargo build --release --locked -p thanham-diarize
+      - name: Stage the native worker (exe, ONNX Runtime, VC143 runtime, OpenMP, thanham-diarize)
+        shell: pwsh
+        run: |
+          ./scripts/stage-worker.ps1
+          # The OpenMP shim and LLVM libomp the exe imports (the runtime's copies beside ctranslate2), and the diarization child,
+          # which the worker starts from its own folder.
+          Copy-Item runtime/python/Lib/site-packages/ctranslate2/libiomp5md.dll, runtime/python/Lib/site-packages/ctranslate2/libomp.dll, worker-rs/target/release/thanham-diarize.exe worker-rs/stage/
+      - name: Link and backend checks of the STT engine (S1 F-a)
+        shell: pwsh
+        run: ./worker-rs/engine/check-link.ps1 -Exe worker-rs/stage/thanham-worker.exe -Engine $env:THANHAM_CT2_ENGINE
       # tauri-build needs the bundled resources to exist, so test after the runtime is built.
       - run: cargo test --manifest-path src-tauri/Cargo.toml --tests --locked
       - run: npm run tauri build -- --ci

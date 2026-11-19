@@ -4,7 +4,7 @@ use std::{fs,io::Write,path::Path};
 
 /// Operations routed to `thanham-worker.exe`. An operation of an unreleased bundle is absent, so main stays releasable;
 /// `worker_engines` in the settings can still send a listed operation back to Python.
-pub const RUST_OPS:&[&str]=&["render","download","tts","clone_preview"];
+pub const RUST_OPS:&[&str]=&["render","download","tts","clone_preview","stt"];
 /// The operations a job can run, and so the keys `worker_engines` accepts.
 pub const OPS:&[&str]=&["tts","stt","render","download","clone_preview","separate"];
 /// Exit codes before any `result` or `error` that mean the native worker itself broke: DLL not found, access violation,
@@ -28,7 +28,8 @@ fn native_reference(path:&Value)->bool{
 }
 /// What the native worker can run of a routed operation: `tts` with no take check and only preset voices or references in a proven
 /// format (a batch with one other item runs whole on Python), and `clone_preview` of such a reference. Take checks stay on Python
-/// until their phase.
+/// until their phase. Every `stt` runs natively, speakers included (`thanham-diarize.exe`); a result whose diarization child failed
+/// (`DIARIZE_PROCESS`) reruns on Python (`fallback_reason` in runtime.rs).
 pub fn native_can_run(request:&Value)->bool{
  let p=&request["payload"];
  match request["operation"].as_str().unwrap_or(""){
