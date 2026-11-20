@@ -49,7 +49,7 @@ test('speaker panel, split, merge and undo/redo edit the script',async({page})=>
 test('transcript rows can be added and deleted and invalid times are rejected',async({page})=>{
  await page.goto('/');await page.getByRole('button',{name:'Chép lời',exact:true}).click();await page.getByRole('button',{name:'Thêm dòng'}).click();await page.getByRole('button',{name:'Thêm dòng'}).click();
  const ends=page.getByLabel('Đến (ms)');await expect(ends).toHaveCount(2);await expect(ends.nth(0)).toHaveValue('1000');await expect(ends.nth(1)).toHaveValue('2000');
- await ends.nth(0).fill('0');await expect(page.getByRole('alert')).toContainText('Mốc thời gian không hợp lệ');await expect(ends.nth(0)).toHaveValue('1000');
+ await ends.nth(0).fill('0');await ends.nth(0).press('Enter');await expect(ends.nth(0)).toHaveAttribute('aria-invalid','true');await expect(page.getByText('Phải lớn hơn “Từ”.')).toBeVisible();await expect(page.getByRole('alert')).toHaveCount(0);await ends.nth(0).press('Escape');await expect(ends.nth(0)).toHaveValue('1000');await expect(ends.nth(0)).not.toHaveAttribute('aria-invalid');
  await page.getByRole('button',{name:'Xóa dòng'}).first().click();await expect(ends).toHaveCount(1);
 });
 test('transcript find and replace changes every match in one undo step',async({page})=>{
@@ -58,7 +58,7 @@ test('transcript find and replace changes every match in one undo step',async({p
  await page.keyboard.press('Control+f');await expect(page.getByLabel('Tìm trong bản chép lời')).toBeFocused();await page.keyboard.type('biến thành');
  await page.getByLabel('Thay bằng').fill('Bến Thành');await page.getByRole('button',{name:'Thay tất cả'}).click();
  await expect(page.getByRole('status')).toContainText('Đã thay 2 chỗ');await expect(texts.nth(0)).toHaveValue('chợ Bến Thành');await expect(texts.nth(1)).toHaveValue('Chợ Bến Thành đông vui');
- await page.getByLabel('Tìm trong bản chép lời').fill('');await page.keyboard.press('Control+z');await expect(texts.nth(0)).toHaveValue('chợ biến thành');
+ await page.getByLabel('Tìm trong bản chép lời').fill('');await texts.nth(0).focus();await page.keyboard.press('Control+z');await expect(texts.nth(0)).toHaveValue('chợ biến thành');
 });
 test('a pause mark is inserted at the cursor',async({page})=>{
  await page.goto('/');await page.getByRole('button',{name:'Thêm nội dung',exact:true}).click();await page.getByRole('textbox',{name:'Nội dung cần thêm'}).fill('Câu một. Câu hai.');await page.getByRole('button',{name:'Thêm vào kịch bản'}).click();
