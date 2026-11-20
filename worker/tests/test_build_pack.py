@@ -1,9 +1,11 @@
 """scripts/build_pack.py: what goes into the separation runtime pack and how its manifest and zip are made."""
 import hashlib
+import json
 from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest import mock
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -42,6 +44,32 @@ class BuildPackTests(unittest.TestCase):
         self.assertIn(b'Lib/site-packages/torch-1.dist-info/licenses/deep/NOTICE', notices)
         for needed in build_pack.REQUIRED_NOTICES:
             self.assertIn(needed.encode('utf-8'), notices)
+
+    def test_the_rust_crates_in_a_wheel_sbom_join_the_notices(self):
+        def tree_with(components):
+            sbom = json.dumps({'components': components}).encode('utf-8')
+            return make_tree(self.tmp / f'tree{len(list(self.tmp.iterdir()))}', {
+                'Lib/site-packages/torch-1.dist-info/METADATA': b'Name: torch\nVersion: 1\n',
+                'Lib/site-packages/demucs-4.dist-info/METADATA': b'Name: demucs\nVersion: 4\n',
+                'Lib/site-packages/safetensors-0.8.0.dist-info/METADATA': b'Name: safetensors\nVersion: 0.8.0\n',
+                'Lib/site-packages/safetensors-0.8.0.dist-info/sboms/s.cyclonedx.json': sbom})
+        itoa = {'name': 'itoa', 'version': '1.0.18', 'scope': 'required', 'purl': 'pkg:cargo/itoa@1.0.18', 'licenses': [{'expression': 'MIT OR Apache-2.0'}]}
+        build_only = {'name': 'cc', 'version': '1.2.56', 'scope': 'excluded', 'purl': 'pkg:cargo/cc@1.2.56'}
+        own_code = {'name': 'safetensors', 'version': '0.8.0', 'scope': 'required', 'purl': 'pkg:cargo/safetensors@0.8.0?download_url=file://D:/a'}
+        texts = {'itoa': ['itoa licence\n']}
+        with mock.patch.object(build_pack, 'crate_licences', lambda name, version: texts.get(name, [])):
+            tree = tree_with([itoa, build_only, own_code])
+            build_pack.move_licences(tree)
+            notices = (tree / build_pack.NOTICES).read_text(encoding='utf-8')
+            self.assertIn(f"{'=' * 78}\nitoa 1.0.18 (cargo) — MIT OR Apache-2.0\n{'=' * 78}\n"
+                          'In the Rust dependency tree of these Python wheels of the runtime: safetensors 0.8.0\n'
+                          'Source: https://crates.io/crates/itoa/1.0.18\n\nitoa licence\n', notices)
+            self.assertNotIn('cc 1.2.56', notices)
+            self.assertNotIn('safetensors 0.8.0 (cargo)', notices)
+            git = {**itoa, 'purl': 'pkg:cargo/itoa@1.0.18?vcs_url=git%2Bhttps://example.invalid/itoa'}
+            for components in ([git], [{**itoa, 'name': 'unlicensed', 'purl': 'pkg:cargo/unlicensed@1.0.18'}]):
+                with self.assertRaises(SystemExit):
+                    build_pack.move_licences(tree_with(components))
 
     def test_a_licence_file_that_is_not_utf8_stops_the_build(self):
         tree = make_tree(self.tmp / 'tree', {'Lib/site-packages/x-1.dist-info/licenses/LICENSE': b'\xff\xfe'})
