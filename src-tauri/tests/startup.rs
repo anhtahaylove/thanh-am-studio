@@ -15,10 +15,15 @@ fn a_failed_store_open_is_logged_and_shown(){
   assert!(std::panic::catch_unwind(||panic!("Failed to setup app: error encountered during setup hook: {e}")).is_err());
   drop(std::panic::take_hook());
  }
+ // A panic on another thread is logged but shows nothing.
+ std::panic::set_hook(startup_hook(dir.path().join("logs"),|m|SHOWN.lock().unwrap().push(m.into())));
+ assert!(std::thread::spawn(||panic!("job thread")).join().is_err());
+ drop(std::panic::take_hook());
  let log_path=dir.path().join("logs").join("startup-errors.log");let log=std::fs::read_to_string(&log_path).unwrap();
- assert_eq!(log.lines().count(),2);
- for line in log.lines(){let (stamp,rest)=line.split_once(' ').unwrap();assert!(chrono::DateTime::parse_from_rfc3339(stamp).is_ok(),"{stamp}");
-  assert!(rest.starts_with(env!("CARGO_PKG_VERSION"))&&rest.contains("startup.rs")&&rest.ends_with(&format!("Failed to setup app: error encountered during setup hook: {e}")),"{rest}");}
+ let lines:Vec<&str>=log.lines().collect();assert_eq!(lines.len(),3,"{log}");
+ for (n,line) in lines.iter().enumerate(){let (stamp,rest)=line.split_once(' ').unwrap();assert!(chrono::DateTime::parse_from_rfc3339(stamp).is_ok(),"{stamp}");
+  let msg=if n<2{format!("Failed to setup app: error encountered during setup hook: {e}")}else{"job thread".into()};
+  assert!(rest.starts_with(env!("CARGO_PKG_VERSION"))&&rest.contains("startup.rs")&&rest.ends_with(&msg),"{rest}");}
  let shown=SHOWN.lock().unwrap();
  assert_eq!(shown[0],format!("Thanh Âm Studio không khởi động được: {e}.\n\nChi tiết đã ghi vào {}.",log_path.display()));
  assert_eq!(shown[1],shown[0]);

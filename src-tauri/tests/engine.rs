@@ -201,8 +201,11 @@ fn status_reports_the_native_worker(){
 fn diagnostics_hold_the_settings_and_both_logs(){
  let e=setup(json!([{"do":"exit","code":101}]),json!([ok(json!({"done":1}))]));e.download().1.unwrap();
  e.store.save_settings(json!({"dictionary":{},"worker_engines":{"render":"python"}})).unwrap();
+ assert!(engine::diagnostics(&e.store.root,&e.store.settings().unwrap()).ends_with("== startup-errors.log ==\n(empty)\n"));
+ fs::write(e.store.root.join(engine::STARTUP_LOG),"2026-11-21T08:00:00+07:00 1.0.20 panicked at src\\lib.rs:1:1: Failed to setup app\n").unwrap();
  let t=engine::diagnostics(&e.store.root,&e.store.settings().unwrap());
  assert!(t.contains("== settings ==")&&t.contains("\"render\": \"python\"")&&t.contains("worker-fallbacks.jsonl")&&t.contains("\"action\":\"rerun\"")&&t.contains("worker-engine-changes.jsonl")&&t.contains("\"to\":\"python\""),"{t}");
+ assert!(t.ends_with("\n== startup-errors.log ==\n2026-11-21T08:00:00+07:00 1.0.20 panicked at src\\lib.rs:1:1: Failed to setup app\n"),"{t}");
 }
 fn cancelling_a_job_kills_what_its_worker_started(){
  let dir=tempfile::tempdir().unwrap();let pidfile=dir.path().join("grandchild.pid");
