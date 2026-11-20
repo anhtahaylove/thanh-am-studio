@@ -977,8 +977,10 @@ Evidence: `work\release-v1.0.20-sandbox` (`out1020r1`, `out1020r2`, `out1020r3-f
   Intel Simplified Software License and the licence page states its terms. The shim and the encoder stubs are not
   Authenticode-signed. No antivirus has scanned them on their own; the 1.0.16 installer that carries them showed
   no detections on VirusTotal (above).
-- The 1.0.15 notices gaps are fixed in 1.0.16 (#117, #118). Not listed yet: libraries linked statically into
-  ctranslate2 and tokenizers (for example cpu_features, spdlog and the Rust crates in tokenizers).
+- The 1.0.15 notices gaps are fixed in 1.0.16 (#117, #118). Libraries linked statically into ctranslate2 and
+  tokenizers: cpu_features and spdlog (from CTranslate2 4.8.5) are listed since 1.0.20; the Rust crates in the
+  tokenizers, hf_xet and sea_g2p wheels and the esaxx and sais-lite C++ in tokenizers are listed from the next
+  release (#153); 1.0.20 gets them as a supplement to its notices.
 - Listening quality has not been judged by a human; the clipping checks above are signal analysis.
   On 2026-11-13 the owner accepted the machine listening below in place of a human listening pass.
   The listening pack (first 20 sentences as separate files in script order, plus the full render) is
