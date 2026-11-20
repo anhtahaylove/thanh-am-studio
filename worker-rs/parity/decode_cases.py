@@ -1,12 +1,14 @@
 r"""decode_cases.py: row D (the STT decode) cases, made on the machine that runs them. FFmpeg writes the fixtures (synthetic sound, no
 recording in the repository), then load_audio of worker/main.py (faster-whisper's decode_audio, packet by packet) records what each
 one gives: the sample count and the SHA-256 of the int16 samples, or the exception. The Rust test stt::decode::tests::decode_matches_pyav
-decodes the same files and must give the same, bitwise.
+decodes the same files and must give the same, bitwise. Every case but the DAMAGED ones must also give exactly what faster-whisper's
+decode_audio gives.
 
 The fixtures follow P0-core's row D (6 containers x 4 rates x mono/stereo, a two-track MP4, a long file over several 500000-sample
 groups) and add what the decode branches on: a 16 kHz mono s16 WAV (the resampler's passthrough), other sample formats (u8, s24,
 f32, 5.1), no audio stream, files FFmpeg cannot open, a truncated and a damaged file, invalid frames mid-file (an MP3 joined to
-itself, 400 bytes of 0xff), MP3s joined from parts with another rate or fewer channels, a missing file and a non-ASCII name.
+itself, 400 bytes of 0xff in an MP3, 4096 in an M4A), MP3s joined from parts with another rate or channel count, an ADTS header
+of length 0 (a demuxer error), a missing file and a non-ASCII name.
 
 With --vad, each decoded case also records faster-whisper's VAD on it (get_speech_timestamps with VadOptions(), as transcribe runs
 it): the Silero probabilities' SHA-256 and the speech chunks, for stt::vad::tests::vad_matches_python.
@@ -26,6 +28,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+from faster_whisper.audio import decode_audio
 from faster_whisper.feature_extractor import FeatureExtractor
 from faster_whisper.vad import VadOptions, get_speech_timestamps, get_vad_model
 
@@ -40,6 +43,9 @@ VIDEO = ['-f', 'lavfi', '-i', 'color=c=gray:s=160x120:r=10']
 # A gliding tone with a slow tremolo and a little seeded noise, different in each channel, so a downmix is not the mono signal.
 LEFT = '0.45*sin(2*PI*(180+120*sin(2*PI*0.4*t))*t)*(0.6+0.4*sin(2*PI*3*t))+0.03*(random(1)-0.5)'
 RIGHT = '0.35*sin(2*PI*(420+200*sin(2*PI*0.25*t))*t)*(0.5+0.5*sin(2*PI*1.7*t))+0.03*(random(2)-0.5)'
+# Cases that load_audio decodes past an invalid packet on purpose, so they differ from faster-whisper's decode_audio.
+DAMAGED = {'damaged.m4a', 'joined.mp3', 'damaged-0xff.mp3', 'm4a-0xff-mid.m4a', 'joined-rates.mp3', 'joined-channels.mp3',
+           'mono+stereo.mp3'}
 
 
 def mel_sig(features):
@@ -105,14 +111,28 @@ def main():
     whole = (fix / 'm4a-44100-stereo.m4a').read_bytes()
     mid = len(whole) // 2
     (fix / 'damaged.m4a').write_bytes(whole[:mid] + bytes(range(256)) * 8 + whole[mid + 2048:])
+    (fix / 'm4a-0xff-mid.m4a').write_bytes(whole[:mid] + b'\xff' * 4096 + whole[mid + 4096:])  # the AAC decoder's UndefinedError
     whole = (fix / 'mp3-44100-stereo.mp3').read_bytes()
     mid = len(whole) // 2
+    mono = (fix / 'mp3-44100-mono.mp3').read_bytes()
     (fix / 'joined.mp3').write_bytes(whole + whole)  # the second ID3 tag is an invalid frame
     (fix / 'damaged-0xff.mp3').write_bytes(whole[:mid] + b'\xff' * 400 + whole[mid + 400:])
     (fix / 'joined-rates.mp3').write_bytes(whole + (fix / 'mp3-22050-stereo.mp3').read_bytes())
-    (fix / 'joined-channels.mp3').write_bytes(whole + (fix / 'mp3-44100-mono.mp3').read_bytes())
-    files += [fix / 'truncated.mp3', fix / 'damaged.m4a', fix / 'joined.mp3', fix / 'damaged-0xff.mp3', fix / 'joined-rates.mp3',
-              fix / 'joined-channels.mp3', fix / 'missing.wav']
+    (fix / 'joined-channels.mp3').write_bytes(whole + mono)  # fewer channels later: an error
+    (fix / 'mono+stereo.mp3').write_bytes(mono + whole)  # more channels later: decoded
+    make('adts-44100-stereo.aac', '-i', fix / 'm4a-44100-stereo.m4a', '-c:a', 'copy')
+    adts = bytearray((fix / 'adts-44100-stereo.aac').read_bytes())
+    starts, pos = [], 0
+    while pos + 7 <= len(adts):  # each ADTS header's frame_length: 13 bits from bit 30
+        starts.append(pos)
+        pos += (adts[pos + 3] & 3) << 11 | adts[pos + 4] << 3 | adts[pos + 5] >> 5
+    at = starts[len(starts) // 2]
+    adts[at + 3] &= 0xfc
+    adts[at + 4] = 0
+    adts[at + 5] &= 0x1f
+    (fix / 'adts-badlen.aac').write_bytes(adts)  # frame_length 0 mid-file: the demuxer's InvalidDataError ends the input
+    files += [fix / n for n in ('truncated.mp3', 'damaged.m4a', 'm4a-0xff-mid.m4a', 'joined.mp3', 'damaged-0xff.mp3', 'joined-rates.mp3',
+                                'joined-channels.mp3', 'mono+stereo.mp3', 'adts-badlen.aac', 'missing.wav')]
     for extra in a.extra:
         files += sorted(p.resolve() for p in Path(extra).iterdir() if p.is_file() and p.suffix != '.json')
 
@@ -125,6 +145,13 @@ def main():
                 expected = {'n': int(len(i16)), 'sha256': hashlib.sha256(i16.tobytes()).hexdigest()}
             except Exception as e:  # the worker reports these as WORKER_ERROR "Type: text"
                 expected = {'error': f'{type(e).__name__}: {e}'}
+            if path.name not in DAMAGED:
+                try:
+                    reference = decode_audio(str(path), sampling_rate=16000)
+                    same = 'n' in expected and np.array_equal(reference, pcm)
+                except Exception as e:
+                    same = expected.get('error') == f'{type(e).__name__}: {e}'
+                assert same, f'{path}: load_audio differs from faster-whisper decode_audio'
             case = {'path': str(path), 'expected': expected}
             if a.vad and 'n' in expected:
                 probs = get_vad_model()(np.pad(pcm, (0, 512 - pcm.shape[0] % 512)))

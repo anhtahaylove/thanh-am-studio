@@ -864,10 +864,16 @@ def load_audio(path):
 
     def frames(packets):
         channels = None
-        for packet in packets:
+        while True:
+            try:
+                packet = next(packets, None)
+            except av.error.InvalidDataError:  # from the demuxer: the input ends there, unflushed, as in decode_audio
+                return
+            if packet is None:
+                return
             try:
                 decoded = packet.decode()
-            except av.error.InvalidDataError:
+            except (av.error.InvalidDataError, av.error.UndefinedError):  # UndefinedError: e.g. the AAC decoder's ADTS parse codes
                 continue
             for frame in decoded:
                 if frame.samples:

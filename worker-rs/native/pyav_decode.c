@@ -7,9 +7,10 @@
 //   av.open(path)                       Container.__cinit__ (GENPTS, empty options), InputContainer.__cinit__ (find_stream_info,
 //                                       a codec context for every stream with a decoder: pkt_timebase, thread_count 0, slice)
 //   container.demux(audio=0)            streams.get(audio=0) (IndexError without audio), InputContainer.demux (then one empty
-//                                       flush packet); a demuxer error, InvalidDataError included, is raised
+//                                       flush packet); its InvalidDataError ends the input, unflushed; other errors are raised
 //   packet.decode() in a try            CodecContext._decode (open on first use, send, receive until EAGAIN/EOF); an
-//                                       InvalidDataError skips that packet and the next one is decoded (SYSTRAN/faster-whisper#1717)
+//                                       InvalidDataError or UndefinedError skips that packet and the next one is decoded
+//                                       (SYSTRAN/faster-whisper#1717 skips InvalidDataError)
 //   a frame's channel count             below the first frame's: ValueError: Frame does not match AudioFifo parameters.
 //   _group_frames(frames, 500000)       frame.pts = None; AudioFifo.write; AudioFifo.read() of everything at >= 500000 samples
 //                                       and at the end
@@ -146,6 +147,9 @@ typedef struct {
   AVFilterGraph *graph;
   AVFilterContext *src, *sink;
   AVFrame *pulled;
+  // the frames of the packet being decoded: CodecContext.decode returns them as one list, or raises and returns none
+  AVFrame **held;
+  int nheld, cap_held;
 } state;
 
 static int fail(state *st, int kind, int code, const char *where) {
@@ -159,6 +163,35 @@ static int fail(state *st, int kind, int code, const char *where) {
 
 static int check(state *st, int res, const char *where) {
   return res < 0 ? fail(st, E_FFMPEG, res, where) : 0;
+}
+
+// Whether PyAV raises UndefinedError for this code: one that av/error.py's `classes` does not name (its FFmpeg errors, then
+// Python's errno.errorcode on Windows, as the runtime's Python 3.11 lists them), e.g. the AAC decoder's ADTS parse codes.
+static int undefined_error(int code) {
+  static const int named[] = {
+      AVERROR_BSF_NOT_FOUND,     AVERROR_BUG,           AVERROR_BUFFER_TOO_SMALL,       AVERROR_DECODER_NOT_FOUND,
+      AVERROR_DEMUXER_NOT_FOUND, AVERROR_ENCODER_NOT_FOUND, AVERROR_EOF,                AVERROR_EXIT,
+      AVERROR_EXTERNAL,          AVERROR_FILTER_NOT_FOUND, AVERROR_INVALIDDATA,         AVERROR_MUXER_NOT_FOUND,
+      AVERROR_OPTION_NOT_FOUND,  AVERROR_PATCHWELCOME,  AVERROR_PROTOCOL_NOT_FOUND,     AVERROR_UNKNOWN,
+      AVERROR_EXPERIMENTAL,      AVERROR_INPUT_CHANGED, AVERROR_OUTPUT_CHANGED,         AVERROR_HTTP_BAD_REQUEST,
+      AVERROR_HTTP_UNAUTHORIZED, AVERROR_HTTP_FORBIDDEN, AVERROR_HTTP_NOT_FOUND,        AVERROR_HTTP_TOO_MANY_REQUESTS,
+      AVERROR_HTTP_OTHER_4XX,    AVERROR_HTTP_SERVER_ERROR, FFERRTAG('P', 'y', 'A', 'V')};
+  static const int errnos[][2] = {{1, 14},     {16, 25},     {27, 34},     {36, 36},     {38, 42},     {104, 105},
+                                  {111, 111},  {120, 122},   {124, 125},   {127, 127},   {129, 129},   {132, 134},
+                                  {137, 137},  {139, 139},   {10000, 10000}, {10004, 10004}, {10009, 10009},
+                                  {10013, 10014}, {10022, 10022}, {10024, 10024}, {10035, 10071}, {10091, 10093},
+                                  {10101, 10101}};
+  if (code >= 0) return 0;
+  for (size_t i = 0; i < sizeof named / sizeof *named; i++)
+    if (code == named[i]) return 0;
+  for (size_t i = 0; i < sizeof errnos / sizeof *errnos; i++)
+    if (-code >= errnos[i][0] && -code <= errnos[i][1]) return 0;
+  return 1;
+}
+
+// Frees the held frames.
+static void release(state *st) {
+  while (st->nheld) ff.av_frame_free(&st->held[--st->nheld]);
 }
 
 // frame.to_ndarray() of an s16 mono frame, appended.
@@ -306,8 +339,9 @@ static int group(state *st, AVFrame *frame, AVRational tb) {
   return ff.av_audio_fifo_size(st->fifo) >= 500000 ? fifo_read(st) : 0;
 }
 
-// CodecContext.decode(packet), the frames handed on one by one. Returns 1 when it raises InvalidDataError (no frame is handed on).
-static int decode(state *st, AVCodecContext *ctx, const AVCodec *codec, int *opened, AVPacket *pkt, AVFrame *frame) {
+// CodecContext.decode(packet): its frames, handed on once the packet is done, as Python gets them in one list. Returns 1 when it
+// raises InvalidDataError or UndefinedError, which load_audio skips: no frame of that packet is handed on.
+static int decode(state *st, AVCodecContext *ctx, const AVCodec *codec, int *opened, AVPacket *pkt) {
   if (!codec) return fail(st, E_FFMPEG, AVERROR_DECODER_NOT_FOUND, "");  // Stream._assert_has_codec_context
   if (!*opened) {
     char where[160];
@@ -315,22 +349,34 @@ static int decode(state *st, AVCodecContext *ctx, const AVCodec *codec, int *ope
     AVDictionary *options = NULL;
     int res = ff.avcodec_open2(ctx, codec, &options);
     ff.av_dict_free(&options);
-    if (res == AVERROR_INVALIDDATA) return 1;
+    if (res == AVERROR_INVALIDDATA || undefined_error(res)) return 1;
     if (check(st, res, where)) return -1;
     *opened = 1;
   }
   int res = ff.avcodec_send_packet(ctx, pkt);
-  if (res == AVERROR_INVALIDDATA) return 1;
+  if (res == AVERROR_INVALIDDATA || undefined_error(res)) return 1;
   if (check(st, res, "avcodec_send_packet()")) return -1;
-  for (int count = 0;; count++) {
-    res = ff.avcodec_receive_frame(ctx, frame);
-    if (res == AVERROR(EAGAIN) || res == AVERROR_EOF) return 0;
-    if (res == AVERROR_INVALIDDATA) return count ? 0 : 1;  // with frames already out, PyAV keeps them and stops this packet
-    if (check(st, res, "avcodec_receive_frame()")) return -1;
-    res = group(st, frame, pkt->time_base);
-    ff.av_frame_unref(frame);
-    if (res) return -1;
+  for (;;) {
+    if (st->nheld == st->cap_held) {
+      int cap = st->cap_held ? st->cap_held * 2 : 16;
+      AVFrame **grown = realloc(st->held, (size_t)cap * sizeof *grown);
+      if (!grown) return fail(st, E_NO_MEMORY, 0, NULL);
+      st->held = grown, st->cap_held = cap;
+    }
+    if (!(st->held[st->nheld] = ff.av_frame_alloc())) return fail(st, E_NO_MEMORY, 0, NULL);
+    res = ff.avcodec_receive_frame(ctx, st->held[st->nheld++]);
+    if (res >= 0) continue;
+    ff.av_frame_free(&st->held[--st->nheld]);
+    // An InvalidDataError with frames already out: PyAV keeps them and stops this packet.
+    if (res == AVERROR(EAGAIN) || res == AVERROR_EOF || (res == AVERROR_INVALIDDATA && st->nheld)) break;
+    release(st);
+    if (res == AVERROR_INVALIDDATA || undefined_error(res)) return 1;
+    return check(st, res, "avcodec_receive_frame()");
   }
+  int r = 0;
+  for (int i = 0; i < st->nheld && !r; i++) r = group(st, st->held[i], pkt->time_base);
+  release(st);
+  return r;
 }
 
 // decode_audio(path): 0 with the samples in *out (malloc'd, free with thanham_av_free), or -1 with *err set.
@@ -342,7 +388,6 @@ int thanham_av_decode_audio(const char *utf8_path, int16_t **out, int64_t *out_l
   AVFormatContext *fmt = NULL;
   AVCodecContext *ctx = NULL;
   AVPacket *pkt = NULL;
-  AVFrame *frame = NULL;
   int res = -1, opened = 0;
   if (ff.av_channel_layout_from_string(&st.mono, "mono") != 0) return fail(&st, E_RUNTIME, 0, "Invalid layout: mono");
 
@@ -384,23 +429,29 @@ int thanham_av_decode_audio(const char *utf8_path, int16_t **out, int64_t *out_l
   }
   AVRational tb = fmt->streams[audio]->time_base;
   unsigned streams = fmt->nb_streams;
-  if (!(pkt = ff.av_packet_alloc()) || !(frame = ff.av_frame_alloc())) {
+  if (!(pkt = ff.av_packet_alloc())) {
     fail(&st, E_NO_MEMORY, 0, NULL);
     goto done;
   }
+  int ended = 0;  // a demuxer InvalidDataError ended the input: the demux generator dies, nothing is flushed
   for (;;) {
     ff.av_packet_unref(pkt);
     r = ff.av_read_frame(fmt, pkt);
     if (r == AVERROR_EOF) break;
-    if (check(&st, r, utf8_path)) goto done;  // a demuxer InvalidDataError too: it is raised outside load_audio's try
+    if (r == AVERROR_INVALIDDATA) {
+      ended = 1;
+      break;
+    }
+    if (check(&st, r, utf8_path)) goto done;
     if (pkt->stream_index != audio || (unsigned)pkt->stream_index >= streams) continue;
     pkt->time_base = tb;
-    if (decode(&st, ctx, codec, &opened, pkt, frame) < 0) goto done;  // 1 (InvalidDataError): skip the packet
+    if (decode(&st, ctx, codec, &opened, pkt) < 0) goto done;  // 1: the packet is skipped
   }
-  // the flush packet: empty, with the stream's time base
-  ff.av_packet_unref(pkt);
-  pkt->time_base = tb;
-  if (decode(&st, ctx, codec, &opened, pkt, frame) < 0) goto done;
+  if (!ended) {  // the flush packet: empty, with the stream's time base
+    ff.av_packet_unref(pkt);
+    pkt->time_base = tb;
+    if (decode(&st, ctx, codec, &opened, pkt) < 0) goto done;
+  }
   if (fifo_read(&st) || resample(&st, NULL)) goto done;
   *out = st.out, *out_len = st.len;
   st.out = NULL;
@@ -413,7 +464,8 @@ done:
   ff.av_channel_layout_uninit(&st.mono);
   if (st.fifo) ff.av_audio_fifo_free(st.fifo);
   ff.av_frame_free(&st.fifo_template);
-  ff.av_frame_free(&frame);
+  release(&st);
+  free(st.held);
   ff.av_packet_free(&pkt);
   ff.avcodec_free_context(&ctx);
   ff.avformat_close_input(&fmt);
