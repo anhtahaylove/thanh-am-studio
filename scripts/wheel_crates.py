@@ -14,6 +14,20 @@ VENDORED_LICENSES = {
     'regex-syntax': ['src/unicode_tables/LICENSE-UNICODE'],  # tables generated from the Unicode Character Database
     'libz-sys': ['src/zlib/LICENSE'],  # zlib, which libz-sys builds from these sources into the native worker
 }
+# SPDX ids of those texts that the crate's own licence leaves out (ring's and aws-lc-sys's already name theirs)
+VENDORED_SPDX = {'onig_sys': 'BSD-2-Clause', 'regex-syntax': 'Unicode-DFS-2016', 'libz-sys': 'Zlib'}
+CRATES_IO = ('registry+https://github.com/rust-lang/crates.io-index', 'sparse+https://index.crates.io/')
+
+def licence_with_vendored(name, lic):
+    """The crate's own licence expression AND the VENDORED_SPDX id of the code or data it compiles in."""
+    if not lic or name not in VENDORED_SPDX: return lic
+    return f"{f'({lic})' if ' OR ' in lic else lic} AND {VENDORED_SPDX[name]}"
+
+def mpl_source(name, version, lic, source):
+    """The source pointer MPL-2.0 asks binaries to give: the crates.io page, which is that place only for a crates.io crate."""
+    if 'MPL' not in (lic or ''): return ''
+    if source not in CRATES_IO: sys.exit(f'{name} {version} is MPL-2.0 and comes from {source}, not crates.io: give its notice a source pointer')
+    return f'Source: https://crates.io/crates/{name}/{version}\n\n'
 
 def crate_dir_licences(name, crate_dir):
     """The root licence files of an unpacked crate and its VENDORED_LICENSES."""
@@ -69,7 +83,7 @@ def crates_in_wheels(site, listed=()):
                     sys.exit(f'{sbom}: {purl} is not a plain crates.io crate')
                 if (c['name'], c['version']) in listed: continue
                 lic = ' '.join(((c.get('licenses') or [{}])[0].get('expression') or '').split()) or None
-                lic = {'onig_sys': 'MIT AND BSD-2-Clause'}.get(c['name'], lic)  # the SBOM gives the crate's MIT; it bundles Oniguruma (BSD-2-Clause)
+                lic = licence_with_vendored(c['name'], lic)
                 found.setdefault((c['name'], c['version']), (lic, set()))[1].add(wheel)
     return dict(sorted(found.items()))
 

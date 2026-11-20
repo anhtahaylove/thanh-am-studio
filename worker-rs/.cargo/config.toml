@@ -3,3 +3,8 @@
 # bitwise equal to Python (spike S5, section 7.4). The VC143 runtime DLLs ship next to the exe (scripts/stage-worker.ps1).
 [build]
 rustflags = ["-C", "target-feature=-crt-static"]
+
+# libz-sys takes a vcpkg zlib when it finds one, even with its "static" feature; skip it so that every machine links the zlib
+# that libz-sys builds from its own sources, whose licence THIRD-PARTY-NOTICES.txt gives.
+[env]
+VCPKGRS_NO_ZLIB = "1"

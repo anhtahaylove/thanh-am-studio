@@ -87,6 +87,9 @@ class BuildPackTests(unittest.TestCase):
                 info.size = len(licence)
                 tar.addfile(info, io.BytesIO(licence))
             return data.getvalue()
+        cached = self.tmp / 'thanham-crate-cache' / 'itoa-1.0.18.crate'
+        cached.parent.mkdir()
+        cached.write_bytes(b'a damaged copy')
         for licence in (b'MIT licence\r\n', b'MIT\0licence\n'):
             data = crate(licence)
             index = json.dumps({'vers': '1.0.18', 'cksum': hashlib.sha256(data).hexdigest()}).encode('utf-8')
@@ -98,7 +101,26 @@ class BuildPackTests(unittest.TestCase):
                         wheel_crates.crate_licences('itoa', '1.0.18')
                 else:
                     self.assertEqual(wheel_crates.crate_licences('itoa', '1.0.18'), ['MIT licence\n'])
-                    self.assertEqual((self.tmp / 'thanham-crate-cache' / 'itoa-1.0.18.crate').read_bytes(), data)
+                    self.assertEqual(cached.read_bytes(), data)  # the verified download replaced the damaged copy
+
+    def test_a_crate_folder_gives_its_vendored_licences_and_their_spdx_ids(self):
+        crate = self.tmp / 'libz-sys-1.1.33'
+        (crate / 'src' / 'zlib').mkdir(parents=True)
+        (crate / 'LICENSE-MIT').write_bytes(b'MIT licence\n')
+        with self.assertRaisesRegex(SystemExit, 'update VENDORED_LICENSES'):
+            wheel_crates.crate_dir_licences('libz-sys', crate)
+        (crate / 'src' / 'zlib' / 'LICENSE').write_bytes(b'zlib licence\n')
+        self.assertEqual(wheel_crates.crate_dir_licences('libz-sys', crate), [crate / 'LICENSE-MIT', crate / 'src/zlib/LICENSE'])
+        self.assertEqual(wheel_crates.licence_with_vendored('libz-sys', 'MIT OR Apache-2.0'), '(MIT OR Apache-2.0) AND Zlib')
+        self.assertEqual(wheel_crates.licence_with_vendored('onig_sys', 'MIT'), 'MIT AND BSD-2-Clause')
+        self.assertEqual(wheel_crates.licence_with_vendored('itoa', 'MIT OR Apache-2.0'), 'MIT OR Apache-2.0')
+
+    def test_an_mpl_crate_points_to_its_source_only_from_crates_io(self):
+        index = 'registry+https://github.com/rust-lang/crates.io-index'
+        self.assertEqual(wheel_crates.mpl_source('selectors', '0.24.0', 'MPL-2.0', index), 'Source: https://crates.io/crates/selectors/0.24.0\n\n')
+        self.assertEqual(wheel_crates.mpl_source('itoa', '1.0.18', 'MIT OR Apache-2.0', 'git+https://example.invalid/itoa'), '')
+        with self.assertRaisesRegex(SystemExit, 'not crates.io'):
+            wheel_crates.mpl_source('selectors', '0.24.0', 'MPL-2.0', 'git+https://example.invalid/selectors')
 
     def test_a_licence_file_that_is_not_utf8_stops_the_build(self):
         tree = make_tree(self.tmp / 'tree', {'Lib/site-packages/x-1.dist-info/licenses/LICENSE': b'\xff\xfe'})
