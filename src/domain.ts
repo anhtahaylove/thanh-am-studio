@@ -1,5 +1,7 @@
 import type {Project,Segment,Take,TakeCheck,TranscriptSegment} from './types';
 export const uid=()=>crypto.randomUUID();
+/** A take length for display, in Vietnamese style: one decimal with a comma ("4,1 giây"). */
+export const seconds=(ms:number)=>`${(ms/1000).toLocaleString('vi-VN',{minimumFractionDigits:1,maximumFractionDigits:1})} giây`;
 export function timestamp(ms:number,separator=','):string {ms=Math.round(ms);return `${String(Math.floor(ms/3600000)).padStart(2,'0')}:${String(Math.floor(ms/60000)%60).padStart(2,'0')}:${String(Math.floor(ms/1000)%60).padStart(2,'0')}${separator}${String(ms%1000).padStart(3,'0')}`;}
 export function parseTime(value:string):number {const parts=value.trim().replace(',','.').split(':').map(Number);if(parts.length<2||parts.length>3||parts.some(x=>!Number.isFinite(x)||x<0)||parts.at(-1)!>=60||parts.at(-2)!>=60)throw Error('Mốc thời gian không hợp lệ');return Math.round(parts.reduce((a,n)=>a*60+n,0)*1000);}
 export function parseSubtitles(input:string):TranscriptSegment[]{

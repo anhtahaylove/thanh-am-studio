@@ -54,11 +54,11 @@ test('transcript rows can be added and deleted and invalid times are rejected',a
 });
 test('transcript find and replace changes every match in one undo step',async({page})=>{
  await page.goto('/');await page.getByRole('button',{name:'Chép lời',exact:true}).click();await page.getByRole('button',{name:'Thêm dòng'}).click();await page.getByRole('button',{name:'Thêm dòng'}).click();
- const texts=page.getByLabel(/^Transcript tại/);await texts.nth(0).fill('chợ biến thành');await texts.nth(1).fill('Chợ Biến Thành đông vui');
- await page.keyboard.press('Control+f');await expect(page.getByLabel('Tìm trong transcript')).toBeFocused();await page.keyboard.type('biến thành');
+ const texts=page.getByLabel(/^Lời nói tại/);await texts.nth(0).fill('chợ biến thành');await texts.nth(1).fill('Chợ Biến Thành đông vui');
+ await page.keyboard.press('Control+f');await expect(page.getByLabel('Tìm trong bản chép lời')).toBeFocused();await page.keyboard.type('biến thành');
  await page.getByLabel('Thay bằng').fill('Bến Thành');await page.getByRole('button',{name:'Thay tất cả'}).click();
  await expect(page.getByRole('status')).toContainText('Đã thay 2 chỗ');await expect(texts.nth(0)).toHaveValue('chợ Bến Thành');await expect(texts.nth(1)).toHaveValue('Chợ Bến Thành đông vui');
- await page.getByLabel('Tìm trong transcript').fill('');await page.keyboard.press('Control+z');await expect(texts.nth(0)).toHaveValue('chợ biến thành');
+ await page.getByLabel('Tìm trong bản chép lời').fill('');await page.keyboard.press('Control+z');await expect(texts.nth(0)).toHaveValue('chợ biến thành');
 });
 test('a pause mark is inserted at the cursor',async({page})=>{
  await page.goto('/');await page.getByRole('button',{name:'Thêm nội dung',exact:true}).click();await page.getByRole('textbox',{name:'Nội dung cần thêm'}).fill('Câu một. Câu hai.');await page.getByRole('button',{name:'Thêm vào kịch bản'}).click();
