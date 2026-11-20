@@ -30,7 +30,7 @@ export function checkSummary(check:TakeCheck|undefined):{tone:'ok'|'warn';label:
  return {tone:'warn',label:`Có thể đọc sai: ${hard.slice(0,2).map(m=>`“${m.expected||'…'}” → “${m.heard||'…'}”`).join(', ')}${hard.length>2?` +${hard.length-2}`:''}`,detail};
 }
 /** Speaker choices for a row: every speaker in the transcript plus one new one. */
-export function speakerSlots(rows:TranscriptSegment[]):number{return Math.max(-1,...rows.map(r=>r.speaker??-1))+2;}
+export function speakerSlots(rows:TranscriptSegment[]):number{let top=-1;for(const r of rows)top=Math.max(top,r.speaker??-1);return top+2;} // a loop: spreading 200k rows into Math.max overflows the stack
 /** Script lines from a transcript: consecutive rows of one speaker are joined (up to `max` characters). */
 export function transcriptToScript(rows:TranscriptSegment[],max=500):{speaker:string;text:string;cue_start_ms:number;cue_end_ms:number}[]{
  const out:{speaker:string;text:string;cue_start_ms:number;cue_end_ms:number}[]=[];
