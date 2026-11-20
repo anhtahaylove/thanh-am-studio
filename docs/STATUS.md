@@ -1,6 +1,6 @@
 # Thanh Âm Studio status
 
-Last updated 2026-11-19. Evidence below was observed, not inferred; anything not listed is unverified.
+Last updated 2026-11-20. Evidence below was observed, not inferred; anything not listed is unverified.
 
 ## Implemented
 
@@ -942,6 +942,28 @@ Preset and cloned `tts` and `clone_preview` run on the native worker (`RUST_OPS`
 | Not run | `ab` with the corrected harness, `dub`, `scripts`, `-Gate 500`, `update-seeded`, `reopen`/`offline`/`export`, `longstt`; no VirusTotal upload before publication |
 
 Evidence: `work\release-v1.0.19-sandbox` (`out1019r1`, `out1019r2`, `out1019r3`, `r2-job-engines.txt`, `r3-job-engines.txt`, `run1019.log`), `work\rm\a4a\RESULTS.md`, `work\rm\a4b\RESULTS.md`, `work\rm\a4b\rtf-analysis.md`.
+
+### v1.0.20 release (built by `.github/workflows/release.yml` from tag `v1.0.20` at `18f460e`)
+
+`stt`, with and without speakers, runs on the native worker (`RUST_OPS` = `render`, `download`, `tts`, `clone_preview`, `stt`; #149). The worker links CTranslate2 4.8.5 through `ct2rs-sys` 0.11.2, built with MSVC 14.44 against oneMKL 2025.3 and oneDNN 3.1.1 (#140). It decodes (#142), runs Silero VAD (#143) and computes the float32 log-mel and the transcription glue as faster-whisper does (#144). Speakers come from `thanham-diarize.exe` on the wheel's sherpa-onnx (#145). Every runtime DLL load runs with the loader's error boxes off (#148). The Python worker stays as the fallback and as the "Luôn dùng Python" choice; A5 (removing it) was dropped.
+
+| Check | Result |
+|---|---|
+| Tests | CI green on the tagged commit; the release workflow's dry run (44584172723) passed on it before the tag |
+| Mel, VAD, decode (E0) | CI on every parity run; Intel SDE `-snb` 12/12 and `-skx` 12/12 |
+| T1a (recorded Python runs through the Rust glue and engine) | small 47/47 deterministic items identical with 987 calls; turbo 48/48 with 1,000 calls (results and the whole call sequence) |
+| T1b/T2 (whole files, both models) | 140/140 deterministic transcripts identical (44 VIVOS mixes, the 30-minute TTS stand-in, 25 ViYT clips; 0 sampled); WER/CER delta +0.000 pp over 1,335 clusters (thresholds 0.300/0.312 WER, 0.347/0.331 CER); T2 0 ms (A/A p95 360/80 ms) |
+| T5 | empty alignment 8/8 identical with Python's recorded samples (225 calls, every `wi` item through `index_error`); auto language with speakers 6/6 identical events |
+| Row Z (diarization) | 316/316 runs JSON-equal: the Sandbox clip, 4 trial mixes, 4 vi-label clips, 100 ViYT clips, 48 VIVOS mixes, AMI EN2002c; automatic count and k=2. Rust/Python time 0.94-1.07 per set |
+| T4 (interleaved local rounds, equal-load rounds only) | small: 60 s 0.987, 10 min 0.983, 74.5 min 0.997 (1 equal-load round; the unequal round 1.571 with CPU 1.019); turbo: 60 s 0.905, 10 min 0.939; peak working set 0.932-0.993. Single equal-load rounds 0.800-1.144 |
+| Installer SHA-256 | `3d98dac27424ca24a46adf4c084c5254064e1c7f839ab50c5b9b0da9bd34f3e4` (219,733,287 bytes). `sha256sum -c` OK after an anonymous download from `/releases/download/v1.0.20/` |
+| Update feed | the anonymous `/releases/latest/download/latest.json` names 1.0.20, points to the v1.0.20 installer, carries a signature and is byte-identical to the draft's |
+| Clean Sandbox, `-Only update -From` the published 1.0.19 (4 GB) | updated itself to 1.0.20 and reopened with the project kept; a package with a bad signature was refused. 4 PASS, 0 FAIL |
+| Clean Sandbox, `-Only full,features,turbo,longstt,clone,dpi,ux` (6 GB) | 46 PASS, 0 FAIL; 928 MiB installed; 3,792 shipped `.pyc` unchanged. All 11 `stt` jobs, every `render`, model download, `clone_preview` and unchecked `tts` ran with `engine: rust, fallback: false`; checked takes stayed on Python. `longstt`: 70.5 min in 1,543 s with whisper-small, worker peak 890 MB (5 s samples), 1,136 rows, WER 9.14 % |
+| Clean Sandbox, `-Only full,ab` (6 GB) | First run 38 PASS, 1 FAIL: the step "stt transcript is identical on both engines" compared each row's `id`, which the app assigns per job; #151 drops it. Rerun with the fixed harness: 39 PASS, 0 FAIL. Every operation ran on the chosen engine (python under python, rust under auto, no fallback); the render, `clone_preview` and the transcript were identical; the installed workers agree under a fixed seed (preset 3, cloned 3, `clone_preview` 1 WAV) and transcribe identically (vi with speakers 5 events, auto 4 events) |
+| Not run | `dub`, `scripts`, `-Gate 500`, `update-seeded`, `reopen`/`offline`/`export`; no VirusTotal upload before publication |
+
+Evidence: `work\release-v1.0.20-sandbox` (`out1020r1`, `out1020r2`, `out1020r3-first`, `out1020r3`, `r1-job-engines.txt`, `r2-job-engines.txt`, `run1020.log`), `work\rm\a3\RESULTS.md`, `work\rm\a3\runs\t4-analysis.md`, `work\rm\baseline-1.0.16\THRESHOLDS.md`.
 
 ## Not verified / known gaps
 
