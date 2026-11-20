@@ -1,11 +1,12 @@
 r"""decode_cases.py: row D (the STT decode) cases, made on the machine that runs them. FFmpeg writes the fixtures (synthetic sound, no
-recording in the repository), then faster-whisper's decode_audio, the call load_audio in worker/main.py makes, records what each one
-gives: the sample count and the SHA-256 of the int16 samples, or the exception. The Rust test stt::decode::tests::decode_matches_pyav
+recording in the repository), then load_audio of worker/main.py (faster-whisper's decode_audio, packet by packet) records what each
+one gives: the sample count and the SHA-256 of the int16 samples, or the exception. The Rust test stt::decode::tests::decode_matches_pyav
 decodes the same files and must give the same, bitwise.
 
 The fixtures follow P0-core's row D (6 containers x 4 rates x mono/stereo, a two-track MP4, a long file over several 500000-sample
 groups) and add what the decode branches on: a 16 kHz mono s16 WAV (the resampler's passthrough), other sample formats (u8, s24,
-f32, 5.1), no audio stream, files FFmpeg cannot open, a truncated and a damaged file, a missing file and a non-ASCII name.
+f32, 5.1), no audio stream, files FFmpeg cannot open, a truncated and a damaged file, invalid frames mid-file (an MP3 joined to
+itself, 400 bytes of 0xff), MP3s joined from parts with another rate or fewer channels, a missing file and a non-ASCII name.
 
 With --vad, each decoded case also records faster-whisper's VAD on it (get_speech_timestamps with VadOptions(), as transcribe runs
 it): the Silero probabilities' SHA-256 and the speech chunks, for stt::vad::tests::vad_matches_python.
@@ -21,12 +22,15 @@ import argparse
 import hashlib
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 import numpy as np
-from faster_whisper.audio import decode_audio
 from faster_whisper.feature_extractor import FeatureExtractor
 from faster_whisper.vad import VadOptions, get_speech_timestamps, get_vad_model
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'worker'))
+from main import load_audio  # noqa: E402
 
 CODECS = {'wav': ['-c:a', 'pcm_s16le'], 'mp3': ['-c:a', 'libmp3lame', '-b:a', '128k'], 'm4a': ['-c:a', 'aac', '-b:a', '128k'],
           'mp4': ['-c:v', 'mpeg4', '-q:v', '8', '-c:a', 'aac', '-b:a', '128k'], 'opus': ['-c:a', 'libopus', '-b:a', '96k'], 'flac': ['-c:a', 'flac']}
@@ -101,16 +105,23 @@ def main():
     whole = (fix / 'm4a-44100-stereo.m4a').read_bytes()
     mid = len(whole) // 2
     (fix / 'damaged.m4a').write_bytes(whole[:mid] + bytes(range(256)) * 8 + whole[mid + 2048:])
-    files += [fix / 'truncated.mp3', fix / 'damaged.m4a', fix / 'missing.wav']
+    whole = (fix / 'mp3-44100-stereo.mp3').read_bytes()
+    mid = len(whole) // 2
+    (fix / 'joined.mp3').write_bytes(whole + whole)  # the second ID3 tag is an invalid frame
+    (fix / 'damaged-0xff.mp3').write_bytes(whole[:mid] + b'\xff' * 400 + whole[mid + 400:])
+    (fix / 'joined-rates.mp3').write_bytes(whole + (fix / 'mp3-22050-stereo.mp3').read_bytes())
+    (fix / 'joined-channels.mp3').write_bytes(whole + (fix / 'mp3-44100-mono.mp3').read_bytes())
+    files += [fix / 'truncated.mp3', fix / 'damaged.m4a', fix / 'joined.mp3', fix / 'damaged-0xff.mp3', fix / 'joined-rates.mp3',
+              fix / 'joined-channels.mp3', fix / 'missing.wav']
     for extra in a.extra:
         files += sorted(p.resolve() for p in Path(extra).iterdir() if p.is_file() and p.suffix != '.json')
 
     with open(a.out, 'w', encoding='utf-8') as out:
         for path in files:
             try:
-                pcm = decode_audio(str(path), sampling_rate=16000)
+                pcm = load_audio(path)
                 i16 = np.round(pcm * 32768).astype('<i2')
-                assert np.array_equal(i16.astype(np.float32) / 32768, pcm), f'{path}: decode_audio output is not on the s16 grid'
+                assert np.array_equal(i16.astype(np.float32) / 32768, pcm), f'{path}: load_audio output is not on the s16 grid'
                 expected = {'n': int(len(i16)), 'sha256': hashlib.sha256(i16.tobytes()).hexdigest()}
             except Exception as e:  # the worker reports these as WORKER_ERROR "Type: text"
                 expected = {'error': f'{type(e).__name__}: {e}'}

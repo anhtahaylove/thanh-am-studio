@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import contextlib
+import gc
 import hashlib
 import importlib
+import io
 import json
 import math
 import os
@@ -854,8 +856,38 @@ def stt_windows(audio, rate=STT_RATE, window_s=STT_WINDOW_S, search_s=30):
 
 
 def load_audio(path):
-    from faster_whisper.audio import decode_audio
-    return decode_audio(str(path), sampling_rate=STT_RATE)
+    """faster-whisper 1.2.1's decode_audio(path, sampling_rate=STT_RATE), decoding packet by packet so an invalid frame is
+    skipped instead of ending the input: its decode() generator is finished once it has raised (after SYSTRAN/faster-whisper#1717, MIT)."""
+    import av
+    import numpy as np
+    from faster_whisper.audio import _group_frames, _resample_frames
+
+    def frames(packets):
+        channels = None
+        for packet in packets:
+            try:
+                decoded = packet.decode()
+            except av.error.InvalidDataError:
+                continue
+            for frame in decoded:
+                if frame.samples:
+                    channels = frame.layout.nb_channels if channels is None else channels
+                    # AudioFifo checks the format and rate, not the channel count: with fewer channels than the first frame,
+                    # av_audio_fifo_write reads planes the frame does not have (a crash), e.g. a file joined from stereo and mono.
+                    if frame.layout.nb_channels < channels:
+                        raise ValueError('Frame does not match AudioFifo parameters.')
+                yield frame
+
+    resampler = av.audio.resampler.AudioResampler(format='s16', layout='mono', rate=STT_RATE)
+    raw_buffer, dtype = io.BytesIO(), None
+    with av.open(str(path), mode='r', metadata_errors='ignore') as container:
+        for frame in _resample_frames(_group_frames(frames(container.demux(audio=0)), 500000), resampler):
+            array = frame.to_ndarray()
+            dtype = array.dtype
+            raw_buffer.write(array)
+    del resampler
+    gc.collect()  # as decode_audio: the resampler's objects are otherwise not freed (SYSTRAN/faster-whisper#390)
+    return np.frombuffer(raw_buffer.getbuffer(), dtype=dtype).astype(np.float32) / 32768.0
 
 
 def stt_window(model, audio, offset, lang, with_words, duration, progress):

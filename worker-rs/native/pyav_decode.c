@@ -1,13 +1,16 @@
-// faster-whisper 1.2.1's `decode_audio(path, sampling_rate=16000)` as PyAV 18.1.0 runs it, call for call, on the FFmpeg 8.1.2
-// DLLs that PyAV itself loads (the private runtime's `av.libs`, resolved by full path in stt/decode.rs). The same code computes
-// the samples, so the output is bitwise equal to Python's (row D at E0).
+// `load_audio(path)` of worker/main.py (faster-whisper 1.2.1's `decode_audio(path, sampling_rate=16000)`, decoding packet by
+// packet) as PyAV 18.1.0 runs it, call for call, on the FFmpeg 8.1.2 DLLs that PyAV itself loads (the private runtime's
+// `av.libs`, resolved by full path in stt/decode.rs). The same code computes the samples, so the output is bitwise equal to
+// Python's (row D at E0).
 //
 // The Python it mirrors, with every FFmpeg call that bears on the samples, in the same order and with the same arguments:
 //   av.open(path)                       Container.__cinit__ (GENPTS, empty options), InputContainer.__cinit__ (find_stream_info,
 //                                       a codec context for every stream with a decoder: pkt_timebase, thread_count 0, slice)
-//   container.decode(audio=0)           streams.get(audio=0) (IndexError without audio), InputContainer.demux (then one empty
-//                                       flush packet), CodecContext._decode (open on first use, send, receive until EAGAIN/EOF)
-//   _ignore_invalid_frames              an InvalidDataError while decoding ends the input: the generator dies, nothing is flushed
+//   container.demux(audio=0)            streams.get(audio=0) (IndexError without audio), InputContainer.demux (then one empty
+//                                       flush packet); a demuxer error, InvalidDataError included, is raised
+//   packet.decode() in a try            CodecContext._decode (open on first use, send, receive until EAGAIN/EOF); an
+//                                       InvalidDataError skips that packet and the next one is decoded (SYSTRAN/faster-whisper#1717)
+//   a frame's channel count             below the first frame's: ValueError: Frame does not match AudioFifo parameters.
 //   _group_frames(frames, 500000)       frame.pts = None; AudioFifo.write; AudioFifo.read() of everything at >= 500000 samples
 //                                       and at the end
 //   _resample_frames(AudioResampler(format='s16', layout='mono', rate=16000))
@@ -295,6 +298,7 @@ static int group(state *st, AVFrame *frame, AVRational tb) {
     st->fifo = ff.av_audio_fifo_alloc(frame->format, frame->ch_layout.nb_channels, frame->nb_samples * 2);
     if (!st->fifo) return fail(st, E_RUNTIME, 0, "Could not allocate AVAudioFifo.");
   } else if (frame->format != st->fifo_template->format || frame->sample_rate != st->fifo_template->sample_rate ||
+             frame->ch_layout.nb_channels < st->fifo_template->ch_layout.nb_channels ||  // load_audio's own check
              (tb.num && st->fifo_tb.num && (tb.num != st->fifo_tb.num || tb.den != st->fifo_tb.den))) {
     return fail(st, E_FIFO_MISMATCH, 0, NULL);
   }
@@ -302,7 +306,7 @@ static int group(state *st, AVFrame *frame, AVRational tb) {
   return ff.av_audio_fifo_size(st->fifo) >= 500000 ? fifo_read(st) : 0;
 }
 
-// CodecContext.decode(packet), the frames handed on one by one. Returns 1 when an InvalidDataError ends the input.
+// CodecContext.decode(packet), the frames handed on one by one. Returns 1 when it raises InvalidDataError (no frame is handed on).
 static int decode(state *st, AVCodecContext *ctx, const AVCodec *codec, int *opened, AVPacket *pkt, AVFrame *frame) {
   if (!codec) return fail(st, E_FFMPEG, AVERROR_DECODER_NOT_FOUND, "");  // Stream._assert_has_codec_context
   if (!*opened) {
@@ -384,29 +388,19 @@ int thanham_av_decode_audio(const char *utf8_path, int16_t **out, int64_t *out_l
     fail(&st, E_NO_MEMORY, 0, NULL);
     goto done;
   }
-  int ended = 0;  // an InvalidDataError ended the input
   for (;;) {
     ff.av_packet_unref(pkt);
     r = ff.av_read_frame(fmt, pkt);
     if (r == AVERROR_EOF) break;
-    if (r == AVERROR_INVALIDDATA) {
-      ended = 1;
-      break;
-    }
-    if (check(&st, r, utf8_path)) goto done;
+    if (check(&st, r, utf8_path)) goto done;  // a demuxer InvalidDataError too: it is raised outside load_audio's try
     if (pkt->stream_index != audio || (unsigned)pkt->stream_index >= streams) continue;
     pkt->time_base = tb;
-    if ((r = decode(&st, ctx, codec, &opened, pkt, frame)) < 0) goto done;
-    if (r == 1) {
-      ended = 1;
-      break;
-    }
+    if (decode(&st, ctx, codec, &opened, pkt, frame) < 0) goto done;  // 1 (InvalidDataError): skip the packet
   }
-  if (!ended) {  // the flush packet: empty, with the stream's time base
-    ff.av_packet_unref(pkt);
-    pkt->time_base = tb;
-    if (decode(&st, ctx, codec, &opened, pkt, frame) < 0) goto done;
-  }
+  // the flush packet: empty, with the stream's time base
+  ff.av_packet_unref(pkt);
+  pkt->time_base = tb;
+  if (decode(&st, ctx, codec, &opened, pkt, frame) < 0) goto done;
   if (fifo_read(&st) || resample(&st, NULL)) goto done;
   *out = st.out, *out_len = st.len;
   st.out = NULL;

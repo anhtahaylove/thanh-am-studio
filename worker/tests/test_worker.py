@@ -591,6 +591,33 @@ class WorkerTests(unittest.TestCase):
         self.assertTrue(all(b - a <= worker.STT_WINDOW_S * rate for a, b in zip(cuts, cuts[1:])))
         self.assertEqual(worker.stt_windows(audio[:rate]), [0, rate])  # short input: one window
 
+    @unittest.skipUnless(importlib.util.find_spec('faster_whisper') and shutil.which('ffmpeg'), 'faster-whisper and FFmpeg required (the private runtime)')
+    def test_stt_decode_keeps_going_past_invalid_frames(self):
+        with tempfile.TemporaryDirectory() as td:
+            def mp3(name, rate, channels):  # a 10 s synthetic tone
+                path = Path(td) / name
+                subprocess.run(['ffmpeg', '-nostdin', '-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i',
+                                f'sine=frequency=440:sample_rate={rate}:duration=10', '-ac', str(channels), '-c:a', 'libmp3lame',
+                                '-b:a', '64k', str(path)], check=True)
+                return path.read_bytes()
+
+            def seconds(data):
+                path = Path(td) / 'input.mp3'
+                path.write_bytes(data)
+                return len(worker.load_audio(path)) / worker.STT_RATE
+
+            data = mp3('tone.mp3', 44100, 1)
+            mid = len(data) // 2
+            self.assertAlmostEqual(seconds(data), 10, delta=0.1)
+            # The second file's ID3 tag is an invalid frame: faster-whisper's decode_audio stopped there, at 10 s.
+            self.assertAlmostEqual(seconds(data + data), 20, delta=0.2)
+            # 400 bytes of 0xff lose the frames they hit, not the second half (5 s before).
+            self.assertAlmostEqual(seconds(data[:mid] + b'\xff' * 400 + data[mid + 400:]), 10, delta=0.2)
+            # A part with another rate or fewer channels is an error, not a transcript cut short or a crash.
+            for joined in (data + mp3('22k.mp3', 22050, 1), mp3('stereo.mp3', 44100, 2) + data):
+                with self.assertRaisesRegex(ValueError, 'Frame does not match AudioFifo parameters'):
+                    seconds(joined)
+
     @unittest.skipUnless(shutil.which('ffmpeg'), 'FFmpeg required for actual speed test')
     def test_speed_change_keeps_pitch(self):
         import numpy as np
