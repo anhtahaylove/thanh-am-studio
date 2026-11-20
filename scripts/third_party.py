@@ -7,7 +7,7 @@ scripts/setup-runtime.ps1 and npm install; the wheels' crates are fetched from c
 """
 import json, pathlib, re, subprocess, sys
 from email.parser import HeaderParser
-from wheel_crates import LICENSE_FILE, crate_licences, crate_note, crates_in_wheels
+from wheel_crates import LICENSE_FILE, crate_dir_licences, crate_licences, crate_note, crates_in_wheels
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 out = pathlib.Path(sys.argv[1]); out.mkdir(parents=True, exist_ok=True)
@@ -76,8 +76,11 @@ for crate_dir, features in (('src-tauri', []), ('worker-rs', ['--features', 'ct2
         if p['source'] is None or (p['name'], p['version']) in crates: continue
         crates.add((p['name'], p['version']))
         lic = p.get('license') or {'sea-g2p-rs': 'Apache-2.0'}.get(p['name'])  # metadata omits it; verified from its LICENSE file
-        add('cargo', p['name'], p['version'], lic, f"pkg:cargo/{p['name']}@{p['version']}", [f for f in sorted(d.iterdir()) if LICENSE_FILE.match(f.name) and f.is_file()],
-            f"Source: https://crates.io/crates/{p['name']}/{p['version']}\n\n" if 'MPL' in (lic or '') else '')  # MPL-2.0 asks binaries to say where the source is
+        # MPL-2.0 asks binaries to say where the source is; the crates.io page is that place only for a crates.io crate
+        if 'MPL' in (lic or '') and p['source'] not in ('registry+https://github.com/rust-lang/crates.io-index', 'sparse+https://index.crates.io/'):
+            sys.exit(f"{p['name']} {p['version']} is MPL-2.0 and comes from {p['source']}, not crates.io: give its notice a source pointer")
+        add('cargo', p['name'], p['version'], lic, f"pkg:cargo/{p['name']}@{p['version']}", crate_dir_licences(p['name'], d),
+            f"Source: https://crates.io/crates/{p['name']}/{p['version']}\n\n" if 'MPL' in (lic or '') else '')
 # C++ headers compiled into the native worker, as numpy 2.4.6 vendors them (worker-rs/third_party/x86-simd-sort/PROVENANCE.txt).
 add('vendored', 'x86-simd-sort', 'numpy-2.4.6', 'BSD-3-Clause', 'pkg:github/intel/x86-simd-sort', [ROOT / 'worker-rs/third_party/x86-simd-sort/LICENSE.md'])
 # The cloned-voice path's FFTs and fbank, compiled into the native worker (each folder's PROVENANCE.txt).

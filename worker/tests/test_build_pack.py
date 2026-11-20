@@ -1,8 +1,11 @@
 """scripts/build_pack.py: what goes into the separation runtime pack and how its manifest and zip are made."""
 import hashlib
+import io
 import json
+import os
 from pathlib import Path
 import sys
+import tarfile
 import tempfile
 import unittest
 from unittest import mock
@@ -11,6 +14,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT.parent / 'scripts'))
 import build_pack
+import wheel_crates
 
 LONG = 'Lib/site-packages/package/' + 'n' * 40 + '.txt'
 
@@ -47,29 +51,54 @@ class BuildPackTests(unittest.TestCase):
 
     def test_the_rust_crates_in_a_wheel_sbom_join_the_notices(self):
         def tree_with(components):
-            sbom = json.dumps({'components': components}).encode('utf-8')
-            return make_tree(self.tmp / f'tree{len(list(self.tmp.iterdir()))}', {
-                'Lib/site-packages/torch-1.dist-info/METADATA': b'Name: torch\nVersion: 1\n',
-                'Lib/site-packages/demucs-4.dist-info/METADATA': b'Name: demucs\nVersion: 4\n',
-                'Lib/site-packages/safetensors-0.8.0.dist-info/METADATA': b'Name: safetensors\nVersion: 0.8.0\n',
-                'Lib/site-packages/safetensors-0.8.0.dist-info/sboms/s.cyclonedx.json': sbom})
+            # a maturin wheel whose dist-info folder name differs from its distribution name, as hf_xet's does
+            files = {'Lib/site-packages/torch-1.dist-info/METADATA': b'Name: torch\nVersion: 1\n',
+                     'Lib/site-packages/demucs-4.dist-info/METADATA': b'Name: demucs\nVersion: 4\n',
+                     'Lib/site-packages/hf_xet-1.8.0.dist-info/METADATA': b'Name: hf-xet\nVersion: 1.8.0\n',
+                     'Lib/site-packages/hf_xet-1.8.0.dist-info/WHEEL': b'Wheel-Version: 1.0\nGenerator: maturin (1.16.0)\n'}
+            if components is not None:
+                files['Lib/site-packages/hf_xet-1.8.0.dist-info/sboms/hf_xet.cyclonedx.json'] = json.dumps({'components': components}).encode('utf-8')
+            return make_tree(self.tmp / f'tree{len(list(self.tmp.iterdir()))}', files)
         itoa = {'name': 'itoa', 'version': '1.0.18', 'scope': 'required', 'purl': 'pkg:cargo/itoa@1.0.18', 'licenses': [{'expression': 'MIT OR Apache-2.0'}]}
         build_only = {'name': 'cc', 'version': '1.2.56', 'scope': 'excluded', 'purl': 'pkg:cargo/cc@1.2.56'}
-        own_code = {'name': 'safetensors', 'version': '0.8.0', 'scope': 'required', 'purl': 'pkg:cargo/safetensors@0.8.0?download_url=file://D:/a'}
+        own_code = {'name': 'hf_xet', 'version': '1.8.0', 'scope': 'required', 'purl': 'pkg:cargo/hf_xet@1.8.0?download_url=file://D:/a'}
         texts = {'itoa': ['itoa licence\n']}
         with mock.patch.object(build_pack, 'crate_licences', lambda name, version: texts.get(name, [])):
             tree = tree_with([itoa, build_only, own_code])
             build_pack.move_licences(tree)
             notices = (tree / build_pack.NOTICES).read_text(encoding='utf-8')
             self.assertIn(f"{'=' * 78}\nitoa 1.0.18 (cargo) — MIT OR Apache-2.0\n{'=' * 78}\n"
-                          'In the Rust dependency tree of these Python wheels of the runtime: safetensors 0.8.0\n'
+                          'In the Rust dependency tree of these Python wheels of the runtime: hf-xet 1.8.0\n'
                           'Source: https://crates.io/crates/itoa/1.0.18\n\nitoa licence\n', notices)
             self.assertNotIn('cc 1.2.56', notices)
-            self.assertNotIn('safetensors 0.8.0 (cargo)', notices)
+            self.assertNotIn('hf_xet 1.8.0 (cargo)', notices)
             git = {**itoa, 'purl': 'pkg:cargo/itoa@1.0.18?vcs_url=git%2Bhttps://example.invalid/itoa'}
-            for components in ([git], [{**itoa, 'name': 'unlicensed', 'purl': 'pkg:cargo/unlicensed@1.0.18'}]):
-                with self.assertRaises(SystemExit):
+            for components, message in (([git], 'is not a plain crates.io crate'),
+                                        ([{**itoa, 'name': 'unlicensed', 'purl': 'pkg:cargo/unlicensed@1.0.18'}], 'its crate ships no licence file'),
+                                        (None, 'built by maturin but has no sboms/ folder')):
+                with self.assertRaisesRegex(SystemExit, message):
                     build_pack.move_licences(tree_with(components))
+
+    def test_a_crate_licence_is_read_from_the_verified_crate_and_must_be_text(self):
+        def crate(licence):
+            data = io.BytesIO()
+            with tarfile.open(fileobj=data, mode='w:gz') as tar:
+                info = tarfile.TarInfo('itoa-1.0.18/LICENSE-MIT')
+                info.size = len(licence)
+                tar.addfile(info, io.BytesIO(licence))
+            return data.getvalue()
+        for licence in (b'MIT licence\r\n', b'MIT\0licence\n'):
+            data = crate(licence)
+            index = json.dumps({'vers': '1.0.18', 'cksum': hashlib.sha256(data).hexdigest()}).encode('utf-8')
+            fetch = lambda url, timeout: io.BytesIO(index if url.startswith('https://index.crates.io/') else data)
+            # RUNNER_TEMP is read when a crate is fetched, so the cache lands in this test's folder
+            with mock.patch.object(wheel_crates.urllib.request, 'urlopen', fetch), mock.patch.dict(os.environ, {'RUNNER_TEMP': str(self.tmp)}):
+                if b'\0' in licence:
+                    with self.assertRaisesRegex(SystemExit, 'contains NUL bytes'):
+                        wheel_crates.crate_licences('itoa', '1.0.18')
+                else:
+                    self.assertEqual(wheel_crates.crate_licences('itoa', '1.0.18'), ['MIT licence\n'])
+                    self.assertEqual((self.tmp / 'thanham-crate-cache' / 'itoa-1.0.18.crate').read_bytes(), data)
 
     def test_a_licence_file_that_is_not_utf8_stops_the_build(self):
         tree = make_tree(self.tmp / 'tree', {'Lib/site-packages/x-1.dist-info/licenses/LICENSE': b'\xff\xfe'})

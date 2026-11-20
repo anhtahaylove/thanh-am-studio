@@ -104,7 +104,8 @@ def move_licences(tree):
         members.append(f'{name} {version}')
     header = ('Thanh Âm Studio separation pack: Python 3.11 (PSF-2.0, LICENSE.txt in this folder), PyTorch, Demucs and their\n'
               'dependencies. Licence texts that ship inside the packages stay in their folders; the ones that were in\n'
-              '*.dist-info/licenses are collected below, verbatim.\n\nPackages: ' + ', '.join(members) + '\n\n').encode('utf-8')
+              '*.dist-info/licenses are collected below, verbatim. So are the Rust crates in the wheels, with the licence\n'
+              'texts of their packages on crates.io.\n\nPackages: ' + ', '.join(members) + '\n\n').encode('utf-8')
     body = header + b''.join(f"{'=' * 78}\n{title}\n{'=' * 78}\n".encode('utf-8') + data + b'\n\n' for title, data in sections) + b''.join(parts)
     (tree / NOTICES).write_bytes(body)
     missing = [data for data in moved if data not in body]
