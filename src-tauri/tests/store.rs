@@ -208,3 +208,128 @@ fn a_separation_cut_off_by_a_crash_leaves_only_its_log() {
     assert_eq!(s.job(&id).unwrap()["status"], "interrupted");
     assert!(!dir.join("stem.partial.flac").exists() && dir.join("worker.log").exists());
 }
+
+#[test]
+// Describes the merge result, which the HashMap must keep equal to the old linear search; it passes on main too and does not measure the speed-up.
+fn takes_on_the_first_and_last_of_2000_segments_survive_a_save_of_the_pre_take_copy() {
+    let tmp = tempfile::tempdir().unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    let mut p = s.create_project("Sách nói").unwrap();
+    p["segments"] = json!((0..2000).map(|i| json!({"id":format!("s{i}"),"text":"Xin chào","takes":[],"selected_take_id":null})).collect::<Vec<_>>());
+    let mut p = s.save_project(p).unwrap();
+    let pid = p["id"].as_str().unwrap().to_owned();
+    for seg in ["s0", "s1999"] {
+        s.enqueue("tts", Some(&pid), json!({"segment_id":seg,"text":"Xin chào"})).unwrap();
+        let job = s.claim_next().unwrap().unwrap();
+        s.finish(job["id"].as_str().unwrap(), json!({"asset_id":seg,"path":"x.wav","duration_ms":10,"sample_rate":48000})).unwrap();
+    }
+    p["segments"][1000]["text"] = json!("Đã sửa");
+    let saved = s.save_project(p).unwrap();
+    let segs = saved["segments"].as_array().unwrap();
+    assert_eq!((segs.len(), &segs[1000]["text"]), (2000, &json!("Đã sửa")));
+    for (i, seg) in [(0, "s0"), (1999, "s1999")] {
+        assert_eq!(segs[i]["takes"].as_array().unwrap().iter().map(|t| t["asset_id"].clone()).collect::<Vec<_>>(), [json!(seg)]);
+        assert_eq!(segs[i]["selected_take_id"], segs[i]["takes"][0]["id"]);
+    }
+    assert!(segs[1..1999].iter().all(|x| x["takes"] == json!([]) && x["selected_take_id"].is_null()));
+    assert_eq!(s.load_project(&pid).unwrap(), saved);
+}
+
+#[test]
+fn a_database_without_the_jobs_index_gains_it_on_open_and_the_claim_query_uses_it() {
+    let tmp = tempfile::tempdir().unwrap();
+    let file = tmp.path().join("studio.sqlite3");
+    // The v1.0.20 jobs table (no index) with a job that was running when the app stopped and one that finished.
+    rusqlite::Connection::open(&file).unwrap().execute_batch(r#"CREATE TABLE jobs(id TEXT PRIMARY KEY, kind TEXT NOT NULL, project_id TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL, data TEXT NOT NULL);
+        INSERT INTO jobs VALUES('run','render',NULL,'running','2026-11-20T00:00:00Z','{"id":"run","kind":"render","status":"running"}');
+        INSERT INTO jobs VALUES('done','render',NULL,'succeeded','2026-11-20T00:00:01Z','{"id":"done","kind":"render","status":"succeeded"}');"#).unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    assert_eq!((&s.job("run").unwrap()["status"], &s.job("done").unwrap()["status"]), (&json!("interrupted"), &json!("succeeded")));
+    let db = rusqlite::Connection::open(&file).unwrap();
+    let plan: Vec<String> = db.prepare(&format!("EXPLAIN QUERY PLAN {}", thanh_am_studio::store::CLAIM_NEXT)).unwrap()
+        .query_map([], |r| r.get(3)).unwrap().collect::<Result<_, _>>().unwrap();
+    assert!(plan.iter().any(|d| d.contains("USING INDEX jobs_status (status=?)")), "{plan:?}");
+    drop(s);
+    assert!(Store::open(tmp.path()).is_ok(), "reopening keeps the index");
+}
+
+#[test]
+fn deleting_a_project_deletes_its_outputless_jobs_keeps_succeeded_ones_and_refuses_while_one_is_queued() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (a, b, interrupted);
+    {
+        let s = Store::open(tmp.path()).unwrap();
+        a = s.create_project("A").unwrap()["id"].as_str().unwrap().to_owned();
+        b = s.create_project("B").unwrap()["id"].as_str().unwrap().to_owned();
+        s.enqueue("render", Some(&a), json!({})).unwrap();
+        interrupted = s.claim_next().unwrap().unwrap()["id"].as_str().unwrap().to_owned();
+    }
+    let s = Store::open(tmp.path()).unwrap();
+    let job = |kind: &str, p: Option<&str>, payload: serde_json::Value| s.enqueue(kind, p, payload).unwrap()["id"].as_str().unwrap().to_owned();
+    let status = |id: &str| s.job(id).map(|j| j["status"].as_str().unwrap().to_owned());
+    // Both projects import the same song: assets are content-addressed, so they share one asset id and one separation.
+    let song = tmp.path().join("song.mp4");
+    std::fs::write(&song, b"media").unwrap();
+    let asset = s.import_asset(&song).unwrap()["id"].clone();
+    assert_eq!(s.import_asset(&song).unwrap()["id"], asset);
+    let mut pb = s.load_project(&b).unwrap();
+    pb["source_asset_id"] = asset.clone();
+    s.save_project(pb).unwrap();
+    let separated = job("separate", Some(&a), json!({"asset_id":asset}));
+    s.claim_next().unwrap();
+    s.finish(&separated, json!({"asset_id":"stem","path":"stem.flac"})).unwrap();
+    let rendered = job("render", Some(&a), json!({}));
+    s.claim_next().unwrap();
+    s.finish(&rendered, json!({"path":"x.wav"})).unwrap();
+    let failed = job("render", Some(&a), json!({}));
+    s.claim_next().unwrap();
+    s.fail(&failed, "x").unwrap();
+    let (other, unowned) = (job("render", Some(&b), json!({})), job("render", None, json!({})));
+    for id in [&other, &unowned] { s.cancel(id).unwrap(); }
+    let kept = tmp.path().join("jobs").join(&rendered);
+    std::fs::create_dir_all(&kept).unwrap();
+    let busy = job("render", Some(&a), json!({}));
+    assert!(s.delete_project(&a).unwrap_err().starts_with("PROJECT_BUSY"));
+    s.claim_next().unwrap();
+    assert!(s.delete_project(&a).unwrap_err().starts_with("PROJECT_BUSY"), "a running job keeps the project too");
+    s.cancel(&busy).unwrap();
+    let gone = [(&interrupted, "interrupted"), (&failed, "failed"), (&busy, "cancelled")];
+    for (id, want) in gone { assert_eq!(status(id).unwrap(), want); }
+    s.delete_project(&a).unwrap();
+    for (id, _) in gone { assert_eq!(status(id).unwrap_err(), "JOB_NOT_FOUND"); }
+    // B's keep-background render still finds the stem by asset id, and A's render can still be saved from the queue.
+    let jobs = s.list_jobs().unwrap();
+    assert!(jobs.iter().any(|j| j["kind"] == "separate" && j["payload"]["asset_id"] == asset && j["status"] == "succeeded"));
+    assert!(jobs.iter().any(|j| j["id"] == rendered.as_str() && j["status"] == "succeeded"));
+    assert_eq!((status(&other).unwrap(), status(&unowned).unwrap()), ("cancelled".into(), "cancelled".into()));
+    assert!(s.load_project(&a).is_err() && s.load_project(&b).is_ok() && kept.exists());
+}
+
+#[test]
+// Describes concurrency safety (the Store was already Mutex-guarded); it passes on main too and does not prove the commands left the main thread.
+fn saves_claims_and_job_lists_from_several_threads_at_once_neither_deadlock_nor_lose_a_revision() {
+    let tmp = tempfile::tempdir().unwrap();
+    let s = std::sync::Arc::new(Store::open(tmp.path()).unwrap());
+    let pid = s.create_project("A").unwrap()["id"].as_str().unwrap().to_owned();
+    for _ in 0..40 { s.enqueue("render", Some(&pid), json!({})).unwrap(); }
+    let (tx, rx) = std::sync::mpsc::channel();
+    let (s2, pid2) = (s.clone(), pid.clone());
+    std::thread::spawn(move || tx.send(std::thread::scope(|sc| {
+        let (s, pid) = (&*s2, &pid2);
+        let savers: Vec<_> = (0..4).map(|t| sc.spawn(move || (0..25).map(|i| loop {
+            let mut p = s.load_project(pid).unwrap();
+            p["name"] = json!(format!("{t}-{i}"));
+            match s.save_project(p) { Ok(p) => break p["revision"].as_i64().unwrap(), Err(e) if e.starts_with("REVISION_CONFLICT") => continue, Err(e) => panic!("{e}") }
+        }).collect::<Vec<_>>())).collect();
+        let lister = sc.spawn(move || for _ in 0..50 { assert_eq!(s.list_jobs().unwrap().len(), 40); });
+        let claimer = sc.spawn(move || std::iter::from_fn(|| s.claim_next().unwrap()).count());
+        let saves: Vec<i64> = savers.into_iter().flat_map(|h| h.join().unwrap()).collect();
+        lister.join().unwrap();
+        (saves, claimer.join().unwrap())
+    })).unwrap());
+    let (mut saves, claimed) = rx.recv_timeout(std::time::Duration::from_secs(120)).expect("the threads finished (no deadlock, no panic)");
+    saves.sort();
+    assert_eq!(saves, (1..=100).collect::<Vec<_>>(), "every save got its own revision");
+    assert_eq!((s.load_project(&pid).unwrap()["revision"].as_i64(), claimed), (Some(100), 40));
+    assert!(s.list_jobs().unwrap().iter().all(|j| j["status"] == "running"));
+}

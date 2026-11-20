@@ -38,6 +38,8 @@ fn a_truncated_or_missing_file_is_refused_at_job_start_with_model_checksum(){
  let e=ready_python(t.path(),&models).unwrap_err();assert!(e.starts_with("MODEL_CHECKSUM"),"{e}");assert!(e.contains("Lib/site-packages/torch.py"));
  fs::remove_file(d.join("Lib/site-packages/torch.py")).unwrap();
  assert!(ready_python(t.path(),&models).unwrap_err().starts_with("MODEL_CHECKSUM"));
+ // The cheap check behind `list_models` still says installed; only the job start walks the files.
+ assert!(installed(t.path(),&models));
 }
 #[test]
 fn a_manifest_that_is_not_the_pinned_one_is_refused(){
