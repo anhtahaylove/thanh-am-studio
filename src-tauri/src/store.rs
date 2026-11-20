@@ -7,6 +7,8 @@ use uuid::Uuid;
 
 pub type Result<T> = std::result::Result<T, String>;
 pub struct Store { db: Mutex<Connection>, pub root: PathBuf }
+/// The runtime runs it every 300 ms while idle; the `jobs_status` index keeps it off a scan of every job.
+pub const CLAIM_NEXT:&str="SELECT data FROM jobs WHERE status='queued' ORDER BY kind<>'clone_preview',kind='separate',created_at LIMIT 1";
 fn now() -> String { Utc::now().to_rfc3339() }
 fn err(e: impl std::fmt::Display) -> String { e.to_string() }
 fn parse(s: String) -> Result<Value> { serde_json::from_str(&s).map_err(err) }
@@ -22,14 +24,16 @@ impl Store {
   db.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
    CREATE TABLE IF NOT EXISTS projects(id TEXT PRIMARY KEY, name TEXT NOT NULL, revision INTEGER NOT NULL, updated_at TEXT NOT NULL, data TEXT NOT NULL);
    CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY, kind TEXT NOT NULL, project_id TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL, data TEXT NOT NULL);
+   CREATE INDEX IF NOT EXISTS jobs_status ON jobs(status, created_at);
    CREATE TABLE IF NOT EXISTS assets(id TEXT PRIMARY KEY, data TEXT NOT NULL);
    CREATE TABLE IF NOT EXISTS voices(id TEXT PRIMARY KEY, data TEXT NOT NULL);
    CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, data TEXT NOT NULL);
    PRAGMA user_version=1;").map_err(err)?;
   let s = Self{db:Mutex::new(db),root:root.to_owned()};
-  for mut j in s.list_jobs()? { if j["status"] == "running" { j["status"]=json!("interrupted"); j["error"]=json!("Phiên trước dừng giữa chừng. Chọn thử lại."); s.write_job(&j)?;
+  let running:Vec<String>={let db=s.db.lock().map_err(err)?;let mut q=db.prepare("SELECT data FROM jobs WHERE status='running'").map_err(err)?;let r=q.query_map([],|r|r.get(0)).map_err(err)?;r.collect::<std::result::Result<_,_>>().map_err(err)?};
+  for d in running { let mut j=parse(d)?; j["status"]=json!("interrupted"); j["error"]=json!("Phiên trước dừng giữa chừng. Chọn thử lại."); s.write_job(&j)?;
    // A separation cut off by a crash leaves its partial stem; it restarts from zero anyway.
-   if let ("separate",Some(id))=(j["kind"].as_str().unwrap_or(""),j["id"].as_str()){crate::runtime::remove_stems(&root.join("jobs").join(id));} } }
+   if let ("separate",Some(id))=(j["kind"].as_str().unwrap_or(""),j["id"].as_str()){crate::runtime::remove_stems(&root.join("jobs").join(id));} }
   Ok(s)
  }
  pub fn create_project(&self, name: &str) -> Result<Value> {
@@ -58,8 +62,9 @@ impl Store {
   // Takes are append-only and written by finished TTS jobs; keep any the client has not seen yet.
   if let Some(d)=db.query_row("SELECT data FROM projects WHERE id=?1",[&id],|r|r.get::<_,String>(0)).optional().map_err(err)? {
    let stored=parse(d)?;
+   let olds:std::collections::HashMap<&str,&Value>=stored["segments"].as_array().into_iter().flatten().filter_map(|s|Some((s["id"].as_str()?,s))).collect();
    for seg in p["segments"].as_array_mut().into_iter().flatten() {
-    let Some(old)=stored["segments"].as_array().and_then(|ss|ss.iter().find(|s|s["id"]==seg["id"])) else {continue};
+    let Some(old)=seg["id"].as_str().and_then(|id|olds.get(id).copied()) else {continue};
     if !seg["takes"].is_array(){seg["takes"]=json!([])}
     for t in old["takes"].as_array().into_iter().flatten() { let takes=seg["takes"].as_array_mut().unwrap(); if !takes.iter().any(|x|x["id"]==t["id"]){takes.push(t.clone())} }
     // A take the server selected comes with the trim it set from the take's speech edges.
@@ -69,7 +74,8 @@ impl Store {
   let n=db.execute("UPDATE projects SET name=?1,revision=?2,updated_at=?3,data=?4 WHERE id=?5 AND revision=?6",params![name,revision+1,p["updated_at"].as_str(),p.to_string(),id,revision]).map_err(err)?;
   if n!=1{return Err("REVISION_CONFLICT: Dự án đã thay đổi. Hãy tải lại trước khi lưu.".into())} Ok(p)
  }
- pub fn delete_project(&self,id:&str)->Result<()> { let db=self.db.lock().map_err(err)?; let n:i64=db.query_row("SELECT count(*) FROM jobs WHERE project_id=?1 AND status IN ('queued','running')",[id],|r|r.get(0)).map_err(err)?;if n>0{return Err("PROJECT_BUSY: Hủy công việc trước khi xóa.".into())}db.execute("DELETE FROM projects WHERE id=?1",[id]).map_err(err)?;Ok(()) }
+ /// Refused while the project has queued or running jobs; its finished jobs go with it, their files and assets stay on disk.
+ pub fn delete_project(&self,id:&str)->Result<()> { let mut db=self.db.lock().map_err(err)?; let tx=db.transaction().map_err(err)?; let n:i64=tx.query_row("SELECT count(*) FROM jobs WHERE project_id=?1 AND status IN ('queued','running')",[id],|r|r.get(0)).map_err(err)?;if n>0{return Err("PROJECT_BUSY: Hủy công việc trước khi xóa.".into())}tx.execute("DELETE FROM jobs WHERE project_id=?1 AND status IN ('succeeded','failed','cancelled','interrupted')",[id]).map_err(err)?;tx.execute("DELETE FROM projects WHERE id=?1",[id]).map_err(err)?;tx.commit().map_err(err) }
  pub fn enqueue(&self,kind:&str,project:Option<&str>,payload:Value)->Result<Value>{
   if !["tts","stt","render","model_download","clone_preview","separate"].contains(&kind){return Err("INVALID_JOB_KIND".into())}
   if let Some(id)=project {self.load_project(id)?;}
@@ -79,7 +85,7 @@ impl Store {
  fn write_job(&self,j:&Value)->Result<()> {self.db.lock().map_err(err)?.execute("UPDATE jobs SET status=?1,data=?2 WHERE id=?3",params![j["status"].as_str(),j.to_string(),j["id"].as_str()]).map_err(err)?;Ok(())}
  pub fn list_jobs(&self)->Result<Vec<Value>>{let db=self.db.lock().map_err(err)?;let mut q=db.prepare("SELECT data FROM jobs ORDER BY created_at DESC").map_err(err)?;let rows=q.query_map([],|r|r.get::<_,String>(0)).map_err(err)?;rows.map(|r|parse(r.map_err(err)?)).collect()}
  pub fn job(&self,id:&str)->Result<Value>{let s=self.db.lock().map_err(err)?.query_row("SELECT data FROM jobs WHERE id=?1",[id],|r|r.get::<_,String>(0)).map_err(|_|"JOB_NOT_FOUND".to_string())?;parse(s)}
- pub fn claim_next(&self)->Result<Option<Value>>{let mut db=self.db.lock().map_err(err)?;let tx=db.transaction().map_err(err)?;let d:Option<String>=tx.query_row("SELECT data FROM jobs WHERE status='queued' ORDER BY kind<>'clone_preview',kind='separate',created_at LIMIT 1",[],|r|r.get(0)).optional().map_err(err)?;let Some(d)=d else{return Ok(None)};let mut j=parse(d)?;j["status"]=json!("running");j["updated_at"]=json!(now());tx.execute("UPDATE jobs SET status='running',data=?1 WHERE id=?2",params![j.to_string(),j["id"].as_str()]).map_err(err)?;tx.commit().map_err(err)?;Ok(Some(j))}
+ pub fn claim_next(&self)->Result<Option<Value>>{let mut db=self.db.lock().map_err(err)?;let tx=db.transaction().map_err(err)?;let d:Option<String>=tx.query_row(CLAIM_NEXT,[],|r|r.get(0)).optional().map_err(err)?;let Some(d)=d else{return Ok(None)};let mut j=parse(d)?;j["status"]=json!("running");j["updated_at"]=json!(now());tx.execute("UPDATE jobs SET status='running',data=?1 WHERE id=?2",params![j.to_string(),j["id"].as_str()]).map_err(err)?;tx.commit().map_err(err)?;Ok(Some(j))}
  pub fn claim_queued(&self,kind:&str,limit:usize)->Result<Vec<Value>>{let mut db=self.db.lock().map_err(err)?;let tx=db.transaction().map_err(err)?;let rows:Vec<String>={let mut q=tx.prepare("SELECT data FROM jobs WHERE status='queued' AND kind=?1 ORDER BY created_at LIMIT ?2").map_err(err)?;let r=q.query_map(params![kind,limit as i64],|r|r.get::<_,String>(0)).map_err(err)?;r.collect::<std::result::Result<_,_>>().map_err(err)?};let mut out=Vec::new();for d in rows{let mut j=parse(d)?;j["status"]=json!("running");j["updated_at"]=json!(now());tx.execute("UPDATE jobs SET status='running',data=?1 WHERE id=?2",params![j.to_string(),j["id"].as_str()]).map_err(err)?;out.push(j);}tx.commit().map_err(err)?;Ok(out)}
  pub fn cancel(&self,id:&str)->Result<Value>{self.transition(id,"cancelled",None)}
  pub fn retry(&self,id:&str)->Result<Value>{let j=self.job(id)?;if !["failed","cancelled","interrupted"].contains(&j["status"].as_str().unwrap_or("")){return Err("INVALID_JOB_STATE".into())} self.transition(id,"queued",None)}

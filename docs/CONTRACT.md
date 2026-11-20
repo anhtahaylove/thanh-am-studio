@@ -7,7 +7,7 @@ All JSON fields are snake_case. Times are milliseconds except worker STT segment
 - `create_project({name})` -> Project
 - `load_project({id})` -> Project
 - `save_project({project})` -> Project (revision optimistic lock; increments revision)
-- `delete_project({id})` -> void (metadata only, no shared asset deletion)
+- `delete_project({id})` -> void (`PROJECT_BUSY` while the project has queued or running jobs; otherwise deletes the project and its finished jobs, never files or shared assets)
 - `get_settings` -> AppSettings (defaults to `{dictionary:{}}`)
 - `save_settings({settings})` -> AppSettings (validated: `dictionary` is an object of non-empty string keys to string values, at most 5000 entries, each at most 512 bytes; `worker_engines`, optional, is an object of operation (`tts|stt|render|download|clone_preview|separate`) to `auto|python`, kept as stored when absent; other fields are dropped)
 - `list_jobs` -> Job[]
@@ -38,7 +38,7 @@ TranscriptSegment: {id,start_ms,end_ms,text,speaker:number|null,overlap_speaker:
 Asset: {id,path,name,duration_ms:number|null,sample_rate:number|null}
 Voice: {id,name,kind:'preset'|'reference',reference_asset_id:string|null,consent:boolean,engine_voice_id:string|null}
 Job: {id,kind,project_id:string|null,payload:object,status:'queued'|'running'|'succeeded'|'failed'|'cancelled'|'interrupted',progress:number,error:string|null,result:object|null,created_at,updated_at}  // a succeeded job's result carries `engine:'python'|'rust'` (the worker that produced it) and `fallback:boolean` (true when it ran on Python after the native worker failed)
-RuntimeStatus: {python_ready:boolean,separation_runtime_ready:boolean,ffmpeg_ready:boolean,worker_ready:boolean,native_worker_ready:boolean,python_path:string|null,ffmpeg_path:string|null,native_worker_path:string|null,fallback_count:number,message:string}  // `fallback_count` = reruns on Python logged in worker-fallbacks.jsonl; `separation_runtime_ready`: the separation pack is installed at the pinned revision and every file of its manifest exists with its size (what a separation job checks)
+RuntimeStatus: {python_ready:boolean,ffmpeg_ready:boolean,worker_ready:boolean,native_worker_ready:boolean,python_path:string|null,ffmpeg_path:string|null,native_worker_path:string|null,fallback_count:number,message:string}  // `fallback_count` = reruns on Python logged in worker-fallbacks.jsonl
 ModelInfo: {id,name,engine,kind:'model'|'runtime',installed:boolean,revision:string,license:string,description:string}  // `kind` is `runtime` for `separation-runtime`, the downloadable Python + PyTorch + Demucs pack (`models.json` `pack`: url, size, unpacked_size, sha256, manifest_sha256, files, longest_path; `revision` names its `pack-separation-v<N>` release); its `installed` needs the marker's revision to equal the pinned one
 
 ## Client editing rules

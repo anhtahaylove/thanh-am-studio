@@ -151,6 +151,21 @@ fn the_separation_runtime_download_stays_on_python(){
  let j=e.store.enqueue("model_download",None,json!({"model_id":"separation-runtime"})).unwrap();let job=e.store.claim_next().unwrap().unwrap();e.rt.execute(&e.store,&[job]).unwrap();
  let job=e.store.job(j["id"].as_str().unwrap()).unwrap();assert_eq!((job["result"]["engine"].as_str(),job["result"]["fallback"].as_bool()),(Some("python"),Some(false)));assert!(e.calls("rust").is_empty());
 }
+fn a_separation_with_a_missing_pack_file_fails_at_job_start_without_running_python(){
+ use sha2::{Digest,Sha256};
+ let e=setup(json!([]),json!([ok(json!({"done":"python"}))]));
+ let wav=e.dir.path().join("in.wav");fs::write(&wav,b"RIFF0000WAVE").unwrap();let a=e.store.import_asset(&wav).unwrap();
+ let separate=||{e.store.enqueue("separate",None,json!({"asset_id":a["id"]})).unwrap();let job=e.store.claim_next().unwrap().unwrap();e.rt.execute(&e.store,&[job]).unwrap_err()};
+ assert_eq!(separate(),thanh_am_studio::pack::NOT_READY);
+ // Installed at the pinned revision, so the Model page shows it, but a file of its manifest is gone.
+ let models=e.dir.path().join("res/worker/models.json");fs::write(&models,json!({"models":[{"id":"separation-runtime","revision":"r1"}]}).to_string()).unwrap();
+ let d=e.store.root.join("models/separation-runtime");fs::create_dir_all(&d).unwrap();let manifest="00  2  gone.pyd\n";fs::write(d.join("MANIFEST.sha256"),manifest).unwrap();
+ let sha:String=Sha256::digest(manifest).iter().map(|b|format!("{b:02x}")).collect();
+ fs::write(d.join("installed.json"),json!({"model_id":"separation-runtime","revision":"r1","manifest_sha256":sha}).to_string()).unwrap();
+ assert!(thanh_am_studio::pack::installed(&e.store.root,&models));
+ let err=separate();assert!(err.starts_with("MODEL_CHECKSUM")&&err.contains("gone.pyd"),"{err}");
+ assert!(e.calls("python").is_empty());
+}
 fn cloned_voices_route_by_reference_format_and_take_checks_stay_on_python(){
  let routed=|kind:&str,ext:&str,payloads:Vec<Value>,engine:&str|{
   let n=if kind=="tts"{payloads.len()}else{0};let mut script:Vec<Value>=(0..n).map(|i|json!({"do":"item","index":i})).collect();script.push(ok(json!({"count":n})));
@@ -218,6 +233,7 @@ fn main(){
   ("a_model_check_failure_keeps_the_transcript_without_speakers",a_model_check_failure_keeps_the_transcript_without_speakers),
   ("the_user_can_pin_an_operation_to_python_and_the_change_is_logged",the_user_can_pin_an_operation_to_python_and_the_change_is_logged),
   ("the_separation_runtime_download_stays_on_python",the_separation_runtime_download_stays_on_python),
+  ("a_separation_with_a_missing_pack_file_fails_at_job_start_without_running_python",a_separation_with_a_missing_pack_file_fails_at_job_start_without_running_python),
   ("cloned_voices_route_by_reference_format_and_take_checks_stay_on_python",cloned_voices_route_by_reference_format_and_take_checks_stay_on_python),
   ("the_release_routes_stt_with_speakers_to_the_native_worker",the_release_routes_stt_with_speakers_to_the_native_worker),
   ("status_reports_the_native_worker",status_reports_the_native_worker),
