@@ -7,7 +7,7 @@ All JSON fields are snake_case. Times are milliseconds except worker STT segment
 - `create_project({name})` -> Project
 - `load_project({id})` -> Project
 - `save_project({project})` -> Project (revision optimistic lock; increments revision)
-- `delete_project({id})` -> void (`PROJECT_BUSY` while the project has queued or running jobs; otherwise deletes the project and its finished jobs, never files or shared assets)
+- `delete_project({id})` -> void (`PROJECT_BUSY` while the project has queued or running jobs; otherwise deletes the project and its failed, cancelled and interrupted jobs; succeeded jobs stay, since other projects reuse separation stems by asset id and renders are saved from the queue; never deletes files or shared assets)
 - `get_settings` -> AppSettings (defaults to `{dictionary:{}}`)
 - `save_settings({settings})` -> AppSettings (validated: `dictionary` is an object of non-empty string keys to string values, at most 5000 entries, each at most 512 bytes; `worker_engines`, optional, is an object of operation (`tts|stt|render|download|clone_preview|separate`) to `auto|python`, kept as stored when absent; other fields are dropped)
 - `list_jobs` -> Job[]

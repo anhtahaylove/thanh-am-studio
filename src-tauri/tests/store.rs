@@ -210,6 +210,7 @@ fn a_separation_cut_off_by_a_crash_leaves_only_its_log() {
 }
 
 #[test]
+// Describes the merge result, which the HashMap must keep equal to the old linear search; it passes on main too and does not measure the speed-up.
 fn takes_on_the_first_and_last_of_2000_segments_survive_a_save_of_the_pre_take_copy() {
     let tmp = tempfile::tempdir().unwrap();
     let s = Store::open(tmp.path()).unwrap();
@@ -253,7 +254,7 @@ fn a_database_without_the_jobs_index_gains_it_on_open_and_the_claim_query_uses_i
 }
 
 #[test]
-fn deleting_a_project_deletes_its_finished_jobs_and_refuses_while_one_is_queued() {
+fn deleting_a_project_deletes_its_outputless_jobs_keeps_succeeded_ones_and_refuses_while_one_is_queued() {
     let tmp = tempfile::tempdir().unwrap();
     let (a, b, interrupted);
     {
@@ -264,32 +265,48 @@ fn deleting_a_project_deletes_its_finished_jobs_and_refuses_while_one_is_queued(
         interrupted = s.claim_next().unwrap().unwrap()["id"].as_str().unwrap().to_owned();
     }
     let s = Store::open(tmp.path()).unwrap();
-    let job = |p: Option<&str>| s.enqueue("render", p, json!({})).unwrap()["id"].as_str().unwrap().to_owned();
+    let job = |kind: &str, p: Option<&str>, payload: serde_json::Value| s.enqueue(kind, p, payload).unwrap()["id"].as_str().unwrap().to_owned();
     let status = |id: &str| s.job(id).map(|j| j["status"].as_str().unwrap().to_owned());
-    let succeeded = job(Some(&a));
+    // Both projects import the same song: assets are content-addressed, so they share one asset id and one separation.
+    let song = tmp.path().join("song.mp4");
+    std::fs::write(&song, b"media").unwrap();
+    let asset = s.import_asset(&song).unwrap()["id"].clone();
+    assert_eq!(s.import_asset(&song).unwrap()["id"], asset);
+    let mut pb = s.load_project(&b).unwrap();
+    pb["source_asset_id"] = asset.clone();
+    s.save_project(pb).unwrap();
+    let separated = job("separate", Some(&a), json!({"asset_id":asset}));
     s.claim_next().unwrap();
-    s.finish(&succeeded, json!({"path":"x.wav"})).unwrap();
-    let failed = job(Some(&a));
+    s.finish(&separated, json!({"asset_id":"stem","path":"stem.flac"})).unwrap();
+    let rendered = job("render", Some(&a), json!({}));
+    s.claim_next().unwrap();
+    s.finish(&rendered, json!({"path":"x.wav"})).unwrap();
+    let failed = job("render", Some(&a), json!({}));
     s.claim_next().unwrap();
     s.fail(&failed, "x").unwrap();
-    let (other, unowned) = (job(Some(&b)), job(None));
+    let (other, unowned) = (job("render", Some(&b), json!({})), job("render", None, json!({})));
     for id in [&other, &unowned] { s.cancel(id).unwrap(); }
-    let kept = tmp.path().join("jobs").join(&succeeded);
+    let kept = tmp.path().join("jobs").join(&rendered);
     std::fs::create_dir_all(&kept).unwrap();
-    let busy = job(Some(&a));
+    let busy = job("render", Some(&a), json!({}));
     assert!(s.delete_project(&a).unwrap_err().starts_with("PROJECT_BUSY"));
     s.claim_next().unwrap();
     assert!(s.delete_project(&a).unwrap_err().starts_with("PROJECT_BUSY"), "a running job keeps the project too");
     s.cancel(&busy).unwrap();
-    let mine = [(&interrupted, "interrupted"), (&succeeded, "succeeded"), (&failed, "failed"), (&busy, "cancelled")];
-    for (id, want) in mine { assert_eq!(status(id).unwrap(), want); }
+    let gone = [(&interrupted, "interrupted"), (&failed, "failed"), (&busy, "cancelled")];
+    for (id, want) in gone { assert_eq!(status(id).unwrap(), want); }
     s.delete_project(&a).unwrap();
-    for (id, _) in mine { assert_eq!(status(id).unwrap_err(), "JOB_NOT_FOUND"); }
+    for (id, _) in gone { assert_eq!(status(id).unwrap_err(), "JOB_NOT_FOUND"); }
+    // B's keep-background render still finds the stem by asset id, and A's render can still be saved from the queue.
+    let jobs = s.list_jobs().unwrap();
+    assert!(jobs.iter().any(|j| j["kind"] == "separate" && j["payload"]["asset_id"] == asset && j["status"] == "succeeded"));
+    assert!(jobs.iter().any(|j| j["id"] == rendered.as_str() && j["status"] == "succeeded"));
     assert_eq!((status(&other).unwrap(), status(&unowned).unwrap()), ("cancelled".into(), "cancelled".into()));
     assert!(s.load_project(&a).is_err() && s.load_project(&b).is_ok() && kept.exists());
 }
 
 #[test]
+// Describes concurrency safety (the Store was already Mutex-guarded); it passes on main too and does not prove the commands left the main thread.
 fn saves_claims_and_job_lists_from_several_threads_at_once_neither_deadlock_nor_lose_a_revision() {
     let tmp = tempfile::tempdir().unwrap();
     let s = std::sync::Arc::new(Store::open(tmp.path()).unwrap());

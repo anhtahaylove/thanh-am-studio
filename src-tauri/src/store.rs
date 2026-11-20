@@ -74,13 +74,16 @@ impl Store {
   let n=db.execute("UPDATE projects SET name=?1,revision=?2,updated_at=?3,data=?4 WHERE id=?5 AND revision=?6",params![name,revision+1,p["updated_at"].as_str(),p.to_string(),id,revision]).map_err(err)?;
   if n!=1{return Err("REVISION_CONFLICT: Dự án đã thay đổi. Hãy tải lại trước khi lưu.".into())} Ok(p)
  }
- /// Refused while the project has queued or running jobs; its finished jobs go with it, their files and assets stay on disk.
- pub fn delete_project(&self,id:&str)->Result<()> { let mut db=self.db.lock().map_err(err)?; let tx=db.transaction().map_err(err)?; let n:i64=tx.query_row("SELECT count(*) FROM jobs WHERE project_id=?1 AND status IN ('queued','running')",[id],|r|r.get(0)).map_err(err)?;if n>0{return Err("PROJECT_BUSY: Hủy công việc trước khi xóa.".into())}tx.execute("DELETE FROM jobs WHERE project_id=?1 AND status IN ('succeeded','failed','cancelled','interrupted')",[id]).map_err(err)?;tx.execute("DELETE FROM projects WHERE id=?1",[id]).map_err(err)?;tx.commit().map_err(err) }
+ /// Refused while the project has queued or running jobs. Its failed, cancelled and interrupted jobs (no output) go with it;
+ /// succeeded ones stay: other projects find separation stems by asset id, and the queue is where renders are saved from.
+ pub fn delete_project(&self,id:&str)->Result<()> { let mut db=self.db.lock().map_err(err)?; let tx=db.transaction().map_err(err)?; let n:i64=tx.query_row("SELECT count(*) FROM jobs WHERE project_id=?1 AND status IN ('queued','running')",[id],|r|r.get(0)).map_err(err)?;if n>0{return Err("PROJECT_BUSY: Hủy công việc trước khi xóa.".into())}tx.execute("DELETE FROM jobs WHERE project_id=?1 AND status IN ('failed','cancelled','interrupted')",[id]).map_err(err)?;tx.execute("DELETE FROM projects WHERE id=?1",[id]).map_err(err)?;tx.commit().map_err(err) }
  pub fn enqueue(&self,kind:&str,project:Option<&str>,payload:Value)->Result<Value>{
   if !["tts","stt","render","model_download","clone_preview","separate"].contains(&kind){return Err("INVALID_JOB_KIND".into())}
-  if let Some(id)=project {self.load_project(id)?;}
   let j=json!({"id":Uuid::new_v4().to_string(),"kind":kind,"project_id":project,"payload":payload,"status":"queued","progress":0.0,"error":null,"result":null,"created_at":now(),"updated_at":now()});
-  self.db.lock().map_err(err)?.execute("INSERT INTO jobs VALUES(?1,?2,?3,'queued',?4,?5)",params![j["id"].as_str(),kind,project,j["created_at"].as_str(),j.to_string()]).map_err(err)?;Ok(j)
+  // One lock for the check and the insert, so a concurrent delete_project cannot fall between them.
+  let db=self.db.lock().map_err(err)?;
+  if let Some(id)=project {db.query_row("SELECT 1 FROM projects WHERE id=?1",[id],|_|Ok(())).map_err(|_|"PROJECT_NOT_FOUND".to_string())?;}
+  db.execute("INSERT INTO jobs VALUES(?1,?2,?3,'queued',?4,?5)",params![j["id"].as_str(),kind,project,j["created_at"].as_str(),j.to_string()]).map_err(err)?;Ok(j)
  }
  fn write_job(&self,j:&Value)->Result<()> {self.db.lock().map_err(err)?.execute("UPDATE jobs SET status=?1,data=?2 WHERE id=?3",params![j["status"].as_str(),j.to_string(),j["id"].as_str()]).map_err(err)?;Ok(())}
  pub fn list_jobs(&self)->Result<Vec<Value>>{let db=self.db.lock().map_err(err)?;let mut q=db.prepare("SELECT data FROM jobs ORDER BY created_at DESC").map_err(err)?;let rows=q.query_map([],|r|r.get::<_,String>(0)).map_err(err)?;rows.map(|r|parse(r.map_err(err)?)).collect()}
