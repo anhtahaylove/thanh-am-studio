@@ -1,9 +1,12 @@
-import {test,expect,type Page} from '@playwright/test';
+import {test,expect,type Locator,type Page} from '@playwright/test';
 const pages=['Tạo giọng đọc','Chép lời','Thư viện giọng','Hàng đợi','Dự án','Model & cài đặt'];
-// WCAG contrast of one colour token on others, resolved through the page's own CSS.
-const contrast=(page:Page,fg:string,bgs:string[])=>page.evaluate(([fg,bgs])=>{const probe=document.createElement('i');document.body.append(probe);
- const lum=(token:string)=>{probe.style.color=`var(${token})`;const [r,g,b]=getComputedStyle(probe).color.match(/\d+/g)!.slice(0,3).map(v=>{const c=Number(v)/255;return c<=0.03928?c/12.92:((c+0.055)/1.055)**2.4;});return 0.2126*r+0.7152*g+0.0722*b;};
- const out=Math.min(...bgs.map(bg=>{const [a,b]=[lum(fg),lum(bg)].sort((x,y)=>y-x);return (a+0.05)/(b+0.05);}));probe.remove();return out;},[fg,bgs] as const);
+// WCAG contrast of two computed colours; a missing token resolves to the inherited colour, so callers first check that it is defined.
+const ratio=(a:string,b:string)=>{const lum=(c:string)=>{const [r,g,b]=c.match(/[\d.]+/g)!.slice(0,3).map(v=>{const x=Number(v)/255;return x<=0.03928?x/12.92:((x+0.055)/1.055)**2.4;});return 0.2126*r+0.7152*g+0.0722*b;};const [x,y]=[lum(a),lum(b)].sort((p,q)=>q-p);return (x+0.05)/(y+0.05);};
+const tokens=(page:Page,names:string[])=>page.evaluate(names=>{const probe=document.createElement('i');document.body.append(probe);const root=getComputedStyle(document.documentElement);
+ const out=Object.fromEntries(names.map(n=>{probe.style.color=`var(${n})`;return [n,root.getPropertyValue(n).trim()?getComputedStyle(probe).color:''];}));probe.remove();return out;},names);
+// The colours an element draws its outline and border with, and what is behind it: the first ancestor with a visible background.
+const colours=(target:Locator)=>target.evaluate(el=>{let p=el.parentElement;while(p&&/^rgba\(.*,\s*0\)$|^transparent$/.test(getComputedStyle(p).backgroundColor))p=p.parentElement;const s=getComputedStyle(el);
+ return {outline:`${s.outlineStyle} ${s.outlineWidth}`,outlineColor:s.outlineColor,border:s.borderTopColor,background:s.backgroundColor,behind:getComputedStyle(p??document.documentElement).backgroundColor};});
 test('the narrow rail names every page, marks the current one and keeps the theme toggle',async({page})=>{
  await page.setViewportSize({width:800,height:700});await page.goto('/');
  const nav=page.getByRole('navigation',{name:'Điều hướng chính'});
@@ -13,13 +16,19 @@ test('the narrow rail names every page, marks the current one and keeps the them
  await page.getByRole('button',{name:'Chuyển giao diện tối'}).click();await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
 });
 test('muted text, success text, input borders and the focus ring keep AA contrast in both themes',async({page})=>{
- await page.goto('/');
+ await page.goto('/');await page.getByRole('button',{name:'Viết đoạn đầu tiên'}).click();
+ const bgs=['--bg','--paper','--surface','--green-soft'],input=page.getByLabel('Nghỉ sau (ms)');
  for(const theme of ['light','dark']){
   await expect(page.locator('html')).toHaveAttribute('data-theme',theme);
-  expect(await contrast(page,'--muted',['--bg','--paper','--surface','--green-soft']),`muted text, ${theme}`).toBeGreaterThanOrEqual(4.5);
-  expect(await contrast(page,'--ok',['--bg','--paper','--surface','--green-soft']),`success text, ${theme}`).toBeGreaterThanOrEqual(4.5);
-  expect(await contrast(page,'--input-border',['--bg','--paper','--surface']),`input border, ${theme}`).toBeGreaterThanOrEqual(3);
-  expect(await contrast(page,'--green',['--bg','--paper','--surface']),`focus ring, ${theme}`).toBeGreaterThanOrEqual(3);
+  const c=await tokens(page,['--muted','--ok',...bgs]);for(const [n,v] of Object.entries(c))expect(v,`${n} is defined, ${theme}`).not.toBe('');
+  for(const fg of ['--muted','--ok'])for(const bg of bgs)expect(ratio(c[fg],c[bg]),`${fg} on ${bg}, ${theme}`).toBeGreaterThanOrEqual(4.5);
+  const box=await colours(input);expect(Math.min(ratio(box.border,box.background),ratio(box.border,box.behind)),`input border ${box.border} in ${box.background} on ${box.behind}, ${theme}`).toBeGreaterThanOrEqual(3);
+  // After a Tab the keyboard is the input mode, so moving focus by script still shows :focus-visible: once in the dark sidebar, once on the page.
+  await page.keyboard.press('Tab');
+  for(const target of [page.getByRole('button',{name:'Tạo giọng đọc',exact:true}),page.getByRole('button',{name:'Thêm nội dung',exact:true})]){
+   await target.focus();const ring=await colours(target);expect(ring.outline,`focus ring style, ${theme}`).toBe('solid 2px');
+   expect(ratio(ring.outlineColor,ring.behind),`focus ring ${ring.outlineColor} on ${ring.behind}, ${theme}`).toBeGreaterThanOrEqual(3);
+  }
   if(theme==='light')await page.getByRole('button',{name:'Chuyển giao diện tối'}).click();
  }
 });
