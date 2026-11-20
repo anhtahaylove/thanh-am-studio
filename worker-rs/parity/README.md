@@ -32,7 +32,13 @@ THANHAM_TTS_CASES=cases.jsonl THANHAM_TTS_MODEL=<models>/vieneu-v3 THANHAM_PYTHO
 <py> -I parity/clone_refs.py --python <py> --model <models>/vieneu-v3 --ffmpeg <ffmpeg.exe> --out <refs>
 <py> -I parity/tts_op.py --python <py> --exe <staged thanham-worker.exe> --model <models>/vieneu-v3 --ffmpeg <ffmpeg.exe> --items parity/tts/clone_items.json --refs <refs> --previews --out <dir>
 <py> -I parity/stt_op.py --python <py> --exe <staged thanham-worker.exe> --model <models>/whisper-small --input <audio> --out <dir> [--rounds N] [--language auto] [--diarize-model <folder> [--speakers 2]]
+<py> -I parity/decode_fuzz.py --ffmpeg <ffmpeg.exe> --dir <folder> --out fuzz.jsonl --damages 1   # and --damages 2
+THANHAM_DECODE_CASES=fuzz.jsonl THANHAM_PYTHON=<py> cargo test --release stt::decode
 ```
+
+`decode_fuzz.py` damages synthetic files at seeded positions (one or two regions each) and checks that the worker's `load_audio` decodes
+none of them worse than faster-whisper's `decode_audio` (an error where it gave audio, or fewer samples) and that none crashes; the
+`cargo test` line then compares the Rust decode with `load_audio` on the same files.
 
 `<py>` is the private runtime's `runtime\python\python.exe` (`scripts/setup-runtime.ps1`). The staged exe is `scripts/stage-worker.ps1`'s folder plus
 `worker/models.json`; it reads numpy's OpenBLAS, sea-g2p's dictionary and the VieNeu voices from that runtime (`THANHAM_PYTHON`, else

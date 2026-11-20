@@ -7,7 +7,7 @@ decode_audio gives.
 The fixtures follow P0-core's row D (6 containers x 4 rates x mono/stereo, a two-track MP4, a long file over several 500000-sample
 groups) and add what the decode branches on: a 16 kHz mono s16 WAV (the resampler's passthrough), other sample formats (u8, s24,
 f32, 5.1), no audio stream, files FFmpeg cannot open, a truncated and a damaged file, invalid frames mid-file (an MP3 joined to
-itself, 400 bytes of 0xff in an MP3, 4096 in an M4A), MP3s joined from parts with another rate or channel count, an ADTS header
+itself, 400 bytes of 0xff in an MP3, 4096 in an M4A, an M4A damaged twice), MP3s joined from parts with another rate or channel count, an ADTS header
 of length 0 (a demuxer error), a missing file and a non-ASCII name.
 
 With --vad, each decoded case also records faster-whisper's VAD on it (get_speech_timestamps with VadOptions(), as transcribe runs
@@ -23,6 +23,7 @@ Every file of an --extra folder is a case too (for instance the clone references
 import argparse
 import hashlib
 import json
+import random
 import subprocess
 import sys
 from pathlib import Path
@@ -44,8 +45,8 @@ VIDEO = ['-f', 'lavfi', '-i', 'color=c=gray:s=160x120:r=10']
 LEFT = '0.45*sin(2*PI*(180+120*sin(2*PI*0.4*t))*t)*(0.6+0.4*sin(2*PI*3*t))+0.03*(random(1)-0.5)'
 RIGHT = '0.35*sin(2*PI*(420+200*sin(2*PI*0.25*t))*t)*(0.5+0.5*sin(2*PI*1.7*t))+0.03*(random(2)-0.5)'
 # Cases that load_audio decodes past an invalid packet on purpose, so they differ from faster-whisper's decode_audio.
-DAMAGED = {'damaged.m4a', 'joined.mp3', 'damaged-0xff.mp3', 'm4a-0xff-mid.m4a', 'joined-rates.mp3', 'joined-channels.mp3',
-           'mono+stereo.mp3'}
+DAMAGED = {'damaged.m4a', 'joined.mp3', 'damaged-0xff.mp3', 'm4a-0xff-mid.m4a', 'm4a-two-damages.m4a', 'joined-rates.mp3',
+           'joined-channels.mp3', 'mono+stereo.mp3'}
 
 
 def mel_sig(features):
@@ -112,6 +113,10 @@ def main():
     mid = len(whole) // 2
     (fix / 'damaged.m4a').write_bytes(whole[:mid] + bytes(range(256)) * 8 + whole[mid + 2048:])
     (fix / 'm4a-0xff-mid.m4a').write_bytes(whole[:mid] + b'\xff' * 4096 + whole[mid + 4096:])  # the AAC decoder's UndefinedError
+    # Two damaged regions: the first is skipped, the second makes the AAC decoder return EPERM, which ends the input there.
+    one, two = len(whole) * 187 // 1000, len(whole) * 59 // 100
+    (fix / 'm4a-two-damages.m4a').write_bytes(whole[:one] + bytes(range(256)) * 2 + whole[one + 512:two] +
+                                              random.Random(16).randbytes(4096) + whole[two + 4096:])
     whole = (fix / 'mp3-44100-stereo.mp3').read_bytes()
     mid = len(whole) // 2
     mono = (fix / 'mp3-44100-mono.mp3').read_bytes()
@@ -131,7 +136,7 @@ def main():
     adts[at + 4] = 0
     adts[at + 5] &= 0x1f
     (fix / 'adts-badlen.aac').write_bytes(adts)  # frame_length 0 mid-file: the demuxer's InvalidDataError ends the input
-    files += [fix / n for n in ('truncated.mp3', 'damaged.m4a', 'm4a-0xff-mid.m4a', 'joined.mp3', 'damaged-0xff.mp3', 'joined-rates.mp3',
+    files += [fix / n for n in ('truncated.mp3', 'damaged.m4a', 'm4a-0xff-mid.m4a', 'm4a-two-damages.m4a', 'joined.mp3', 'damaged-0xff.mp3', 'joined-rates.mp3',
                                 'joined-channels.mp3', 'mono+stereo.mp3', 'adts-badlen.aac', 'missing.wav')]
     for extra in a.extra:
         files += sorted(p.resolve() for p in Path(extra).iterdir() if p.is_file() and p.suffix != '.json')

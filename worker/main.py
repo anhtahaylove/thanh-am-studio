@@ -863,7 +863,7 @@ def load_audio(path):
     from faster_whisper.audio import _group_frames, _resample_frames
 
     def frames(packets):
-        channels = None
+        channels, skipped = None, False
         while True:
             try:
                 packet = next(packets, None)
@@ -874,7 +874,14 @@ def load_audio(path):
             try:
                 decoded = packet.decode()
             except (av.error.InvalidDataError, av.error.UndefinedError):  # UndefinedError: e.g. the AAC decoder's ADTS parse codes
+                skipped = True
                 continue
+            except av.error.FFmpegError as error:
+                # Past a skipped packet decode_audio had already stopped: another decoder error (e.g. the AAC decoder's EPERM
+                # on a second damaged region) ends the input there, unflushed, so no file decodes worse than with it.
+                if skipped and not isinstance(error, MemoryError):
+                    return
+                raise
             for frame in decoded:
                 if frame.samples:
                     channels = frame.layout.nb_channels if channels is None else channels

@@ -10,7 +10,8 @@
 //                                       flush packet); its InvalidDataError ends the input, unflushed; other errors are raised
 //   packet.decode() in a try            CodecContext._decode (open on first use, send, receive until EAGAIN/EOF); an
 //                                       InvalidDataError or UndefinedError skips that packet and the next one is decoded
-//                                       (SYSTRAN/faster-whisper#1717 skips InvalidDataError)
+//                                       (SYSTRAN/faster-whisper#1717 skips InvalidDataError); after a skipped packet, another
+//                                       FFmpeg error but MemoryError ends the input, unflushed
 //   a frame's channel count             below the first frame's: ValueError: Frame does not match AudioFifo parameters.
 //   _group_frames(frames, 500000)       frame.pts = None; AudioFifo.write; AudioFifo.read() of everything at >= 500000 samples
 //                                       and at the end
@@ -339,10 +340,17 @@ static int group(state *st, AVFrame *frame, AVRational tb) {
   return ff.av_audio_fifo_size(st->fifo) >= 500000 ? fifo_read(st) : 0;
 }
 
+// Another FFmpeg error raised by packet.decode(): 2 with *err set, which load_audio raises, or takes as the end of the input
+// once it has skipped a packet; -1 for MemoryError (ENOMEM), which it always raises.
+static int decoder_error(state *st, int res, const char *where) {
+  fail(st, E_FFMPEG, res, where);
+  return res == AVERROR(ENOMEM) ? -1 : 2;
+}
+
 // CodecContext.decode(packet): its frames, handed on once the packet is done, as Python gets them in one list. Returns 1 when it
 // raises InvalidDataError or UndefinedError, which load_audio skips: no frame of that packet is handed on.
 static int decode(state *st, AVCodecContext *ctx, const AVCodec *codec, int *opened, AVPacket *pkt) {
-  if (!codec) return fail(st, E_FFMPEG, AVERROR_DECODER_NOT_FOUND, "");  // Stream._assert_has_codec_context
+  if (!codec) return decoder_error(st, AVERROR_DECODER_NOT_FOUND, "");  // Stream._assert_has_codec_context
   if (!*opened) {
     char where[160];
     snprintf(where, sizeof where, "avcodec_open2(\"%s\", {})", codec->name);
@@ -350,12 +358,12 @@ static int decode(state *st, AVCodecContext *ctx, const AVCodec *codec, int *ope
     int res = ff.avcodec_open2(ctx, codec, &options);
     ff.av_dict_free(&options);
     if (res == AVERROR_INVALIDDATA || undefined_error(res)) return 1;
-    if (check(st, res, where)) return -1;
+    if (res < 0) return decoder_error(st, res, where);
     *opened = 1;
   }
   int res = ff.avcodec_send_packet(ctx, pkt);
   if (res == AVERROR_INVALIDDATA || undefined_error(res)) return 1;
-  if (check(st, res, "avcodec_send_packet()")) return -1;
+  if (res < 0) return decoder_error(st, res, "avcodec_send_packet()");
   for (;;) {
     if (st->nheld == st->cap_held) {
       int cap = st->cap_held ? st->cap_held * 2 : 16;
@@ -371,7 +379,7 @@ static int decode(state *st, AVCodecContext *ctx, const AVCodec *codec, int *ope
     if (res == AVERROR(EAGAIN) || res == AVERROR_EOF || (res == AVERROR_INVALIDDATA && st->nheld)) break;
     release(st);
     if (res == AVERROR_INVALIDDATA || undefined_error(res)) return 1;
-    return check(st, res, "avcodec_receive_frame()");
+    return decoder_error(st, res, "avcodec_receive_frame()");
   }
   int r = 0;
   for (int i = 0; i < st->nheld && !r; i++) r = group(st, st->held[i], pkt->time_base);
@@ -433,7 +441,8 @@ int thanham_av_decode_audio(const char *utf8_path, int16_t **out, int64_t *out_l
     fail(&st, E_NO_MEMORY, 0, NULL);
     goto done;
   }
-  int ended = 0;  // a demuxer InvalidDataError ended the input: the demux generator dies, nothing is flushed
+  // ended: a demuxer InvalidDataError, or a decoder error after a skipped packet, ended the input; nothing is flushed
+  int ended = 0, skipped = 0;
   for (;;) {
     ff.av_packet_unref(pkt);
     r = ff.av_read_frame(fmt, pkt);
@@ -445,12 +454,19 @@ int thanham_av_decode_audio(const char *utf8_path, int16_t **out, int64_t *out_l
     if (check(&st, r, utf8_path)) goto done;
     if (pkt->stream_index != audio || (unsigned)pkt->stream_index >= streams) continue;
     pkt->time_base = tb;
-    if (decode(&st, ctx, codec, &opened, pkt) < 0) goto done;  // 1: the packet is skipped
+    r = decode(&st, ctx, codec, &opened, pkt);
+    if (r < 0 || (r == 2 && !skipped)) goto done;
+    if (r == 2) {
+      ended = 1;
+      break;
+    }
+    skipped |= r == 1;
   }
   if (!ended) {  // the flush packet: empty, with the stream's time base
     ff.av_packet_unref(pkt);
     pkt->time_base = tb;
-    if (decode(&st, ctx, codec, &opened, pkt) < 0) goto done;
+    r = decode(&st, ctx, codec, &opened, pkt);
+    if (r < 0 || (r == 2 && !skipped)) goto done;
   }
   if (fifo_read(&st) || resample(&st, NULL)) goto done;
   *out = st.out, *out_len = st.len;

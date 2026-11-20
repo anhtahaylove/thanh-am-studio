@@ -593,6 +593,7 @@ class WorkerTests(unittest.TestCase):
 
     @unittest.skipUnless(importlib.util.find_spec('faster_whisper') and shutil.which('ffmpeg'), 'faster-whisper and FFmpeg required (the private runtime)')
     def test_stt_decode_keeps_going_past_invalid_frames(self):
+        import random
         import numpy as np
         from faster_whisper.audio import decode_audio
         with tempfile.TemporaryDirectory() as td:
@@ -623,6 +624,12 @@ class WorkerTests(unittest.TestCase):
             # 4096 bytes of 0xff in AAC: the decoder's ADTS parse codes are UndefinedErrors in PyAV, skipped too (5.1 s before).
             m4a = tone('tone.m4a', codec=('-c:a', 'aac', '-b:a', '128k'))
             self.assertGreater(seconds(m4a[:len(m4a) // 2] + b'\xff' * 4096 + m4a[len(m4a) // 2 + 4096:], '.m4a'), 9)
+            # Two damaged regions: the first is skipped, then the AAC decoder returns EPERM on the second. That ends the input
+            # there instead of failing the job, so it is no worse than decode_audio, which stopped at the first (2.6 s).
+            a, b = len(m4a) // 4, len(m4a) * 65 // 100
+            path = Path(td) / 'two.m4a'
+            path.write_bytes(m4a[:a] + bytes(range(256)) * 2 + m4a[a + 512:b] + random.Random(0).randbytes(4096) + m4a[b + 4096:])
+            self.assertGreaterEqual(len(worker.load_audio(path)), len(decode_audio(str(path), sampling_rate=16000)))
             # An ADTS header of length 0 is the demuxer's InvalidDataError: the input ends there, as in decode_audio.
             adts, starts, pos = bytearray(tone('tone.aac', codec=('-c:a', 'aac', '-b:a', '128k'))), [], 0
             while pos + 7 <= len(adts):
