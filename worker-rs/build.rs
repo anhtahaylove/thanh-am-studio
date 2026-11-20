@@ -49,7 +49,7 @@ fn main() {
         .file("native/pocketfft_shim.cc")
         .compile("pocketfft_np");
 
-    // The STT decode (stt/decode.rs): faster-whisper's decode_audio as PyAV runs it, against the unmodified FFmpeg 8.1.2 headers in
+    // The STT decode (stt/decode.rs): the worker's load_audio as PyAV runs it, against the unmodified FFmpeg 8.1.2 headers in
     // third_party/ffmpeg-8.1.2; the FFmpeg functions are resolved at run time from PyAV's own DLLs, never linked.
     cc::Build::new()
         .opt_level(2)
