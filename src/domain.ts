@@ -77,9 +77,12 @@ const stripBook=(s:string)=>s.replace(new RegExp(SCENE_BREAK.source,'gmu'),'').r
 const stripMarkup=(s:string)=>stripBook(s).replace(/\*\*(?=\S)([\s\S]*?\S)\*\*/gu,'$1').replace(/^[ \t]*(?:#{1,6}|>)[ \t]+/gmu,'').replace(/\[([^\]\n]+)\]\((?:https?:|www\.)[^)\s]*\)/gu,'$1').replace(/<\/?(?!en>)[a-z][^<>]*>/giu,' ').replace(/\{\\[^}]*\}|♪/gu,' ');
 // Whole words only, so "AI" leaves "OpenAI" alone; a key that starts or ends with punctuation ("TP.", "đ/cp") is bounded on its letter side only.
 const WORD='[\\p{L}\\p{M}\\p{N}]',bounded=(k:string)=>`${/^[\p{L}\p{M}\p{N}]/u.test(k)?`(?<!${WORD})`:''}${escapeRegExp(k)}${/[\p{L}\p{M}\p{N}]$/u.test(k)?`(?!${WORD})`:''}`;
+// Compiled once per dictionary object (5,000 keys take ~3 ms); dictionaries are replaced on every change, never edited in place.
+const dictionaryRegex=new WeakMap<Record<string,string>,RegExp|null>();
 function normalizeSpoken(text:string,dictionary:Record<string,string>,codeSwitch=false):string {
- const keys=Object.keys(dictionary).filter(Boolean).sort((a,b)=>b.length-a.length);let out=stripMarkup(text.normalize('NFC'));
- if(keys.length)out=out.replace(new RegExp(keys.map(bounded).join('|'),'gu'),m=>dictionary[m]);
+ let re=dictionaryRegex.get(dictionary);if(re===undefined){const keys=Object.keys(dictionary).filter(Boolean).sort((a,b)=>b.length-a.length);re=keys.length?new RegExp(keys.map(bounded).join('|'),'gu'):null;dictionaryRegex.set(dictionary,re);}
+ let out=stripMarkup(text.normalize('NFC'));
+ if(re)out=out.replace(re,m=>dictionary[m]);
  out=out.replace(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/g,(_,d,m,y)=>`${Number(d)} tháng ${Number(m)} năm ${y}`).replace(/(\d[\d.,]*)\s*(₫|đ)(?=\s|[.,;!?]|$)/g,(_,n)=>`${n.replace(/\./g,'')} đồng`).replace(/\b(\d+(?:[.,]\d+)?)\s*kg\b/gi,'$1 ki lô gam').replace(/\b(\d+(?:[.,]\d+)?)\s*km\b/gi,'$1 ki lô mét')
   // Readings pinned sea-g2p 0.10.0 gets wrong (its issues #20, #21, #22, #25): đ/cp → "địa chỉp", -2,5 loses the sign, 50k → "năm mươi ca", 1.2B → "bê", rate 1.1200 → a date, ₿₹₽¢ dropped.
   .replace(/(?<!\p{L})(\d?)\s*đ\/(c\p{L}+)/gu,(_,d,u)=>`${d&&d+' '}đồng trên ${u==='cp'?'cổ phiếu':u}`).replace(/(?<![\p{L}\d])[-\u2212](?=\d+,\d)/gu,'âm ').replace(/(?<![\p{L}\d.,])(\d[\d.,]*)k(?![\p{L}\d])/gu,'$1 nghìn').replace(/(?<![\p{L}\d.,])(\d+)[.,](\d+)B(?![\p{L}\d])/gu,'$1,$2 tỷ')
@@ -205,3 +208,5 @@ export function ttsTranscript(clips:(Recipe&DubCue&{text:string;words?:{text:str
  anchors.push([total,end]);
  const timeAt=(ch:number)=>{const z=anchors.findIndex(a=>a[0]>=ch),[c0,t0]=anchors[z-1]??anchors[z],[c1,t1]=anchors[z];return c1===c0?t1:t0+(t1-t0)*(ch-c0)/(c1-c0);};
  let at=start;chars=0;return cues.map(q=>{const start_ms=at;chars+=q.length;at=Math.round(timeAt(chars));return {id:uid(),start_ms,end_ms:at,text:wrapCue(q)};});});}
+/** Value equality of JSON data such as IPC answers; key order does not matter. */
+export function jsonEqual(a:unknown,b:unknown):boolean{if(a===b)return true;if(typeof a!=='object'||typeof b!=='object'||!a||!b||Array.isArray(a)!==Array.isArray(b))return false;const x=a as Record<string,unknown>,y=b as Record<string,unknown>,keys=Object.keys(x);return keys.length===Object.keys(y).length&&keys.every(k=>Object.hasOwn(y,k)&&jsonEqual(x[k],y[k]));}

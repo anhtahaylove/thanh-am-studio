@@ -9,7 +9,7 @@ const mock=(o:{voiceModel:boolean;jobs?:any[]})=>{
   invoke:async(cmd:string,args:any)=>{calls.push({cmd,args});switch(cmd){
    case 'list_projects':case 'list_voices':return [];case 'get_settings':return {dictionary:{}};
    case 'list_models':return o.voiceModel?[{id:'vieneu-v3',name:'VieNeu v3 Turbo',engine:'tts',installed:true,revision:'r',license:'Apache-2.0',description:''}]:[];
-   case 'list_jobs':return [...jobs].reverse();
+   case 'list_jobs':return structuredClone([...jobs].reverse()); // a copy, as real IPC answers are: setJob edits the stored job in place
    case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,python_path:null,ffmpeg_path:null,message:''};
    case 'plugin:dialog|open':return 'C:\\mẫu giọng.wav';
    case 'import_asset':return {id:'a1',path:'C:\\assets\\a1.wav',name:'mẫu giọng.wav',duration_ms:null,sample_rate:null};
