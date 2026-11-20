@@ -62,11 +62,13 @@ class BuildPackTests(unittest.TestCase):
         itoa = {'name': 'itoa', 'version': '1.0.18', 'scope': 'required', 'purl': 'pkg:cargo/itoa@1.0.18', 'licenses': [{'expression': 'MIT OR Apache-2.0'}]}
         build_only = {'name': 'cc', 'version': '1.2.56', 'scope': 'excluded', 'purl': 'pkg:cargo/cc@1.2.56'}
         own_code = {'name': 'hf_xet', 'version': '1.8.0', 'scope': 'required', 'purl': 'pkg:cargo/hf_xet@1.8.0?download_url=file://D:/a'}
-        texts = {'itoa': ['itoa licence\n']}
+        onig = {'name': 'onig_sys', 'version': '69.9.3', 'scope': 'required', 'purl': 'pkg:cargo/onig_sys@69.9.3', 'licenses': [{'expression': 'MIT'}]}
+        texts = {'itoa': ['itoa licence\n'], 'onig_sys': ['oniguruma licence\n']}
         with mock.patch.object(build_pack, 'crate_licences', lambda name, version: texts.get(name, [])):
-            tree = tree_with([itoa, build_only, own_code])
+            tree = tree_with([itoa, build_only, own_code, onig])
             build_pack.move_licences(tree)
             notices = (tree / build_pack.NOTICES).read_text(encoding='utf-8')
+            self.assertIn('\nonig_sys 69.9.3 (cargo) — MIT AND BSD-2-Clause\n', notices)  # the SBOM's MIT and the Oniguruma it bundles
             self.assertIn(f"{'=' * 78}\nitoa 1.0.18 (cargo) — MIT OR Apache-2.0\n{'=' * 78}\n"
                           'In the Rust dependency tree of these Python wheels of the runtime: hf-xet 1.8.0\n'
                           'Source: https://crates.io/crates/itoa/1.0.18\n\nitoa licence\n', notices)
@@ -113,11 +115,13 @@ class BuildPackTests(unittest.TestCase):
         self.assertEqual(wheel_crates.crate_dir_licences('libz-sys', crate), [crate / 'LICENSE-MIT', crate / 'src/zlib/LICENSE'])
         self.assertEqual(wheel_crates.licence_with_vendored('libz-sys', 'MIT OR Apache-2.0'), '(MIT OR Apache-2.0) AND Zlib')
         self.assertEqual(wheel_crates.licence_with_vendored('onig_sys', 'MIT'), 'MIT AND BSD-2-Clause')
+        self.assertEqual(wheel_crates.licence_with_vendored('regex-syntax', 'MIT OR Apache-2.0'), '(MIT OR Apache-2.0) AND Unicode-DFS-2016')
         self.assertEqual(wheel_crates.licence_with_vendored('itoa', 'MIT OR Apache-2.0'), 'MIT OR Apache-2.0')
+        self.assertLessEqual(set(wheel_crates.VENDORED_SPDX), set(wheel_crates.VENDORED_LICENSES))
 
     def test_an_mpl_crate_points_to_its_source_only_from_crates_io(self):
-        index = 'registry+https://github.com/rust-lang/crates.io-index'
-        self.assertEqual(wheel_crates.mpl_source('selectors', '0.24.0', 'MPL-2.0', index), 'Source: https://crates.io/crates/selectors/0.24.0\n\n')
+        for index in ('registry+https://github.com/rust-lang/crates.io-index', 'sparse+https://index.crates.io/'):
+            self.assertEqual(wheel_crates.mpl_source('selectors', '0.24.0', 'MPL-2.0', index), 'Source: https://crates.io/crates/selectors/0.24.0\n\n')
         self.assertEqual(wheel_crates.mpl_source('itoa', '1.0.18', 'MIT OR Apache-2.0', 'git+https://example.invalid/itoa'), '')
         with self.assertRaisesRegex(SystemExit, 'not crates.io'):
             wheel_crates.mpl_source('selectors', '0.24.0', 'MPL-2.0', 'git+https://example.invalid/selectors')

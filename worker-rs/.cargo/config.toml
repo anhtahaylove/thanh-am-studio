@@ -5,6 +5,7 @@
 rustflags = ["-C", "target-feature=-crt-static"]
 
 # libz-sys takes a vcpkg zlib when it finds one, even with its "static" feature; skip it so that every machine links the zlib
-# that libz-sys builds from its own sources, whose licence THIRD-PARTY-NOTICES.txt gives.
+# that libz-sys builds from its own sources, whose licence THIRD-PARTY-NOTICES.txt gives. Cargo does not rerun libz-sys's build
+# script when this changes: on a machine that built the worker before, run `cargo clean -p libz-sys` once.
 [env]
 VCPKGRS_NO_ZLIB = "1"
