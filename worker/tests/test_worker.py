@@ -591,6 +591,57 @@ class WorkerTests(unittest.TestCase):
         self.assertTrue(all(b - a <= worker.STT_WINDOW_S * rate for a, b in zip(cuts, cuts[1:])))
         self.assertEqual(worker.stt_windows(audio[:rate]), [0, rate])  # short input: one window
 
+    @unittest.skipUnless(importlib.util.find_spec('faster_whisper') and shutil.which('ffmpeg'), 'faster-whisper and FFmpeg required (the private runtime)')
+    def test_stt_decode_keeps_going_past_invalid_frames(self):
+        import random
+        import numpy as np
+        from faster_whisper.audio import decode_audio
+        with tempfile.TemporaryDirectory() as td:
+            def tone(name, rate=44100, channels=1, codec=('-c:a', 'libmp3lame', '-b:a', '64k')):  # a 10 s synthetic tone
+                path = Path(td) / name
+                subprocess.run(['ffmpeg', '-nostdin', '-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i',
+                                f'sine=frequency=440:sample_rate={rate}:duration=10', '-ac', str(channels), *codec, str(path)], check=True)
+                return path.read_bytes()
+
+            def seconds(data, suffix='.mp3'):
+                path = Path(td) / f'input{suffix}'
+                path.write_bytes(data)
+                return len(worker.load_audio(path)) / worker.STT_RATE
+
+            data = tone('tone.mp3')
+            mid = len(data) // 2
+            self.assertAlmostEqual(seconds(data), 10, delta=0.1)
+            # The second file's ID3 tag is an invalid frame: faster-whisper's decode_audio stopped there, at 10 s.
+            self.assertAlmostEqual(seconds(data + data), 20, delta=0.2)
+            # 400 bytes of 0xff lose the frames they hit, not the second half (5 s before).
+            self.assertAlmostEqual(seconds(data[:mid] + b'\xff' * 400 + data[mid + 400:]), 10, delta=0.2)
+            # A part with more channels is decoded (the FIFO takes the first ones, as before).
+            self.assertAlmostEqual(seconds(data + tone('stereo.mp3', channels=2)), 20, delta=0.2)
+            # A part with another rate or fewer channels is an error, not a transcript cut short or a crash.
+            for joined in (data + tone('22k.mp3', rate=22050), tone('stereo.mp3', channels=2) + data):
+                with self.assertRaisesRegex(ValueError, 'Frame does not match AudioFifo parameters'):
+                    seconds(joined)
+            # 4096 bytes of 0xff in AAC: the decoder's ADTS parse codes are UndefinedErrors in PyAV, skipped too (5.1 s before).
+            m4a = tone('tone.m4a', codec=('-c:a', 'aac', '-b:a', '128k'))
+            self.assertGreater(seconds(m4a[:len(m4a) // 2] + b'\xff' * 4096 + m4a[len(m4a) // 2 + 4096:], '.m4a'), 9)
+            # Two damaged regions: the first is skipped, then the AAC decoder returns EPERM on the second. That ends the input
+            # there instead of failing the job, so it is no worse than decode_audio, which stopped at the first (2.6 s).
+            a, b = len(m4a) // 4, len(m4a) * 65 // 100
+            path = Path(td) / 'two.m4a'
+            path.write_bytes(m4a[:a] + bytes(range(256)) * 2 + m4a[a + 512:b] + random.Random(0).randbytes(4096) + m4a[b + 4096:])
+            self.assertGreaterEqual(len(worker.load_audio(path)), len(decode_audio(str(path), sampling_rate=16000)))
+            # An ADTS header of length 0 is the demuxer's InvalidDataError: the input ends there, as in decode_audio.
+            adts, starts, pos = bytearray(tone('tone.aac', codec=('-c:a', 'aac', '-b:a', '128k'))), [], 0
+            while pos + 7 <= len(adts):
+                starts.append(pos)
+                pos += (adts[pos + 3] & 3) << 11 | adts[pos + 4] << 3 | adts[pos + 5] >> 5
+            at = starts[len(starts) // 2]
+            adts[at + 3], adts[at + 4], adts[at + 5] = adts[at + 3] & 0xfc, 0, adts[at + 5] & 0x1f
+            path = Path(td) / 'badlen.aac'
+            path.write_bytes(adts)
+            np.testing.assert_array_equal(worker.load_audio(path), decode_audio(str(path), sampling_rate=16000))
+            self.assertAlmostEqual(len(worker.load_audio(path)) / worker.STT_RATE, 5, delta=0.5)
+
     @unittest.skipUnless(shutil.which('ffmpeg'), 'FFmpeg required for actual speed test')
     def test_speed_change_keeps_pitch(self):
         import numpy as np

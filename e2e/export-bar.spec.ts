@@ -15,7 +15,7 @@ test('the export bar keeps its controls on one line each with the subtitle timin
   await page.setViewportSize({width,height:900});
   const m=await page.evaluate(()=>{const bar=document.querySelector('.export-controls')!,sel=bar.querySelector('select')!,box=(e:Element)=>e.getBoundingClientRect();
    return {select:box(sel).width,labels:[...bar.querySelectorAll('label.check')].map(l=>box(l).height),buttons:[...bar.querySelectorAll('button')].map(b=>box(b).height),overflow:document.documentElement.scrollWidth>innerWidth};});
-  // One line of the 10 px check labels is 16 px; the format menu needs about 60 px to show "WAV" next to its arrow.
+  // One line of the 13 px check labels is 21 px; the format menu needs about 60 px to show "WAV" next to its arrow.
   expect(m,`at ${width} px`).toMatchObject({overflow:false});expect(m.select,`select at ${width} px`).toBeGreaterThanOrEqual(58);
   for(const h of m.labels)expect(h,`label at ${width} px`).toBeLessThan(22);
   for(const h of m.buttons)expect(h,`button at ${width} px`).toBeLessThan(44);

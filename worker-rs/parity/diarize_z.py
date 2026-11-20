@@ -3,7 +3,8 @@ r"""diarize_z.py: row Z, thanham-diarize.exe against worker/diarize.py's own chi
 usage: runtime\python\python.exe -I worker-rs\parity\diarize_z.py --exe <thanham-diarize.exe> --model <diarization model folder>
            --out <folder> [--limit N] <audio file or folder> ...
 
-Each input is decoded as the worker's load_audio() decodes it (faster-whisper's decode_audio at 16 kHz) and saved once as audio.npy.
+Each input is decoded by faster-whisper's decode_audio at 16 kHz (the worker's load_audio() on a file without invalid packets) and
+saved once as audio.npy.
 Both children then run on it, with the automatic count and with min = max = 2 (what stt sends for a known count of 2): the Python one
 (`python -I worker\diarize.py audio.npy turns.json [model, num, min, max]`) and the native one, which loads sherpa-onnx from this
 runtime's wheel. Their turns must be JSON-equal. results.jsonl gets one line per run; exits 1 on any difference or failure.

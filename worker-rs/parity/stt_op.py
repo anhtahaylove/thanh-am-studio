@@ -35,7 +35,7 @@ def main():
     out = Path(args.out).resolve()
     out.mkdir(parents=True, exist_ok=True)
     from faster_whisper.audio import decode_audio
-    audio_s = len(decode_audio(args.input, sampling_rate=16000)) / 16000  # the worker's load_audio
+    audio_s = len(decode_audio(args.input, sampling_rate=16000)) / 16000  # the worker's load_audio on a file without invalid packets
     payload = {'model_path': str(Path(args.model).resolve()), 'input_path': str(Path(args.input).resolve()), 'language': args.language}
     if args.diarize_model:  # speakers: the count given, or found by the diarizer without --speakers
         payload['diarize_model_path'] = str(Path(args.diarize_model).resolve())

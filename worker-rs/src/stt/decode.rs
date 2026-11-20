@@ -1,4 +1,4 @@
-//! STT audio decode: faster-whisper's `decode_audio(path, 16000)` (what `load_audio` in `worker/main.py` calls), run by
+//! STT audio decode: `load_audio` of `worker/main.py` (faster-whisper's `decode_audio(path, 16000)`, packet by packet), run by
 //! `native/pyav_decode.c` on the FFmpeg 8.1.2 DLLs of the private runtime's PyAV 18.1.0 (`site-packages\av.libs`): the very files
 //! Python decodes with, loaded by full path after a SHA-256 check of each (decision O.2), so the samples are bitwise Python's
 //! (row D at E0). A missing or different DLL is `RUNTIME_MISSING`, which the desktop answers by running the job on Python.
@@ -189,7 +189,7 @@ fn decode_s16(site_packages: &Path, path: &str) -> Result<Vec<i16>> {
     Ok(samples)
 }
 
-/// `decode_audio(path, sampling_rate=16000)`: float32 samples, `s16 / 32768`.
+/// `load_audio(path)`: float32 samples, `s16 / 32768`.
 pub fn decode_audio(site_packages: &Path, path: &str) -> Result<Vec<f32>> {
     Ok(decode_s16(site_packages, path)?.into_iter().map(|s| f32::from(s) / 32768.0).collect())
 }
@@ -200,7 +200,7 @@ mod tests {
     use serde_json::Value;
     use sha2::{Digest, Sha256};
 
-    /// Row D at E0: every case of `THANHAM_DECODE_CASES` (written by `parity/decode_cases.py` from Python's `decode_audio` on this
+    /// Row D at E0: every case of `THANHAM_DECODE_CASES` (written by `parity/decode_cases.py` from the worker's `load_audio` on this
     /// machine) decodes to the same samples, or fails with the same exception. `THANHAM_PYTHON` names the runtime's python.exe.
     #[test]
     fn decode_matches_pyav() {
