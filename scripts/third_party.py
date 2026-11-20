@@ -7,7 +7,7 @@ scripts/setup-runtime.ps1 and npm install; the wheels' crates are fetched from c
 """
 import json, pathlib, re, subprocess, sys
 from email.parser import HeaderParser
-from wheel_crates import LICENSE_FILE, crate_dir_licences, crate_licences, crate_note, crates_in_wheels, licence_with_vendored, mpl_source
+from wheel_crates import LICENSE_FILE, cdx_licences, crate_dir_licences, crate_licence, crate_licences, crate_note, crates_in_wheels, mpl_source
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 out = pathlib.Path(sys.argv[1]); out.mkdir(parents=True, exist_ok=True)
@@ -36,7 +36,7 @@ no_text = []
 
 def add(kind, name, version, license_, purl, files, note=''):
     components.append({'type': 'library', 'name': name, 'version': version, 'purl': purl,
-                       'licenses': [{'expression': license_ or 'NOASSERTION'}], 'properties': [{'name': 'ecosystem', 'value': kind}]})
+                       'licenses': cdx_licences(license_), 'properties': [{'name': 'ecosystem', 'value': kind}]})
     texts = []
     for f in files or [ROOT / p for p in NO_LICENSE_FILE.get(name, [])]:
         try: text = f if isinstance(f, str) else f.read_text(encoding='utf-8')
@@ -71,12 +71,12 @@ for crate_dir, features in (('src-tauri', []), ('worker-rs', ['--features', 'ct2
         seen.add(pid)
         for d in nodes[pid]['deps']:
             if any(k['kind'] in (None, 'normal') for k in d['dep_kinds']) and built(pid, pkgs[d['pkg']]['name']): stack.append(d['pkg'])
-    for pid in sorted(seen - {meta['resolve']['root']}, key=lambda i: pkgs[i]['name']):
+    for pid in sorted(seen - {meta['resolve']['root']}, key=lambda i: (pkgs[i]['name'], pkgs[i]['version'], i)):  # a set: same-name crates need the tie-break
         p = pkgs[pid]; d = pathlib.Path(p['manifest_path']).parent
         if p['source'] is None or (p['name'], p['version']) in crates: continue
         crates.add((p['name'], p['version']))
         lic = p.get('license') or {'sea-g2p-rs': 'Apache-2.0'}.get(p['name'])  # metadata omits it; verified from its LICENSE file
-        lic = licence_with_vendored(p['name'], lic)
+        lic = crate_licence(p['name'], lic)
         add('cargo', p['name'], p['version'], lic, f"pkg:cargo/{p['name']}@{p['version']}", crate_dir_licences(p['name'], d),
             mpl_source(p['name'], p['version'], lic, p['source']))
 # C++ headers compiled into the native worker, as numpy 2.4.6 vendors them (worker-rs/third_party/x86-simd-sort/PROVENANCE.txt).
@@ -205,5 +205,6 @@ bom = {'bomFormat': 'CycloneDX', 'specVersion': '1.5', 'version': 1,
 (out / 'THIRD-PARTY-NOTICES.txt').write_text(
     'Thanh Âm Studio bundles the following third-party components. Models and voices are downloaded by the user\n'
     'from their pinned upstream repositories and keep their own licenses (see worker/models.json).\n\n' + '\n\n'.join(notices), encoding='utf-8')
-flag = [c for c in components if re.search(r'GPL|NOASSERTION|AGPL|SSPL|proprietary|unknown', c['licenses'][0]['expression'], re.I)]
-print(f"{len(components)} components; review: " + '; '.join(f"{c['name']} {c['version']} [{c['licenses'][0]['expression']}]" for c in flag))
+named = [(c['name'], c['version'], c['licenses'][0].get('expression') or c['licenses'][0]['license']['name']) for c in components]
+flag = [f'{name} {version} [{lic}]' for name, version, lic in named if re.search(r'GPL|NOASSERTION|AGPL|SSPL|proprietary|unknown', lic, re.I)]
+print(f"{len(components)} components; review: " + '; '.join(flag))

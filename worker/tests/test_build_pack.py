@@ -113,11 +113,23 @@ class BuildPackTests(unittest.TestCase):
             wheel_crates.crate_dir_licences('libz-sys', crate)
         (crate / 'src' / 'zlib' / 'LICENSE').write_bytes(b'zlib licence\n')
         self.assertEqual(wheel_crates.crate_dir_licences('libz-sys', crate), [crate / 'LICENSE-MIT', crate / 'src/zlib/LICENSE'])
-        self.assertEqual(wheel_crates.licence_with_vendored('libz-sys', 'MIT OR Apache-2.0'), '(MIT OR Apache-2.0) AND Zlib')
-        self.assertEqual(wheel_crates.licence_with_vendored('onig_sys', 'MIT'), 'MIT AND BSD-2-Clause')
-        self.assertEqual(wheel_crates.licence_with_vendored('regex-syntax', 'MIT OR Apache-2.0'), '(MIT OR Apache-2.0) AND Unicode-DFS-2016')
-        self.assertEqual(wheel_crates.licence_with_vendored('itoa', 'MIT OR Apache-2.0'), 'MIT OR Apache-2.0')
+        self.assertEqual(wheel_crates.crate_licence('libz-sys', 'MIT OR Apache-2.0'), '(MIT OR Apache-2.0) AND Zlib')
+        self.assertEqual(wheel_crates.crate_licence('onig_sys', 'MIT'), 'MIT AND BSD-2-Clause')
+        self.assertEqual(wheel_crates.crate_licence('regex-syntax', 'MIT OR Apache-2.0'), '(MIT OR Apache-2.0) AND Unicode-DFS-2016')
+        self.assertEqual(wheel_crates.crate_licence('itoa', 'MIT OR Apache-2.0'), 'MIT OR Apache-2.0')
         self.assertLessEqual(set(wheel_crates.VENDORED_SPDX), set(wheel_crates.VENDORED_LICENSES))
+
+    def test_a_licence_becomes_an_spdx_expression_or_else_a_name(self):
+        # Cargo's deprecated "/" separator means OR, as in fnv's and walkdir's manifests
+        self.assertEqual(wheel_crates.crate_licence('fnv', 'Apache-2.0 / MIT'), 'Apache-2.0 OR MIT')
+        self.assertEqual(wheel_crates.crate_licence('libz-sys', 'MIT/Apache-2.0'), '(MIT OR Apache-2.0) AND Zlib')
+        self.assertIsNone(wheel_crates.crate_licence('itoa', None))
+        for lic in ('MIT', '(MIT OR Apache-2.0) AND Zlib', 'Apache-2.0 WITH LLVM-exception', 'LicenseRef-Microsoft-VC-Redist', 'GPL-2.0+'):
+            self.assertEqual(wheel_crates.cdx_licences(lic), [{'expression': lic}])
+        self.assertEqual(wheel_crates.cdx_licences(None), [{'expression': 'NOASSERTION'}])
+        # PyPI classifiers, a dangling operator and Cargo's "/" are not SPDX expressions
+        for lic in ('MIT License', 'Mozilla Public License 2.0 (MPL 2.0)', 'MIT OR', 'AND MIT', '(MIT OR Apache-2.0', 'Apache-2.0/MIT', 'SEE LICENSE IN LICENSE'):
+            self.assertEqual(wheel_crates.cdx_licences(lic), [{'license': {'name': lic}}])
 
     def test_an_mpl_crate_points_to_its_source_only_from_crates_io(self):
         for index in ('registry+https://github.com/rust-lang/crates.io-index', 'sparse+https://index.crates.io/'):
