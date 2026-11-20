@@ -35,8 +35,6 @@ tempfile = "3"
 [lints.clippy]
 # The dense one-line style writes `{...}if` on purpose, which this lint reads as a missing `else`.
 possible_missing_else = "allow"
-# One function (`Runtime::finish_item`) takes the eight pieces of a job item it settles.
-too_many_arguments = "allow"
 
 # Its own binary is the fake worker (tests/engine.rs), so it brings its own main.
 [[test]]

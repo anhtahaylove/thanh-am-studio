@@ -17,8 +17,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      # src-tauri/rust-toolchain.toml pins the compiler, as in worker-rs.
-      - run: rustup toolchain install 1.99.1 --profile minimal --component clippy
+      # src-tauri/rust-toolchain.toml pins the compiler (1.100.0, which built v1.0.20), as worker-rs pins its own.
+      - run: rustup toolchain install 1.100.0 --profile minimal --component clippy
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri

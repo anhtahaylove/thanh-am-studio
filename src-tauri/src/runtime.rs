@@ -145,7 +145,7 @@ impl Runtime{
    Some("error")=>{let code=e["code"].as_str().unwrap_or("WORKER_ERROR");run.code=Some(code.to_string());run.failure=Some(format!("{}: {}",code,e["message"].as_str().unwrap_or("Lỗi worker")))},
    _=>{}}
  }
- fn finish_item(&self,s:&Store,engine:Engine,fell_back:bool,run:&mut Attempt,ids:&[String],e:&Value,request:&Value){
+ #[allow(clippy::too_many_arguments)] fn finish_item(&self,s:&Store,engine:Engine,fell_back:bool,run:&mut Attempt,ids:&[String],e:&Value,request:&Value){
   let Some(i)=e["index"].as_u64().map(|i|i as usize).filter(|i|run.pending.contains(i)&&!run.deferred.contains(i)) else {return};
   // The native worker's engine failure on one item is not the item's verdict: it reruns on Python.
   if engine==Engine::Rust&&e["error"]["code"].as_str().is_some_and(engine::eligible_code){run.deferred.push(i);run.item_code=e["error"]["code"].as_str().map(str::to_string);return}
