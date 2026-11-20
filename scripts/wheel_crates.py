@@ -31,7 +31,8 @@ def cdx_licences(lic):
     as a licence name, such as a PyPI classifier's "MIT License"."""
     lic = lic or 'NOASSERTION'
     words = re.sub(r'[()]', ' ', lic).split()
-    if len(words) % 2 and all(re.fullmatch(r'[A-Za-z0-9.+:-]+', w) and (w in ('AND', 'OR', 'WITH')) == (i % 2 == 1) for i, w in enumerate(words)):
+    # shortcut: checks the syntax, not the ids, so a single word such as "BSD" stays an expression; check ids against the SPDX list if one turns up
+    if len(words) % 2 and lic.count('(') == lic.count(')') and all(re.fullmatch(r'[A-Za-z0-9.+:-]+', w) and (w in ('AND', 'OR', 'WITH')) == (i % 2 == 1) for i, w in enumerate(words)):
         return [{'expression': lic}]
     return [{'license': {'name': lic}}]
 

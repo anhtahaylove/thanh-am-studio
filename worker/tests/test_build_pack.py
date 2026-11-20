@@ -128,7 +128,7 @@ class BuildPackTests(unittest.TestCase):
             self.assertEqual(wheel_crates.cdx_licences(lic), [{'expression': lic}])
         self.assertEqual(wheel_crates.cdx_licences(None), [{'expression': 'NOASSERTION'}])
         # PyPI classifiers, a dangling operator and Cargo's "/" are not SPDX expressions
-        for lic in ('MIT License', 'Mozilla Public License 2.0 (MPL 2.0)', 'MIT OR', 'AND MIT', 'Apache-2.0/MIT', 'SEE LICENSE IN LICENSE'):
+        for lic in ('MIT License', 'Mozilla Public License 2.0 (MPL 2.0)', 'MIT OR', 'AND MIT', '(MIT OR Apache-2.0', 'Apache-2.0/MIT', 'SEE LICENSE IN LICENSE'):
             self.assertEqual(wheel_crates.cdx_licences(lic), [{'license': {'name': lic}}])
 
     def test_an_mpl_crate_points_to_its_source_only_from_crates_io(self):
