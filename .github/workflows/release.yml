@@ -92,7 +92,8 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
       # The compilers that built the app and the native worker: cargo's cached `rustc -vV` from the last build in each target folder.
-      - run: Select-String -Path src-tauri/target/.rustc_info.json, worker-rs/target/.rustc_info.json -Pattern 'release: [0-9.]+' | ForEach-Object { "$($_.Path): $($_.Matches[0].Value)" }
+      - run: |
+          Select-String -Path src-tauri/target/.rustc_info.json, worker-rs/target/.rustc_info.json -Pattern 'release: [0-9.]+' | ForEach-Object { "$($_.Path): $($_.Matches[0].Value)" }
       - name: Update feed and checksums
         shell: pwsh
         run: |
