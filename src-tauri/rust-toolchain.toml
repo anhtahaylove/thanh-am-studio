@@ -1,0 +1,5 @@
+# Pinned like worker-rs: a new stable must not change the shipped app binary or the clippy verdict between a dry run and the tag build.
+[toolchain]
+channel = "1.99.1"
+components = ["clippy"]
+profile = "minimal"

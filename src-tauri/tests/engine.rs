@@ -26,7 +26,8 @@ fn fake_worker(exe:&Path){
    "result"=>emit(&id,json!({"event":"result","result":a["result"]})),
    "error"=>{let mut e=json!({"event":"error","code":a["code"],"message":a["message"]});if a["index"].is_number(){e["index"]=a["index"].clone();}emit(&id,e)},
    "exit"=>{let _=std::io::stdout().flush();std::process::exit(a["code"].as_i64().unwrap() as i32)},
-   "grandchild"=>{let pidfile=a["pidfile"].as_str().unwrap();std::process::Command::new(exe).arg("--grandchild").arg(pidfile).spawn().unwrap();while !Path::new(pidfile).exists(){thread::sleep(Duration::from_millis(20))}},
+   // Left running on purpose: a cancel must kill it through the job object.
+   #[allow(clippy::zombie_processes)] "grandchild"=>{let pidfile=a["pidfile"].as_str().unwrap();std::process::Command::new(exe).arg("--grandchild").arg(pidfile).spawn().unwrap();while !Path::new(pidfile).exists(){thread::sleep(Duration::from_millis(20))}},
    "sleep"=>thread::sleep(Duration::from_millis(a["ms"].as_u64().unwrap())),
    other=>panic!("unknown action {other}")}}
 }
