@@ -29,7 +29,7 @@ NO_LICENSE_FILE = {
     'onnxruntime': ['runtime/python/Lib/site-packages/onnxruntime/LICENSE', 'runtime/python/Lib/site-packages/onnxruntime/ThirdPartyNotices.txt'],
     'sherpa-onnx-core': ['scripts/licenses/sherpa-onnx-LICENSE.txt'],
     'tokenizers': ['scripts/licenses/tokenizers-LICENSE.txt'],
-    # linked into tokenizers; texts from its repository at the commit in the crate's .cargo_vcs_info.json
+    # in tokenizers' dependency tree (via the defmt-macros proc-macro); texts from its repository at the commit in the crate's .cargo_vcs_info.json
     'defmt-parser': ['scripts/licenses/defmt-LICENSE-APACHE.txt', 'scripts/licenses/defmt-LICENSE-MIT.txt'],
 }
 # Licence files, relative to the crate, of the C libraries that crates linked into the Python wheels vendor below their root.
