@@ -1197,7 +1197,8 @@ try {
       // Whisper decodes at temperature 0 unless a window falls back to sampling, which a clean preset clip does not: the rows, their
       // speakers and the language must match.
       await step('stt transcript is identical on both engines', async () => {
-        const [a, b] = ['python', 'auto'].map((e) => JSON.stringify({transcript: ran[`stt-${e}`][0].result.transcript, language: ran[`stt-${e}`][0].result.language}));
+        // Row ids are UUIDs the app gives each job's rows, so they differ by design; everything else must match.
+        const [a, b] = ['python', 'auto'].map((e) => JSON.stringify({transcript: ran[`stt-${e}`][0].result.transcript.map(({id, ...row}) => row), language: ran[`stt-${e}`][0].result.language}));
         if (a !== b) throw Error(`${a} vs ${b}`);
         return `${JSON.parse(a).transcript.length} rows`;
       }).catch(() => {});
