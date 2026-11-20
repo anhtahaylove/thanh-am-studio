@@ -18,10 +18,22 @@ VENDORED_LICENSES = {
 VENDORED_SPDX = {'onig_sys': 'BSD-2-Clause', 'regex-syntax': 'Unicode-DFS-2016', 'libz-sys': 'Zlib'}
 CRATES_IO = ('registry+https://github.com/rust-lang/crates.io-index', 'sparse+https://index.crates.io/')
 
-def licence_with_vendored(name, lic):
-    """The crate's own licence expression AND the VENDORED_SPDX id of the code or data it compiles in."""
-    if not lic or name not in VENDORED_SPDX: return lic
+def crate_licence(name, lic):
+    """The crate's licence as an SPDX expression, with Cargo's deprecated "/" between licences read as OR, AND the VENDORED_SPDX id
+    of the code or data it compiles in."""
+    if not lic: return lic
+    lic = re.sub(r'\s*/\s*', ' OR ', lic)
+    if name not in VENDORED_SPDX: return lic
     return f"{f'({lic})' if ' OR ' in lic else lic} AND {VENDORED_SPDX[name]}"
+
+def cdx_licences(lic):
+    """A CycloneDX component's licenses: lic as an SPDX expression when it reads as one (licence ids joined by AND, OR, WITH), else
+    as a licence name, such as a PyPI classifier's "MIT License"."""
+    lic = lic or 'NOASSERTION'
+    words = re.sub(r'[()]', ' ', lic).split()
+    if len(words) % 2 and all(re.fullmatch(r'[A-Za-z0-9.+:-]+', w) and (w in ('AND', 'OR', 'WITH')) == (i % 2 == 1) for i, w in enumerate(words)):
+        return [{'expression': lic}]
+    return [{'license': {'name': lic}}]
 
 def mpl_source(name, version, lic, source):
     """The source pointer MPL-2.0 asks binaries to give: the crates.io page, which is that place only for a crates.io crate."""
@@ -83,7 +95,7 @@ def crates_in_wheels(site, listed=()):
                     sys.exit(f'{sbom}: {purl} is not a plain crates.io crate')
                 if (c['name'], c['version']) in listed: continue
                 lic = ' '.join(((c.get('licenses') or [{}])[0].get('expression') or '').split()) or None
-                lic = licence_with_vendored(c['name'], lic)
+                lic = crate_licence(c['name'], lic)
                 found.setdefault((c['name'], c['version']), (lic, set()))[1].add(wheel)
     return dict(sorted(found.items()))
 
