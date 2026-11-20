@@ -12,6 +12,7 @@ MANIFEST.sha256 lists every file but itself, one line each: `<sha256>  <size>  <
 """
 import argparse, hashlib, json, os, re, shutil, subprocess, sys, zipfile
 from pathlib import Path
+from wheel_crates import crate_licences, crate_note, crates_in_wheels
 
 SCRIPTS = Path(__file__).resolve().parent
 MANIFEST, NOTICES = 'MANIFEST.sha256', 'THIRD-PARTY-NOTICES.txt'
@@ -67,7 +68,8 @@ def compile_tree(tree):
 
 def move_licences(tree):
     """Moves every *.dist-info/licenses tree into THIRD-PARTY-NOTICES.txt, verbatim, and drops the trees. Each dropped
-    file's bytes must appear in the notices, else the build fails. The texts still ship with the pack."""
+    file's bytes must appear in the notices, else the build fails. The texts still ship with the pack. The notices also
+    list the Rust crates in the wheels."""
     tree = Path(tree)
     trees = sorted(tree.rglob('*.dist-info/licenses'))
     moved, parts = [], []
@@ -81,6 +83,13 @@ def move_licences(tree):
             moved.append(data)
             head = path.relative_to(tree).as_posix()
             parts.append(f"{'=' * 78}\n{head}\n{'=' * 78}\n".encode('utf-8') + data + b'\n\n')
+    # The Rust crates in the wheels' dependency trees (scripts/wheel_crates.py), with their licence texts from crates.io.
+    for (name, version), (licence, wheels) in crates_in_wheels(tree / 'Lib' / 'site-packages').items():
+        texts = [text.strip() for text in crate_licences(name, version)]
+        if not texts:
+            sys.exit(f'{name} {version} (in {", ".join(sorted(wheels))}): its crate ships no licence file')
+        parts.append(f"{'=' * 78}\n{name} {version} (cargo) — {licence or 'NOASSERTION'}\n{'=' * 78}\n".encode('utf-8')
+                     + (crate_note(name, version, wheels) + '\n\n'.join(texts)).encode('utf-8') + b'\n\n')
     extras = [('LLVM OpenMP runtime (libomp.dll in torch/lib), Apache-2.0 WITH LLVM-exception', 'llvm-openmp-LICENSE.txt'),
               ('Intel oneMKL (linked into torch), Intel Simplified Software License', 'intel-simplified-software-license.txt'),
               ('Microsoft Visual C++ Redistributable CRT (app-local DLLs next to python.exe)', 'msvc-crt-NOTE.txt')]

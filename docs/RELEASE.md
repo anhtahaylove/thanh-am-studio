@@ -46,7 +46,8 @@ differs.
   builds and checks the pack and uploads a workflow artifact only. `scripts/setup-runtime.ps1 -Profile separation`
   builds the runtime (the OpenMP shim and its import check, the app-local CRT); `scripts/build_pack.py` compiles
   every `.py` to unchecked-hash bytecode (PEP 552) and asserts the header flag on every `.pyc`, moves every
-  `*.dist-info/licenses` tree verbatim into the pack's `THIRD-PARTY-NOTICES.txt` (a byte check fails the build), checks
+  `*.dist-info/licenses` tree verbatim into the pack's `THIRD-PARTY-NOTICES.txt` (a byte check fails the build) and
+  lists there the Rust crates in the wheels, with their licence texts from crates.io (`scripts/wheel_crates.py`), checks
   the path budget (9 + 40 + 64 + the longest path, 134 today, must be at most 259; the next torch bump may need the
   shorter model id `sep`), runs the pack's own health check, writes `MANIFEST.sha256` (`<sha256>  <size>  <path>`) and
   a reproducible zip plus `separation-runtime-v<N>.pin.json`. The workflow then runs a separation on the pack with

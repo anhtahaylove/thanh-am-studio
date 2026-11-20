@@ -5,13 +5,13 @@ Inventories what the installer ships: Rust crates linked into the app and the na
 into the UI, the private Python runtime packages (with the Rust crates in their wheels) and the FFmpeg build. Run after
 scripts/setup-runtime.ps1 and npm install; the wheels' crates are fetched from crates.io.
 """
-import hashlib, io, json, os, pathlib, re, subprocess, sys, tarfile, urllib.request
+import json, pathlib, re, subprocess, sys
 from email.parser import HeaderParser
+from wheel_crates import LICENSE_FILE, crate_licences, crate_note, crates_in_wheels
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 out = pathlib.Path(sys.argv[1]); out.mkdir(parents=True, exist_ok=True)
 components, notices = [], []
-LICENSE_FILE = re.compile(r'^(LICEN[CS]E|COPYING|NOTICE|AUTHORS)', re.I)
 # Packages that ship no licence file where the walks below look: texts from the package folder, or vendored from the
 # upstream tag or commit of the packaged version (scripts/licenses/). Paths are relative to ROOT.
 NO_LICENSE_FILE = {
@@ -31,13 +31,6 @@ NO_LICENSE_FILE = {
     'tokenizers': ['scripts/licenses/tokenizers-LICENSE.txt'],
     # in tokenizers' dependency tree (via the defmt-macros proc-macro); texts from its repository at the commit in the crate's .cargo_vcs_info.json
     'defmt-parser': ['scripts/licenses/defmt-LICENSE-APACHE.txt', 'scripts/licenses/defmt-LICENSE-MIT.txt'],
-}
-# Licence files, relative to the crate, of the C libraries that crates linked into the Python wheels vendor below their root.
-VENDORED_LICENSES = {
-    'onig_sys': ['oniguruma/AUTHORS', 'oniguruma/COPYING'],  # Oniguruma
-    # AWS-LC 5.7.0, whose LICENSE is the crate's root one (it also gives s2n-bignum's and Jitter Entropy's notices, whose own files
-    # the crate leaves out), and its fiat-crypto part
-    'aws-lc-sys': ['aws-lc/third_party/fiat/LICENSE'],
 }
 no_text = []
 
@@ -120,49 +113,9 @@ for info in sorted(site.glob('*.dist-info')):
     lic = {'sherpa-onnx': 'Apache-2.0'}.get(m['Name'], lic)  # metadata has prose ("Apache licensed, as found in the LICENSE file"), not an SPDX id
     files = [f for f in sorted(info.rglob('*')) if f.is_file() and LICENSE_FILE.match(f.name) and f.suffix not in ('.py', '.pyc')]  # av ships AUTHORS.py and its __pycache__
     add('pypi', m['Name'], m['Version'], lic, f"pkg:pypi/{m['Name'].lower()}@{m['Version']}", files)
-# Rust crates in the dependency trees of those packages' extension modules, from the CycloneDX SBOM maturin puts in each dist-info.
-# Build-only crates are scope "excluded" and path crates are the package's own code (its pypi entry above); crates listed above are skipped.
-CRATE_CACHE = pathlib.Path(os.environ.get('RUNNER_TEMP') or os.environ['LOCALAPPDATA']) / 'thanham-crate-cache'
-
-def crate_licences(name, version):
-    """The crate's root licence files and its VENDORED_LICENSES, from its .crate on crates.io checked against the SHA-256 in the
-    crates.io index, cached outside the repository and read in memory, never extracted."""
-    want = VENDORED_LICENSES.get(name, [])
-    index = {1: '1', 2: '2', 3: f'3/{name[0]}'}.get(len(name), f'{name[:2]}/{name[2:4]}')
-    entries = map(json.loads, urllib.request.urlopen(f'https://index.crates.io/{index}/{name}'.lower(), timeout=60).read().splitlines())
-    cksum = next((e['cksum'] for e in entries if e['vers'] == version), None)
-    if not cksum: sys.exit(f'{name} {version}: the crates.io index has no checksum for this version')
-    cached = CRATE_CACHE / f'{name}-{version}.crate'
-    data = cached.read_bytes() if cached.is_file() else b''
-    if hashlib.sha256(data).hexdigest() != cksum:  # not cached yet, or a damaged copy that the download replaces
-        data = urllib.request.urlopen(f'https://static.crates.io/crates/{name}/{name}-{version}.crate', timeout=300).read()
-        if hashlib.sha256(data).hexdigest() != cksum: sys.exit(f'{name}-{version}.crate from crates.io: not the SHA-256 in the crates.io index')
-        CRATE_CACHE.mkdir(exist_ok=True); cached.with_suffix('.part').write_bytes(data); cached.with_suffix('.part').replace(cached)
-    found, prefix = {}, f'{name}-{version}/'
-    with tarfile.open(fileobj=io.BytesIO(data), mode='r:gz') as tar:
-        for m in tar:
-            if not m.name.startswith(prefix) or '..' in m.name.split('/'): sys.exit(f'{name}-{version}.crate: member {m.name!r} is outside {prefix}')
-            rel = m.name[len(prefix):]
-            if m.isfile() and (rel in want or ('/' not in rel and LICENSE_FILE.match(rel))): found[rel] = tar.extractfile(m).read()
-    if missing := [p for p in want if p not in found]: sys.exit(f'{name} {version} has no {missing}: update VENDORED_LICENSES')
-    try: return [io.TextIOWrapper(io.BytesIO(found[rel]), encoding='utf-8').read() for rel in sorted(set(found) - set(want)) + want]
-    except UnicodeDecodeError as e: sys.exit(f'{name} {version}: a licence file is not UTF-8 text ({e})')
-
-wheel_crates = {}
-for sbom in sorted(site.glob('*.dist-info/sboms/*.json')):
-    for c in json.loads(sbom.read_text(encoding='utf-8')).get('components', []):
-        purl = c.get('purl') or ''
-        if c.get('scope') == 'excluded' or not purl.startswith('pkg:cargo/') or 'download_url=file' in purl: continue
-        # names and versions build URLs and cache paths below; a git or other-registry crate has a qualified purl
-        if purl != f"pkg:cargo/{c['name']}@{c['version']}" or not re.fullmatch(r'[A-Za-z0-9_-]+', c['name']) or not re.fullmatch(r'[A-Za-z0-9.+-]+', c['version']):
-            sys.exit(f'{sbom}: {purl} is not a plain crates.io crate')
-        if (c['name'], c['version']) in crates: continue
-        lic = ' '.join(((c.get('licenses') or [{}])[0].get('expression') or '').split()) or None
-        lic = {'onig_sys': 'MIT AND BSD-2-Clause'}.get(c['name'], lic)  # the SBOM gives the crate's MIT; it bundles Oniguruma (BSD-2-Clause)
-        wheel_crates.setdefault((c['name'], c['version']), (lic, set()))[1].add(sbom.parent.parent.stem.replace('-', ' '))
-for (name, version), (lic, wheels) in sorted(wheel_crates.items()):
-    add('cargo', name, version, lic, f'pkg:cargo/{name}@{version}', crate_licences(name, version),
-        f"In the Rust dependency tree of these Python wheels of the runtime: {', '.join(sorted(wheels))}\nSource: https://crates.io/crates/{name}/{version}\n\n")
+# Rust crates in the dependency trees of those packages' extension modules (scripts/wheel_crates.py), less the crates listed above.
+for (name, version), (lic, wheels) in crates_in_wheels(site, crates).items():
+    add('cargo', name, version, lic, f'pkg:cargo/{name}@{version}', crate_licences(name, version), crate_note(name, version, wheels))
 # esaxx-rs 0.1.10 is listed above from the native worker, which builds it without its "cpp" feature; the tokenizers wheel builds that
 # default feature, which compiles these C++ headers, whose notices are only in their comments.
 if not (site / 'tokenizers-0.23.3.dist-info').is_dir(): sys.exit('tokenizers-0.23.3 is no longer installed: check its esaxx-rs entry below')
