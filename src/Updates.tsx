@@ -75,7 +75,7 @@ export function Modal({children}:{children:ReactNode}){
   };
   el.addEventListener('keydown',wrap);
   return()=>{
-   el.removeEventListener('keydown',wrap);openModals.splice(openModals.indexOf(el),1);sync();
+   el.removeEventListener('keydown',wrap);const i=openModals.indexOf(el);if(i>=0)openModals.splice(i,1);sync();
    if(el.isConnected)return;
    if(opener instanceof HTMLElement&&opener!==document.body&&opener.isConnected)opener.focus();
    else if(!openModals.length){const main=document.querySelector<HTMLElement>('main');if(main){main.tabIndex=-1;main.focus();}}
