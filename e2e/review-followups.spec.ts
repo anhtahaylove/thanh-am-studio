@@ -1,0 +1,31 @@
+import {test,expect} from '@playwright/test';
+// Tauri is mocked like perf-budget.spec.ts: every answer is fresh JSON, as over real IPC.
+const mock=(failSecondLoad:boolean)=>{
+ const w=window as any;w.isTauri=true;w.__loads=0;w.__scrolls=[];
+ const now='2026-11-21T00:00:00Z',take=(id:string)=>({id,asset_id:'a'+id,path:id+'.wav',duration_ms:3000,sample_rate:48000,created_at:now});
+ const segment={id:'s1',text:'Xin chào',normalized_text:'Xin chào',voice_id:'v1',speaker:'Người dẫn',gap_ms:300,takes:[take('t1')],selected_take_id:'t1',trim_start_ms:0,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0,gain_db:0,chapter:null};
+ const transcript=[{id:'r1',start_ms:0,end_ms:1000,text:'Dòng một'},{id:'r2',start_ms:1000,end_ms:2000,text:'Dòng hai'}];
+ const project={id:'p1',name:'Thử',updated_at:now,revision:1,transcript,dictionary:{},source_asset_id:'src',segments:[segment]};
+ const jobs=[{id:'j1',kind:'tts',project_id:'p1',payload:{segment_id:'s1',text:'Xin chào'},status:'succeeded',progress:1,error:null,result:{asset_id:'at2',take_id:'t2'},created_at:now,updated_at:now}];
+ const ipc=(v:unknown)=>JSON.parse(JSON.stringify(v));
+ w.__TAURI_INTERNALS__={convertFileSrc:(p:string)=>p,transformCallback:()=>1,unregisterCallback:()=>{},metadata:{currentWindow:{label:'main'},currentWebview:{label:'main',windowLabel:'main'}},
+  invoke:async(cmd:string)=>{switch(cmd){
+   case 'list_projects':return [{id:'p1',name:project.name,updated_at:now,revision:1}];
+   case 'load_project':w.__loads++;if(failSecondLoad&&w.__loads===2)throw Error('database is locked');return ipc(w.__loads>1?{...project,segments:[{...segment,takes:[take('t1'),take('t2')]}]}:project);
+   case 'get_asset':return {id:'src',path:'goc.wav',name:'goc.wav',duration_ms:2000,sample_rate:48000};
+   case 'list_jobs':return ipc(jobs);case 'list_voices':case 'list_models':return [];case 'get_settings':return {dictionary:{}};
+   case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,native_worker_ready:true,python_path:null,ffmpeg_path:null,native_worker_path:null,fallback_count:0,message:''};
+   default:return null;}}};
+ const scroll=Element.prototype.scrollIntoView;
+ Element.prototype.scrollIntoView=function(this:Element,arg?:boolean|ScrollIntoViewOptions){w.__scrolls.push(typeof arg==='object'?arg.behavior:arg);return scroll.call(this,arg);};
+};
+const open=async(page:import('@playwright/test').Page)=>{await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();};
+const loads=(page:import('@playwright/test').Page)=>page.evaluate(()=>(window as any).__loads as number);
+
+test('a failed reload after a finished TTS job is retried until the new take arrives, then stops',async({page})=>{
+ await page.addInitScript(mock,true);await page.goto('/');await open(page);
+ // Load 1 opens the project, load 2 (after the finished job) fails, load 3 is the retry.
+ await expect.poll(()=>loads(page),{timeout:10000}).toBe(3);
+ await page.waitForTimeout(3500);expect(await loads(page)).toBe(3);
+});
+
