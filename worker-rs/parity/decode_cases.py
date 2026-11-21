@@ -8,7 +8,7 @@ The fixtures follow P0-core's row D (6 containers x 4 rates x mono/stereo, a two
 groups) and add what the decode branches on: a 16 kHz mono s16 WAV (the resampler's passthrough), other sample formats (u8, s24,
 f32, 5.1), no audio stream, files FFmpeg cannot open, a truncated and a damaged file, invalid frames mid-file (an MP3 joined to
 itself, 400 bytes of 0xff in an MP3, 4096 in an M4A, an M4A damaged twice, an M4A with every packet invalid), MP3s joined from parts with another
-rate or channel count, an ADTS header of length 0 (a demuxer error), a missing file and a non-ASCII name.
+rate or channel count, an ADTS header of length 0 (a demuxer error), a missing file, a file another program holds and a non-ASCII name.
 
 With --vad, each decoded case also records faster-whisper's VAD on it (get_speech_timestamps with VadOptions(), as transcribe runs
 it): the Silero probabilities' SHA-256 and the speech chunks, for stt::vad::tests::vad_matches_python.
@@ -21,6 +21,8 @@ usage: python -I decode_cases.py --ffmpeg <ffmpeg.exe> --dir <fixtures dir> --ou
 Every file of an --extra folder is a case too (for instance the clone references of clone_refs.py, which are speech).
 """
 import argparse
+import contextlib
+import ctypes
 import hashlib
 import json
 import random
@@ -47,6 +49,20 @@ RIGHT = '0.35*sin(2*PI*(420+200*sin(2*PI*0.25*t))*t)*(0.5+0.5*sin(2*PI*1.7*t))+0
 # Cases that load_audio decodes past an invalid packet on purpose, so they differ from faster-whisper's decode_audio.
 DAMAGED = {'damaged.m4a', 'joined.mp3', 'damaged-0xff.mp3', 'm4a-0xff-mid.m4a', 'm4a-two-damages.m4a', 'm4a-all-invalid.m4a',
            'joined-rates.mp3', 'joined-channels.mp3', 'mono+stereo.mp3'}
+LOCKED = {'locked.mp3'}  # decoded while a no-share handle holds it; the Rust test holds one too
+
+
+@contextlib.contextmanager
+def locked(path):
+    """Holds path with a no-share handle, as a recorder or scanner that keeps the file open."""
+    kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+    kernel32.CreateFileW.restype = ctypes.c_void_p
+    handle = kernel32.CreateFileW(str(path), 0x80000000, 0, None, 3, 0x80, None)  # GENERIC_READ, no sharing, OPEN_EXISTING
+    assert handle != ctypes.c_void_p(-1).value, ctypes.get_last_error()
+    try:
+        yield
+    finally:
+        kernel32.CloseHandle(ctypes.c_void_p(handle))
 
 
 def mel_sig(features):
@@ -128,6 +144,7 @@ def main():
     (fix / 'joined-rates.mp3').write_bytes(whole + (fix / 'mp3-22050-stereo.mp3').read_bytes())
     (fix / 'joined-channels.mp3').write_bytes(whole + mono)  # fewer channels later: an error
     (fix / 'mono+stereo.mp3').write_bytes(mono + whole)  # more channels later: decoded
+    (fix / 'locked.mp3').write_bytes(whole)  # held by another program: PermissionError (EACCES), WORKER_ERROR
     make('adts-44100-stereo.aac', '-i', fix / 'm4a-44100-stereo.m4a', '-c:a', 'copy')
     adts = bytearray((fix / 'adts-44100-stereo.aac').read_bytes())
     starts, pos = [], 0
@@ -140,29 +157,32 @@ def main():
     adts[at + 5] &= 0x1f
     (fix / 'adts-badlen.aac').write_bytes(adts)  # frame_length 0 mid-file: the demuxer's InvalidDataError ends the input
     files += [fix / n for n in ('truncated.mp3', 'damaged.m4a', 'm4a-0xff-mid.m4a', 'm4a-two-damages.m4a', 'm4a-all-invalid.m4a', 'joined.mp3',
-                                'damaged-0xff.mp3', 'joined-rates.mp3', 'joined-channels.mp3', 'mono+stereo.mp3', 'adts-badlen.aac', 'missing.wav')]
+                                'damaged-0xff.mp3', 'joined-rates.mp3', 'joined-channels.mp3', 'mono+stereo.mp3', 'adts-badlen.aac', 'missing.wav',
+                                'locked.mp3')]
     for extra in a.extra:
         files += sorted(p.resolve() for p in Path(extra).iterdir() if p.is_file() and p.suffix != '.json')
 
     with open(a.out, 'w', encoding='utf-8') as out:
         for path in files:
-            try:
-                pcm = load_audio(path)
-                i16 = np.round(pcm * 32768).astype('<i2')
-                assert np.array_equal(i16.astype(np.float32) / 32768, pcm), f'{path}: load_audio output is not on the s16 grid'
-                expected = {'n': int(len(i16)), 'sha256': hashlib.sha256(i16.tobytes()).hexdigest()}
-            except WorkerError as e:
-                expected = {'code': e.code, 'error': str(e)}
-            except Exception as e:  # the worker reports these as WORKER_ERROR "Type: text"
-                expected = {'code': 'WORKER_ERROR', 'error': f'{type(e).__name__}: {e}'}
-            if path.name not in DAMAGED:
+            with locked(path) if path.name in LOCKED else contextlib.nullcontext():
                 try:
-                    reference = decode_audio(str(path), sampling_rate=16000)
-                    same = 'n' in expected and np.array_equal(reference, pcm)
-                except Exception as e:
-                    same = expected.get('error') == f'{type(e).__name__}: {e}'
-                assert same, f'{path}: load_audio differs from faster-whisper decode_audio'
-            case = {'path': str(path), 'expected': expected}
+                    pcm = load_audio(path)
+                    i16 = np.round(pcm * 32768).astype('<i2')
+                    assert np.array_equal(i16.astype(np.float32) / 32768, pcm), f'{path}: load_audio output is not on the s16 grid'
+                    expected = {'n': int(len(i16)), 'sha256': hashlib.sha256(i16.tobytes()).hexdigest()}
+                except WorkerError as e:
+                    expected = {'code': e.code, 'error': str(e)}
+                except Exception as e:  # the worker reports these as WORKER_ERROR "Type: text"
+                    expected = {'code': 'WORKER_ERROR', 'error': f'{type(e).__name__}: {e}'}
+                if path.name not in DAMAGED:
+                    try:
+                        reference = decode_audio(str(path), sampling_rate=16000)
+                        same = 'n' in expected and np.array_equal(reference, pcm)
+                    except Exception as e:  # a file deleted meanwhile is INPUT_MISSING in the worker
+                        same = expected.get('error') == f'{type(e).__name__}: {e}' or (
+                            isinstance(e, FileNotFoundError) and expected.get('code') == 'INPUT_MISSING')
+                    assert same, f'{path}: load_audio differs from faster-whisper decode_audio'
+            case = {'path': str(path), 'expected': expected, **({'lock': True} if path.name in LOCKED else {})}
             if a.vad and 'n' in expected:
                 probs = get_vad_model()(np.pad(pcm, (0, 512 - pcm.shape[0] % 512)))
                 case['vad'] = {'windows': int(len(probs)), 'probs_sha256': hashlib.sha256(probs.astype('<f4').tobytes()).hexdigest(),

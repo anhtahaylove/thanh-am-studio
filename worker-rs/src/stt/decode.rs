@@ -150,8 +150,8 @@ fn invalid_media(kind: &str, text: impl std::fmt::Display) -> WorkerError {
     WorkerError::new("INVALID_MEDIA", format!("{kind}: {text}"))
 }
 
-/// The worker's error for what `thanham_av_decode_audio` reported: `INVALID_MEDIA` as `load_audio` raises it, but memory and
-/// internal errors stay `WORKER_ERROR`.
+/// The worker's error for what `thanham_av_decode_audio` reported, as `load_audio` raises it: `INVALID_MEDIA` for the input,
+/// `INPUT_MISSING` for a file deleted meanwhile, and `WORKER_ERROR` for memory, the environment and internal errors.
 fn decode_error(err: &AvError) -> WorkerError {
     let place = c_text(&err.place);
     match err.kind {
@@ -163,9 +163,12 @@ fn decode_error(err: &AvError) -> WorkerError {
             } else {
                 format!("[Errno {errno}] {text}{at}")
             };
-            match error_class(err.code) {
-                "MemoryError" => WorkerError::py("MemoryError", message),
-                class => invalid_media(class, message),
+            match err.code {
+                -2 => WorkerError::new("INPUT_MISSING", "Input audio/video is missing."), // deleted since the job started
+                // ENOMEM, a file another program holds (EACCES) or a read error (EIO) are the environment: WORKER_ERROR, rerun on
+                // Python. EPERM stays INVALID_MEDIA: the AAC decoder returns it for damaged data.
+                -12 | -13 | -5 => WorkerError::py(error_class(err.code), message),
+                code => invalid_media(error_class(code), message),
             }
         }
         2 => invalid_media("IndexError", "tuple index out of range"),
@@ -212,6 +215,7 @@ mod tests {
     use super::*;
     use serde_json::Value;
     use sha2::{Digest, Sha256};
+    use std::os::windows::fs::OpenOptionsExt;
 
     /// Row D at E0: every case of `THANHAM_DECODE_CASES` (written by `parity/decode_cases.py` from the worker's `load_audio` on this
     /// machine) decodes to the same samples, or fails with the same code and message. `THANHAM_PYTHON` names the runtime's python.exe.
@@ -230,6 +234,11 @@ mod tests {
         for line in text.lines().filter(|l| !l.trim().is_empty()) {
             let case: Value = serde_json::from_str(line).unwrap();
             let path = case["path"].as_str().unwrap();
+            // "lock": decode_cases.py decoded it while a no-share handle held it, as a recorder or scanner that keeps it open
+            let _lock = case["lock"]
+                .as_bool()
+                .unwrap_or(false)
+                .then(|| std::fs::OpenOptions::new().read(true).share_mode(0).open(path).unwrap());
             let got = match decode_s16(&sp, path) {
                 Ok(s) => {
                     let bytes: Vec<u8> = s.iter().flat_map(|v| v.to_le_bytes()).collect();

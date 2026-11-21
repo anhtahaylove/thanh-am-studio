@@ -653,6 +653,30 @@ class WorkerTests(unittest.TestCase):
             np.testing.assert_array_equal(worker.load_audio(path), decode_audio(str(path), sampling_rate=16000))
             self.assertAlmostEqual(len(worker.load_audio(path)) / worker.STT_RATE, 5, delta=0.5)
 
+    @unittest.skipUnless(os.name == 'nt' and importlib.util.find_spec('faster_whisper') and shutil.which('ffmpeg'), 'faster-whisper and FFmpeg required (the private runtime)')
+    def test_stt_decode_tells_a_missing_or_held_file_from_bad_media(self):
+        import ctypes
+        import av
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / 'tone.mp3'
+            subprocess.run(['ffmpeg', '-nostdin', '-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i',
+                            'sine=frequency=440:sample_rate=44100:duration=2', str(path)], check=True)
+            # Deleted after the job started: INPUT_MISSING, as the check before the model load reports it.
+            with self.assertRaises(worker.WorkerError) as caught:
+                worker.load_audio(Path(td) / 'gone.mp3')
+            self.assertEqual((caught.exception.code, str(caught.exception)), ('INPUT_MISSING', 'Input audio/video is missing.'))
+            # Held by another program with a no-share handle: EACCES is not the media, so it stays WORKER_ERROR (rerun on Python).
+            kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+            kernel32.CreateFileW.restype = ctypes.c_void_p
+            handle = kernel32.CreateFileW(str(path), 0x80000000, 0, None, 3, 0x80, None)  # GENERIC_READ, no sharing, OPEN_EXISTING
+            self.assertNotEqual(handle, ctypes.c_void_p(-1).value)
+            try:
+                with self.assertRaises(av.error.PermissionError) as caught:
+                    worker.load_audio(path)
+                self.assertEqual(caught.exception.errno, 13)
+            finally:
+                kernel32.CloseHandle(ctypes.c_void_p(handle))
+
     @unittest.skipUnless(shutil.which('ffmpeg'), 'FFmpeg required for actual speed test')
     def test_speed_change_keeps_pitch(self):
         import numpy as np

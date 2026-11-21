@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import contextlib
+import errno
 import gc
 import hashlib
 import importlib
@@ -902,7 +903,12 @@ def load_audio(path):
     # FFmpeg errors, no audio stream (IndexError), parts with another rate or fewer channels (the FIFO's ValueError) are about the
     # input: the desktop does not rerun INVALID_MEDIA on Python, which would decode it with the same FFmpeg and fail the same way.
     except (av.error.FFmpegError, IndexError, ValueError) as error:
-        if isinstance(error, MemoryError):  # PyAV's ENOMEM
+        code = getattr(error, 'errno', None)
+        if code == errno.ENOENT:  # deleted since the job started
+            raise WorkerError('INPUT_MISSING', 'Input audio/video is missing.') from error
+        # ENOMEM, a file another program holds (EACCES) or a read error (EIO) are the environment: WORKER_ERROR, rerun on Python.
+        # EPERM stays INVALID_MEDIA: the AAC decoder returns it for damaged data.
+        if isinstance(error, MemoryError) or code in (errno.EACCES, errno.EIO):
             raise
         raise WorkerError('INVALID_MEDIA', f'{type(error).__name__}: {error}') from error
     del resampler
