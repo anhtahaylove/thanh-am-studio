@@ -42,5 +42,6 @@ test('an 800-segment script stays responsive: no long task while polls bring not
  const keys:{id:number;ms:number}[]=await page.evaluate(()=>(window as any).__keys),slowest=new Map<number,number>();
  for(const k of keys)slowest.set(k.id,Math.max(slowest.get(k.id)??0,k.ms));
  const ms=[...slowest.values(),...Array(Math.max(0,10-slowest.size)).fill(16)].sort((a,b)=>a-b); // an unreported keystroke took under 16 ms
+ console.log(`perf: idle long tasks (ms) ${idle.join(', ')||'none'}; keystrokes (ms) ${ms.map(Math.round).join(', ')}`); // the list reporter prints this, so CI shows the margin on a pass
  expect(ms[4],`median keystroke latency; all (ms): ${ms.join(', ')}`).toBeLessThan(KEY_MS);
 });
