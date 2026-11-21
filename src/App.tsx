@@ -2,13 +2,13 @@ import {memo,useCallback,useEffect,useId,useMemo,useRef,useState} from 'react';
 import {version} from '../package.json';
 import {AudioLines,ArrowDown,ArrowUp,BookOpen,Check,ChevronRight,Download,FileAudio,FileText,FolderOpen,Headphones,ListOrdered,LoaderCircle,Merge,Mic2,Moon,Play,Plus,Redo2,RefreshCw,Save,Scissors,Search,Settings2,ShieldCheck,Square,Sun,Timer,Trash2,Undo2,Upload,Volume2,WandSparkles,X} from 'lucide-react';
 import type {LucideIcon} from 'lucide-react';
-import {getCurrentWindow} from '@tauri-apps/api/window';
+import {ProgressBarStatus,getCurrentWindow} from '@tauri-apps/api/window';
 import {getCurrentWebview} from '@tauri-apps/api/webview';
 import {SAVED_EVENT,call,desktop,mediaUrl,openCsv,pickFiles,saveAudio,saveAudioFiles,saveDiagnostics,saveText} from './bridge';
 import {dictionaryToCsv,importSummary,mergeDictionary,parseDictionaryCsv} from './csv';
 import {mergeSpeaker,speakerPayload,speakerStats,speakingTime} from './speakers';
 import type {SpeakerStat} from './speakers';
-import {addTranscriptRow,jsonEqual,jobProgressLabel,exportSubtitles,makeSegment,mergeSegments,scriptChunks,mergeTranscript,normalizeText,parseSubtitles,checkSummary,replaceInTranscript,searchParts,speakerSlots,barState,transcriptToScript,restoreSnapshot,rowAt,splitSegment,splitTranscript,insertAtCursor,takeTrim,seconds,timestamp,ttsTranscript,chapterFileName,chapterGroups,chapterOf,dubPlan,dubSummary,uid,validateRecipe,validRange} from './domain';
+import {addTranscriptRow,jsonEqual,jobProgressLabel,exportSubtitles,makeSegment,mergeSegments,scriptChunks,mergeTranscript,normalizeText,parseSubtitles,checkSummary,replaceInTranscript,searchParts,speakerSlots,taskbarProgress,barState,transcriptToScript,restoreSnapshot,rowAt,splitSegment,splitTranscript,insertAtCursor,takeTrim,seconds,timestamp,ttsTranscript,chapterFileName,chapterGroups,chapterOf,dubPlan,dubSummary,uid,validateRecipe,validRange} from './domain';
 import {EmotionBar} from './EmotionBar';
 import {InstallOnClose,UpdateBanner,UpdateSettings,WhatsNew,feedEntry,useEscape,useUpdates} from './Updates';
 import {CHANGELOG} from './changelog';
@@ -97,6 +97,9 @@ export default function App(){
  // save fails, then confirm stopping running jobs unless that was already asked.
  const readyToLeave=useCallback(async(askJobs=true)=>{(document.activeElement as HTMLElement|null)?.blur();if(dirtyRef.current||savingRef.current){try{await saveProject();}catch(err){if(!window.confirm(`Không lưu được dự án: ${String(err instanceof Error?err.message:err)}\nĐóng và bỏ các chỉnh sửa chưa lưu?`))return false;}}return !(askJobs&&runningRef.current&&!window.confirm(`Đang chạy ${runningRef.current} việc. Đóng app sẽ dừng việc đó; có thể chạy lại trong Hàng đợi.\nVẫn đóng?`));},[saveProject]);
  useEffect(()=>{if(!desktop)return;let off:(()=>void)|undefined,gone=false;void getCurrentWindow().onCloseRequested(async e=>{if(!await readyToLeave()){e.preventDefault();return;}if(updateReadyRef.current){e.preventDefault();setAskInstall(true);}}).then(u=>{if(gone)u();else off=u;});return()=>{gone=true;off?.();};},[readyToLeave]);
+ // Windows taskbar progress while jobs run; keyed on the value so a poll that changes nothing sends nothing. A cosmetic feature: a failure is ignored.
+ const taskbar=JSON.stringify(taskbarProgress(jobs));
+ useEffect(()=>{if(!desktop)return;const t=JSON.parse(taskbar) as ReturnType<typeof taskbarProgress>,status={none:ProgressBarStatus.None,normal:ProgressBarStatus.Normal,indeterminate:ProgressBarStatus.Indeterminate}[t.status];void getCurrentWindow().setProgressBar({status,progress:t.progress}).catch(()=>{});},[taskbar]);
  useEffect(()=>{const handler=(e:BeforeUnloadEvent)=>{if(dirtyRef.current){e.preventDefault();e.returnValue='';}};window.addEventListener('beforeunload',handler);return()=>window.removeEventListener('beforeunload',handler);},[]);
  useEffect(()=>{const signature=jobs.filter(j=>j.project_id===project?.id&&j.kind==='tts'&&j.status==='succeeded').map(j=>j.id).sort().join(',');if(!signature||signature===completedTtsRef.current||dirtyRef.current||savingRef.current||!project?.id)return;const id=project.id;let live=true,retry=0;void call<Project>('load_project',{id}).then(p=>{if(projectRef.current?.id===id&&!dirtyRef.current&&!savingRef.current){completedTtsRef.current=signature;projectRef.current=p;setProject(p);}}).catch(()=>{if(live)retry=window.setTimeout(()=>setReloadTry(n=>n+1),2500);});/* A re-run (every poll while a job runs) replaces the pending retry instead of adding one. */return ()=>{live=false;clearTimeout(retry);};},[jobs,project?.id,dirty,reloadTry]);
  // A cleaned sample plays once its job ends, only if the form still shows that sample.

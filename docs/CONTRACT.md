@@ -47,6 +47,7 @@ ModelInfo: {id,name,engine,kind:'model'|'runtime',installed:boolean,revision:str
 - Transcript times are validated before they reach `save_project`: `start_ms >= 0` and `end_ms > start_ms`; invalid edits are rejected in the UI and STT results are clamped to this range.
 - `stt` jobs are only enqueued when `list_models` reports the chosen whisper model as installed.
 - On desktop window close with unsaved edits the UI flushes `save_project` first (capability `core:window:allow-destroy`); if saving fails the user may choose to close and discard.
+- While jobs run the UI shows Windows taskbar progress with `setProgressBar` (capability `core:window:allow-set-progress-bar`): the average progress of the running jobs, indeterminate while none reports progress yet, cleared when no job is running or queued. Failures to set it are ignored.
 
 ## Job kinds and payloads
 - tts: {segment_id,text,voice_id:string|null,reference_asset_id:string|null}; backend resolves voice/reference and model paths; result adds a new take without replacing existing selection (first take auto-selected only when none, with the segment trim set to its speech edges). Takes are append-only: adding one does not change the project revision, and save_project keeps stored takes the client has not seen (and, when the client has no selection yet, the stored selection with its trim).
