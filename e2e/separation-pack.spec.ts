@@ -52,3 +52,38 @@ test('the licence dialog starts on Cancel, keeps Tab inside, makes the page iner
  await expect(page.locator('.sidebar')).toHaveJSProperty('inert',false);expect(await page.locator('main').evaluate(m=>!!m.closest('[inert]'))).toBe(false);
  expect(await downloads(page)).toEqual([]);
 });
+
+// "Có gì mới" opens over the licence dialog, as an async state change would. Script clicks, because the page behind a dialog is inert.
+const openBoth=async(page:any)=>{
+ await open(page,false);await page.getByRole('button',{name:'Tải gói'}).click();
+ await expect(page.getByRole('dialog',{name:'Tải gói chạy tách nhạc nền'})).toBeVisible();
+ await page.locator('button',{hasText:'Có gì mới'}).evaluate((b:HTMLElement)=>b.click());
+ await expect(page.getByRole('dialog')).toHaveCount(2);
+};
+
+test('dialogs closing in a different order than they opened never leave the page inert',async({page})=>{
+ await openBoth(page);
+ // Only the newest dialog is interactive.
+ await expect(page.locator('.modal-backdrop',{has:page.getByRole('dialog',{name:'Tải gói chạy tách nhạc nền'})})).toHaveJSProperty('inert',true);
+ // The older one closes first.
+ await page.getByRole('dialog',{name:'Tải gói chạy tách nhạc nền'}).getByRole('button',{name:'Hủy'}).evaluate((b:HTMLElement)=>b.click());
+ await expect(page.getByRole('dialog')).toHaveCount(1);
+ await page.getByRole('button',{name:'Đã hiểu'}).click();
+ await expect(page.getByRole('dialog')).toHaveCount(0);await expect(page.locator('[inert]')).toHaveCount(0);
+ await page.getByRole('button',{name:'Tải gói'}).click();await expect(page.getByRole('dialog')).toHaveCount(1);
+});
+
+test('one Escape that closes two dialogs at once leaves the page usable',async({page})=>{
+ await openBoth(page);
+ await page.keyboard.press('Escape');
+ await expect(page.getByRole('dialog')).toHaveCount(0);await expect(page.locator('[inert]')).toHaveCount(0);
+ await page.getByRole('button',{name:'Tải gói'}).click();await expect(page.getByRole('dialog')).toHaveCount(1);
+});
+
+test('when the opener is gone at close time, focus moves to the page content instead of the document body',async({page})=>{
+ await open(page,false);const opener=page.getByRole('button',{name:'Tải gói'});await opener.click();
+ await expect(page.getByRole('dialog')).toHaveCount(1);
+ await opener.evaluate((b:HTMLElement)=>b.remove());
+ await page.keyboard.press('Escape');
+ await expect(page.getByRole('dialog')).toHaveCount(0);await expect(page.locator('main')).toBeFocused();
+});

@@ -54,14 +54,19 @@ export function UpdateBanner({state,onInstall,onShowChanges,onDismiss}:{state:Up
 // closed or covered. The listener stays put across renders: one re-added while an Escape is being dispatched would miss that key.
 export function useEscape(close:()=>void,active=true){const latest=useRef(close);latest.current=close;useEffect(()=>{if(!active)return;const key=(e:KeyboardEvent)=>{if(e.key==='Escape'&&!e.isComposing)latest.current();};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[active]);}
 
+// Open modals, newest last. Which siblings are inert is derived from this list on every change, so dialogs closing in any order, or
+// all at once, can never leave the page inert; only the newest dialog stays interactive.
+const openModals:HTMLElement[]=[];
 // A real modal for the dialog inside it: the rest of the page goes inert, Tab wraps instead of leaving, and focus goes back to what
-// opened it. The opener is read while rendering because autoFocus has moved focus by the time effects run; the focus return waits for
-// the box to be gone, so the extra mount-unmount-mount of React StrictMode does not steal focus from the dialog.
+// opened it (or to <main> when that is gone). The opener is read while rendering because autoFocus has moved focus by the time effects
+// run. Focus return runs in a passive effect cleanup, after React has removed the node, so `isConnected` tells a real close from the
+// extra mount-unmount-mount of StrictMode, which must not steal focus from the dialog.
 export function Modal({children}:{children:ReactNode}){
  const box=useRef<HTMLDivElement>(null),[opener]=useState(()=>document.activeElement);
  useEffect(()=>{
-  const el=box.current!,rest=[...el.parentElement!.children].filter((e):e is HTMLElement=>e!==el&&e instanceof HTMLElement).map(e=>[e,e.inert] as const);
-  for(const [e] of rest)e.inert=true;
+  const el=box.current!,parent=el.parentElement!;
+  const sync=()=>{const top=openModals.at(-1);for(const e of parent.children)if(e instanceof HTMLElement)e.inert=!!top&&e!==top;};
+  openModals.push(el);sync();
   const wrap=(ev:KeyboardEvent)=>{
    const items=[...el.querySelectorAll<HTMLElement>('button,input,select,textarea,a[href],[tabindex]')].filter(e=>!e.hasAttribute('disabled')&&e.tabIndex>=0);
    const first=items[0],last=items.at(-1),now=document.activeElement;
@@ -69,7 +74,12 @@ export function Modal({children}:{children:ReactNode}){
    if(now===(ev.shiftKey?first:last)||!el.contains(now)){ev.preventDefault();(ev.shiftKey?last:first).focus();}
   };
   el.addEventListener('keydown',wrap);
-  return()=>{el.removeEventListener('keydown',wrap);for(const [e,was] of rest)e.inert=was;if(!el.isConnected&&opener instanceof HTMLElement)opener.focus();};
+  return()=>{
+   el.removeEventListener('keydown',wrap);openModals.splice(openModals.indexOf(el),1);sync();
+   if(el.isConnected)return;
+   if(opener instanceof HTMLElement&&opener!==document.body&&opener.isConnected)opener.focus();
+   else if(!openModals.length){const main=document.querySelector<HTMLElement>('main');if(main){main.tabIndex=-1;main.focus();}}
+  };
  },[opener]);
  return <div className="modal-backdrop" ref={box}>{children}</div>;
 }
