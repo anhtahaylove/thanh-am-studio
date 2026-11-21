@@ -111,6 +111,14 @@ describe('transcript rows',()=>{
   expect(checkSummary({model:'whisper-small',heard:'Hãy chủ động nhé',mismatches:[{expected:'',heard:'nhé',soft:false}]})!.label).toBe('Có thể đọc sai: “…” → “nhé”');
   expect(checkSummary({model:'whisper-small',heard:'a b c b c d',mismatches:[{expected:'',heard:'b c',soft:false},{expected:'',heard:'d',soft:false}]})!.label).toMatch(/^Có thể đọc sai/);
  });
+ it('also names a loop that repeats the end two or more times, as the worker aligns it',()=>{
+  // Mismatches as worker/main.py compare_words (difflib) reports them for "Hãy chủ động thay đổi." and "Ta đi thôi." / "Hôm nay trời rất đẹp.".
+  const label=(heard:string,extra:string)=>checkSummary({model:'whisper-small',heard,mismatches:[{expected:'',heard:extra,soft:false}]})!.label;
+  expect(label('Hãy chủ động thay đổi. Chủ động thay đổi. Chủ động thay đổi.','chủ động thay đổi chủ động thay đổi')).toBe('Giọng lặp lại cuối câu: tạo lại take');
+  expect(label('Hãy chủ động thay đổi. Thay đổi. Thay đổi. Thay đổi.','thay đổi thay đổi thay đổi')).toBe('Giọng lặp lại cuối câu: tạo lại take');
+  expect(label('Ta đi thôi thôi thôi.','thôi thôi')).toBe('Giọng lặp lại cuối câu: tạo lại take');
+  expect(label('Hôm nay trời rất rất đẹp.','rất')).toMatch(/^Có thể đọc sai/); // a stutter inside the sentence is not a loop at the end
+ });
  it('a script made from the transcript keeps the time span of the rows it joins',()=>{const r=(text:string,start_ms:number,end_ms:number,speaker:number)=>({id:text,start_ms,end_ms,text,speaker});expect(transcriptToScript([r('Chào.',1000,2000,0),r('Khỏe không?',2100,3500,0),r('Khỏe.',3600,4200,1)])).toEqual([{speaker:'Người 1',text:'Chào. Khỏe không?',cue_start_ms:1000,cue_end_ms:3500},{speaker:'Người 2',text:'Khỏe.',cue_start_ms:3600,cue_end_ms:4200}]);});
  it('split shares a cue by text length and merge spans both cues',()=>{const s={...makeSegment('Một hai ba. Bốn năm sáu bảy tám.'),cue_start_ms:1000,cue_end_ms:4200};const [a,b]=splitSegment(s);expect([a.cue_start_ms,a.cue_end_ms,b.cue_start_ms,b.cue_end_ms]).toEqual([1000,2135,2135,4200]);expect(mergeSegments(a,b)).toMatchObject({cue_start_ms:1000,cue_end_ms:4200});expect(mergeSegments({...a,cue_start_ms:5000,cue_end_ms:6000},b)).toMatchObject({cue_start_ms:2135,cue_end_ms:6000});const [c,d]=splitSegment(makeSegment('Một hai ba. Bốn năm.'));expect([c.cue_start_ms,d.cue_start_ms,mergeSegments(c,d).cue_end_ms]).toEqual([undefined,undefined,undefined]);});
  it('dub plan places takes at their cues, speeds up at most 1.5x and pushes the next take back',()=>{const c=(duration_ms:number,cue_start_ms:number|null,cue_end_ms:number|null)=>({duration_ms,trim_start_ms:0,trim_end_ms:null,gap_ms:300,fade_in_ms:0,fade_out_ms:0,gain_db:0,cue_start_ms,cue_end_ms});
