@@ -127,7 +127,7 @@ const scenarios:Record<string,(page:Page)=>Promise<void>>={
   await go(page,'Tạo giọng đọc');await generateAll(page);
  },
  'models: "Bộ xử lý" set to Python for TTS, STT, export and the cloned-voice preview':async page=>{
-  await go(page,'Model & cài đặt');
+  await go(page,'Model & cài đặt');await page.getByText('Nâng cao: bộ xử lý').click(); // the processor panel is folded away
   for(const label of ['Đọc văn bản','Chép lời','Xuất âm thanh','Nghe thử giọng nhân bản']){const s=page.locator('.engine-rows label').filter({hasText:label}).locator('select');await s.selectOption('python');await expect(s).toHaveValue('python');}
  },
 };

@@ -29,7 +29,7 @@ export async function call<T>(command:string,args:Record<string,unknown>={}):Pro
  case 'delete_project':persist(list.filter(x=>x.id!==args.id));break;
  case 'list_jobs':case 'list_models':result=[];break;
  case 'list_voices':result=[] satisfies Voice[];break;
- case 'runtime_status':result={python_ready:false,ffmpeg_ready:false,worker_ready:false,native_worker_ready:false,python_path:null,ffmpeg_path:null,native_worker_path:null,fallback_count:0,message:'Bản xem trước giao diện trong trình duyệt. Chạy bản desktop để dùng engine và file cục bộ.'};break;
+ case 'runtime_status':result={python_ready:false,ffmpeg_ready:false,worker_ready:false,native_worker_ready:false,python_path:null,ffmpeg_path:null,native_worker_path:null,fallback_count:0,total_memory_mb:null,message:'Bản xem trước giao diện trong trình duyệt. Chạy bản desktop để dùng engine và file cục bộ.'};break;
  // The preview has no update feed; browser tests stage one under this key and read back what install was asked to do.
  case 'update_check':case 'update_download':{const staged=localStorage.getItem('thanh-am-preview-update');if(!staged&&command==='update_download')throw Error('NO_UPDATE');result=staged?JSON.parse(staged):null;break;}
  case 'update_install':localStorage.setItem('thanh-am-preview-installed',JSON.stringify(args));break;
