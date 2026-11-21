@@ -45,6 +45,9 @@ export function checkSummary(check:TakeCheck|undefined):{tone:'ok'|'warn';label:
  if(!check||check.error||!check.mismatches)return null;
  const hard=check.mismatches.filter(m=>!m.soft);const detail=`Whisper nghe: “${check.heard??''}”`;
  if(!hard.length)return {tone:'ok',label:'Khớp kịch bản',detail};
+ // The engine sometimes loops at the end: Whisper then hears the sentence's last words twice, the second time as one extra span at the very end.
+ const last=hard.at(-1)!,extra=wordTokens(last.heard),heard=wordTokens(check.heard??''),n=extra.length;
+ if(!last.expected&&n&&heard.length>=2*n&&[...extra,...extra].every((w,i)=>w===heard[heard.length-2*n+i]))return {tone:'warn',label:'Giọng lặp lại cuối câu: tạo lại take',detail:`${detail} Cuối take, giọng đọc lặp lại “${last.heard}”. Bấm “Tạo take mới” để đọc lại đoạn này.`};
  return {tone:'warn',label:`Có thể đọc sai: ${hard.slice(0,2).map(m=>`“${m.expected||'…'}” → “${m.heard||'…'}”`).join(', ')}${hard.length>2?` +${hard.length-2}`:''}`,detail};
 }
 /** Speaker choices for a row: every speaker in the transcript plus one new one. */
