@@ -57,6 +57,12 @@ Check that this fits your use before you download it.
   the problem. The message names the likely cause for common crash codes (for example a CPU without
   an instruction set the engine needs, or running out of memory). TTS needs about 2.2 GB of RAM on
   top of the app; 8 GB in total is the tested minimum.
+- **Speech-to-text on a CPU without AVX** (Intel CPUs before Sandy Bridge, and many Pentium, Celeron
+  and Atom models). The native engine needs AVX: its Whisper runtime (CTranslate2) stops with an
+  illegal instruction (`0xC000001D`) right after the model starts loading (both upstream reports are
+  open: [jkawamoto/ctranslate2-rs#172](https://github.com/jkawamoto/ctranslate2-rs/issues/172),
+  [OpenNMT/CTranslate2#2166](https://github.com/OpenNMT/CTranslate2/pull/2166)). The app then reruns
+  the job once on the Python engine, which finished it on an emulated pre-AVX CPU.
 
 ## Development
 
@@ -98,6 +104,12 @@ shim; PyAV's GPL x264 and x265 encoder libraries are replaced by the project's s
 decodes), and the unused NVIDIA cuDNN library is left out.
 Updates and silent installs (`/S`) do not show the page again; the same terms apply to what they
 install.
+
+The Vietnamese pronunciation dictionary in `sea_g2p.bin`, which the bundled sea-g2p 0.10.0 package
+(Apache-2.0) ships and text-to-speech reads, has no stated source or licence of its own upstream. An
+issue asking the maintainer is open without an answer
+([pnnbao97/sea-g2p#26](https://github.com/pnnbao97/sea-g2p/issues/26)); until it is answered, the app
+ships the file as the package publishes it.
 
 ## Code signing policy
 

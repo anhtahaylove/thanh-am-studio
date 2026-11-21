@@ -893,13 +893,22 @@ def load_audio(path):
 
     resampler = av.audio.resampler.AudioResampler(format='s16', layout='mono', rate=STT_RATE)
     raw_buffer, dtype = io.BytesIO(), None
-    with av.open(str(path), mode='r', metadata_errors='ignore') as container:
-        for frame in _resample_frames(_group_frames(frames(container.demux(audio=0)), 500000), resampler):
-            array = frame.to_ndarray()
-            dtype = array.dtype
-            raw_buffer.write(array)
+    try:
+        with av.open(str(path), mode='r', metadata_errors='ignore') as container:
+            for frame in _resample_frames(_group_frames(frames(container.demux(audio=0)), 500000), resampler):
+                array = frame.to_ndarray()
+                dtype = array.dtype
+                raw_buffer.write(array)
+    # FFmpeg errors, no audio stream (IndexError), parts with another rate or fewer channels (the FIFO's ValueError) are about the
+    # input: the desktop does not rerun INVALID_MEDIA on Python, which would decode it with the same FFmpeg and fail the same way.
+    except (av.error.FFmpegError, IndexError, ValueError) as error:
+        if isinstance(error, MemoryError):  # PyAV's ENOMEM
+            raise
+        raise WorkerError('INVALID_MEDIA', f'{type(error).__name__}: {error}') from error
     del resampler
     gc.collect()  # as decode_audio: the resampler's objects are otherwise not freed (SYSTRAN/faster-whisper#390)
+    if not raw_buffer.tell():  # e.g. every packet invalid: an empty transcript would pass for a silent recording
+        raise WorkerError('INVALID_MEDIA', 'The file has no decodable audio.')
     return np.frombuffer(raw_buffer.getbuffer(), dtype=dtype).astype(np.float32) / 32768.0
 
 
