@@ -79,8 +79,10 @@ test('the follow-along toggle decides whether the playing row is scrolled to, an
 test('the follow toggle shows its state with more than a text colour',async({page})=>{
  await open(page);const follow=page.getByRole('button',{name:'Theo lời khi phát'});
  const paint=()=>follow.evaluate(b=>({button:getComputedStyle(b).backgroundColor,bar:getComputedStyle(b.closest('.source-player')!).backgroundColor,shadow:getComputedStyle(b).boxShadow}));
- await expect(follow).toHaveAttribute('aria-pressed','true');const on=await paint();expect(on.button).not.toBe(on.bar);expect(on.shadow).not.toBe('none');
- await follow.click();await expect(follow).toHaveAttribute('aria-pressed','false');const off=await paint();expect(off.button).not.toBe(on.button);
+ // The pointer is moved away before every read: :hover paints the button too, and is not the state signal. The inset ring is.
+ const settled=async(pressed:boolean)=>{await page.mouse.move(0,0);await expect(follow).toHaveAttribute('aria-pressed',String(pressed));await expect.poll(async()=>(await paint()).shadow!=='none').toBe(pressed);return paint();};
+ const on=await settled(true);expect(on.button).not.toBe(on.bar);
+ await follow.click();const off=await settled(false);expect(off.shadow).toBe('none');expect(off.button).not.toBe(on.button);
 });
 test('follow-along stays out of the way for 2.5 s after an edit, keeps working while only listening, and catches up when turned back on',async({page})=>{
  await open(page);const audio=page.locator('.source-player audio'),follow=page.getByRole('button',{name:'Theo lời khi phát'});
