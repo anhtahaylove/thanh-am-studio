@@ -29,3 +29,15 @@ test('a failed reload after a finished TTS job is retried until the new take arr
  await page.waitForTimeout(3500);expect(await loads(page)).toBe(3);
 });
 
+test('following the playing transcript row scrolls instantly under reduced motion and smoothly otherwise',async({page})=>{
+ await page.addInitScript(mock,false);await page.goto('/');await open(page);
+ await page.getByRole('button',{name:/Chép lời/}).first().click();
+ const audio=page.locator('.source-player audio');await expect(audio).toBeAttached();
+ // No real playback: report the player as playing at a given time and fire the event the app listens to.
+ const playAt=(s:number)=>audio.evaluate((a:HTMLAudioElement,s)=>{Object.defineProperty(a,'paused',{get:()=>false,configurable:true});Object.defineProperty(a,'currentTime',{get:()=>s,configurable:true});a.dispatchEvent(new Event('timeupdate'));},s);
+ const scrolls=()=>page.evaluate(()=>(window as any).__scrolls as unknown[]);
+ await page.emulateMedia({reducedMotion:'reduce'});await playAt(1.5);
+ await expect(page.locator('.transcript-row[data-row="r2"]')).toHaveAttribute('aria-current','true');await expect.poll(scrolls).toEqual(['auto']);
+ await page.emulateMedia({reducedMotion:'no-preference'});await playAt(0.5);
+ await expect(page.locator('.transcript-row[data-row="r1"]')).toHaveAttribute('aria-current','true');await expect.poll(scrolls).toEqual(['auto','smooth']);
+});
