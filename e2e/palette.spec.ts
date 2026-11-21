@@ -91,3 +91,8 @@ test('? typed with AltGr (Ctrl+Alt on Windows) opens the sheet, while Ctrl+? or 
  await page.keyboard.press('Control+Alt+?');await expect(sheet(page)).toBeVisible();
  await page.keyboard.press('Escape');await expect(sheet(page)).toHaveCount(0);await expect(nav).toBeFocused();
 });
+test('Ctrl+K closes the palette from its close button too, not only from the filter',async({page})=>{
+ await withSegment(page);const text=page.getByRole('textbox',{name:'Nội dung đoạn 1'});await text.focus();
+ await page.keyboard.press('Control+k');await expect(box(page)).toBeFocused();await page.keyboard.press('Shift+Tab');await expect(palette(page).getByRole('button',{name:'Đóng bảng lệnh'})).toBeFocused();
+ await page.keyboard.press('Control+k');await expect(palette(page)).toHaveCount(0);await expect(text).toBeFocused();
+});
