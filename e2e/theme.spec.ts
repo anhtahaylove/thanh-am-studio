@@ -24,3 +24,9 @@ test('the three theme buttons stay inside the narrow rail and work there',async(
  await page.getByRole('button',{name:'Chuyển giao diện tối'}).click();await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
+test('a stored dark choice is on the root before the first frame, even against a light system',async({page})=>{
+ await page.emulateMedia({colorScheme:'light'});
+ await page.addInitScript(()=>{localStorage.setItem('thanh-am-theme','dark');const w=window as unknown as Record<string,unknown>,theme=()=>document.documentElement.dataset.theme??'none';document.addEventListener('DOMContentLoaded',()=>{w.atLoaded=theme();});const frame=()=>{if(document.body?.querySelector('#root > *'))w.atFirstPaint=theme();else requestAnimationFrame(frame);};requestAnimationFrame(frame);});
+ await page.goto('/');await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+ expect(await page.evaluate(()=>{const w=window as unknown as Record<string,unknown>;return [w.atLoaded,w.atFirstPaint];})).toEqual(['dark','dark']);
+});
