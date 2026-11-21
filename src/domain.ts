@@ -174,7 +174,7 @@ export function taskbarProgress(jobs:{status:string;progress:number}[]):{status:
  const running=jobs.filter(j=>j.status==='running');
  if(!running.length&&!jobs.some(j=>j.status==='queued'))return {status:'none'};
  if(!running.some(j=>j.progress>0))return {status:'indeterminate'};
- return {status:'normal',progress:Math.round(100*Math.min(1,running.reduce((n,j)=>n+Math.max(0,j.progress),0)/running.length))};
+ return {status:'normal',progress:Math.round(100*running.reduce((n,j)=>n+Math.min(1,Math.max(0,j.progress)),0)/running.length)};
 }
 // A TTS batch marks all its jobs running but reports progress only for the one being synthesized.
 export const jobProgressLabel=(kind:string,progress:number,startedAt:string,now=Date.now())=>kind==='tts'&&progress<=0?'Chờ trong lô':progressLabel(progress,startedAt,now);

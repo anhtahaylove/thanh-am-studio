@@ -68,6 +68,7 @@ describe('transcript rows',()=>{
   expect(taskbarProgress([])).toEqual({status:'none'});expect(taskbarProgress([j('succeeded',1),j('failed'),j('cancelled')])).toEqual({status:'none'});
   expect(taskbarProgress([j('running',0.5),j('running',0.3),j('succeeded',1)])).toEqual({status:'normal',progress:40});
   expect(taskbarProgress([j('running',1),j('queued')])).toEqual({status:'normal',progress:100});
+  expect(taskbarProgress([j('running',2),j('running',0)])).toEqual({status:'normal',progress:50});expect(taskbarProgress([j('running',0.5),j('running',-1)])).toEqual({status:'normal',progress:25});
   expect(taskbarProgress([j('running')])).toEqual({status:'indeterminate'});expect(taskbarProgress([j('queued'),j('queued')])).toEqual({status:'indeterminate'});
  });
  it('marks batched TTS jobs that have not started as waiting',()=>{const start='2026-11-11T06:00:00Z',t=Date.parse(start);expect(jobProgressLabel('tts',0,start,t)).toBe('Chờ trong lô');expect(jobProgressLabel('tts',0.5,start,t+60000)).toBe('50 % · còn ~1 phút');expect(jobProgressLabel('stt',0,start,t)).toBe('0 %');});
