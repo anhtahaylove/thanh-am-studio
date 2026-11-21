@@ -96,3 +96,11 @@ test('Ctrl+K closes the palette from its close button too, not only from the fil
  await page.keyboard.press('Control+k');await expect(box(page)).toBeFocused();await page.keyboard.press('Shift+Tab');await expect(palette(page).getByRole('button',{name:'Đóng bảng lệnh'})).toBeFocused();
  await page.keyboard.press('Control+k');await expect(palette(page)).toHaveCount(0);await expect(text).toBeFocused();
 });
+test('Ctrl+Alt+K (AltGr+K) neither opens nor closes the palette, and Meta+? does not open the sheet',async({page})=>{
+ await withSegment(page);await page.getByRole('textbox',{name:'Nội dung đoạn 1'}).focus();
+ await page.keyboard.press('Control+Alt+k');await expect(palette(page)).toHaveCount(0);
+ await page.keyboard.press('Control+k');await expect(box(page)).toBeFocused();
+ await page.keyboard.press('Control+Alt+k');await expect(palette(page)).toBeVisible();await page.keyboard.press('Control+k');await expect(palette(page)).toHaveCount(0);
+ await page.getByRole('button',{name:'Thư viện giọng',exact:true}).focus();await page.keyboard.press('Meta+?');await expect(sheet(page)).toHaveCount(0);
+ await page.keyboard.press('Shift+Slash');await expect(sheet(page)).toBeVisible();
+});
