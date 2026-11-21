@@ -1,0 +1,6 @@
+# Pinned like worker-rs: a new stable must not change the shipped app binary or the clippy verdict between a dry run and the tag build.
+# 1.100.0 built v1.0.20 (the release job used stable then), so the shipped compiler does not go backwards.
+[toolchain]
+channel = "1.100.0"
+components = ["clippy"]
+profile = "minimal"

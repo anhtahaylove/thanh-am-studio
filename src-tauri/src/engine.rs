@@ -12,6 +12,8 @@ pub const OPS:&[&str]=&["tts","stt","render","download","clone_preview","separat
 const FALLBACK_EXITS:[u32;6]=[0xC0000135,0xC0000005,0xC000001D,0xC0000409,0xC00000FD,101];
 const FALLBACKS:&str="worker-fallbacks.jsonl";
 const CHANGES:&str="worker-engine-changes.jsonl";
+/// Where `startup_hook` appends a failed start: the data folder, beside the store.
+pub const STARTUP_LOG:&str="startup-errors.log";
 
 #[derive(Clone,Copy,PartialEq,Eq,Debug)]
 pub enum Engine{Python,Rust}
@@ -59,6 +61,6 @@ pub fn fallback_count(root:&Path)->usize{
 /// The text of `export_diagnostics`: settings and both logs, for a bug report.
 pub fn diagnostics(root:&Path,settings:&Value)->String{
  let log=|f:&str|fs::read_to_string(root.join(f)).ok().filter(|t|!t.trim().is_empty()).unwrap_or_else(||"(empty)\n".into());
- format!("Thanh Âm Studio {} diagnostics, {}\ncpu: {}\n\n== settings ==\n{}\n\n== {FALLBACKS} ==\n{}\n== {CHANGES} ==\n{}",
-  env!("CARGO_PKG_VERSION"),chrono::Utc::now().to_rfc3339(),cpu(),serde_json::to_string_pretty(settings).unwrap_or_default(),log(FALLBACKS),log(CHANGES))
+ format!("Thanh Âm Studio {} diagnostics, {}\ncpu: {}\n\n== settings ==\n{}\n\n== {FALLBACKS} ==\n{}\n== {CHANGES} ==\n{}\n== {STARTUP_LOG} ==\n{}",
+  env!("CARGO_PKG_VERSION"),chrono::Utc::now().to_rfc3339(),cpu(),serde_json::to_string_pretty(settings).unwrap_or_default(),log(FALLBACKS),log(CHANGES),log(STARTUP_LOG))
 }

@@ -27,7 +27,7 @@ pub struct AppState {store:Arc<Store>,runtime:Arc<Runtime>}
 #[tauri::command(async)] fn cancel_job(id:String,s:State<AppState>)->Result<Value>{s.store.cancel(&id)}
 #[tauri::command(async)] fn retry_job(id:String,s:State<AppState>)->Result<Value>{s.store.retry(&id)}
 #[tauri::command(async)] fn runtime_status(s:State<AppState>)->Value{let mut v=s.runtime.status();v["fallback_count"]=json!(engine::fallback_count(&s.store.root));v}
-/// One UTF-8 text file with the settings and both worker logs, for a bug report.
+/// One UTF-8 text file with the settings, both worker logs and the startup error log, for a bug report.
 #[tauri::command(async)] fn export_diagnostics(path:String,s:State<AppState>)->Result<()>{let p=Path::new(&path);if !p.is_absolute()||p.extension().and_then(|e|e.to_str()).unwrap_or("").to_lowercase()!="txt"{return Err("UNSUPPORTED_TEXT".into())}std::fs::write(p,engine::diagnostics(&s.store.root,&s.store.settings()?).as_bytes()).map_err(|e|e.to_string())}
 #[tauri::command(async)] fn get_asset(id:String,s:State<AppState>)->Result<Value>{s.store.asset(&id)}
 #[tauri::command] async fn import_asset(path:String,s:State<'_,AppState>)->Result<Value>{let store=s.store.clone();tauri::async_runtime::spawn_blocking(move||store.import_asset(Path::new(&path))).await.map_err(|e|e.to_string())?}
@@ -49,19 +49,38 @@ pub fn model_description(engine:&str)->&'static str{match engine{"tts"=>"TTS ti�
 #[tauri::command(async)] fn list_models(s:State<AppState>)->Vec<Value>{let models_json=s.runtime.worker().parent().unwrap().join("models.json");let registry=std::fs::read_to_string(&models_json).ok().and_then(|v|serde_json::from_str::<Value>(&v).ok()).unwrap_or(Value::Null);let entries=registry["models"].as_array().cloned().unwrap_or_default();runtime::MODELS.iter().map(|(id,name,engine,license)|{let marker=s.store.root.join("models").join(id).join("installed.json");let revision=entries.iter().find(|m|m["id"]==*id).and_then(|m|m["revision"].as_str()).unwrap_or("manifest-pinned");json!({"id":id,"name":name,"engine":engine,"kind":entries.iter().find(|m|m["id"]==*id).and_then(|m|m["kind"].as_str()).unwrap_or("model"),"installed":if *id==pack::PACK_ID{pack::installed(&s.store.root,&models_json)}else{marker.is_file()},"revision":revision,"license":license,"description":model_description(engine)})}).collect()}
 #[tauri::command] fn download_model(id:String,license_accepted:Option<bool>,s:State<AppState>)->Result<Value>{if !runtime::MODELS.iter().any(|m|m.0==id){return Err("INVALID_MODEL".into())}for j in s.store.list_jobs()?{if j["kind"]=="model_download"&&j["payload"]["model_id"]==id&&["queued","running"].contains(&j["status"].as_str().unwrap_or("")){return Ok(j)}}s.store.enqueue("model_download",None,pack::download_payload(&s.store.root,&s.runtime.worker().with_file_name("models.json"),&id,license_accepted==Some(true))?)}
 
+/// For the start only: a panic (Tauri turns a failed setup into one) is appended to `<dir>/startup-errors.log`, and one on the thread
+/// that made the hook is also shown by `notify`, as the windowed build has no console.
+pub fn startup_hook(dir:PathBuf,notify:impl Fn(&str)+Send+Sync+'static)->Box<dyn Fn(&std::panic::PanicHookInfo)+Send+Sync>{let main=std::thread::current().id();Box::new(move|i|{
+ // The user gets the error without Tauri's English wrapper (tauri 2.12 app.rs/error.rs); the log keeps it.
+ use std::io::Write;let log=dir.join(engine::STARTUP_LOG);let err=i.payload_as_str().unwrap_or("panic").trim_start_matches("Failed to setup app: error encountered during setup hook: ").trim_end_matches('.');
+ let line=format!("{} {} {}\n",chrono::Local::now().to_rfc3339(),env!("CARGO_PKG_VERSION"),i.to_string().replace('\n'," "));
+ let saved=std::fs::create_dir_all(&dir).and_then(|_|std::fs::OpenOptions::new().create(true).append(true).open(&log)).and_then(|mut f|f.write_all(line.as_bytes()));
+ if std::thread::current().id()!=main{return}
+ notify(&match saved{Ok(())=>format!("Thanh Âm Studio không khởi động được: {err}.\n\nChi tiết đã ghi vào {}.",log.display()),Err(e)=>format!("Thanh Âm Studio không khởi động được: {err}.\n\nKhông ghi được nhật ký vào {}: {e}.",log.display())});
+})}
+#[cfg(windows)] fn message_box(text:&str){use windows_sys::Win32::UI::WindowsAndMessaging::{MessageBoxW,MB_ICONERROR,MB_OK,MB_SETFOREGROUND};let w=|s:&str|s.encode_utf16().chain([0]).collect::<Vec<u16>>();unsafe{MessageBoxW(std::ptr::null_mut(),w(text).as_ptr(),w("Thanh Âm Studio").as_ptr(),MB_OK|MB_ICONERROR|MB_SETFOREGROUND);}}
+#[cfg(not(windows))] fn message_box(_:&str){}
+
 pub fn run() {
+ let ctx=tauri::generate_context!();
+ // Until RunEvent::Ready; the default hook runs first so a debug build still prints the panic.
+ let (default,hook)=(std::panic::take_hook(),startup_hook(std::env::var_os("LOCALAPPDATA").filter(|v|!v.is_empty()).map_or_else(std::env::temp_dir,PathBuf::from).join(&ctx.config().identifier),message_box));
+ std::panic::set_hook(Box::new(move|i|{default(i);hook(i)}));
  let app=tauri::Builder::default().plugin(tauri_plugin_dialog::init()).plugin(tauri_plugin_updater::Builder::new().build()).manage(update::Updates::default()).setup(|app|{
   let root=app.path().app_local_data_dir()?;
   let resource=app.path().resource_dir()?;
   let source=PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().to_owned();
   let store=Arc::new(Store::open(&root).map_err(std::io::Error::other)?);
   let runtime=Arc::new(Runtime::new(resource,source));
-  app.manage(AppState{store:store.clone(),runtime:runtime.clone()});runtime.start(store);
+  app.manage(AppState{store:store.clone(),runtime:runtime.clone()});
   // Tauri's default WebView2 flags, plus an opt-in localhost DevTools port for the packaged acceptance harness
   // (some WebView2 runtimes ignore WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS).
   let mut args="--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection".to_string();
   if let Some(port)=std::env::var("THANHAM_E2E_CDP_PORT").ok().and_then(|p|p.parse::<u16>().ok()){args+=&format!(" --remote-debugging-port={port}");}
-  tauri::WebviewWindowBuilder::from_config(app.handle(),&app.config().app.windows[0])?.additional_browser_args(&args).build()?;Ok(())
- }).invoke_handler(tauri::generate_handler![list_projects,create_project,load_project,save_project,delete_project,get_settings,save_settings,list_jobs,enqueue_job,cancel_job,retry_job,runtime_status,export_diagnostics,read_text_file,import_asset,get_asset,list_models,download_model,export_text,export_asset,export_asset_new,list_voices,save_voice,reveal_path,update::update_check,update::update_download,update::update_install,update::update_last_install]).build(tauri::generate_context!()).expect("Khởi tạo Thanh Âm Studio");
- app.run(|handle,event|if let tauri::RunEvent::Exit=event {handle.state::<AppState>().runtime.shutdown.store(true,Ordering::Relaxed);std::thread::sleep(std::time::Duration::from_millis(250));});
+  tauri::WebviewWindowBuilder::from_config(app.handle(),&app.config().app.windows[0])?.additional_browser_args(&args).build()?;
+  // Jobs start once the window is up, so none runs unseen behind a failed start's error box.
+  runtime.start(store);Ok(())
+ }).invoke_handler(tauri::generate_handler![list_projects,create_project,load_project,save_project,delete_project,get_settings,save_settings,list_jobs,enqueue_job,cancel_job,retry_job,runtime_status,export_diagnostics,read_text_file,import_asset,get_asset,list_models,download_model,export_text,export_asset,export_asset_new,list_voices,save_voice,reveal_path,update::update_check,update::update_download,update::update_install,update::update_last_install]).build(ctx).expect("Khởi tạo Thanh Âm Studio");
+ app.run(|handle,event|match event{tauri::RunEvent::Ready=>drop(std::panic::take_hook()),tauri::RunEvent::Exit=>{handle.state::<AppState>().runtime.shutdown.store(true,Ordering::Relaxed);std::thread::sleep(std::time::Duration::from_millis(250));},_=>{}});
 }

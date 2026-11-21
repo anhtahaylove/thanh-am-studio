@@ -65,4 +65,6 @@ if ($Gate) {
     }
 }
 Get-ChildItem "$env:LOCALAPPDATA\studio.thanham.desktop\jobs" -Recurse -Filter worker.log | Select-Object -Last 3 | ForEach-Object { Copy-Item $_.FullName (Join-Path $Out "worker-$($_.Directory.Name).log") }
+$startupLog = "$env:LOCALAPPDATA\studio.thanham.desktop\startup-errors.log"  # what a failed start left (src-tauri startup_hook)
+if (Test-Path -LiteralPath $startupLog) { Copy-Item -LiteralPath $startupLog $Out; Log "copied $startupLog" }
 'done' | Set-Content (Join-Path $Out 'DONE')

@@ -27,10 +27,14 @@ tauri-plugin-updater = "2"
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Power", "Win32_System_Threading"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Power", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging"] }
 
 [dev-dependencies]
 tempfile = "3"
+
+[lints.clippy]
+# The dense one-line style writes `{...}if` on purpose, which this lint reads as a missing `else`.
+possible_missing_else = "allow"
 
 # Its own binary is the fake worker (tests/engine.rs), so it brings its own main.
 [[test]]
