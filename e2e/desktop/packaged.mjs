@@ -213,7 +213,7 @@ async function exportSteps() {
   for (const [ext, {label, codec, container}] of Object.entries(formats)) {
     await step(`render and export ${ext} via save dialog`, async () => {
       await nav('Dự án');
-      await page.getByRole('button', {name: 'Mở dự án'}).first().click();
+      await page.getByRole('button', {name: 'Mở dự án', exact: true}).first().click();
       await page.getByRole('textbox', {name: 'Nội dung đoạn 1'}).waitFor();
       await page.getByRole('combobox', {name: 'Định dạng audio'}).selectOption({label});
       const before = await done('render');
@@ -344,7 +344,7 @@ try {
     const mp3 = join(saves, `xuất thử mp3 ${Date.now()}.mp3`);
     await step('render and export mp3 via save dialog', async () => {
       await nav('Dự án');
-      await page.getByRole('button', {name: 'Mở dự án'}).first().click();
+      await page.getByRole('button', {name: 'Mở dự án', exact: true}).first().click();
       await page.getByRole('textbox', {name: 'Nội dung đoạn 1'}).waitFor();
       await page.getByRole('combobox', {name: 'Định dạng audio'}).selectOption('mp3');
       const before = await done('render');
@@ -514,7 +514,7 @@ try {
     const views = [['1080p-150', 1280, 680, 1.5], ['min-125', 1024, 720, 1.25], ['4k-200', 1920, 1040, 2], ['768p-125', 1093, 574, 1.25]];
     const pages = ['Tạo giọng đọc', 'Chép lời', 'Thư viện giọng', 'Hàng đợi', 'Dự án', 'Model & cài đặt'];
     await nav('Dự án');
-    await page.getByRole('button', {name: 'Mở dự án'}).first().click();
+    await page.getByRole('button', {name: 'Mở dự án', exact: true}).first().click();
     await page.getByRole('textbox', {name: 'Nội dung đoạn 1'}).waitFor();
     for (const [name, width, height, deviceScaleFactor] of views) {
       await step(`layout at ${name} (${width}x${height} css px, x${deviceScaleFactor})`, async () => {
@@ -603,7 +603,7 @@ try {
     });
     await step('pause mark, speed and self-check reach a new take', async () => {
       await nav('Dự án');
-      await page.getByRole('button', {name: 'Mở dự án'}).first().click();
+      await page.getByRole('button', {name: 'Mở dự án', exact: true}).first().click();
       const box = page.getByRole('textbox', {name: 'Nội dung đoạn 1'});
       await box.waitFor();
       await box.click(); await page.keyboard.press('Control+End');
@@ -1235,14 +1235,14 @@ try {
   }
   if (phase === 'export') {
     await nav('Dự án');
-    await page.getByRole('button', {name: 'Mở dự án'}).first().click();
+    await page.getByRole('button', {name: 'Mở dự án', exact: true}).first().click();
     await page.getByRole('textbox', {name: 'Nội dung đoạn 1'}).waitFor();
     await exportSteps();
   }
   if (phase === 'reopen' || phase === 'offline') {
     await step('project persisted after restart', async () => {
       await nav('Dự án');
-      await page.getByRole('button', {name: 'Mở dự án'}).first().click();
+      await page.getByRole('button', {name: 'Mở dự án', exact: true}).first().click();
       await page.getByRole('textbox', {name: 'Nội dung đoạn 1'}).waitFor();
       await page.getByText('2 take').first().waitFor({timeout: 10000});
       return await page.getByRole('textbox', {name: 'Nội dung đoạn 1'}).inputValue();
