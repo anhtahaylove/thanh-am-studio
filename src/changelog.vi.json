@@ -1,4 +1,13 @@
 [
+ {"version": "1.0.21", "date": "2026-11-21", "changes": [
+  "Giao diện dễ đọc hơn: chữ nhỏ nhất 11 px, độ tương phản đạt chuẩn WCAG AA, thanh Xuất audio luôn nằm trong màn hình, và có nút chọn giao diện Theo hệ thống, Sáng hoặc Tối.",
+  "Thao tác nhanh bằng bàn phím: Ctrl+K mở bảng lệnh, phím ? mở bảng phím tắt. Xóa hoặc gộp đoạn không còn hỏi xác nhận mà hiện thông báo kèm nút Hoàn tác (Ctrl+Z).",
+  "Bản chép lời: tìm kiếm không phân biệt dấu, có đếm và tô sáng chỗ khớp; dòng có dấu hiệu Whisper nghe nhầm được gắn nhãn và lọc riêng; xuất TXT ghi người nói theo lượt (\"Người 1: …\") và nhập lại được.",
+  "Khung chi tiết đoạn tô những chữ đã đổi khi chuẩn hóa, báo đoạn lồng tiếng dài hơn mốc phụ đề và gợi ý tạo lại take khi giọng lặp lại cuối câu.",
+  "Kịch bản dài vẫn gõ mượt, thanh tác vụ Windows hiện tiến độ khi đang chạy việc, hộp thoại giữ focus bên trong và đóng bằng Esc.",
+  "Chép lời đọc tiếp qua các đoạn âm thanh hỏng thay vì dừng; tệp không giải mã được thì báo lỗi rõ ràng bằng tiếng Việt và không chạy lại vô ích.",
+  "Sửa lỗi: báo rõ khi app khởi động thất bại hoặc phần nền liên tục lỗi; xóa dự án dọn luôn các việc đã xong; tệp CSV từ điển mở đúng trong Excel."
+ ]},
  {"version": "1.0.20", "date": "2026-11-19", "changes": [
   "Chép lời (kể cả khi tách người nói) giờ chạy bằng bộ xử lý gốc viết bằng Rust: văn bản, mốc thời gian và người nói giống hệt từng bit như trước. Nếu bộ xử lý gốc gặp lỗi, app tự chạy lại bằng Python; mục Bộ xử lý trong Model & cài đặt cho chọn \"Luôn dùng Python\" cho Chép lời.",
   "Khi một thư viện đi kèm bị hỏng hoặc không đúng loại, bộ xử lý gốc không còn treo sau hộp thoại lỗi của Windows mà báo lỗi rồi chuyển sang Python."
