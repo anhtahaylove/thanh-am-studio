@@ -11,15 +11,15 @@ test('Ctrl+Z in a dialog or a side field undoes that text only, and still undoes
  for(let i=0;i<3;i++)await page.keyboard.press('Control+z');await expect(word).toBeFocused();await expect(first).toHaveValue('Một hai');
  await first.focus();await page.keyboard.press('Control+z');await expect(first).not.toHaveValue('Một hai');
 });
-test('a time field keeps what is typed as a draft: 10000 over 9100 is 10000 ms, not 91000000',async({page})=>{
+test('a time field keeps what is typed as a draft: 0:10,000 over 0:09,100 is 10000 ms, not 91000000',async({page})=>{
  await seed(page,{id:'p1',name:'Mốc giờ',updated_at:new Date().toISOString(),revision:1,segments:[],transcript:[{id:'r1',start_ms:4300,end_ms:9100,text:'Một câu'}],dictionary:{},source_asset_id:null});
  await page.getByRole('button',{name:'Chép lời',exact:true}).click();
- const end=page.getByLabel('Đến (ms)');await end.click();await end.press('Control+a');await page.keyboard.type('1');
- await expect(end).toHaveAttribute('aria-invalid','true');await expect(end).toHaveAccessibleDescription('Phải lớn hơn “Từ”.');await expect(end).toHaveAccessibleName('Đến (ms)');await expect(page.getByRole('alert')).toHaveCount(0);
- await page.keyboard.type('0000');await expect(end).not.toHaveAttribute('aria-invalid');await end.press('Enter');await expect(end).toHaveValue('10000');
+ await page.locator('.tr-time').click();const end=page.getByLabel('Kết thúc');await end.press('Control+a');await page.keyboard.type('0:1');
+ await expect(end).toHaveAttribute('aria-invalid','true');await expect(end).toHaveAccessibleDescription('Bắt đầu phải nhỏ hơn kết thúc.');await expect(end).toHaveAccessibleName('Kết thúc');await expect(page.getByRole('alert')).toHaveCount(0);
+ await page.keyboard.type('0,000');await expect(end).not.toHaveAttribute('aria-invalid');await end.press('Enter');await expect(page.locator('.tr-time')).toHaveText('0:04,300 – 0:10,000');
  await expect.poll(()=>page.evaluate(k=>JSON.parse(localStorage.getItem(k)!)[0].transcript[0].end_ms,KEY)).toBe(10000);
- await page.keyboard.type('5');await expect(end).toHaveValue('100005');await end.press('Escape');await expect(end).toHaveValue('10000');
- await end.press('Control+a');await page.keyboard.type('-');await end.blur();await expect(end).toHaveAttribute('aria-invalid','true');await expect(page.getByText('Nhập một số.')).toBeVisible();
+ await page.locator('.tr-time').click();await end.press('Control+a');await page.keyboard.type('0:11,000');await expect(end).toHaveValue('0:11,000');await end.press('Escape');await expect(page.locator('.tr-time')).toHaveText('0:04,300 – 0:10,000');
+ await page.locator('.tr-time').click();await end.press('Control+a');await page.keyboard.type('-');await end.blur();await expect(end).toHaveAttribute('aria-invalid','true');await expect(page.getByText('Nhập dạng phút:giây, ví dụ 0:09,200')).toBeVisible();
 });
 test('Ctrl+S in a number field saves what is typed there',async({page})=>{
  await page.goto('/');await page.getByRole('button',{name:'Viết đoạn đầu tiên'}).click();await expect(page.getByRole('button',{name:'Đã lưu'})).toBeVisible();

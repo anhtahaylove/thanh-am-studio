@@ -48,9 +48,9 @@ test('speaker panel, split, merge and undo/redo edit the script',async({page})=>
 });
 test('transcript rows can be added and deleted and invalid times are rejected',async({page})=>{
  await page.goto('/');await page.getByRole('button',{name:'Chép lời',exact:true}).click();await page.getByRole('button',{name:'Thêm dòng'}).click();await page.getByRole('button',{name:'Thêm dòng'}).click();
- const ends=page.getByLabel('Đến (ms)');await expect(ends).toHaveCount(2);await expect(ends.nth(0)).toHaveValue('1000');await expect(ends.nth(1)).toHaveValue('2000');
- await ends.nth(0).fill('0');await ends.nth(0).press('Enter');await expect(ends.nth(0)).toHaveAttribute('aria-invalid','true');await expect(page.getByText('Phải lớn hơn “Từ”.')).toBeVisible();await expect(page.getByRole('alert')).toHaveCount(0);await ends.nth(0).press('Escape');await expect(ends.nth(0)).toHaveValue('1000');await expect(ends.nth(0)).not.toHaveAttribute('aria-invalid');
- await page.getByRole('button',{name:'Xóa dòng'}).first().click();await expect(ends).toHaveCount(1);
+ const times=page.locator('.tr-time');await expect(times).toHaveCount(2);await expect(times.nth(0)).toHaveText('0:00,000 – 0:01,000');await expect(times.nth(1)).toHaveText('0:01,000 – 0:02,000');
+ await times.nth(0).click();const end=page.getByLabel('Kết thúc');await end.fill('0:00,000');await end.press('Enter');await expect(end).toHaveAttribute('aria-invalid','true');await expect(page.getByText('Bắt đầu phải nhỏ hơn kết thúc.')).toBeVisible();await expect(page.getByRole('alert')).toHaveCount(0);await end.press('Escape');await expect(times.nth(0)).toHaveText('0:00,000 – 0:01,000');await expect(times.nth(0)).toBeFocused();
+ await page.getByRole('button',{name:'Xóa dòng'}).first().click();await expect(times).toHaveCount(1);
 });
 test('transcript find and replace changes every match in one undo step',async({page})=>{
  await page.goto('/');await page.getByRole('button',{name:'Chép lời',exact:true}).click();await page.getByRole('button',{name:'Thêm dòng'}).click();await page.getByRole('button',{name:'Thêm dòng'}).click();

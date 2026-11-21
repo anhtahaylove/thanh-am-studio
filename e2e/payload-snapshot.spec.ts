@@ -89,7 +89,7 @@ const scenarios:Record<string,(page:Page)=>Promise<void>>={
  },
  'edit (d): a transcript end time edited, "Thành kịch bản", generate, then export by subtitle cues':async page=>{
   // Rows 1 and 2 share a speaker, so they become one line whose cue ends where row 2 now ends.
-  await go(page,'Chép lời');const end=page.getByRole('spinbutton',{name:'Đến (ms)'}).nth(1);await end.fill('5000');await end.press('Enter');await expect(end).toHaveValue('5000');
+  await go(page,'Chép lời');await page.locator('.tr-time').nth(1).click();const end=page.getByRole('textbox',{name:'Kết thúc'});await end.fill('0:05,000');await end.press('Enter');await expect(page.locator('.tr-time').nth(1)).toContainText('– 0:05,000');
   await page.getByRole('button',{name:'Thành kịch bản'}).click();await expect(page.getByRole('textbox',{name:'Nội dung đoạn 9'})).toBeVisible();
   for(const n of [8,9]){await row(page,n).getByRole('button',{name:'Tạo giọng'}).click();await expect(row(page,n).getByRole('button',{name:'Tạo take mới'})).toBeVisible();}
   await check(page,'Theo mốc phụ đề');await exported(page);

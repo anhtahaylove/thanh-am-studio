@@ -1,11 +1,13 @@
 import {test,expect} from '@playwright/test';
+// Time editor: open a row's "start – end" button, type "Kết thúc" and leave the pair with Tab, which commits both.
+const setEnd=async(page:import('@playwright/test').Page,i:number,value:string)=>{await page.locator('.transcript-row .tr-time').nth(i).click();const end=page.getByLabel('Kết thúc');await end.fill(value);await end.press('Tab');};
 test('transcript rows that look like Whisper mistakes get a warning chip, a count and a filter, and nothing is changed',async({page})=>{
  await page.goto('/');await page.getByRole('button',{name:'Chép lời',exact:true}).click();for(let i=0;i<4;i++)await page.getByRole('button',{name:'Thêm dòng'}).click();
  const texts=page.getByLabel(/^Lời nói tại/),chips=page.locator('.suspect-chip'),toggle=page.getByRole('button',{name:/dòng đáng ngờ/});
  await texts.nth(0).fill('Cảm ơn các bạn đã xem.');await texts.nth(1).fill('  cảm ơn các bạn đã xem ');await texts.nth(2).fill('Một câu bình thường.');await texts.nth(3).fill('Ừ');
  await expect(toggle).toHaveText('1 dòng đáng ngờ');await expect(chips).toContainText(['Lặp dòng trước']);await expect(chips.first()).toHaveAttribute('title',/giống hệt dòng ngay trước/);
  // Row 4 runs 3000 to 4000 ms; stretching it to 8000 (5 s) with one letter of text is the typical silence hallucination.
- const end=page.getByLabel('Đến (ms)').nth(3);await end.fill('8000');await end.press('Tab');
+ await setEnd(page,3,'0:08,000');
  await expect(toggle).toHaveText('2 dòng đáng ngờ');await expect(chips).toContainText(['Lặp dòng trước','Gần như im lặng']);
  await toggle.click();await expect(toggle).toHaveAttribute('aria-pressed','true');await expect(texts).toHaveCount(2);await expect(texts.nth(0)).toHaveValue('  cảm ơn các bạn đã xem ');await expect(texts.nth(1)).toHaveValue('Ừ');
  await toggle.click();await expect(toggle).toHaveAttribute('aria-pressed','false');await expect(texts).toHaveCount(4);
@@ -17,7 +19,7 @@ test('transcript rows that look like Whisper mistakes get a warning chip, a coun
 const flagged=async(page:import('@playwright/test').Page)=>{
  await page.goto('/');await page.getByRole('button',{name:'Chép lời',exact:true}).click();for(let i=0;i<4;i++)await page.getByRole('button',{name:'Thêm dòng'}).click();
  const texts=page.getByLabel(/^Lời nói tại/);await texts.nth(0).fill('Cảm ơn các bạn đã xem.');await texts.nth(1).fill('cảm ơn các bạn đã xem');await texts.nth(2).fill('Một câu bình thường.');await texts.nth(3).fill('Ừ');
- const end=page.getByLabel('Đến (ms)').nth(3);await end.fill('8000');await end.press('Tab');
+ await setEnd(page,3,'0:08,000');
  return {texts,chips:page.locator('.suspect-chip'),toggle:page.getByRole('button',{name:/dòng đáng ngờ/})};
 };
 test('with the filter on, fixing a flagged row keeps it on screen and focused while its chip goes away',async({page})=>{
@@ -32,7 +34,7 @@ test('with the filter on, fixing a flagged row keeps it on screen and focused wh
 test('the filter does not come back by itself when a new row is flagged later',async({page})=>{
  const {texts,toggle}=await flagged(page);await toggle.click();await expect(texts).toHaveCount(2);
  await texts.nth(0).fill('Tạm biệt.');await texts.nth(1).fill('Một câu đủ dài để không bị nghi ngờ nữa.');await expect(toggle).toHaveCount(0);await expect(texts).toHaveCount(4);
- await texts.nth(2).fill('Ừ');const end=page.getByLabel('Đến (ms)').nth(2);await end.fill('9000');await end.press('Tab');
+ await texts.nth(2).fill('Ừ');await setEnd(page,2,'0:09,000');
  await expect(toggle).toHaveText('1 dòng đáng ngờ');await expect(toggle).toHaveAttribute('aria-pressed','false');await expect(texts).toHaveCount(4);
 });
 test('deleting every flagged row while the filter is on returns to the full list',async({page})=>{

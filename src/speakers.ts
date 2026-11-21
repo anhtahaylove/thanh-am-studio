@@ -14,3 +14,12 @@ export function speakerPayload(on:boolean,choice:string):{num_speakers?:number|n
  const [min,max]=choice.split('-').map(Number);
  return !on||!min?{num_speakers:null}:max?{min_speakers:min,max_speakers:max}:{num_speakers:min};
 }
+/** Colour slot 0-7 of a diarized speaker; the palette is `--spk-N` and `--spk-N-soft`. */
+export const speakerColor=(n:number)=>n%8;
+/** Slot per speaker name: "Người N" keeps N-1, any other name takes the lowest free slot in order of first appearance (a ninth wraps). */
+export function speakerColors(names:string[]):Map<string,number>{
+ const out=new Map<string,number>(),used=new Set<number>();
+ for(const name of names){const m=/^Người ([1-9]\d*)$/.exec(name);if(m&&!out.has(name)){const c=speakerColor(Number(m[1])-1);out.set(name,c);used.add(c);}}
+ for(const name of names)if(!out.has(name)){const c=[0,1,2,3,4,5,6,7].find(i=>!used.has(i))??out.size%8;out.set(name,c);used.add(c);}
+ return out;
+}
