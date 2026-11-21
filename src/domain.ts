@@ -79,6 +79,21 @@ export function insertAtCursor(text:string,start:number,end:number,tag:string):{
 export function normalizeText(text:string,dictionary:Record<string,string>,options:{codeSwitch?:boolean}={}):string {
  return text.normalize('NFC').split(new RegExp(`(${PAUSE_MARK.source}|${CUE_MARK.source})`,'iu')).map((part,i)=>i%2?part:normalizeSpoken(part,dictionary,options.codeSwitch)).join('');
 }
+/** normalizeText's output cut into parts that join back to it byte for byte, for display: a word no longer in the input (by a longest
+ * common subsequence of whitespace-separated words) is `changed`, and `rule` names the dictionary entries whose reading it holds. */
+export function normalizedParts(text:string,dictionary:Record<string,string>,options:{codeSwitch?:boolean}={}):{text:string;changed:boolean;rule?:string}[]{
+ const out=normalizeText(text,dictionary,options),src=text.normalize('NFC').split(/\s+/).filter(Boolean),tokens=out.split(/(\s+)/),at=tokens.flatMap((t,i)=>i%2||!t?[]:[i]),n=src.length,m=at.length,changed=new Set(at);
+ if(n*m<=4e6){ // shortcut: a very long segment is shown without highlights
+  const L=new Int32Array((n+1)*(m+1)),ix=(i:number,j:number)=>i*(m+1)+j;
+  for(let i=n-1;i>=0;i--)for(let j=m-1;j>=0;j--)L[ix(i,j)]=src[i]===tokens[at[j]]?L[ix(i+1,j+1)]+1:Math.max(L[ix(i+1,j)],L[ix(i,j+1)]);
+  for(let i=0,j=0;i<n&&j<m;)if(src[i]===tokens[at[j]]){changed.delete(at[j]);i++;j++;}else if(L[ix(i+1,j)]>=L[ix(i,j+1)])i++;else j++;
+ }else changed.clear();
+ const re=dictionaryRegex.get(dictionary),used=[...new Set(re?text.normalize('NFC').match(re):[])].filter(k=>dictionary[k]),parts:{text:string;changed:boolean;rule?:string}[]=[];
+ // Spaces between two changed words belong to the same highlight.
+ tokens.forEach((t,i)=>{if(!t)return;const c=i%2?changed.has(i-1)&&changed.has(i+1):changed.has(i),last=parts.at(-1);if(last?.changed===c)last.text+=t;else parts.push({text:t,changed:c});});
+ for(const p of parts){const keys=p.changed?used.filter(k=>p.text.includes(dictionary[k])):[];if(keys.length)p.rule=keys.map(k=>`“${k}” → “${dictionary[k]}”`).join(', ');}
+ return parts;
+}
 const CURRENCY:Record<string,string>={'₿':'bitcoin','₹':'rupi','₽':'rúp','¢':'xu'};
 // Code-switching idea ported from nguyenan97/VieNeu-TTS commit c836e480 (src/vieneu_utils/codeswitch.py, Apache-2.0): pinned sea-g2p reads <en>…</en> with its English engine.
 // Its ALL-CAPS rule is left out: it needs sea-g2p's English word list, and without it UBND/THPT would be read as English.
