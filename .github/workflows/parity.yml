@@ -20,12 +20,12 @@ jobs:
         # cargo reads .cargo/config.toml (dynamic CRT) from the working directory.
         working-directory: worker-rs
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.12'
       - run: rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy # worker-rs/rust-toolchain.toml
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: worker-rs
       - run: cargo build --release --locked
@@ -35,7 +35,7 @@ jobs:
         run: |
           $s = Get-Content ../scripts/setup-runtime.ps1 -Raw
           foreach ($k in 'FfmpegTag', 'FfmpegAsset', 'FfmpegSha256') { "$k=$([regex]::Match($s, "$k = '([^']+)'").Groups[1].Value)" >> $env:GITHUB_OUTPUT }
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         id: ffmpeg-cache
         with:
           path: ${{ runner.temp }}/ffmpeg-parity
@@ -56,7 +56,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: python -I parity/r_compare.py --exe target/release/thanham-worker.exe
       # Models come through the Rust downloader itself, so a download regression also fails here; turbo (1.6 GB) is left to the gate.
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ runner.temp }}/parity-models
           key: parity-models-${{ hashFiles('worker/models.json') }}
@@ -77,10 +77,10 @@ jobs:
     env:
       PY: ${{ github.workspace }}/runtime/python/python.exe
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Runner CPU (the engines' numbers can follow the CPU vendor and ISA)
         run: Get-CimInstance Win32_Processor | Format-List Manufacturer, Name, NumberOfCores, NumberOfLogicalProcessors
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
         with:
           enable-cache: true
           cache-dependency-glob: worker/requirements-*.lock
@@ -90,14 +90,14 @@ jobs:
           $s = Get-Content scripts/setup-runtime.ps1 -Raw
           "path=$([IO.Path]::GetTempPath())$([regex]::Match($s, "FfmpegAsset = '([^']+)'").Groups[1].Value).zip" >> $env:GITHUB_OUTPUT
           "key=ffmpeg-$([regex]::Match($s, "FfmpegSha256 = '([^']+)'").Groups[1].Value)" >> $env:GITHUB_OUTPUT
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ steps.ffmpeg.outputs.path }}
           key: ${{ steps.ffmpeg.outputs.key }}
       - name: Build private runtime (Python + FFmpeg)
         run: ./scripts/setup-runtime.ps1
       - run: rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy # worker-rs/rust-toolchain.toml
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: worker-rs
       # The staged folder is the installer's worker/ folder: the exe, the runtime's onnxruntime.dll, the VC143 DLLs and the registry.
@@ -109,7 +109,7 @@ jobs:
           Pop-Location
           ./scripts/stage-worker.ps1
           Copy-Item worker/models.json worker-rs/stage/
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ runner.temp }}/parity-models-vieneu
           key: parity-models-vieneu-${{ hashFiles('worker/models.json') }}
@@ -173,7 +173,7 @@ jobs:
           Push-Location worker-rs
           cargo test -p ortffi --locked
           Pop-Location
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ failure() }}
         with:
           name: tts-parity
@@ -200,11 +200,11 @@ jobs:
     env:
       PY: ${{ github.workspace }}/runtime/python/python.exe
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Runner CPU (the engines' numbers can follow the CPU vendor and ISA)
         run: Get-CimInstance Win32_Processor | Format-List Manufacturer, Name, NumberOfCores, NumberOfLogicalProcessors
       - run: '"THANHAM_CT2_ENGINE=$env:RUNNER_TEMP\ct2-engine" >> $env:GITHUB_ENV'
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
         with:
           enable-cache: true
           cache-dependency-glob: worker/requirements-*.lock
@@ -214,14 +214,14 @@ jobs:
           $s = Get-Content scripts/setup-runtime.ps1 -Raw
           "path=$([IO.Path]::GetTempPath())$([regex]::Match($s, "FfmpegAsset = '([^']+)'").Groups[1].Value).zip" >> $env:GITHUB_OUTPUT
           "key=ffmpeg-$([regex]::Match($s, "FfmpegSha256 = '([^']+)'").Groups[1].Value)" >> $env:GITHUB_OUTPUT
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ steps.ffmpeg.outputs.path }}
           key: ${{ steps.ffmpeg.outputs.key }}
       - name: Build private runtime (Python + FFmpeg)
         run: ./scripts/setup-runtime.ps1
       # Restored and saved explicitly, so a failure in a later step does not throw the 40-minute build away.
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         id: engine
         with:
           path: ${{ env.THANHAM_CT2_ENGINE }}
@@ -229,13 +229,13 @@ jobs:
       - name: Build the STT engine (cache miss)
         if: steps.engine.outputs.cache-hit != 'true'
         run: ./worker-rs/engine/build-engine.ps1 -Out $env:THANHAM_CT2_ENGINE -Work "$env:RUNNER_TEMP/e"
-      - uses: actions/cache/save@v4
+      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         if: steps.engine.outputs.cache-hit != 'true'
         with:
           path: ${{ env.THANHAM_CT2_ENGINE }}
           key: ${{ steps.engine.outputs.cache-primary-key }}
       - run: rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy # worker-rs/rust-toolchain.toml
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: worker-rs
           key: ct2
@@ -254,7 +254,7 @@ jobs:
           Copy-Item runtime/python/Lib/site-packages/ctranslate2/libiomp5md.dll, runtime/python/Lib/site-packages/ctranslate2/libomp.dll worker-rs/stage/
       - name: Link and backend checks (S1 F-a)
         run: ./worker-rs/engine/check-link.ps1 -Exe worker-rs/stage/thanham-worker.exe -Engine $env:THANHAM_CT2_ENGINE
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ runner.temp }}/parity-models-whisper
           key: parity-models-whisper-${{ hashFiles('worker/models.json') }}

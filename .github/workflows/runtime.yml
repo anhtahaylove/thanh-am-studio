@@ -16,8 +16,8 @@ jobs:
     # A deadlocked OpenMP semantics test or worker test must not hold the runner for the 6 h default.
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
         with:
           enable-cache: true
           cache-dependency-glob: worker/requirements-*.lock
@@ -29,7 +29,7 @@ jobs:
           $s = Get-Content scripts/setup-runtime.ps1 -Raw
           "path=$([IO.Path]::GetTempPath())$([regex]::Match($s, "FfmpegAsset = '([^']+)'").Groups[1].Value).zip" >> $env:GITHUB_OUTPUT
           "key=ffmpeg-$([regex]::Match($s, "FfmpegSha256 = '([^']+)'").Groups[1].Value)" >> $env:GITHUB_OUTPUT
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ steps.ffmpeg.outputs.path }}
           key: ${{ steps.ffmpeg.outputs.key }}
