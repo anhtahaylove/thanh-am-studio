@@ -54,7 +54,8 @@ impl Env{
  fn stt(&self)->(Value,Result<(),String>){
   let wav=self.dir.path().join("in.wav");fs::write(&wav,b"RIFF0000WAVE").unwrap();let a=self.store.import_asset(&wav).unwrap();
   let j=self.store.enqueue("stt",None,json!({"asset_id":a["id"],"model_id":"whisper-small","language":"vi","diarize":true})).unwrap();
-  let job=self.store.claim_next().unwrap().unwrap();let r=self.rt.execute(&self.store,&[job]);(self.store.job(j["id"].as_str().unwrap()).unwrap(),r)}
+  let job=self.store.claim_next().unwrap().unwrap();let r=self.rt.execute(&self.store,&[job]);let id=j["id"].as_str().unwrap();if let Err(e)=&r{self.store.fail(id,e).unwrap()} // as the queue loop
+  (self.store.job(id).unwrap(),r)}
 }
 fn ok(v:Value)->Value{json!({"do":"result","result":v})}
 fn took(job:&Value)->String{fs::read_to_string(job["result"]["path"].as_str().unwrap()).unwrap()}
@@ -136,6 +137,16 @@ fn a_model_check_failure_keeps_the_transcript_without_speakers(){
   assert_eq!((job["status"].as_str(),job["result"]["engine"].as_str(),job["result"]["fallback"].as_bool(),job["result"]["diarize_error"].as_str()),(Some("succeeded"),Some("rust"),Some(false),Some("Chưa có model.")),"{code}");
   assert_eq!(job["result"]["transcript"].as_array().unwrap().len(),1);assert!(e.log().is_empty()&&e.calls("python").is_empty());
  }
+}
+fn an_undecodable_transcription_input_is_final_while_a_worker_error_reruns_on_python(){
+ let seg=json!([{"start":0.0,"end":1.0,"text":"xin chào"}]);
+ let e=setup(json!([{"do":"error","code":"INVALID_MEDIA","message":"The file has no decodable audio."},{"do":"exit","code":1}]),json!([ok(json!({"segments":seg}))]));
+ let (job,r)=e.stt();r.unwrap_err();
+ assert_eq!(job["status"],"failed");assert!(job["error"].as_str().unwrap().starts_with("INVALID_MEDIA"));assert!(e.log().is_empty()&&e.calls("python").is_empty());
+ let e=setup(json!([{"do":"error","code":"WORKER_ERROR","message":"RuntimeError: engine"},{"do":"exit","code":1}]),json!([ok(json!({"segments":seg}))]));
+ let (job,r)=e.stt();r.unwrap();
+ assert_eq!((job["status"].as_str(),job["result"]["engine"].as_str(),job["result"]["fallback"].as_bool()),(Some("succeeded"),Some("python"),Some(true)));
+ let log=e.log();assert_eq!((log.len(),log[0]["code"].as_str(),log[0]["operation"].as_str()),(1,Some("WORKER_ERROR"),Some("stt")));
 }
 fn the_user_can_pin_an_operation_to_python_and_the_change_is_logged(){
  let e=setup(json!([ok(json!({"done":"rust"}))]),json!([ok(json!({"done":"python"}))]));
@@ -235,6 +246,7 @@ fn main(){
   ("an_invalid_text_item_does_not_rerun",an_invalid_text_item_does_not_rerun),
   ("a_failed_diarization_process_reruns_the_whole_transcription_on_python",a_failed_diarization_process_reruns_the_whole_transcription_on_python),
   ("a_model_check_failure_keeps_the_transcript_without_speakers",a_model_check_failure_keeps_the_transcript_without_speakers),
+  ("an_undecodable_transcription_input_is_final_while_a_worker_error_reruns_on_python",an_undecodable_transcription_input_is_final_while_a_worker_error_reruns_on_python),
   ("the_user_can_pin_an_operation_to_python_and_the_change_is_logged",the_user_can_pin_an_operation_to_python_and_the_change_is_logged),
   ("the_separation_runtime_download_stays_on_python",the_separation_runtime_download_stays_on_python),
   ("a_separation_with_a_missing_pack_file_fails_at_job_start_without_running_python",a_separation_with_a_missing_pack_file_fails_at_job_start_without_running_python),

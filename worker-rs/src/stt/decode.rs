@@ -145,7 +145,13 @@ fn error_class(code: c_int) -> &'static str {
     }
 }
 
-/// The worker's message for what `thanham_av_decode_audio` reported: Python's `{type}: {str(exception)}`.
+/// `load_audio`'s error about the input: `INVALID_MEDIA` with Python's `{type}: {str(exception)}`.
+fn invalid_media(kind: &str, text: impl std::fmt::Display) -> WorkerError {
+    WorkerError::new("INVALID_MEDIA", format!("{kind}: {text}"))
+}
+
+/// The worker's error for what `thanham_av_decode_audio` reported, as `load_audio` raises it: `INVALID_MEDIA` for the input,
+/// `INPUT_MISSING` for a file deleted meanwhile, and `WORKER_ERROR` for memory, the environment and internal errors.
 fn decode_error(err: &AvError) -> WorkerError {
     let place = c_text(&err.place);
     match err.kind {
@@ -157,11 +163,18 @@ fn decode_error(err: &AvError) -> WorkerError {
             } else {
                 format!("[Errno {errno}] {text}{at}")
             };
-            WorkerError::py(error_class(err.code), message)
+            match err.code {
+                -2 => WorkerError::new("INPUT_MISSING", "Input audio/video is missing."), // deleted since the job started
+                // ENOMEM and a file another program holds (EACCES; Windows reports read errors so too) are the environment:
+                // WORKER_ERROR, rerun on Python. EPERM and EIO stay INVALID_MEDIA: the AAC decoder returns EPERM for damaged data,
+                // and EIO comes from the Matroska demuxer short-reading a file cut in its header.
+                -12 | -13 => WorkerError::py(error_class(err.code), message),
+                code => invalid_media(error_class(code), message),
+            }
         }
-        2 => WorkerError::py("IndexError", "tuple index out of range"),
-        3 => WorkerError::py("ValueError", "Frame does not match AudioFifo parameters."),
-        4 => WorkerError::py("ValueError", "Frame does not match AudioResampler setup."),
+        2 => invalid_media("IndexError", "tuple index out of range"),
+        3 => invalid_media("ValueError", "Frame does not match AudioFifo parameters."),
+        4 => invalid_media("ValueError", "Frame does not match AudioResampler setup."),
         5 => WorkerError::py("MemoryError", ""),
         _ => WorkerError::py("RuntimeError", place),
     }
@@ -170,7 +183,7 @@ fn decode_error(err: &AvError) -> WorkerError {
 /// The decoded 16 kHz mono signed 16-bit samples.
 fn decode_s16(site_packages: &Path, path: &str) -> Result<Vec<i16>> {
     load(site_packages)?;
-    let c_path = CString::new(path).map_err(|_| WorkerError::py("ValueError", "embedded null byte"))?;
+    let c_path = CString::new(path).map_err(|_| invalid_media("ValueError", "embedded null byte"))?;
     let (mut out, mut len) = (std::ptr::null_mut(), 0i64);
     let mut err = AvError { kind: 0, code: 0, place: [0; 256], strerror: [0; 64] };
     // SAFETY: the library is bound (load), the path is NUL-terminated and the out-pointers are valid for writes.
@@ -186,6 +199,10 @@ fn decode_s16(site_packages: &Path, path: &str) -> Result<Vec<i16>> {
         unsafe { thanham_av_free(out) };
         copy
     };
+    if samples.is_empty() {
+        // e.g. every packet invalid: an empty transcript would pass for a silent recording
+        return Err(WorkerError::new("INVALID_MEDIA", "The file has no decodable audio."));
+    }
     Ok(samples)
 }
 
@@ -199,9 +216,10 @@ mod tests {
     use super::*;
     use serde_json::Value;
     use sha2::{Digest, Sha256};
+    use std::os::windows::fs::OpenOptionsExt;
 
     /// Row D at E0: every case of `THANHAM_DECODE_CASES` (written by `parity/decode_cases.py` from the worker's `load_audio` on this
-    /// machine) decodes to the same samples, or fails with the same exception. `THANHAM_PYTHON` names the runtime's python.exe.
+    /// machine) decodes to the same samples, or fails with the same code and message. `THANHAM_PYTHON` names the runtime's python.exe.
     #[test]
     fn decode_matches_pyav() {
         let Some(cases) = std::env::var_os("THANHAM_DECODE_CASES") else {
@@ -217,12 +235,17 @@ mod tests {
         for line in text.lines().filter(|l| !l.trim().is_empty()) {
             let case: Value = serde_json::from_str(line).unwrap();
             let path = case["path"].as_str().unwrap();
+            // "lock": decode_cases.py decoded it while a no-share handle held it, as a recorder or scanner that keeps it open
+            let _lock = case["lock"]
+                .as_bool()
+                .unwrap_or(false)
+                .then(|| std::fs::OpenOptions::new().read(true).share_mode(0).open(path).unwrap());
             let got = match decode_s16(&sp, path) {
                 Ok(s) => {
                     let bytes: Vec<u8> = s.iter().flat_map(|v| v.to_le_bytes()).collect();
                     serde_json::json!({"n": s.len(), "sha256": Sha256::digest(&bytes).iter().map(|b| format!("{b:02x}")).collect::<String>()})
                 }
-                Err(e) => serde_json::json!({"error": e.message}),
+                Err(e) => serde_json::json!({"code": e.code, "error": e.message}),
             };
             let want = &case["expected"];
             if &got == want {

@@ -617,13 +617,24 @@ class WorkerTests(unittest.TestCase):
             self.assertAlmostEqual(seconds(data[:mid] + b'\xff' * 400 + data[mid + 400:]), 10, delta=0.2)
             # A part with more channels is decoded (the FIFO takes the first ones, as before).
             self.assertAlmostEqual(seconds(data + tone('stereo.mp3', channels=2)), 20, delta=0.2)
-            # A part with another rate or fewer channels is an error, not a transcript cut short or a crash.
-            for joined in (data + tone('22k.mp3', rate=22050), tone('stereo.mp3', channels=2) + data):
-                with self.assertRaisesRegex(ValueError, 'Frame does not match AudioFifo parameters'):
+            # A part with another rate or fewer channels is an error about the input, not a transcript cut short or a crash. So is a
+            # file FFmpeg cannot read: INVALID_MEDIA, which the desktop does not rerun on Python.
+            for joined, error in ((data + tone('22k.mp3', rate=22050), 'ValueError: Frame does not match AudioFifo parameters.'),
+                                  (tone('stereo.mp3', channels=2) + data, 'ValueError: Frame does not match AudioFifo parameters.'),
+                                  (b'not audio\n' * 100, 'InvalidDataError: [Errno 1094995529] Invalid data found when processing input')):
+                with self.assertRaises(worker.WorkerError) as caught:
                     seconds(joined)
+                self.assertEqual(caught.exception.code, 'INVALID_MEDIA')
+                self.assertTrue(str(caught.exception).startswith(error), caught.exception)
             # 4096 bytes of 0xff in AAC: the decoder's ADTS parse codes are UndefinedErrors in PyAV, skipped too (5.1 s before).
             m4a = tone('tone.m4a', codec=('-c:a', 'aac', '-b:a', '128k'))
             self.assertGreater(seconds(m4a[:len(m4a) // 2] + b'\xff' * 4096 + m4a[len(m4a) // 2 + 4096:], '.m4a'), 9)
+            # Every packet invalid (the packet table in moov kept): an input error, not an empty transcript reported as success.
+            at = m4a.index(b'mdat')
+            end = at - 4 + int.from_bytes(m4a[at - 4:at], 'big')
+            with self.assertRaises(worker.WorkerError) as caught:
+                seconds(m4a[:at + 4] + b'\xff' * (end - at - 4) + m4a[end:], '.m4a')
+            self.assertEqual((caught.exception.code, str(caught.exception)), ('INVALID_MEDIA', 'The file has no decodable audio.'))
             # Two damaged regions: the first is skipped, then the AAC decoder returns EPERM on the second. That ends the input
             # there instead of failing the job, so it is no worse than decode_audio, which stopped at the first (2.6 s).
             a, b = len(m4a) // 4, len(m4a) * 65 // 100
@@ -641,6 +652,39 @@ class WorkerTests(unittest.TestCase):
             path.write_bytes(adts)
             np.testing.assert_array_equal(worker.load_audio(path), decode_audio(str(path), sampling_rate=16000))
             self.assertAlmostEqual(len(worker.load_audio(path)) / worker.STT_RATE, 5, delta=0.5)
+
+    @unittest.skipUnless(os.name == 'nt' and importlib.util.find_spec('faster_whisper') and shutil.which('ffmpeg'), 'faster-whisper and FFmpeg required (the private runtime)')
+    def test_stt_decode_tells_a_missing_or_held_file_from_bad_media(self):
+        import ctypes
+        import av
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / 'tone.mp3'
+            subprocess.run(['ffmpeg', '-nostdin', '-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i',
+                            'sine=frequency=440:sample_rate=44100:duration=2', str(path)], check=True)
+            # Deleted after the job started: INPUT_MISSING, as the check before the model load reports it.
+            with self.assertRaises(worker.WorkerError) as caught:
+                worker.load_audio(Path(td) / 'gone.mp3')
+            self.assertEqual((caught.exception.code, str(caught.exception)), ('INPUT_MISSING', 'Input audio/video is missing.'))
+            # A Matroska file cut in its header: the demuxer's short read is EIO, about the file (INVALID_MEDIA), not a read error.
+            mkv = Path(td) / 'tone.mkv'
+            subprocess.run(['ffmpeg', '-nostdin', '-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i',
+                            'sine=frequency=440:sample_rate=44100:duration=2', '-c:a', 'libvorbis', str(mkv)], check=True)
+            mkv.write_bytes(mkv.read_bytes()[:1000])
+            with self.assertRaises(worker.WorkerError) as caught:
+                worker.load_audio(mkv)
+            self.assertEqual(caught.exception.code, 'INVALID_MEDIA')
+            self.assertTrue(str(caught.exception).startswith('OSError: [Errno 5] I/O error'), caught.exception)
+            # Held by another program with a no-share handle: EACCES is not the media, so it stays WORKER_ERROR (rerun on Python).
+            kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+            kernel32.CreateFileW.restype = ctypes.c_void_p
+            handle = kernel32.CreateFileW(str(path), 0x80000000, 0, None, 3, 0x80, None)  # GENERIC_READ, no sharing, OPEN_EXISTING
+            self.assertNotEqual(handle, ctypes.c_void_p(-1).value)
+            try:
+                with self.assertRaises(av.error.PermissionError) as caught:
+                    worker.load_audio(path)
+                self.assertEqual(caught.exception.errno, 13)
+            finally:
+                kernel32.CloseHandle(ctypes.c_void_p(handle))
 
     @unittest.skipUnless(shutil.which('ffmpeg'), 'FFmpeg required for actual speed test')
     def test_speed_change_keeps_pitch(self):
