@@ -10,7 +10,8 @@ export function parseSubtitles(input:string):TranscriptSegment[]{
  if(!rows.length)throw Error('Không tìm thấy đoạn phụ đề hợp lệ');return rows;
 }
 export function exportSubtitles(rows:TranscriptSegment[],format:'srt'|'vtt'|'txt'):string {
- if(format==='txt')return rows.map(r=>r.text).join('\n\n');
+ // Consecutive rows of one speaker become one paragraph "Người N: lời", the form the script import reads back; a row without a speaker stays as it is.
+ if(format==='txt'){const out:{speaker?:number;text:string}[]=[];for(const r of rows){if(r.speaker===undefined){out.push({text:r.text});continue;}const text=r.text.trim().replace(/\s+/g,' '),last=out.at(-1);if(!text)continue;if(last?.speaker===r.speaker)last.text+=' '+text;else out.push({speaker:r.speaker,text});}return out.map(p=>p.speaker===undefined?p.text:`Người ${p.speaker+1}: ${p.text}`).join('\n\n');}
  for(const r of rows)if(!Number.isFinite(r.start_ms)||!Number.isFinite(r.end_ms)||r.start_ms<0||r.end_ms<=r.start_ms)throw Error('Khoảng thời gian phải tăng');
  return (format==='vtt'?'WEBVTT\n\n':'')+rows.map((r,i)=>`${format==='srt'?`${i+1}\n`:''}${timestamp(r.start_ms,format==='vtt'?'.':',')} --> ${timestamp(r.end_ms,format==='vtt'?'.':',')}\n${r.text}`).join('\n\n')+'\n';
 }
@@ -45,6 +46,9 @@ export function checkSummary(check:TakeCheck|undefined):{tone:'ok'|'warn';label:
  if(!check||check.error||!check.mismatches)return null;
  const hard=check.mismatches.filter(m=>!m.soft);const detail=`Whisper nghe: “${check.heard??''}”`;
  if(!hard.length)return {tone:'ok',label:'Khớp kịch bản',detail};
+ // The engine sometimes loops at the end: Whisper then hears the sentence's last words twice, the second time as one extra span at the very end.
+ const last=hard.at(-1)!,extra=wordTokens(last.heard),heard=wordTokens(check.heard??''),n=extra.length;
+ if(!last.expected&&n&&heard.length>=2*n&&[...extra,...extra].every((w,i)=>w===heard[heard.length-2*n+i]))return {tone:'warn',label:'Giọng lặp lại cuối câu: tạo lại take',detail:`${detail} Cuối take, giọng đọc lặp lại “${last.heard}”. Bấm “Tạo take mới” để đọc lại đoạn này.`};
  return {tone:'warn',label:`Có thể đọc sai: ${hard.slice(0,2).map(m=>`“${m.expected||'…'}” → “${m.heard||'…'}”`).join(', ')}${hard.length>2?` +${hard.length-2}`:''}`,detail};
 }
 /** Speaker choices for a row: every speaker in the transcript plus one new one. */
@@ -78,6 +82,21 @@ export function insertAtCursor(text:string,start:number,end:number,tag:string):{
 /** Dictionary and number rules apply to spoken text only; pause marks and cues pass through untouched. `codeSwitch` wraps English-only words in <en>…</en>. */
 export function normalizeText(text:string,dictionary:Record<string,string>,options:{codeSwitch?:boolean}={}):string {
  return text.normalize('NFC').split(new RegExp(`(${PAUSE_MARK.source}|${CUE_MARK.source})`,'iu')).map((part,i)=>i%2?part:normalizeSpoken(part,dictionary,options.codeSwitch)).join('');
+}
+/** normalizeText's output cut into parts that join back to it byte for byte, for display: a word no longer in the input (by a longest
+ * common subsequence of whitespace-separated words) is `changed`, and `rule` names the dictionary entries whose reading it holds. */
+export function normalizedParts(text:string,dictionary:Record<string,string>,options:{codeSwitch?:boolean}={}):{text:string;changed:boolean;rule?:string}[]{
+ const out=normalizeText(text,dictionary,options),src=text.normalize('NFC').split(/\s+/).filter(Boolean),tokens=out.split(/(\s+)/),at=tokens.flatMap((t,i)=>i%2||!t?[]:[i]),n=src.length,m=at.length,changed=new Set(at);
+ if(n*m<=4e6){ // shortcut: a very long segment is shown without highlights
+  const L=new Int32Array((n+1)*(m+1)),ix=(i:number,j:number)=>i*(m+1)+j;
+  for(let i=n-1;i>=0;i--)for(let j=m-1;j>=0;j--)L[ix(i,j)]=src[i]===tokens[at[j]]?L[ix(i+1,j+1)]+1:Math.max(L[ix(i+1,j)],L[ix(i,j+1)]);
+  for(let i=0,j=0;i<n&&j<m;)if(src[i]===tokens[at[j]]){changed.delete(at[j]);i++;j++;}else if(L[ix(i+1,j)]>=L[ix(i,j+1)])i++;else j++;
+ }else changed.clear();
+ const re=dictionaryRegex.get(dictionary),used=[...new Set(re?text.normalize('NFC').match(re):[])].filter(k=>dictionary[k]),parts:{text:string;changed:boolean;rule?:string}[]=[];
+ // Spaces between two changed words belong to the same highlight.
+ tokens.forEach((t,i)=>{if(!t)return;const c=i%2?changed.has(i-1)&&changed.has(i+1):changed.has(i),last=parts.at(-1);if(last?.changed===c)last.text+=t;else parts.push({text:t,changed:c});});
+ for(const p of parts){const keys=p.changed?used.filter(k=>p.text.includes(dictionary[k])):[];if(keys.length)p.rule=keys.map(k=>`“${k}” → “${dictionary[k]}”`).join(', ');}
+ return parts;
 }
 const CURRENCY:Record<string,string>={'₿':'bitcoin','₹':'rupi','₽':'rúp','¢':'xu'};
 // Code-switching idea ported from nguyenan97/VieNeu-TTS commit c836e480 (src/vieneu_utils/codeswitch.py, Apache-2.0): pinned sea-g2p reads <en>…</en> with its English engine.
@@ -114,11 +133,12 @@ export function splitText(input:string,max=500):string[]{const out:string[]=[];f
 /** Trim for a take: its speech edges as the worker found them; the whole take when it has none (older takes) or when the segment's fades (`fade_ms`, in + out) would not fit inside them. */
 export function takeTrim(take?:Take,fade_ms=0){const start=take?.speech_start_ms??0,end=take?.speech_end_ms??null;return take&&(end??take.duration_ms)-start>=fade_ms?{trim_start_ms:start,trim_end_ms:end}:{trim_start_ms:0,trim_end_ms:null};}
 export function makeSegment(text=''):Segment{return {id:uid(),text,normalized_text:text,voice_id:null,speaker:'Người dẫn',gap_ms:300,takes:[],selected_take_id:null,trim_start_ms:0,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0,gain_db:0};}
-// A line "Tên: lời" or "[Tên]: lời" names its speaker. The name is at most 30 characters with no digits or URL (so "8:30" and "http://…" are not labels).
+// A line "Tên: lời" or "[Tên]: lời" names its speaker. The name is at most 30 characters with no digits or URL (so "8:30" and "http://…" are not labels),
+// except the app's own "Người 2", which a TXT export of a transcript with speakers writes.
 const LABEL=/^\s*(?:\[([^\][:\n]+)\]|([^:[\]\n]+?))\s*[:：](?!\/\/)\s*(.*)$/u;
 // A line starting with [P1] (any case, spaces allowed inside) starts a chapter; the rest of the line is ordinary script text.
 const CHAPTER=/^\s*\[\s*P(\d+)\s*\](.*)$/i;
-const labelOf=(line:string)=>{const m=line.match(LABEL),name=(m?.[1]??m?.[2])?.trim();return m&&name&&name.length<=30&&!/\d|www\.|@/i.test(name)?{name,rest:m[3]}:null;};
+const labelOf=(line:string)=>{const m=line.match(LABEL),name=(m?.[1]??m?.[2])?.trim();return m&&name&&name.length<=30&&(!/\d|www\.|@/i.test(name)||/^Người \d{1,3}$/u.test(name))?{name,rest:m[3]}:null;};
 /** Script chunks of pasted text. With at least two labelled lines each label starts a block (continuing until the next label) spoken by that name; otherwise one speaker reads everything, so a lone "Lưu ý:" stays text. */
 export function scriptChunks(text:string):{speaker:string;text:string;chapter?:string}[]{
  const lines=text.split(/\r?\n/).filter(l=>!SCENE_BREAK.test(l)).map(raw=>{
@@ -212,21 +232,28 @@ const wrapCue=(cue:string)=>{if(cue.length<=LINE_CHARS)return cue;let best=-1;fo
 // cue follows the previous take after that take's gap.
 const MAX_FIT_RATE=1.5,DUB_GAP_MS=50;
 interface DubCue {cue_start_ms?:number|null;cue_end_ms?:number|null}
-/** Where each take starts on the timeline, its speed-up and where it ends; counts of sped-up and pushed takes; the total length (at least the last cue's end). */
-export function dubPlan(clips:(Recipe&DubCue)[]):{places:{at_ms:number;rate:number;end_ms:number}[];sped_up:number;pushed:number;max_push_ms:number;length_ms:number}{
+/** Where each take starts on the timeline, its speed-up, where it ends and how far it still runs past its cue at 1.5x (`over_ms`); counts of sped-up and pushed takes; the total length (at least the last cue's end). */
+export function dubPlan(clips:(Recipe&DubCue)[]):{places:{at_ms:number;rate:number;end_ms:number;over_ms:number}[];sped_up:number;pushed:number;max_push_ms:number;length_ms:number}{
  let cursor=0,gap=0,sped_up=0,pushed=0,max_push_ms=0;
- const places=clips.map((c,i)=>{const audio=clipDuration(c)-c.gap_ms;let at=cursor+(i?gap:0),rate=1;
-  if(c.cue_start_ms!=null&&c.cue_end_ms!=null){const slot=c.cue_end_ms-c.cue_start_ms;if(audio>slot)rate=slot>0?Math.min(MAX_FIT_RATE,audio/slot):MAX_FIT_RATE;at=Math.max(c.cue_start_ms,i?cursor+DUB_GAP_MS:0);
+ const places=clips.map((c,i)=>{const audio=clipDuration(c)-c.gap_ms;let at=cursor+(i?gap:0),rate=1,over=0;
+  if(c.cue_start_ms!=null&&c.cue_end_ms!=null){const slot=c.cue_end_ms-c.cue_start_ms;if(audio>slot)rate=slot>0?Math.min(MAX_FIT_RATE,audio/slot):MAX_FIT_RATE;at=Math.max(c.cue_start_ms,i?cursor+DUB_GAP_MS:0);over=Math.max(0,Math.round(audio/rate-slot));
    if(rate>1)sped_up++;if(at-c.cue_start_ms>5){pushed++;max_push_ms=Math.max(max_push_ms,at-c.cue_start_ms);}}
-  cursor=at+audio/rate;gap=c.gap_ms;return {at_ms:Math.round(at),rate,end_ms:Math.round(cursor)};});
+  cursor=at+audio/rate;gap=c.gap_ms;return {at_ms:Math.round(at),rate,end_ms:Math.round(cursor),over_ms:over};});
  return {places,sped_up,pushed,max_push_ms:Math.round(max_push_ms),length_ms:Math.round(Math.max(cursor,...clips.map(c=>c.cue_end_ms??0)))};
 }
+/** The segments with their selected take's length, or null while one has no selected take. */
+function dubClips(segments:Segment[]):(Segment&{duration_ms:number})[]|null{const clips=segments.map(s=>{const t=s.takes.find(t=>t.id===s.selected_take_id);return t&&{...s,duration_ms:t.duration_ms};});return clips.length&&clips.every(c=>!!c)?clips as (Segment&{duration_ms:number})[]:null;}
 /** One line on how the takes fit their cues, for the export bar; empty when a segment has no selected take yet. It runs while rendering, so a trim or fade being typed in must not throw. */
 export function dubSummary(segments:Segment[]):string{
- const clips=segments.map(s=>{const t=s.takes.find(t=>t.id===s.selected_take_id);return t&&{...s,duration_ms:t.duration_ms};});if(!clips.length||clips.some(c=>!c))return '';
- let r:ReturnType<typeof dubPlan>;try{r=dubPlan(clips as (Segment&{duration_ms:number})[]);}catch(e){return e instanceof Error?e.message:'';}
+ const clips=dubClips(segments);if(!clips)return '';
+ let r:ReturnType<typeof dubPlan>;try{r=dubPlan(clips);}catch(e){return e instanceof Error?e.message:'';}
  const secs=(r.max_push_ms/1000).toLocaleString('vi-VN',{maximumFractionDigits:2});
  return `${r.sped_up} đoạn đọc nhanh hơn · ${r.pushed} đoạn bị lùi${r.pushed?` (tối đa ${secs} s)`:''}`;
+}
+/** How many ms each take still runs past its cue at 1.5x, by segment id; empty while a take is missing or a recipe is invalid (dubSummary says why). */
+export function dubOverruns(segments:Segment[]):Map<string,number>{
+ const clips=dubClips(segments),out=new Map<string,number>();if(!clips)return out;
+ try{dubPlan(clips).places.forEach((p,i)=>{if(p.over_ms>0)out.set(clips[i].id,p.over_ms);});}catch{/* dubSummary shows the reason */}return out;
 }
 /** Lowercase words of a script or of what Whisper heard, for matching the two. */
 const wordTokens=(text:string)=>text.normalize('NFC').toLowerCase().match(/[\p{L}\p{N}]+/gu)??[];
