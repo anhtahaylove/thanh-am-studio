@@ -6,7 +6,8 @@ also give exactly what faster-whisper's decode_audio gives.
 
 The fixtures follow P0-core's row D (6 containers x 4 rates x mono/stereo, a two-track MP4, a long file over several 500000-sample
 groups) and add what the decode branches on: a 16 kHz mono s16 WAV (the resampler's passthrough), other sample formats (u8, s24,
-f32, 5.1), WAVs of 0 to 10 samples, no audio stream, files FFmpeg cannot open, a truncated and a damaged file, invalid frames
+f32, 5.1, 7.1), more containers and codecs (WMA, AIFF, Matroska and Ogg Vorbis, WebM Opus, MOV AAC, AMR-NB, mu-law, IMA ADPCM),
+WAVs of 0 to 10 samples, no audio stream, files FFmpeg cannot open, a truncated and a damaged file, invalid frames
 mid-file (an MP3 joined to itself, 400 bytes of 0xff in an MP3, 4096 in an M4A, an M4A damaged twice, an M4A with every packet
 invalid), MP3s joined from parts with another rate or channel count, an ADTS header of length 0 (a demuxer error), a missing file,
 a file another program holds and a non-ASCII name.
@@ -116,7 +117,19 @@ def main():
     make('wav-96000-s24.wav', '-i', source(2), '-ar', 96000, '-c:a', 'pcm_s24le')
     make('wav-48000-f32.wav', '-i', source(2), '-c:a', 'pcm_f32le')
     make('m4a-48000-5.1.m4a', '-i', source(2), '-af', 'pan=5.1|FL=c0|FR=c1|FC=0.5*c0+0.5*c1|LFE=0.2*c0|BL=0.3*c0|BR=0.3*c1', '-c:a', 'aac', '-b:a', '192k')
-    make('mp3-44100-long.mp3', '-i', source(2, 75), '-ar', 44100, '-c:a', 'libmp3lame', '-b:a', '96k')
+    make('wav-48000-7.1.wav', '-i', source(2), '-af', 'pan=7.1|FL=c0|FR=c1|FC=0.5*c0+0.5*c1|LFE=0.2*c0|BL=0.3*c0|BR=0.3*c1|SL=0.4*c0|SR=0.4*c1',
+         '-c:a', 'pcm_s16le')
+    # More of what the importer accepts, so row D backs "an FFmpeg error in one worker is the same in the other" beyond six containers.
+    make('wma-44100-stereo.wma', '-i', source(2), '-ar', 44100, '-c:a', 'wmav2', '-b:a', '128k')
+    make('aiff-44100-stereo.aiff', '-i', source(2), '-ar', 44100, '-c:a', 'pcm_s16be')
+    make('vorbis-48000-stereo.mkv', '-i', source(2), '-c:a', 'libvorbis')
+    make('opus-48000-stereo.webm', '-i', source(2), '-c:a', 'libopus')
+    make('aac-44100-stereo.mov', '-i', source(2), '-ar', 44100, '-c:a', 'aac')
+    make('vorbis-44100-stereo.ogg', '-i', source(2), '-ar', 44100, '-c:a', 'libvorbis')
+    make('amr-nb-8000-mono.amr', '-i', source(1), '-ar', 8000, '-ac', 1, '-c:a', 'libopencore_amrnb', '-b:a', '12.2k')
+    make('mulaw-8000-mono.wav', '-i', source(1), '-ar', 8000, '-ac', 1, '-c:a', 'pcm_mulaw')
+    make('adpcm-ima-48000-stereo.wav', '-i', source(2), '-c:a', 'adpcm_ima_wav')
+    make('mp3-44100-long.mp3','-i', source(2, 75), '-ar', 44100, '-c:a', 'libmp3lame', '-b:a', '96k')
     make('multitrack.mp4', '-f', 'lavfi', '-i', 'color=c=gray:s=160x120:r=10:d=12', '-i', source(1), '-i', source(2), '-map', '0:v', '-map', '1:a',
          '-map', '2:a', '-c:v', 'mpeg4', '-q:v', '8', '-c:a:0', 'aac', '-b:a:0', '96k', '-ar:a:0', 48000, '-c:a:1', 'aac', '-b:a:1', '128k',
          '-ar:a:1', 44100, '-shortest')
