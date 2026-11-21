@@ -167,6 +167,26 @@ export function restoreSnapshot(snap:Project,cur:Project):Project{
 }
 export const validRange=(start:number,end:number)=>Number.isFinite(start)&&Number.isFinite(end)&&start>=0&&end>start;
 export function addTranscriptRow(rows:TranscriptSegment[],afterId:string|null):TranscriptSegment[]{const found=rows.findIndex(r=>r.id===afterId),i=found<0?rows.length-1:found,start_ms=rows[i]?.end_ms??0;return [...rows.slice(0,i+1),{id:uid(),start_ms,end_ms:start_ms+1000,text:''},...rows.slice(i+1)];}
+/** A row this long with fewer than SUSPECT_MIN_CPS letters and digits per second is usually Whisper making text up over silence. */
+export const SUSPECT_SILENT_MS=4000,SUSPECT_MIN_CPS=2;
+export type SuspectReason='silence'|'repeat'|'range';
+export const suspectLabel:Record<SuspectReason,{short:string;why:string}>={
+ silence:{short:'Gần như im lặng',why:'Đoạn dài nhưng gần như không có chữ. Whisper hay bịa chữ hoặc bỏ trống ở chỗ im lặng.'},
+ repeat:{short:'Lặp dòng trước',why:'Nội dung giống hệt dòng ngay trước. Đây thường là lỗi lặp của Whisper.'},
+ range:{short:'Sai thời gian',why:'Thời gian kết thúc không lớn hơn thời gian bắt đầu.'}
+};
+const repeatKey=(s:string)=>s.normalize('NFC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
+/** Rows that look like Whisper mistakes, by row id. Only flags them: nothing is changed or removed. Two different speakers saying the same short line is a conversation, not a loop. */
+export function suspiciousRows(rows:TranscriptSegment[]):Map<string,SuspectReason[]>{
+ const out=new Map<string,SuspectReason[]>();let before='';
+ rows.forEach((r,i)=>{
+  const why:SuspectReason[]=[],ms=r.end_ms-r.start_ms,chars=(r.text.match(/[\p{L}\p{N}]/gu)??[]).length;
+  if(!(ms>0))why.push('range');else if(ms>=SUSPECT_SILENT_MS&&chars*1000<SUSPECT_MIN_CPS*ms)why.push('silence');
+  const key=repeatKey(r.text),prev=rows[i-1];if(key&&key===before&&!(r.speaker!==undefined&&prev?.speaker!==undefined&&r.speaker!==prev.speaker))why.push('repeat');before=key;
+  if(why.length)out.set(r.id,why);
+ });
+ return out;
+}
 // A running job's updated_at is when it started: progress writes do not touch it.
 export function progressLabel(progress:number,startedAt:string,now=Date.now()):string{const pct=`${Math.floor(progress*100)} %`;const elapsed=now-Date.parse(startedAt);if(!(progress>=0.15&&progress<1&&elapsed>0))return pct;return `${pct} · còn ~${Math.max(1,Math.round(elapsed*(1-progress)/progress/60000))} phút`;}
 /** Taskbar progress for the job list: nothing while idle, the average of the running jobs (percent) once one reports progress, else indeterminate. */
