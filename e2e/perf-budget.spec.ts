@@ -77,6 +77,7 @@ test('typing in a 1,500-word selected segment stays fast while the normalized te
 });
 // A long transcript: each row is memoized (TranscriptRow), so a keystroke re-renders only its own row. Before that, a keystroke in a
 // 1,200-row transcript re-rendered every row, and the median at 1,200 rows was many times the median at 100.
+// The rows are synthetic and generated: word salad, 3 speakers, about 3.7 s each, a silent row at every 200th, so the fixture can be regenerated.
 const ROWS:{id:string}[]=JSON.parse(readFileSync('e2e/fixtures/transcript-1200.json','utf8'));
 const mockTranscript=(rows:unknown[])=>{
  const w=window as any;w.isTauri=true;w.__lt=[];w.__keys=[];
@@ -94,20 +95,20 @@ const mockTranscript=(rows:unknown[])=>{
 };
 test('a 1,200-row transcript stays responsive: no long task while polls bring nothing new, and a keystroke in row 600 stays fast',async({context})=>{
  test.setTimeout(240000);
- const measure=async(rows:{id:string}[],id:string)=>{
+ const measure=async(rows:{id:string}[],id:string,idle=true)=>{
   const page=await context.newPage();await page.addInitScript(mockTranscript,rows);await page.goto('/');
   await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();await page.getByRole('button',{name:'Chép lời',exact:true}).click();
   const box=page.locator(`[data-row="${id}"] textarea`);await expect(box).toBeAttached({timeout:90000});await page.waitForTimeout(2000);
-  await page.evaluate(()=>{(window as any).__lt=[];});await page.waitForTimeout(6000); // two or three polls
-  const idle:number[]=await page.evaluate(()=>(window as any).__lt);
+  await page.evaluate(()=>{(window as any).__lt=[];});if(idle)await page.waitForTimeout(6000); // two or three polls
+  const longTasks:number[]=await page.evaluate(()=>(window as any).__lt);
   await box.click();await page.keyboard.press('End');await page.waitForTimeout(500);await page.evaluate(()=>{(window as any).__keys=[];});
   await page.keyboard.type('abcdefghij',{delay:80});await expect(box).toHaveValue(/abcdefghij$/);
   const keys:{id:number;ms:number}[]=await page.evaluate(()=>(window as any).__keys),slowest=new Map<number,number>();
   for(const k of keys)slowest.set(k.id,Math.max(slowest.get(k.id)??0,k.ms));
   await page.close();
-  return {idle,ms:[...slowest.values(),...Array(Math.max(0,10-slowest.size)).fill(16)].sort((a,b)=>a-b)};
+  return {idle:longTasks,ms:[...slowest.values(),...Array(Math.max(0,10-slowest.size)).fill(16)].sort((a,b)=>a-b)};
  };
- const big=await measure(ROWS,'r600'),small=await measure(ROWS.slice(0,100),'r50');
+ const big=await measure(ROWS,'r600'),small=await measure(ROWS.slice(0,100),'r50',false);
  // Evidence only, not a gate: App still does O(n) work per keystroke (speakerStats, suspiciousRows, the hits filter), and an unreported keystroke counts as 16 ms.
  console.log(`perf: transcript 1200 rows: idle long tasks (ms) ${big.idle.join(', ')||'none'}; keystrokes (ms) ${big.ms.map(Math.round).join(', ')}; 100 rows: keystrokes (ms) ${small.ms.map(Math.round).join(', ')}; median ratio 1200/100 ${(big.ms[4]/small.ms[4]).toFixed(2)}`);
  expect.soft(Math.max(0,...big.idle),`long tasks (ms) during 6 s of polling: ${big.idle.join(', ')||'none'}`).toBeLessThan(IDLE_MS);
