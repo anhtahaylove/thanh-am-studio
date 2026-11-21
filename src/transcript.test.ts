@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {clock,countExact,parseTime,replaceInTranscript,timestamp} from './domain';
+import {clock,countExact,parseTime,replaceInTranscript,searchParts,timestamp} from './domain';
 describe('transcript clock and time parsing',()=>{
  it('writes minutes, seconds and milliseconds, and hours only on request',()=>{
   expect(clock(9200)).toBe('0:09,200');expect(clock(0)).toBe('0:00,000');expect(clock(754321)).toBe('12:34,321');
@@ -26,5 +26,15 @@ describe('countExact',()=>{
  });
  it('matches across normalization forms like the replace does',()=>{
   const nfd=[{id:'n',start_ms:0,end_ms:1,text:'cá thu'}];expect(countExact(nfd,'cá thu')).toBe(1);expect(replaceInTranscript(nfd,'cá thu','x').count).toBe(1);
+ });
+});
+describe('a query that overlaps itself after folding',()=>{
+ // Known limit, pinned: the preview folds tone marks, so "dạ dạ" in "da dạ dạ" is one hit over "da dạ" (shown dashed, not exact), while Replace
+ // and its count still find the exact pair at the end. Upgrade to an exact-first split if users run into it.
+ const rows=[{id:'a',start_ms:0,end_ms:1,text:'da dạ dạ'}];
+ it('shows one hit that is not the exact text, and Replace still changes the exact match',()=>{
+  expect(searchParts('da dạ dạ','dạ dạ')).toEqual([{text:'da dạ',hit:true},{text:' dạ',hit:false}]);
+  expect(countExact(rows,'dạ dạ')).toBe(1);
+  const r=replaceInTranscript(rows,'dạ dạ','X');expect(r.count).toBe(1);expect(r.rows[0].text).toBe('da X');
  });
 });

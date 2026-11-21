@@ -48,6 +48,7 @@ const SHORTCUTS:{group:string;items:{combos:string[];what:string}[]}[]=[
  {group:'Tạo giọng đọc',items:[{combos:['Space'],what:'Phát hoặc dừng take của đoạn đang chọn (khi không gõ và không đứng trên nút)'}]},
  {group:'Chép lời',items:[
   {combos:['Ctrl+F'],what:'Tìm trong bản chép lời'},
+  {combos:['Enter','Shift+Enter'],what:'Trong ô tìm kiếm: sang kết quả sau hoặc trước'},
   {combos:['Space'],what:'Phát hoặc tạm dừng audio nguồn (khi không gõ và không đứng trên nút)'}]},
  {group:'Ô nhập số và thời gian (Bắt đầu, Kết thúc, Nghỉ sau…)',items:[
   {combos:['Enter','Ctrl+S'],what:'Áp dụng giá trị đang nhập'},

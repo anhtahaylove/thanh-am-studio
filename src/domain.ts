@@ -19,8 +19,8 @@ export function exportSubtitles(rows:TranscriptSegment[],format:'srt'|'vtt'|'txt
  return (format==='vtt'?'WEBVTT\n\n':'')+rows.map((r,i)=>`${format==='srt'?`${i+1}\n`:''}${timestamp(r.start_ms,format==='vtt'?'.':',')} --> ${timestamp(r.end_ms,format==='vtt'?'.':',')}\n${r.text}`).join('\n\n')+'\n';
 }
 const escapeRegExp=(s:string)=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-/** Replaces every case-insensitive literal match of `find` in transcript text; untouched rows keep their identity. */
 const exactPattern=(find:string)=>new RegExp(escapeRegExp(find.normalize('NFC')),'giu');
+/** Replaces every case-insensitive literal match of `find` in transcript text; untouched rows keep their identity. */
 export function replaceInTranscript(rows:TranscriptSegment[],find:string,replacement:string):{rows:TranscriptSegment[];count:number}{
  if(!find)return {rows,count:0};
  const pattern=exactPattern(find);let count=0;
