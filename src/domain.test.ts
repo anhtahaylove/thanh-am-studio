@@ -14,6 +14,10 @@ describe('subtitle and text contracts',()=>{
   expect(exportSubtitles([r('a','X.',0),r('b','Y.'),r('c','Z.',0)],'txt')).toBe('Người 1: X.\n\nY.\n\nNgười 1: Z.');
   expect(exportSubtitles([r('a','Một.'),r('b','Hai\nba.'),r('c','')],'txt')).toBe('Một.\n\nHai\nba.\n\n');
  });
+ it('reads "Người N:" as a label only with a space after the colon, in either Unicode spelling',()=>{
+  expect(scriptChunks('Người 8:30 sáng đi học.\nNgười 9:15 về nhà.').every(c=>c.speaker==='Người dẫn')).toBe(true);
+  expect(scriptChunks('Người 1: Chào.\nNgười 2: Khỏe.'.normalize('NFD'))).toEqual([{speaker:'Người 1',text:'Chào.'.normalize('NFD')},{speaker:'Người 2',text:'Khỏe.'.normalize('NFD')}]);
+ });
  it('a TXT export with a single speaker turn stays as before, so the import never reads "Người 1:" aloud',()=>{
   const r=(id:string,text:string)=>({id,start_ms:0,end_ms:1000,text,speaker:0});
   const txt=exportSubtitles([r('a','Chào anh.'),r('b','Anh khỏe không?')],'txt');

@@ -141,11 +141,13 @@ export function splitText(input:string,max=500):string[]{const out:string[]=[];f
 export function takeTrim(take?:Take,fade_ms=0){const start=take?.speech_start_ms??0,end=take?.speech_end_ms??null;return take&&(end??take.duration_ms)-start>=fade_ms?{trim_start_ms:start,trim_end_ms:end}:{trim_start_ms:0,trim_end_ms:null};}
 export function makeSegment(text=''):Segment{return {id:uid(),text,normalized_text:text,voice_id:null,speaker:'Người dẫn',gap_ms:300,takes:[],selected_take_id:null,trim_start_ms:0,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0,gain_db:0};}
 // A line "Tên: lời" or "[Tên]: lời" names its speaker. The name is at most 30 characters with no digits or URL (so "8:30" and "http://…" are not labels),
-// except the app's own "Người 2", which a TXT export of a transcript with speakers writes.
+// except the app's own "Người 2: …", which a TXT export of a transcript with speakers writes: in either Unicode spelling and only with a
+// space after the colon, so "Người 8:30 sáng" stays text.
+const OWN_LABEL=/^\s*\[?Người \d{1,3}\]?\s*[:：]\s/u;
 const LABEL=/^\s*(?:\[([^\][:\n]+)\]|([^:[\]\n]+?))\s*[:：](?!\/\/)\s*(.*)$/u;
 // A line starting with [P1] (any case, spaces allowed inside) starts a chapter; the rest of the line is ordinary script text.
 const CHAPTER=/^\s*\[\s*P(\d+)\s*\](.*)$/i;
-const labelOf=(line:string)=>{const m=line.match(LABEL),name=(m?.[1]??m?.[2])?.trim();return m&&name&&name.length<=30&&(!/\d|www\.|@/i.test(name)||/^Người \d{1,3}$/u.test(name))?{name,rest:m[3]}:null;};
+const labelOf=(line:string)=>{const m=line.match(LABEL),name=(m?.[1]??m?.[2])?.trim();if(!m||!name||name.length>30)return null;if(!/\d|www\.|@/i.test(name))return {name,rest:m[3]};return OWN_LABEL.test(line.normalize('NFC'))?{name:name.normalize('NFC'),rest:m[3]}:null;};
 /** Script chunks of pasted text. With at least two labelled lines each label starts a block (continuing until the next label) spoken by that name; otherwise one speaker reads everything, so a lone "Lưu ý:" stays text. */
 export function scriptChunks(text:string):{speaker:string;text:string;chapter?:string}[]{
  const lines=text.split(/\r?\n/).filter(l=>!SCENE_BREAK.test(l)).map(raw=>{
