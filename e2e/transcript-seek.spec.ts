@@ -38,13 +38,18 @@ test('Ctrl+click on a word seeks to its estimated start and plays, and a plain c
  await box(page,'r2').click({position:{x,y:18}});expect(await seeks(page)).toEqual([]);expect(await audio.evaluate((a:HTMLAudioElement)=>a.paused)).toBe(true);
  await box(page,'r2').click({position:{x,y:18},modifiers:['Control']});
  await expect.poll(async()=>(await seeks(page)).length).toBe(1);const [to]=await seeks(page);expect(Math.abs(to-EXPECT_S)).toBeLessThan(0.001);
+ await box(page,'r2').click({position:{x,y:18},modifiers:['Meta']});await expect.poll(async()=>(await seeks(page)).length).toBe(2);expect(Math.abs((await seeks(page))[1]-EXPECT_S)).toBeLessThan(0.001);
  await expect.poll(()=>audio.evaluate((a:HTMLAudioElement)=>a.paused)).toBe(false);
  await expect.poll(()=>audio.evaluate((a:HTMLAudioElement)=>a.currentTime)).toBeGreaterThanOrEqual(EXPECT_S-0.001);
 });
-test('Ctrl+Enter plays from the caret, wherever in the word it is',async({page})=>{
- await open(page);const t=box(page,'r2');await t.focus();
+test('Ctrl+Enter plays from the caret, wherever in the word it is, and is not a newline',async({page})=>{
+ await open(page);const t=box(page,'r2');await t.focus();await expect(t).toHaveAttribute('aria-keyshortcuts','Control+Enter');
+ await page.evaluate(()=>{const w=window as any;w.__prevented=[];window.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.ctrlKey)w.__prevented.push(e.defaultPrevented);});});
  for(const caret of [8,10,11]){await t.evaluate((el,c)=>(el as HTMLTextAreaElement).setSelectionRange(c,c),caret);await t.press('Control+Enter');}
  await expect.poll(async()=>(await seeks(page)).length).toBe(3);for(const to of await seeks(page))expect(Math.abs(to-EXPECT_S)).toBeLessThan(0.001);
+ expect(await page.evaluate(()=>(window as any).__prevented)).toEqual([true,true,true]);
+ // Enter that confirms an IME composition is not a request to play.
+ await t.evaluate(el=>el.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',ctrlKey:true,isComposing:true,bubbles:true,cancelable:true})));await page.waitForTimeout(200);expect((await seeks(page)).length).toBe(3);
  await expect(t).toHaveValue('aaa bbb ccc ddd');
 });
 test('without a source audio, Ctrl+click and Ctrl+Enter do nothing but say so',async({page})=>{
@@ -70,6 +75,27 @@ test('the follow-along toggle decides whether the playing row is scrolled to, an
  await expect(page.getByRole('button',{name:'Theo lời khi phát'})).toHaveAttribute('aria-pressed','false');
  await page.getByRole('button',{name:'Theo lời khi phát'}).click();await expect(page.getByRole('button',{name:'Theo lời khi phát'})).toHaveAttribute('aria-pressed','true');
  const again=await scrolls();await audio.evaluate((a:HTMLAudioElement)=>{Object.defineProperty(a,'paused',{get:()=>false,configurable:true});Object.defineProperty(a,'currentTime',{get:()=>11,configurable:true});a.dispatchEvent(new Event('timeupdate'));});await expect.poll(scrolls).toBeGreaterThan(again);
+});
+test('the follow toggle shows its state with more than a text colour',async({page})=>{
+ await open(page);const follow=page.getByRole('button',{name:'Theo lời khi phát'});
+ const paint=()=>follow.evaluate(b=>({button:getComputedStyle(b).backgroundColor,bar:getComputedStyle(b.closest('.source-player')!).backgroundColor,shadow:getComputedStyle(b).boxShadow}));
+ await expect(follow).toHaveAttribute('aria-pressed','true');const on=await paint();expect(on.button).not.toBe(on.bar);expect(on.shadow).not.toBe('none');
+ await follow.click();await expect(follow).toHaveAttribute('aria-pressed','false');const off=await paint();expect(off.button).not.toBe(on.button);
+});
+test('follow-along stays out of the way for 2.5 s after an edit, keeps working while only listening, and catches up when turned back on',async({page})=>{
+ await open(page);const audio=page.locator('.source-player audio'),follow=page.getByRole('button',{name:'Theo lời khi phát'});
+ const playAt=(s:number)=>audio.evaluate((a:HTMLAudioElement,s)=>{Object.defineProperty(a,'paused',{get:()=>false,configurable:true});Object.defineProperty(a,'currentTime',{get:()=>s,configurable:true});a.dispatchEvent(new Event('timeupdate'));},s);
+ const scrolls=()=>page.evaluate(()=>(window as any).__scrolls.length as number),current=(id:string)=>expect(page.locator(`.transcript-row[data-row="${id}"]`)).toHaveAttribute('aria-current','true');
+ // Listening only (Ctrl+click leaves the caret in the textarea): the list follows.
+ await box(page,'r1').click();await playAt(11);await current('r2');await expect.poll(scrolls).toBeGreaterThan(0);
+ // Typing in a row, then playback moves on: no scroll for 2.5 s.
+ await box(page,'r1').press('End');await box(page,'r1').pressSequentially('!');const quiet=await scrolls();
+ await playAt(16);await current('r3');await page.waitForTimeout(300);expect(await scrolls()).toBe(quiet);
+ // After the quiet period the next row change scrolls again.
+ await page.waitForTimeout(2400);await playAt(1);await current('r1');await expect.poll(scrolls).toBeGreaterThan(quiet);
+ // Follow off, playback moves, then follow on while playing: the current row is scrolled to without a new time update.
+ await follow.click();await expect(follow).toHaveAttribute('aria-pressed','false');await playAt(16);await current('r3');await page.waitForTimeout(300);const off=await scrolls();
+ await follow.click();await expect(follow).toHaveAttribute('aria-pressed','true');await expect.poll(scrolls).toBeGreaterThan(off);
 });
 for(const width of [1440,1024,800,640])test(`the source player and its follow toggle stay inside the panel at ${width} px`,async({page})=>{
  await open(page,true,width);

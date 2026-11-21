@@ -5,7 +5,8 @@ export const seconds=(ms:number)=>`${(ms/1000).toLocaleString('vi-VN',{minimumFr
 export function timestamp(ms:number,separator=','):string {ms=Math.round(ms);return `${String(Math.floor(ms/3600000)).padStart(2,'0')}:${String(Math.floor(ms/60000)%60).padStart(2,'0')}:${String(Math.floor(ms/1000)%60).padStart(2,'0')}${separator}${String(ms%1000).padStart(3,'0')}`;}
 /** Estimated time of the word at character `offset` of a row: snaps back to the start of that word, then interpolates by character across the row, clamped to the row. An estimate only: speech is not uniform, and STT here gives no word times. */
 export function wordStartMs(row:{start_ms:number;end_ms:number;text:string},offset:number):number {
- const text=row.text;let i=Math.min(Math.max(Math.round(offset)||0,0),text.length);
+ const text=row.text.trimEnd(); // a caret in trailing whitespace belongs to the last word, never to the end of the row
+ let i=Math.min(Math.max(Math.round(offset)||0,0),text.length);
  while(i>0&&!/\s/.test(text[i-1]))i--;
  const ms=row.start_ms+(row.end_ms-row.start_ms)*(text.length?i/text.length:0);
  return Math.round(Math.min(Math.max(ms,row.start_ms),Math.max(row.start_ms,row.end_ms)));

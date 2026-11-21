@@ -48,6 +48,11 @@ describe('wordStartMs',()=>{
  it('treats the end of the text as the last word and clamps odd offsets',()=>{
   expect(wordStartMs(row,15)).toBe(13200);expect(wordStartMs(row,999)).toBe(13200);expect(wordStartMs(row,-5)).toBe(10000);expect(wordStartMs(row,Number.NaN)).toBe(10000);
  });
+ it('puts a caret in trailing whitespace on the last word, so the result is before the end of the row',()=>{
+  const at=(text:string,offset:number)=>wordStartMs({start_ms:10000,end_ms:14000,text},offset);
+  expect(at('aaa bbb ',8)).toBe(12286);expect(at('abc def\n',8)).toBe(12286);expect(at('   ',3)).toBe(10000);expect(at('aaa bbb ccc ddd ',16)).toBe(13200);
+  for(const [text,offset] of [['aaa bbb ',8],['abc def\n',8],['   ',3],['x ',2],['',0]] as const)expect(at(text,offset),text).toBeLessThan(14000);
+ });
  it('stays inside the row for an empty text and for a row that ends before it starts',()=>{
   expect(wordStartMs({start_ms:500,end_ms:900,text:''},3)).toBe(500);expect(wordStartMs({start_ms:900,end_ms:500,text:'ab cd'},4)).toBe(900);
  });
