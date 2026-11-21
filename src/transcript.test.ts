@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {clock,countExact,parseTime,replaceInTranscript,searchParts,timestamp} from './domain';
+import {clock,countExact,parseTime,replaceInTranscript,searchParts,timestamp,wordStartMs} from './domain';
 describe('transcript clock and time parsing',()=>{
  it('writes minutes, seconds and milliseconds, and hours only on request',()=>{
   expect(clock(9200)).toBe('0:09,200');expect(clock(0)).toBe('0:00,000');expect(clock(754321)).toBe('12:34,321');
@@ -36,5 +36,19 @@ describe('a query that overlaps itself after folding',()=>{
   expect(searchParts('da dạ dạ','dạ dạ')).toEqual([{text:'da dạ',hit:true},{text:' dạ',hit:false}]);
   expect(countExact(rows,'dạ dạ')).toBe(1);
   const r=replaceInTranscript(rows,'dạ dạ','X');expect(r.count).toBe(1);expect(r.rows[0].text).toBe('da X');
+ });
+});
+describe('wordStartMs',()=>{
+ const row={start_ms:10000,end_ms:14000,text:'aaa bbb ccc ddd'}; // 15 characters over 4,000 ms
+ it('snaps to the start of the word and interpolates by character',()=>{
+  expect(wordStartMs(row,8)).toBe(12133);
+  for(const inside of [8,9,10,11])expect(wordStartMs(row,inside),`offset ${inside}`).toBe(12133);
+  expect(wordStartMs(row,12)).toBe(13200);expect(wordStartMs(row,0)).toBe(10000);expect(wordStartMs(row,4)).toBe(11067);
+ });
+ it('treats the end of the text as the last word and clamps odd offsets',()=>{
+  expect(wordStartMs(row,15)).toBe(13200);expect(wordStartMs(row,999)).toBe(13200);expect(wordStartMs(row,-5)).toBe(10000);expect(wordStartMs(row,Number.NaN)).toBe(10000);
+ });
+ it('stays inside the row for an empty text and for a row that ends before it starts',()=>{
+  expect(wordStartMs({start_ms:500,end_ms:900,text:''},3)).toBe(500);expect(wordStartMs({start_ms:900,end_ms:500,text:'ab cd'},4)).toBe(900);
  });
 });

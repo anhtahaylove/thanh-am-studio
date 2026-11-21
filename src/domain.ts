@@ -3,6 +3,13 @@ export const uid=()=>crypto.randomUUID();
 /** A take length for display, in Vietnamese style: one decimal with a comma ("4,1 giây"). */
 export const seconds=(ms:number)=>`${(ms/1000).toLocaleString('vi-VN',{minimumFractionDigits:1,maximumFractionDigits:1})} giây`;
 export function timestamp(ms:number,separator=','):string {ms=Math.round(ms);return `${String(Math.floor(ms/3600000)).padStart(2,'0')}:${String(Math.floor(ms/60000)%60).padStart(2,'0')}:${String(Math.floor(ms/1000)%60).padStart(2,'0')}${separator}${String(ms%1000).padStart(3,'0')}`;}
+/** Estimated time of the word at character `offset` of a row: snaps back to the start of that word, then interpolates by character across the row, clamped to the row. An estimate only: speech is not uniform, and STT here gives no word times. */
+export function wordStartMs(row:{start_ms:number;end_ms:number;text:string},offset:number):number {
+ const text=row.text;let i=Math.min(Math.max(Math.round(offset)||0,0),text.length);
+ while(i>0&&!/\s/.test(text[i-1]))i--;
+ const ms=row.start_ms+(row.end_ms-row.start_ms)*(text.length?i/text.length:0);
+ return Math.round(Math.min(Math.max(ms,row.start_ms),Math.max(row.start_ms,row.end_ms)));
+}
 /** Compact clock for the transcript time editor: `0:09,200`, or `1:02:03,400` when `hours` is on. */
 export function clock(ms:number,hours=false):string {ms=Math.round(ms);const m=Math.floor(ms/60000),sf=`${String(Math.floor(ms/1000)%60).padStart(2,'0')},${String(ms%1000).padStart(3,'0')}`;return hours?`${Math.floor(m/60)}:${String(m%60).padStart(2,'0')}:${sf}`:`${m}:${sf}`;}
 export function parseTime(value:string):number {const parts=value.trim().replace(',','.').split(':').map(Number);if(parts.length<2||parts.length>3||parts.some(x=>!Number.isFinite(x)||x<0)||parts.at(-1)!>=60||parts.at(-2)!>=60)throw Error('Mốc thời gian không hợp lệ');return Math.round(parts.reduce((a,n)=>a*60+n,0)*1000);}
