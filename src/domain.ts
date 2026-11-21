@@ -227,21 +227,28 @@ const wrapCue=(cue:string)=>{if(cue.length<=LINE_CHARS)return cue;let best=-1;fo
 // cue follows the previous take after that take's gap.
 const MAX_FIT_RATE=1.5,DUB_GAP_MS=50;
 interface DubCue {cue_start_ms?:number|null;cue_end_ms?:number|null}
-/** Where each take starts on the timeline, its speed-up and where it ends; counts of sped-up and pushed takes; the total length (at least the last cue's end). */
-export function dubPlan(clips:(Recipe&DubCue)[]):{places:{at_ms:number;rate:number;end_ms:number}[];sped_up:number;pushed:number;max_push_ms:number;length_ms:number}{
+/** Where each take starts on the timeline, its speed-up, where it ends and how far it still runs past its cue at 1.5x (`over_ms`); counts of sped-up and pushed takes; the total length (at least the last cue's end). */
+export function dubPlan(clips:(Recipe&DubCue)[]):{places:{at_ms:number;rate:number;end_ms:number;over_ms:number}[];sped_up:number;pushed:number;max_push_ms:number;length_ms:number}{
  let cursor=0,gap=0,sped_up=0,pushed=0,max_push_ms=0;
- const places=clips.map((c,i)=>{const audio=clipDuration(c)-c.gap_ms;let at=cursor+(i?gap:0),rate=1;
-  if(c.cue_start_ms!=null&&c.cue_end_ms!=null){const slot=c.cue_end_ms-c.cue_start_ms;if(audio>slot)rate=slot>0?Math.min(MAX_FIT_RATE,audio/slot):MAX_FIT_RATE;at=Math.max(c.cue_start_ms,i?cursor+DUB_GAP_MS:0);
+ const places=clips.map((c,i)=>{const audio=clipDuration(c)-c.gap_ms;let at=cursor+(i?gap:0),rate=1,over=0;
+  if(c.cue_start_ms!=null&&c.cue_end_ms!=null){const slot=c.cue_end_ms-c.cue_start_ms;if(audio>slot)rate=slot>0?Math.min(MAX_FIT_RATE,audio/slot):MAX_FIT_RATE;at=Math.max(c.cue_start_ms,i?cursor+DUB_GAP_MS:0);over=Math.max(0,Math.round(audio/rate-slot));
    if(rate>1)sped_up++;if(at-c.cue_start_ms>5){pushed++;max_push_ms=Math.max(max_push_ms,at-c.cue_start_ms);}}
-  cursor=at+audio/rate;gap=c.gap_ms;return {at_ms:Math.round(at),rate,end_ms:Math.round(cursor)};});
+  cursor=at+audio/rate;gap=c.gap_ms;return {at_ms:Math.round(at),rate,end_ms:Math.round(cursor),over_ms:over};});
  return {places,sped_up,pushed,max_push_ms:Math.round(max_push_ms),length_ms:Math.round(Math.max(cursor,...clips.map(c=>c.cue_end_ms??0)))};
 }
+/** The segments with their selected take's length, or null while one has no selected take. */
+function dubClips(segments:Segment[]):(Segment&{duration_ms:number})[]|null{const clips=segments.map(s=>{const t=s.takes.find(t=>t.id===s.selected_take_id);return t&&{...s,duration_ms:t.duration_ms};});return clips.length&&clips.every(c=>!!c)?clips as (Segment&{duration_ms:number})[]:null;}
 /** One line on how the takes fit their cues, for the export bar; empty when a segment has no selected take yet. It runs while rendering, so a trim or fade being typed in must not throw. */
 export function dubSummary(segments:Segment[]):string{
- const clips=segments.map(s=>{const t=s.takes.find(t=>t.id===s.selected_take_id);return t&&{...s,duration_ms:t.duration_ms};});if(!clips.length||clips.some(c=>!c))return '';
- let r:ReturnType<typeof dubPlan>;try{r=dubPlan(clips as (Segment&{duration_ms:number})[]);}catch(e){return e instanceof Error?e.message:'';}
+ const clips=dubClips(segments);if(!clips)return '';
+ let r:ReturnType<typeof dubPlan>;try{r=dubPlan(clips);}catch(e){return e instanceof Error?e.message:'';}
  const secs=(r.max_push_ms/1000).toLocaleString('vi-VN',{maximumFractionDigits:2});
  return `${r.sped_up} đoạn đọc nhanh hơn · ${r.pushed} đoạn bị lùi${r.pushed?` (tối đa ${secs} s)`:''}`;
+}
+/** How many ms each take still runs past its cue at 1.5x, by segment id; empty while a take is missing or a recipe is invalid (dubSummary says why). */
+export function dubOverruns(segments:Segment[]):Map<string,number>{
+ const clips=dubClips(segments),out=new Map<string,number>();if(!clips)return out;
+ try{dubPlan(clips).places.forEach((p,i)=>{if(p.over_ms>0)out.set(clips[i].id,p.over_ms);});}catch{/* dubSummary shows the reason */}return out;
 }
 /** Lowercase words of a script or of what Whisper heard, for matching the two. */
 const wordTokens=(text:string)=>text.normalize('NFC').toLowerCase().match(/[\p{L}\p{N}]+/gu)??[];
