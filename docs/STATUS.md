@@ -1,6 +1,6 @@
 # Thanh Âm Studio status
 
-Last updated 2026-11-20. Evidence below was observed, not inferred; anything not listed is unverified.
+Last updated 2026-11-22. Evidence below was observed, not inferred; anything not listed is unverified.
 
 ## Implemented
 
@@ -964,6 +964,25 @@ Evidence: `work\release-v1.0.19-sandbox` (`out1019r1`, `out1019r2`, `out1019r3`,
 | Not run | `dub`, `scripts`, `-Gate 500`, `update-seeded`, `reopen`/`offline`/`export`; no VirusTotal upload before publication |
 
 Evidence: `work\release-v1.0.20-sandbox` (`out1020r1`, `out1020r2`, `out1020r3-first`, `out1020r3`, `r1-job-engines.txt`, `r2-job-engines.txt`, `run1020.log`), `work\rm\a3\RESULTS.md`, `work\rm\a3\runs\t4-analysis.md`, `work\rm\baseline-1.0.16\THRESHOLDS.md`.
+
+### v1.0.21 release (built by `.github/workflows/release.yml` from tag `v1.0.21` at `67fc2a0`)
+
+An interface release: WCAG AA tokens and named controls (#158), the sticky export dock and the 11 px type floor (#163), long-script responsiveness (#164), undo scope and time fields (#161), tone-insensitive transcript search (#171), modal focus (#172), the poll-error notice (#173), taskbar progress (#174), flagged transcript rows (#175), the theme choice (#176), Undo toasts (#177), the command palette and shortcut sheet (#178, #179), normalisation highlights, cue overflow, the repeat hint and TXT speaker turns (#180). Worker changes are in STT decoding only: decode past invalid packets (#160) and report undecodable input as `INVALID_MEDIA` without a Python rerun (#181). No TTS worker code changed since v1.0.20, so no listening pass was run.
+
+| Check | Result |
+|---|---|
+| Tests | CI green on the tagged commit; the release workflow's dry run (44919110453) passed on it before the tag; the tag run 44921354260 built the draft |
+| Release notes | checked claim by claim against the PRs, the source at the tag and the gate outputs before publication; 11 wording fixes applied (UI labels, overstated contrast, CSV and job-deletion wording, the faster-whisper code attribution) |
+| Installer SHA-256 | `a491e179c4815ac7bdb96d217db5aa347f1fdb2c159e4ed696deb64da2347c1e` (219,805,042 bytes). `sha256sum -c` OK on the draft assets and after an anonymous download from `/releases/latest/download/` |
+| Update feed | the anonymous `/releases/latest/download/latest.json` names 1.0.21, points to the v1.0.21 installer and carries a signature whose trusted comment says `version:1.0.21` |
+| Clean Sandbox, `-Only update -From` the published 1.0.20 (4 GB) | updated itself to 1.0.21 and reopened with the project kept; a package with a bad signature was refused. 4 PASS, 0 FAIL |
+| Clean Sandbox, `-Only full,features,scripts,dub,ux,dpi` (6 GB) | 57 PASS, 0 FAIL; 931 MiB installed; 3,792 shipped `.pyc` unchanged. The separation pack downloaded through the UI and re-checked (8,788 files equal `MANIFEST.sha256`); a cancelled separation left no process; dub takes started where placed |
+| Clean Sandbox, default runner (6 GB) | `full`, `reopen`, `turbo`, then `offline` and `export` with the network off: 36 PASS, 0 FAIL |
+| Clean Sandbox, `-Only full,longstt,clone,ab` (6 GB) | 48 PASS, 0 FAIL. `ab`: every operation on the chosen engine with no fallback, identical render, download, `clone_preview` and transcript, installed workers agree under a fixed seed. Clone WER 7.3 %. `longstt`: 70.5 min, 1,136 rows identical in text and timing to v1.0.20, WER 9.14 %, worker peak 888 MiB, 2,053 s (v1.0.20: 1,543 s; two e2e suites ran on the host during this run, so not a speed comparison) |
+| Job engines | 105 succeeded jobs in the r2, r3 and r4 databases, all `fallback: false`; Python only for checked `tts`, the separation pack and `separate`, and the `ab` Python half |
+| Not run | `-Gate 500`, `update-seeded`; the taskbar progress, the start-failure box and the dictionary CSV in a real Excel; no VirusTotal upload before publication |
+
+Evidence: `workelease-v1.0.21-sandbox` (`out1021r1` to `out1021r4`, `run1021.log`) and the published v1.0.21 release notes.
 
 ## Not verified / known gaps
 
