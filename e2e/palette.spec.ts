@@ -22,7 +22,7 @@ test('the shortcuts the sheet lists work: Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z and Ctrl+
 test('Ctrl+K opens the palette, filters without tone marks, runs with arrows and Enter, and Escape returns focus',async({page})=>{
  await withSegment(page);const text=page.getByRole('textbox',{name:'Nội dung đoạn 1'});
  await text.focus();await page.keyboard.press('Control+k');await expect(palette(page)).toBeVisible();await expect(box(page)).toBeFocused();
- await expect(palette(page).getByRole('option')).toHaveCount(10);
+ await expect(palette(page).getByRole('option')).toHaveCount(10);await expect(palette(page)).not.toContainText('Nhấn ?');
  await box(page).fill('cai dat');await expect(palette(page).getByRole('option')).toHaveText(['Mở Model & cài đặt']);
  await box(page).fill('tao giong');await expect(palette(page).getByRole('option')).toHaveCount(3);await expect(palette(page).getByRole('option').first()).toHaveAttribute('aria-selected','true');
  await box(page).fill('HANG doi');await expect(palette(page).getByRole('option')).toHaveText(['Đi tới Hàng đợi']);
@@ -59,6 +59,10 @@ test('the palette and the sheet do not open over another dialog',async({page})=>
  await page.goto('/');await page.getByRole('button',{name:'Thêm nội dung',exact:true}).click();const add=page.getByRole('dialog',{name:'Thêm nội dung'});await expect(add).toBeVisible();
  await page.keyboard.press('Control+k');await expect(palette(page)).toHaveCount(0);await page.getByRole('button',{name:'Đóng nhập nội dung'}).focus();await page.keyboard.press('Shift+Slash');await expect(sheet(page)).toHaveCount(0);
  await expect(add).toBeVisible();
+ // The same keys do work once the dialog is closed, so the checks above are about the dialog and not about dead keys.
+ await page.getByRole('button',{name:'Đóng nhập nội dung'}).click();await expect(add).toHaveCount(0);
+ await page.keyboard.press('Control+k');await expect(palette(page)).toBeVisible();await page.keyboard.press('Escape');
+ await page.getByRole('button',{name:'Thư viện giọng',exact:true}).focus();await page.keyboard.press('Shift+Slash');await expect(sheet(page)).toBeVisible();
 });
 test('enabled commands call the existing generate and export handlers',async({page})=>{
  await page.addInitScript(()=>{

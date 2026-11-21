@@ -31,7 +31,7 @@ export function CommandPalette({commands,onClose}:{commands:Command[];onClose:()
   <input autoFocus role="combobox" aria-expanded="true" aria-controls={list} aria-activedescendant={shown.length?`${list}-${cur}`:undefined} aria-label="Gõ để tìm lệnh" placeholder="Gõ để tìm lệnh… (không cần gõ dấu)" value={query} onChange={e=>{setQuery(e.target.value);setAt(0);}} onKeyDown={key}/>
   <ul id={list} role="listbox" aria-label="Lệnh">{shown.map((c,i)=><li key={c.id} id={`${list}-${i}`} role="option" aria-selected={i===cur} aria-disabled={c.disabled?true:undefined} onMouseMove={()=>{if(i!==cur)setAt(i);}} onClick={()=>pick(c)}><c.icon size={16}/><span>{c.label}</span>{c.disabled&&<small>{c.disabled}</small>}</li>)}</ul>
   {!shown.length&&<p className="hint" role="status">Không có lệnh nào khớp.</p>}
-  <p className="hint">↑ ↓ để chọn, Enter để chạy, Esc để đóng. Nhấn ? ngoài ô nhập để xem phím tắt.</p>
+  <p className="hint">↑ ↓ để chọn, Enter để chạy, Esc để đóng.</p>
  </section></Modal>;
 }
 
