@@ -13,7 +13,8 @@ const persist=(list:Project[])=>localStorage.setItem(KEY,JSON.stringify(list));
 const ERRORS:Record<string,string>={INVALID_DOCX:'Không đọc được tệp Word này. Hãy mở bằng Word rồi lưu lại dạng .docx.',DOCX_TOO_LARGE:'Tệp quá lớn: phần chữ vượt 10 MB.',TEXT_FILE_TOO_LARGE:'Tệp quá lớn: phần chữ vượt 10 MB.',UNSUPPORTED_TEXT:'Định dạng tệp không được hỗ trợ.',INVALID_MEDIA:'Không đọc được âm thanh trong tệp này: tệp bị hỏng, không có âm thanh hoặc ghép từ các phần khác tần số lấy mẫu hay số kênh. Nếu tệp vẫn nghe được trong trình phát, hãy chuyển sang WAV rồi thử lại.'};
 const known=(e:unknown)=>Object.keys(ERRORS).find(k=>String(e).startsWith(k));
 const friendly=(e:unknown)=>{const code=known(e);return code?Error(ERRORS[code]):e;};
-/** A failed job's `CODE: message` as the short Vietnamese message for its code, else as it is. */
+/** A failed transcription's `CODE: message` as the short Vietnamese message for its code, else as it is (the INVALID_MEDIA text
+ * describes the STT decode; render and separate get the code from probe for other reasons). */
 export const jobError=(error:string)=>{const code=known(error);return code?ERRORS[code]:error;};
 export async function call<T>(command:string,args:Record<string,unknown>={}):Promise<T>{
  if(desktop)return invoke<T>(command,args).catch(e=>{throw friendly(e);});
