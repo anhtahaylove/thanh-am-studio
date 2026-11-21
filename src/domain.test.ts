@@ -220,4 +220,12 @@ describe('suspiciousRows',()=>{
   const rows=[row('a',0,5000,'Xin chào'),row('b',5000,10000,'xin chào')],before=JSON.stringify(rows);
   expect(suspiciousRows(rows).get('b')).toEqual(['silence','repeat']);expect(JSON.stringify(rows)).toBe(before);
  });
+
+ it('does not call the same line from two different speakers a repeat, but does when the speaker is the same or unknown',()=>{
+  const r=(id:string,start_ms:number,text:string,speaker?:number)=>({id,start_ms,end_ms:start_ms+1000,text,...(speaker===undefined?{}:{speaker})});
+  expect(suspiciousRows([r('a',0,'Vâng.',0),r('b',1000,'Vâng.',1)]).size).toBe(0);
+  expect(suspiciousRows([r('a',0,'Vâng.',1),r('b',1000,'vâng',1)]).get('b')).toEqual(['repeat']);
+  expect(suspiciousRows([r('a',0,'Vâng.'),r('b',1000,'Vâng.')]).get('b')).toEqual(['repeat']);
+  expect(suspiciousRows([r('a',0,'Vâng.',0),r('b',1000,'Vâng.')]).get('b')).toEqual(['repeat']);
+ });
 });

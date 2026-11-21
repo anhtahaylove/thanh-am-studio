@@ -176,13 +176,13 @@ export const suspectLabel:Record<SuspectReason,{short:string;why:string}>={
  range:{short:'Sai thời gian',why:'Thời gian kết thúc không lớn hơn thời gian bắt đầu.'}
 };
 const repeatKey=(s:string)=>s.normalize('NFC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
-/** Rows that look like Whisper mistakes, by row id. Only flags them: nothing is changed or removed. */
+/** Rows that look like Whisper mistakes, by row id. Only flags them: nothing is changed or removed. Two different speakers saying the same short line is a conversation, not a loop. */
 export function suspiciousRows(rows:TranscriptSegment[]):Map<string,SuspectReason[]>{
- const out=new Map<string,SuspectReason[]>();
+ const out=new Map<string,SuspectReason[]>();let before='';
  rows.forEach((r,i)=>{
   const why:SuspectReason[]=[],ms=r.end_ms-r.start_ms,chars=(r.text.match(/[\p{L}\p{N}]/gu)??[]).length;
   if(!(ms>0))why.push('range');else if(ms>=SUSPECT_SILENT_MS&&chars*1000<SUSPECT_MIN_CPS*ms)why.push('silence');
-  const key=repeatKey(r.text);if(i>0&&key&&key===repeatKey(rows[i-1].text))why.push('repeat');
+  const key=repeatKey(r.text),prev=rows[i-1];if(key&&key===before&&!(r.speaker!==undefined&&prev?.speaker!==undefined&&r.speaker!==prev.speaker))why.push('repeat');before=key;
   if(why.length)out.set(r.id,why);
  });
  return out;
