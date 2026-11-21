@@ -1,4 +1,5 @@
 import {useCallback,useEffect,useRef,useState} from 'react';
+import type {ReactNode} from 'react';
 import {Download,RefreshCw,Sparkles,X} from 'lucide-react';
 import {listen} from '@tauri-apps/api/event';
 import {call,desktop} from './bridge';
@@ -53,18 +54,38 @@ export function UpdateBanner({state,onInstall,onShowChanges,onDismiss}:{state:Up
 // closed or covered. The listener stays put across renders: one re-added while an Escape is being dispatched would miss that key.
 export function useEscape(close:()=>void,active=true){const latest=useRef(close);latest.current=close;useEffect(()=>{if(!active)return;const key=(e:KeyboardEvent)=>{if(e.key==='Escape'&&!e.isComposing)latest.current();};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[active]);}
 
+// A real modal for the dialog inside it: the rest of the page goes inert, Tab wraps instead of leaving, and focus goes back to what
+// opened it. The opener is read while rendering because autoFocus has moved focus by the time effects run; the focus return waits for
+// the box to be gone, so the extra mount-unmount-mount of React StrictMode does not steal focus from the dialog.
+export function Modal({children}:{children:ReactNode}){
+ const box=useRef<HTMLDivElement>(null),[opener]=useState(()=>document.activeElement);
+ useEffect(()=>{
+  const el=box.current!,rest=[...el.parentElement!.children].filter((e):e is HTMLElement=>e!==el&&e instanceof HTMLElement).map(e=>[e,e.inert] as const);
+  for(const [e] of rest)e.inert=true;
+  const wrap=(ev:KeyboardEvent)=>{
+   const items=[...el.querySelectorAll<HTMLElement>('button,input,select,textarea,a[href],[tabindex]')].filter(e=>!e.hasAttribute('disabled')&&e.tabIndex>=0);
+   const first=items[0],last=items.at(-1),now=document.activeElement;
+   if(ev.key!=='Tab'||!first||!last)return;
+   if(now===(ev.shiftKey?first:last)||!el.contains(now)){ev.preventDefault();(ev.shiftKey?last:first).focus();}
+  };
+  el.addEventListener('keydown',wrap);
+  return()=>{el.removeEventListener('keydown',wrap);for(const [e,was] of rest)e.inert=was;if(!el.isConnected&&opener instanceof HTMLElement)opener.focus();};
+ },[opener]);
+ return <div className="modal-backdrop" ref={box}>{children}</div>;
+}
+
 export function WhatsNew({entries,onClose}:{entries:ChangelogEntry[];onClose:()=>void}){
  useEscape(onClose);
- return <div className="modal-backdrop"><section className="modal panel whats-new" role="dialog" aria-modal="true" aria-labelledby="whats-new-title"><div className="panel-toolbar"><h3 id="whats-new-title"><Sparkles size={17}/>Có gì mới</h3><button type="button" className="icon-button" aria-label="Đóng Có gì mới" title="Đóng Có gì mới" autoFocus onClick={onClose}><X size={17}/></button></div>
+ return <Modal><section className="modal panel whats-new" role="dialog" aria-modal="true" aria-labelledby="whats-new-title"><div className="panel-toolbar"><h3 id="whats-new-title"><Sparkles size={17}/>Có gì mới</h3><button type="button" className="icon-button" aria-label="Đóng Có gì mới" title="Đóng Có gì mới" autoFocus onClick={onClose}><X size={17}/></button></div>
   {entries.map(e=><article key={e.version}><h4>Bản {e.version}{e.date&&<span>{e.date.split('-').reverse().join('/')}</span>}</h4><ul>{e.changes.map(c=><li key={c}>{c}</li>)}</ul></article>)}
-  <button className="primary" onClick={onClose}>Đã hiểu</button></section></div>;
+  <button className="primary" onClick={onClose}>Đã hiểu</button></section></Modal>;
 }
 
 export function InstallOnClose({version,onInstall,onLater,onCancel}:{version:string;onInstall:()=>void;onLater:()=>void;onCancel:()=>void}){
  useEscape(onCancel);
- return <div className="modal-backdrop"><section className="modal panel" role="dialog" aria-modal="true" aria-labelledby="install-close-title"><div className="panel-toolbar"><h3 id="install-close-title">Cài bản {version} rồi đóng?</h3><button type="button" className="icon-button" aria-label="Quay lại app" title="Quay lại app" autoFocus onClick={onCancel}><X size={17}/></button></div>
+ return <Modal><section className="modal panel" role="dialog" aria-modal="true" aria-labelledby="install-close-title"><div className="panel-toolbar"><h3 id="install-close-title">Cài bản {version} rồi đóng?</h3><button type="button" className="icon-button" aria-label="Quay lại app" title="Quay lại app" autoFocus onClick={onCancel}><X size={17}/></button></div>
   <p>Bản cập nhật đã tải xong và đã kiểm chữ ký. Trình cài đặt chạy vài giây; dự án, take và model được giữ nguyên.</p>
-  <div className="modal-actions"><button className="outlined" onClick={onLater}>Đóng, để lần sau</button><button className="primary" onClick={onInstall}>Cài và đóng</button></div></section></div>;
+  <div className="modal-actions"><button className="outlined" onClick={onLater}>Đóng, để lần sau</button><button className="primary" onClick={onInstall}>Cài và đóng</button></div></section></Modal>;
 }
 
 export function UpdateSettings({current,auto,state,onAuto,onCheck,onShowChanges}:{current:string;auto:boolean;state:UpdateState;onAuto:(on:boolean)=>void;onCheck:()=>void;onShowChanges:()=>void}){

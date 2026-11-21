@@ -34,3 +34,21 @@ test('an installed pack is re-checked on demand, without asking for the licence 
  await expect(page.getByRole('dialog')).toHaveCount(0);
  expect(await downloads(page)).toEqual([{id:'separation-runtime'}]);
 });
+
+// Where keyboard focus is: inside a dialog or not.
+const inDialog=(page:any)=>page.evaluate(()=>!!document.activeElement?.closest('[role=dialog]'));
+
+test('the licence dialog starts on Cancel, keeps Tab inside, makes the page inert, and Escape cancels and returns focus',async({page})=>{
+ await open(page,false);
+ const opener=page.getByRole('button',{name:'Tải gói'});await opener.click();
+ const dialog=page.getByRole('dialog',{name:'Tải gói chạy tách nhạc nền'});
+ await expect(dialog.getByRole('button',{name:'Hủy'})).toBeFocused();
+ await expect(page.locator('.sidebar')).toHaveJSProperty('inert',true);expect(await page.locator('main').evaluate(m=>!!m.closest('[inert]'))).toBe(true);
+ // Three stops (close, Cancel, accept) plus wrap-around: none of 8 Tabs, forward or back, may leave the dialog.
+ for(let i=0;i<8;i++){await page.keyboard.press('Tab');expect(await inDialog(page),`Tab ${i+1}`).toBe(true);}
+ for(let i=0;i<8;i++){await page.keyboard.press('Shift+Tab');expect(await inDialog(page),`Shift+Tab ${i+1}`).toBe(true);}
+ await page.keyboard.press('Escape');
+ await expect(dialog).toHaveCount(0);await expect(opener).toBeFocused();
+ await expect(page.locator('.sidebar')).toHaveJSProperty('inert',false);expect(await page.locator('main').evaluate(m=>!!m.closest('[inert]'))).toBe(false);
+ expect(await downloads(page)).toEqual([]);
+});

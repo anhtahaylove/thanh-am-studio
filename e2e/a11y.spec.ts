@@ -44,3 +44,16 @@ test('lengths and times use the Vietnamese decimal comma and transcript play but
  const play=page.getByRole('button',{name:/^Phát từ /});await expect(play).toHaveCount(2);
  await expect(play.nth(0)).toHaveAccessibleName('Phát từ 00:00:01,250');await expect(play.nth(0)).toHaveText('00:00:01,250');await expect(play.nth(1)).toHaveText('00:00:09,200');
 });
+test('the add-content dialog keeps Tab inside, makes the page inert and gives focus back to its opener',async({page})=>{
+ await page.goto('/');
+ const opener=page.getByRole('button',{name:'Thêm nội dung',exact:true});await opener.click();
+ const dialog=page.getByRole('dialog',{name:'Thêm nội dung'});await expect(dialog.getByRole('textbox',{name:'Nội dung cần thêm'})).toBeFocused();
+ await expect(page.locator('.sidebar')).toHaveJSProperty('inert',true);
+ const inside=()=>page.evaluate(()=>!!document.activeElement?.closest('[role=dialog]'));
+ for(let i=0;i<6;i++){await page.keyboard.press('Tab');expect(await inside(),`Tab ${i+1}`).toBe(true);}
+ for(let i=0;i<6;i++){await page.keyboard.press('Shift+Tab');expect(await inside(),`Shift+Tab ${i+1}`).toBe(true);}
+ await page.keyboard.press('Escape');
+ await expect(dialog).toHaveCount(0);await expect(opener).toBeFocused();await expect(page.locator('.sidebar')).toHaveJSProperty('inert',false);
+ // The close button returns focus the same way.
+ await opener.click();await dialog.getByRole('button',{name:'Đóng nhập nội dung'}).click();await expect(dialog).toHaveCount(0);await expect(opener).toBeFocused();
+});
