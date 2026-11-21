@@ -16,10 +16,14 @@ const mock=(d:Setup)=>{
    case 'enqueue_job':w.__sent.push(args.kind);return {id:'j2',kind:args.kind,project_id:'p1',payload:args.payload,status:'queued',progress:0,error:null,result:null,created_at:now,updated_at:now};
    default:return null;}}};
 };
-// Records every node the app adds that is the checklist or says a step is done, from the first paint on.
+// Records every node the app adds that is the checklist or says a step is done, and every text changed into one, from the first paint on.
 const watch=()=>{
  const w=window as any;w.__seen=[];
- new MutationObserver(ms=>{for(const m of ms)for(const n of m.addedNodes){const e=n as Element;if(e.nodeType===1&&(e.matches('.first-run')||e.querySelector('.first-run')||(e.textContent??'').includes('Đã xong bước')))w.__seen.push(e.className||e.textContent);}}).observe(document,{childList:true,subtree:true});
+ const say=(t:string|null)=>(t??'').includes('Đã xong bước');
+ new MutationObserver(ms=>{for(const m of ms){
+  if(m.type==='characterData'){if(say(m.target.textContent))w.__seen.push(m.target.textContent);continue;} // text swapped into a node that was already there
+  for(const n of m.addedNodes){const e=n as Element;if(n.nodeType===3?say(n.textContent):e.nodeType===1&&(e.matches('.first-run')||e.querySelector('.first-run')||say(e.textContent)))w.__seen.push(n.textContent);}
+ }}).observe(document,{childList:true,subtree:true,characterData:true});
 };
 const NONE:Setup={installed:false,projects:false,ttsDone:false};
 const open=async(page:Page,d:Setup,width=1440,height=1000)=>{await page.setViewportSize({width,height});await page.addInitScript(watch);await page.addInitScript(mock,d);await page.goto('/');};
@@ -54,6 +58,47 @@ test('a set-up user never sees the checklist or a "Đã xong bước" notice, no
 test('the watcher does see the checklist for a new user (so the test above is not vacuous)',async({page})=>{
  await open(page,NONE);await expect(guide(page)).toBeVisible();
  expect((await page.evaluate(()=>(window as any).__seen)).length).toBeGreaterThan(0);
+});
+test('the watcher also sees a text swapped into an existing node',async({page})=>{
+ await open(page,{installed:true,projects:true,ttsDone:true});await polls(page,1);
+ await page.evaluate(async()=>{const t=document.createTextNode('x');document.body.append(t);await new Promise(r=>setTimeout(r,50));t.data='Đã xong bước 9: thử';});
+ expect(await page.evaluate(()=>(window as any).__seen)).toEqual(['Đã xong bước 9: thử']);
+});
+test('a hidden checklist announces nothing when a step is finished later',async({page})=>{
+ await open(page,NONE);
+ await guide(page).getByRole('button',{name:'Ẩn hướng dẫn'}).click();await expect(guide(page)).toHaveCount(0);
+ await page.evaluate(()=>(window as any).__flip());await polls(page,await page.evaluate(()=>(window as any).__polls+2));
+ await expect(notices(page)).toHaveCount(0);expect(await stored(page)).toBe('hidden');
+});
+test('a finished checklist announces nothing when the model goes missing and comes back',async({page})=>{
+ await page.addInitScript(()=>localStorage.setItem('thanh-am-onboarding','done'));
+ await open(page,NONE);await polls(page,1);
+ await page.evaluate(()=>(window as any).__flip());await polls(page,await page.evaluate(()=>(window as any).__polls+2));
+ await expect(notices(page)).toHaveCount(0);await expect(guide(page)).toHaveCount(0);
+});
+test('the last step is still announced as the checklist turns done',async({page})=>{
+ await open(page,{installed:false,projects:true,ttsDone:true});await expect(guide(page)).toBeVisible();
+ await page.evaluate(()=>(window as any).__flip());
+ await expect(notices(page)).toHaveCount(1);await expect(notices(page)).toContainText('Đã xong bước 1: Tải VieNeu v3 Turbo (637 MB)');
+ await expect(guide(page)).toHaveCount(0);await expect.poll(()=>stored(page)).toBe('done');
+});
+test('a dismissed notice does not come back when the page re-renders',async({page})=>{
+ await open(page,NONE);await expect(guide(page)).toBeVisible();
+ await page.evaluate(()=>(window as any).__flip());await expect(notices(page)).toHaveCount(1);
+ await page.getByRole('button',{name:'Đóng thông báo'}).click();await expect(notices(page)).toHaveCount(0);
+ await page.keyboard.press('Control+k');await expect(page.getByRole('dialog',{name:'Bảng lệnh'})).toBeVisible();await page.keyboard.press('Escape');await expect(page.getByRole('dialog',{name:'Bảng lệnh'})).toHaveCount(0);
+ await expect(notices(page)).toHaveCount(0);
+});
+const toolbar=(page:Page)=>page.locator('.script-panel .panel-toolbar button').first();
+test('focus moves to the script toolbar when "Ẩn hướng dẫn" removes the checklist',async({page})=>{
+ await open(page,NONE);await guide(page).getByRole('button',{name:'Ẩn hướng dẫn'}).click();
+ await expect(guide(page)).toHaveCount(0);await expect(toolbar(page)).toBeFocused();
+});
+test('focus moves to the script toolbar when the last step finishes with the focus inside the checklist',async({page})=>{
+ await open(page,{installed:false,projects:true,ttsDone:true});
+ await guide(page).getByRole('button',{name:'Xem model giọng đọc'}).focus();
+ await page.evaluate(()=>(window as any).__flip());
+ await expect(guide(page)).toHaveCount(0);await expect(toolbar(page)).toBeFocused();
 });
 test('"Ẩn hướng dẫn" survives a reload, and the palette brings the checklist back',async({page})=>{
  await open(page,NONE);
