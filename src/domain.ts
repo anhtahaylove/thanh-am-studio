@@ -3,7 +3,7 @@ export const uid=()=>crypto.randomUUID();
 /** A take length for display, in Vietnamese style: one decimal with a comma ("4,1 giây"). */
 export const seconds=(ms:number)=>`${(ms/1000).toLocaleString('vi-VN',{minimumFractionDigits:1,maximumFractionDigits:1})} giây`;
 export function timestamp(ms:number,separator=','):string {ms=Math.round(ms);return `${String(Math.floor(ms/3600000)).padStart(2,'0')}:${String(Math.floor(ms/60000)%60).padStart(2,'0')}:${String(Math.floor(ms/1000)%60).padStart(2,'0')}${separator}${String(ms%1000).padStart(3,'0')}`;}
-export function parseTime(value:string):number {const parts=value.trim().replace(',','.').split(':').map(Number);if(parts.length<2||parts.length>3||parts.some(x=>!Number.isFinite(x)||x<0)||parts.at(-1)!>=60||parts.at(-2)!>=60)throw Error('Mốc thời gian không hợp lệ');return Math.round(parts.reduce((a,n)=>a*60+n,0)*1000);}
+function parseTime(value:string):number {const parts=value.trim().replace(',','.').split(':').map(Number);if(parts.length<2||parts.length>3||parts.some(x=>!Number.isFinite(x)||x<0)||parts.at(-1)!>=60||parts.at(-2)!>=60)throw Error('Mốc thời gian không hợp lệ');return Math.round(parts.reduce((a,n)=>a*60+n,0)*1000);}
 export function parseSubtitles(input:string):TranscriptSegment[]{
  const blocks=input.replace(/^\uFEFF/,'').replace(/\r/g,'').trim().split(/\n\s*\n/);const rows:TranscriptSegment[]=[];
  for(const block of blocks){const lines=block.split('\n');if(/^(WEBVTT|NOTE|STYLE|REGION)(\s|$)/.test(lines[0]))continue;const idx=lines.findIndex(l=>l.includes('-->'));if(idx<0)continue;const match=lines[idx].match(/^(\S+)\s+-->\s+(\S+)/);if(!match)throw Error('Mốc thời gian không hợp lệ');const start_ms=parseTime(match[1]),end_ms=parseTime(match[2]);if(end_ms<=start_ms)throw Error('Khoảng thời gian phải tăng');rows.push({id:uid(),start_ms,end_ms,text:lines.slice(idx+1).join('\n')});}
@@ -47,9 +47,9 @@ export function barState(i:number,n:number,durationMs:number,trim:{trim_start_ms
 }
 export const rowAt=(rows:TranscriptSegment[],ms:number)=>rows.find(r=>r.start_ms<=ms&&ms<r.end_ms)?.id??null;
 /** Pause mark the worker turns into silence: "[nghỉ 0.5s]", "[nghỉ 300ms]", "[pause 2 sec]", bare "[nghỉ]" = 1 s. Any bracket opening with nghỉ or pause matches, and nghi only when bare or followed by a digit (so "[nghi ngờ]" stays text); one that does not parse is dropped by the worker (worker/main.py PAUSE_MARK). */
-export const PAUSE_MARK=/\[\s*(?:(?:nghỉ|pause)(?![\p{L}\p{N}_])[^\]]*|nghi\s*(?:\d[^\]]*)?)\]/giu;
+const PAUSE_MARK=/\[\s*(?:(?:nghỉ|pause)(?![\p{L}\p{N}_])[^\]]*|nghi\s*(?:\d[^\]]*)?)\]/giu;
 /** Non-verbal cue the engine turns into an emotion token (experimental): the spellings its phonemizer accepts, which must reach it unchanged. */
-export const CUE_MARK=/\[\s*(?:chuckle|cười|cuoi|sigh|thở dài|tho dai|clear throat|hắng giọng|hang giong)\s*\]/giu;
+const CUE_MARK=/\[\s*(?:chuckle|cười|cuoi|sigh|thở dài|tho dai|clear throat|hắng giọng|hang giong)\s*\]/giu;
 export const spokenText=(text:string)=>text.replace(PAUSE_MARK,' ').replace(CUE_MARK,' ').replace(/\s+/g,' ').trim();
 /** Insert `tag` over [start,end), with a space on each side when it would touch a word. */
 export function insertAtCursor(text:string,start:number,end:number,tag:string):{text:string;caret:number} {
@@ -165,8 +165,8 @@ const wrapCue=(cue:string)=>{if(cue.length<=LINE_CHARS)return cue;let best=-1;fo
 // Dubbing on the subtitle timeline (after cit-voice-studio's dubbing.py): a take starts at its cue and is sped up to fit it, at most
 // 1.5x; one that still runs over pushes the next take back (at least 50 ms between them). Words are never cut. A segment without a
 // cue follows the previous take after that take's gap.
-export const MAX_FIT_RATE=1.5,DUB_GAP_MS=50;
-export interface DubCue {cue_start_ms?:number|null;cue_end_ms?:number|null}
+const MAX_FIT_RATE=1.5,DUB_GAP_MS=50;
+interface DubCue {cue_start_ms?:number|null;cue_end_ms?:number|null}
 /** Where each take starts on the timeline, its speed-up and where it ends; counts of sped-up and pushed takes; the total length (at least the last cue's end). */
 export function dubPlan(clips:(Recipe&DubCue)[]):{places:{at_ms:number;rate:number;end_ms:number}[];sped_up:number;pushed:number;max_push_ms:number;length_ms:number}{
  let cursor=0,gap=0,sped_up=0,pushed=0,max_push_ms=0;

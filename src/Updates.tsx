@@ -5,7 +5,7 @@ import {call,desktop} from './bridge';
 import {CHANGELOG,changesSince,compareVersions} from './changelog';
 import type {ChangelogEntry} from './changelog';
 
-export interface UpdateState {phase:'idle'|'checking'|'downloading'|'ready'|'failed';version?:string;notes?:string|null;progress?:number;title?:string;error?:string}
+interface UpdateState {phase:'idle'|'checking'|'downloading'|'ready'|'failed';version?:string;notes?:string|null;progress?:number;title?:string;error?:string}
 const AUTO_KEY='thanh-am-auto-update',SEEN_KEY='thanh-am-seen-version',CHECK_EVERY_MS=12*3600e3;
 const pref=(key:string)=>{try{return localStorage.getItem(key);}catch{return null;}};
 const setPref=(key:string,value:string)=>{try{localStorage.setItem(key,value);}catch{/* the preference just does not persist */}};

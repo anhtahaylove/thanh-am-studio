@@ -4,7 +4,7 @@ Last updated 2026-11-20. Evidence below was observed, not inferred; anything not
 
 ## Implemented
 
-- Self-contained NSIS installer (~195 MiB, per-user, no admin): app + worker + private CPython 3.11.18
+- Self-contained NSIS installer (~210 MiB, per-user, no admin): app + worker + private CPython 3.11.18
   runtime with the locked CPU closure + app-local MSVC CRT + pinned BtbN LGPL FFmpeg 9.0.2 + third-party notices.
   Release builds never use the source checkout, PATH or developer env vars.
 - Models downloaded in the app: pinned revisions and per-file digests, plain-HTTP resumable download
@@ -969,7 +969,7 @@ Evidence: `work\release-v1.0.20-sandbox` (`out1020r1`, `out1020r2`, `out1020r3-f
 
 - Self-update through GitHub was observed twice, in clean Sandboxes (1.0.11 to 1.0.12 and 1.0.13 to 1.0.15, above); the per-release gate
   still uses a local copy of the feed (`THANHAM_UPDATE_MANIFEST`), because it runs before the release is published.
-  Each update downloads the whole installer (about 297 MB from 1.0.15, which added PyTorch, and 294 MB from 1.0.16); from 1.0.12 the app removes the installer copy the updater
+  Each update downloads the whole installer (about 214-220 MB from 1.0.18 on; 1.0.15 and 1.0.16, with PyTorch, were about 297 MB and 294 MB); from 1.0.12 the app removes the installer copy the updater
   leaves in `%TEMP%` shortly after it starts.
 - From 1.0.16 the installer no longer redistributes the Intel OpenMP runtime (Intel End User License Agreement
   for Developer Tools): LLVM's runtime runs behind the project's `libiomp5md.dll` shim (owner decision 2026-11-17;
