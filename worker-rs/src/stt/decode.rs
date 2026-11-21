@@ -165,9 +165,10 @@ fn decode_error(err: &AvError) -> WorkerError {
             };
             match err.code {
                 -2 => WorkerError::new("INPUT_MISSING", "Input audio/video is missing."), // deleted since the job started
-                // ENOMEM, a file another program holds (EACCES) or a read error (EIO) are the environment: WORKER_ERROR, rerun on
-                // Python. EPERM stays INVALID_MEDIA: the AAC decoder returns it for damaged data.
-                -12 | -13 | -5 => WorkerError::py(error_class(err.code), message),
+                // ENOMEM and a file another program holds (EACCES; Windows reports read errors so too) are the environment:
+                // WORKER_ERROR, rerun on Python. EPERM and EIO stay INVALID_MEDIA: the AAC decoder returns EPERM for damaged data,
+                // and EIO comes from the Matroska demuxer short-reading a file cut in its header.
+                -12 | -13 => WorkerError::py(error_class(err.code), message),
                 code => invalid_media(error_class(code), message),
             }
         }

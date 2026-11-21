@@ -665,6 +665,15 @@ class WorkerTests(unittest.TestCase):
             with self.assertRaises(worker.WorkerError) as caught:
                 worker.load_audio(Path(td) / 'gone.mp3')
             self.assertEqual((caught.exception.code, str(caught.exception)), ('INPUT_MISSING', 'Input audio/video is missing.'))
+            # A Matroska file cut in its header: the demuxer's short read is EIO, about the file (INVALID_MEDIA), not a read error.
+            mkv = Path(td) / 'tone.mkv'
+            subprocess.run(['ffmpeg', '-nostdin', '-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i',
+                            'sine=frequency=440:sample_rate=44100:duration=2', '-c:a', 'libvorbis', str(mkv)], check=True)
+            mkv.write_bytes(mkv.read_bytes()[:1000])
+            with self.assertRaises(worker.WorkerError) as caught:
+                worker.load_audio(mkv)
+            self.assertEqual(caught.exception.code, 'INVALID_MEDIA')
+            self.assertTrue(str(caught.exception).startswith('OSError: [Errno 5] I/O error'), caught.exception)
             # Held by another program with a no-share handle: EACCES is not the media, so it stays WORKER_ERROR (rerun on Python).
             kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
             kernel32.CreateFileW.restype = ctypes.c_void_p

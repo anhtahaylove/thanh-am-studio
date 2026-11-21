@@ -7,10 +7,10 @@ also give exactly what faster-whisper's decode_audio gives.
 The fixtures follow P0-core's row D (6 containers x 4 rates x mono/stereo, a two-track MP4, a long file over several 500000-sample
 groups) and add what the decode branches on: a 16 kHz mono s16 WAV (the resampler's passthrough), other sample formats (u8, s24,
 f32, 5.1, 7.1), more containers and codecs (WMA, AIFF, Matroska and Ogg Vorbis, WebM Opus, MOV AAC, AMR-NB, mu-law, IMA ADPCM),
-WAVs of 0 to 10 samples, no audio stream, files FFmpeg cannot open, a truncated and a damaged file, invalid frames
-mid-file (an MP3 joined to itself, 400 bytes of 0xff in an MP3, 4096 in an M4A, an M4A damaged twice, an M4A with every packet
-invalid), MP3s joined from parts with another rate or channel count, an ADTS header of length 0 (a demuxer error), a missing file,
-a file another program holds and a non-ASCII name.
+WAVs of 0 to 10 samples, no audio stream, files FFmpeg cannot open, a truncated MP3, a Matroska file cut in its header, a damaged
+file, invalid frames mid-file (an MP3 joined to itself, 400 bytes of 0xff in an MP3, 4096 in an M4A, an M4A damaged twice, an M4A
+with every packet invalid), MP3s joined from parts with another rate or channel count, an ADTS header of length 0 (a demuxer
+error), a missing file, a file another program holds and a non-ASCII name.
 
 With --vad, each decoded case also records faster-whisper's VAD on it (get_speech_timestamps with VadOptions(), as transcribe runs
 it): the Silero probabilities' SHA-256 and the speech chunks, for stt::vad::tests::vad_matches_python.
@@ -129,7 +129,7 @@ def main():
     make('amr-nb-8000-mono.amr', '-i', source(1), '-ar', 8000, '-ac', 1, '-c:a', 'libopencore_amrnb', '-b:a', '12.2k')
     make('mulaw-8000-mono.wav', '-i', source(1), '-ar', 8000, '-ac', 1, '-c:a', 'pcm_mulaw')
     make('adpcm-ima-48000-stereo.wav', '-i', source(2), '-c:a', 'adpcm_ima_wav')
-    make('mp3-44100-long.mp3','-i', source(2, 75), '-ar', 44100, '-c:a', 'libmp3lame', '-b:a', '96k')
+    make('mp3-44100-long.mp3', '-i', source(2, 75), '-ar', 44100, '-c:a', 'libmp3lame', '-b:a', '96k')
     make('multitrack.mp4', '-f', 'lavfi', '-i', 'color=c=gray:s=160x120:r=10:d=12', '-i', source(1), '-i', source(2), '-map', '0:v', '-map', '1:a',
          '-map', '2:a', '-c:v', 'mpeg4', '-q:v', '8', '-c:a:0', 'aac', '-b:a:0', '96k', '-ar:a:0', 48000, '-c:a:1', 'aac', '-b:a:1', '128k',
          '-ar:a:1', 44100, '-shortest')
@@ -140,7 +140,7 @@ def main():
             w.setparams((1, 2, 48000, 0, 'NONE', 'not compressed'))
             w.writeframes(np.full(n, 1000, '<i2').tobytes())
         files.append(fix / f'wav-48000-{n}samples.wav')
-    for name, data in {'empty.wav': b'','not-media.mp3': 'Đây không phải âm thanh.\n'.encode() * 50}.items():
+    for name, data in {'empty.wav': b'', 'not-media.mp3': 'Đây không phải âm thanh.\n'.encode() * 50}.items():
         (fix / name).write_bytes(data)
         files.append(fix / name)
     whole = (fix / 'mp3-44100-stereo.mp3').read_bytes()
@@ -165,6 +165,8 @@ def main():
     (fix / 'joined-channels.mp3').write_bytes(whole + mono)  # fewer channels later: an error
     (fix / 'mono+stereo.mp3').write_bytes(mono + whole)  # more channels later: decoded
     (fix / 'locked.mp3').write_bytes(whole)  # held by another program: PermissionError (EACCES), WORKER_ERROR
+    mkv = (fix / 'vorbis-48000-stereo.mkv').read_bytes()
+    (fix / 'mkv-header-cut.mkv').write_bytes(mkv[:1000])  # the Matroska demuxer short-reads its header: EIO, INVALID_MEDIA
     make('adts-44100-stereo.aac', '-i', fix / 'm4a-44100-stereo.m4a', '-c:a', 'copy')
     adts = bytearray((fix / 'adts-44100-stereo.aac').read_bytes())
     starts, pos = [], 0
@@ -178,7 +180,7 @@ def main():
     (fix / 'adts-badlen.aac').write_bytes(adts)  # frame_length 0 mid-file: the demuxer's InvalidDataError ends the input
     files += [fix / n for n in ('truncated.mp3', 'damaged.m4a', 'm4a-0xff-mid.m4a', 'm4a-two-damages.m4a', 'm4a-all-invalid.m4a', 'joined.mp3',
                                 'damaged-0xff.mp3', 'joined-rates.mp3', 'joined-channels.mp3', 'mono+stereo.mp3', 'adts-badlen.aac', 'missing.wav',
-                                'locked.mp3')]
+                                'locked.mp3', 'mkv-header-cut.mkv')]
     for extra in a.extra:
         files += sorted(p.resolve() for p in Path(extra).iterdir() if p.is_file() and p.suffix != '.json')
 

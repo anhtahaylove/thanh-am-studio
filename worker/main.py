@@ -906,9 +906,10 @@ def load_audio(path):
         code = getattr(error, 'errno', None)
         if code == errno.ENOENT:  # deleted since the job started
             raise WorkerError('INPUT_MISSING', 'Input audio/video is missing.') from error
-        # ENOMEM, a file another program holds (EACCES) or a read error (EIO) are the environment: WORKER_ERROR, rerun on Python.
-        # EPERM stays INVALID_MEDIA: the AAC decoder returns it for damaged data.
-        if isinstance(error, MemoryError) or code in (errno.EACCES, errno.EIO):
+        # ENOMEM and a file another program holds (EACCES; Windows reports read errors so too) are the environment: WORKER_ERROR,
+        # rerun on Python. EPERM and EIO stay INVALID_MEDIA: the AAC decoder returns EPERM for damaged data, and EIO comes from the
+        # Matroska demuxer short-reading a file cut in its header.
+        if isinstance(error, MemoryError) or code == errno.EACCES:
             raise
         raise WorkerError('INVALID_MEDIA', f'{type(error).__name__}: {error}') from error
     del resampler
