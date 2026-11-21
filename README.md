@@ -59,10 +59,11 @@ Check that this fits your use before you download it.
   top of the app; 8 GB in total is the tested minimum.
 - **Speech-to-text on a CPU without AVX** (Intel CPUs before Sandy Bridge, and many Pentium, Celeron
   and Atom models). The native engine needs AVX: its Whisper runtime (CTranslate2) stops with an
-  illegal instruction (`0xC000001D`) right after the model starts loading (both upstream reports are
-  open: [jkawamoto/ctranslate2-rs#172](https://github.com/jkawamoto/ctranslate2-rs/issues/172),
-  [OpenNMT/CTranslate2#2166](https://github.com/OpenNMT/CTranslate2/pull/2166)). The app then reruns
-  the job once on the Python engine, which finished it on an emulated pre-AVX CPU.
+  illegal instruction (`0xC000001D`) right after the model starts loading (the open issue
+  [jkawamoto/ctranslate2-rs#172](https://github.com/jkawamoto/ctranslate2-rs/issues/172) reports it;
+  the open pull request [OpenNMT/CTranslate2#2166](https://github.com/OpenNMT/CTranslate2/pull/2166)
+  addresses a related MKL crash on such CPUs). The app then reruns the job once on the Python engine,
+  which finished it on an emulated pre-AVX CPU.
 
 ## Development
 
