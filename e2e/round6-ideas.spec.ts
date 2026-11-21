@@ -19,3 +19,12 @@ test('subtitle-timed dubbing counts and marks the takes that still run past thei
  await expect(marker).toHaveCount(1);await expect(page.locator('.segment').first().locator('.take-check')).toHaveText('Dài hơn mốc 667 ms');
  await page.getByRole('checkbox',{name:'Theo mốc phụ đề'}).uncheck();await expect(marker).toHaveCount(0);
 });
+test('a take whose end Whisper heard twice says the voice looped and asks for a new take',async({page})=>{
+ await page.addInitScript(()=>{
+  const check={model:'whisper-small',heard:'Hãy chủ động thay đổi. Chủ động thay đổi.',mismatches:[{expected:'',heard:'chủ động thay đổi',soft:false}]};
+  const take={id:'t1',asset_id:'a1',path:'t1.wav',duration_ms:3000,sample_rate:24000,created_at:'2026-01-01T00:00:00Z',check};
+  localStorage.setItem('thanh-am-preview-projects-v1',JSON.stringify([{id:'p1',name:'Lặp',updated_at:'2026-01-01T00:00:00Z',revision:0,segments:[{id:'s1',text:'Hãy chủ động thay đổi.',normalized_text:'Hãy chủ động thay đổi.',voice_id:null,speaker:'Người dẫn',gap_ms:300,takes:[take],selected_take_id:'t1',trim_start_ms:0,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0,gain_db:0}],transcript:[],dictionary:{},source_asset_id:null}]));
+ });
+ await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();
+ const chip=page.locator('.segment .take-check');await expect(chip).toHaveText('Giọng lặp lại cuối câu: tạo lại take');await expect(chip).toHaveAttribute('title',/giọng đọc lặp lại “chủ động thay đổi”\. Bấm “Tạo take mới”/);
+});
