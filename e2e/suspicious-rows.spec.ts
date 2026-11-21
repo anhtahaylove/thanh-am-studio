@@ -44,3 +44,18 @@ test('the reason is available to assistive technology, not only as a tooltip',as
  const {texts}=await flagged(page);
  await expect(texts.nth(1)).toHaveAccessibleDescription(/giống hệt dòng ngay trước/);await expect(texts.nth(3)).toHaveAccessibleDescription(/gần như không có chữ/);await expect(texts.nth(2)).toHaveAccessibleDescription('');
 });
+
+test('when an edit moves the flag to another row, the filter lifts instead of showing the wrong row',async({page})=>{
+ await page.goto('/');await page.getByRole('button',{name:'Chép lời',exact:true}).click();for(let i=0;i<3;i++)await page.getByRole('button',{name:'Thêm dòng'}).click();
+ const texts=page.getByLabel(/^Lời nói tại/),toggle=page.getByRole('button',{name:/dòng đáng ngờ/});
+ await texts.nth(0).fill('x ơi');await texts.nth(1).fill('x ơi');await texts.nth(2).fill('q ơi');
+ await expect(toggle).toHaveText('1 dòng đáng ngờ');await toggle.click();await expect(texts).toHaveCount(1);await expect(toggle).toHaveAttribute('aria-pressed','true');
+ // B becomes a repeat-free row and C, which now equals it, becomes the flagged one: the list must show C again.
+ await texts.nth(0).fill('q ơi');
+ await expect(texts).toHaveCount(3);await expect(toggle).toHaveText('1 dòng đáng ngờ');await expect(toggle).toHaveAttribute('aria-pressed','false');await expect(page.locator('.suspect-chip')).toHaveCount(1);
+});
+test('adding a row while the filter is on lifts the filter so the new row is visible',async({page})=>{
+ const {texts,toggle}=await flagged(page);await toggle.click();await expect(texts).toHaveCount(2);
+ await page.getByRole('button',{name:'Thêm dòng'}).click();
+ await expect(texts).toHaveCount(5);await expect(toggle).toHaveAttribute('aria-pressed','false');
+});
