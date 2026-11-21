@@ -52,7 +52,7 @@ test('lengths and times use the Vietnamese decimal comma and transcript play but
  await expect(page.getByRole('combobox',{name:'Take đang sử dụng'}).locator('option',{hasText:'Take 1'})).toHaveText('Take 1 · 4,1 giây');
  await page.getByRole('button',{name:'Chép lời',exact:true}).click();
  const play=page.getByRole('button',{name:/^Phát từ /});await expect(play).toHaveCount(2);
- await expect(play.nth(0)).toHaveAccessibleName('Phát từ 00:00:01,250');const times=page.locator('.tr-time');await expect(times.nth(0)).toContainText('0:01,250');await expect(times.nth(1)).toContainText('0:09,200');
+ await expect(play.nth(0)).toHaveAccessibleName('Phát từ 00:00:01,250');const times=page.locator('.tr-time');await expect(times.nth(0)).toHaveText('0:01,250 – 0:03,500');await expect(times.nth(1)).toHaveText('0:09,200 – 0:10,000');
 });
 test('the add-content dialog keeps Tab inside, makes the page inert and gives focus back to its opener',async({page})=>{
  await page.goto('/');

@@ -11,7 +11,7 @@ test('Ctrl+Z in a dialog or a side field undoes that text only, and still undoes
  for(let i=0;i<3;i++)await page.keyboard.press('Control+z');await expect(word).toBeFocused();await expect(first).toHaveValue('Một hai');
  await first.focus();await page.keyboard.press('Control+z');await expect(first).not.toHaveValue('Một hai');
 });
-test('a time field keeps what is typed as a draft: 10000 over 9100 is 10000 ms, not 91000000',async({page})=>{
+test('a time field keeps what is typed as a draft: 0:10,000 over 0:09,100 is 10000 ms, not 91000000',async({page})=>{
  await seed(page,{id:'p1',name:'Mốc giờ',updated_at:new Date().toISOString(),revision:1,segments:[],transcript:[{id:'r1',start_ms:4300,end_ms:9100,text:'Một câu'}],dictionary:{},source_asset_id:null});
  await page.getByRole('button',{name:'Chép lời',exact:true}).click();
  await page.locator('.tr-time').click();const end=page.getByLabel('Kết thúc');await end.press('Control+a');await page.keyboard.type('0:1');

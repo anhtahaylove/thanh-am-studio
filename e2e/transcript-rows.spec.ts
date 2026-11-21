@@ -22,7 +22,7 @@ const open=async(page:Page,opts:{rows?:unknown[];source?:boolean;width?:number}=
  await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();await page.getByRole('button',{name:'Chép lời',exact:true}).click();
  await expect(page.locator('.transcript-row')).toHaveCount((opts.rows??ROWS).length);
 };
-const time=(page:Page,i:number)=>page.locator('.transcript-row .tr-time').nth(i);
+const time=(page:Page,i:number)=>page.locator('.transcript-row').nth(i).locator('.tr-time');
 const saved=(page:Page)=>page.evaluate(()=>(window as any).__saved as {transcript:{start_ms:number;end_ms:number;text:string}[]}[]);
 
 test('a transcript row is one short line, with the time as one button and the speaker as a coloured chip and rule',async({page})=>{
@@ -68,7 +68,7 @@ test('Ctrl+Z in an open draft undoes only the typed text: the project and the un
 test('Ctrl+S commits a valid draft first and saves it; an invalid one is left out of the save and keeps its error',async({page})=>{
  await open(page);
  await time(page,0).click();await page.getByLabel('Kết thúc').fill('0:03,900');await page.keyboard.press('Control+s');
- await expect(page.getByLabel('Kết thúc')).toHaveCount(0);await expect.poll(async()=>(await saved(page)).at(-1)?.transcript[0].end_ms).toBe(3900);
+ await expect(page.getByLabel('Kết thúc')).toHaveCount(0);await expect(time(page,0)).toBeFocused();await expect.poll(async()=>(await saved(page)).at(-1)?.transcript[0].end_ms).toBe(3900);
  // Something else is unsaved, so the save really runs while the invalid draft is open.
  const text=page.getByLabel('Lời nói tại 00:00:03,300');await text.fill('Đã sửa lời.');
  await time(page,2).click();const end=page.getByLabel('Kết thúc');await end.fill('0:01,000');await end.press('Control+s');
@@ -91,4 +91,16 @@ test('play is disabled without a source audio and says why',async({page})=>{
 for(const width of [800,640])test(`the transcript does not scroll sideways at ${width} px, even with the time editor open`,async({page})=>{
  await open(page,{width});const wide=()=>page.evaluate(()=>[document.documentElement.scrollWidth-innerWidth,...[...document.querySelectorAll('.transcript-list,.transcript-row')].map(e=>e.scrollWidth-e.clientWidth)].filter(d=>d>0));
  expect(await wide()).toEqual([]);await time(page,1).click();await expect(page.getByLabel('Bắt đầu')).toBeVisible();expect(await wide()).toEqual([]);
+});
+test('a row that is past one hour is written, reopened and committed with hours even when the last row is shorter',async({page})=>{
+ const rows=ROWS.map((r,i)=>i===2?{...r,start_ms:3700000,end_ms:3705000}:r);
+ await open(page,{rows});await expect(time(page,2)).toHaveText('1:01:40,000 – 1:01:45,000');await expect(time(page,5)).toHaveText(/^0:\d\d,\d{3} – 0:\d\d,\d{3}$/);
+ await time(page,2).click();await expect(page.getByLabel('Bắt đầu')).toHaveValue('1:01:40,000');await page.getByLabel('Bắt đầu').press('Enter');
+ await expect(page.getByLabel('Bắt đầu')).toHaveCount(0);await expect(page.locator('.tr-time[aria-invalid]')).toHaveCount(0);await expect(time(page,2)).toBeFocused();
+});
+test('a click on another row time button still lands when the open editor closes and its row shrinks (1024 px)',async({page})=>{
+ await open(page,{width:1024});
+ await time(page,0).click();await page.getByLabel('Kết thúc').fill('0:03,900');
+ await time(page,1).click();
+ await expect(page.getByLabel('Bắt đầu')).toHaveCount(1);await expect(page.getByLabel('Bắt đầu')).toHaveValue('0:03,300');await expect(time(page,0)).toHaveText('0:00,000 – 0:03,900');
 });

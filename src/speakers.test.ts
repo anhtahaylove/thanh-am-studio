@@ -25,6 +25,8 @@ describe('speaker colours',()=>{
   // A named speaker met first still leaves the slot a later "Người N" owns.
   expect([...speakerColors(['Lan','Người 1','Minh','Người 3'])]).toEqual([['Người 1',0],['Người 3',2],['Lan',1],['Minh',3]]);
   expect(speakerColors(['Lan','Lan']).size).toBe(1);
+  // "Người 0" is not a diarized speaker: it must not take slot -1.
+  expect([...speakerColors(['Người 0','Người 1'])]).toEqual([['Người 1',0],['Người 0',1]]);
  });
  it('wraps the ninth name instead of failing',()=>{const names=Array.from({length:9},(_,i)=>'Khách '+i);expect(speakerColors(names).get('Khách 8')).toBeLessThan(8);});
 });
