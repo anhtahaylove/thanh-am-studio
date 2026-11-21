@@ -22,6 +22,24 @@ export function replaceInTranscript(rows:TranscriptSegment[],find:string,replace
  const next=rows.map(r=>{const text=r.text.normalize('NFC').replace(pattern,()=>{count++;return replacement;});return text===r.text.normalize('NFC')?r:{...r,text};});
  return {rows:next,count};
 }
+const foldVi=(s:string)=>s.normalize('NFD').replace(/\p{M}/gu,'').replace(/[đĐ]/g,'d').toLowerCase();
+/** Splits `text` at every match of `query`, ignoring case, tone marks and the stroke of đ; the parts always concatenate back to `text`. */
+export function searchParts(text:string,query:string):{text:string;hit:boolean}[]{
+ const q=foldVi(query);if(!query)return [{text,hit:false}];
+ // Fast path: most rows do not match, and folding the whole text at once is far cheaper than the per-character loop below.
+ if(!foldVi(text).includes(q))return [{text,hit:false}];
+ // Fold char by char so every folded index maps back to an offset in the original, whatever its normalization form.
+ let folded='';const at:number[]=[];let i=0;
+ for(const ch of text){const f=foldVi(ch);for(let k=0;k<f.length;k++)at.push(i);folded+=f;i+=ch.length;}
+ const parts:{text:string;hit:boolean}[]=[];let last=0;
+ for(let p=q?folded.indexOf(q):-1;p>=0;p=folded.indexOf(q,p+q.length)){
+  const from=at[p],to=at[p+q.length]??text.length;
+  if(from>last)parts.push({text:text.slice(last,from),hit:false});
+  parts.push({text:text.slice(from,to),hit:true});last=to;
+ }
+ if(last<text.length||!parts.length)parts.push({text:text.slice(last),hit:false});
+ return parts;
+}
 /** Badge for a take that Whisper listened back to; soft mismatches (merged initials/finals) do not warn. */
 export function checkSummary(check:TakeCheck|undefined):{tone:'ok'|'warn';label:string;detail:string}|null{
  if(!check||check.error||!check.mismatches)return null;

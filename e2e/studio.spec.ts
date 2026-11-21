@@ -181,3 +181,15 @@ test('a Word file the app cannot read shows a short Vietnamese message instead o
  await page.goto('/');await page.getByRole('button',{name:/Nhập TXT \/ SRT \/ Word/}).click();
  await expect(page.getByText('Không đọc được tệp Word này. Hãy mở bằng Word rồi lưu lại dạng .docx.')).toBeVisible();await expect(page.getByText('INVALID_DOCX')).toHaveCount(0);
 });
+test('transcript search ignores tone marks, counts matches and marks them in the rows',async({page})=>{
+ await page.goto('/');await page.getByRole('button',{name:'Chép lời',exact:true}).click();for(let i=0;i<3;i++)await page.getByRole('button',{name:'Thêm dòng'}).click();
+ const texts=page.getByLabel(/^Lời nói tại/);await texts.nth(0).fill('Mua cá thu tươi');await texts.nth(1).fill('Cá Thu và cá thu nữa');await texts.nth(2).fill('Không liên quan');
+ const box=page.getByLabel('Tìm trong bản chép lời'),count=page.locator('.search-count'),marks=page.locator('.match-preview mark');
+ await box.fill('ca thu');await expect(texts).toHaveCount(2);await expect(count).toHaveText('3 kết quả');await expect(marks).toHaveText(['cá thu','Cá Thu','cá thu']);
+ await box.fill('CÁ THU');await expect(texts).toHaveCount(2);
+ await box.fill('xyz');await expect(texts).toHaveCount(0);await expect(count).toHaveText('0 kết quả');
+ // Replace stays exact: the toneless query matches rows, but nothing is rewritten.
+ await box.fill('ca thu');await page.getByLabel('Thay bằng').fill('cá basa');await page.getByRole('button',{name:'Thay tất cả'}).click();
+ await expect(page.getByRole('status')).toContainText('khớp đúng dấu');await expect(texts.nth(0)).toHaveValue('Mua cá thu tươi');
+ await box.fill('');await expect(texts).toHaveCount(3);await expect(count).toHaveText('');await expect(marks).toHaveCount(0);
+});
