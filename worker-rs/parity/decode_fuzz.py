@@ -30,18 +30,20 @@ BITEXACT = ['-fflags', '+bitexact', '-flags', '+bitexact']  # the same bytes on 
 def child(path, which):
     """One decode, printed as a row D result."""
     import numpy as np
+    sys.path.insert(0, str(WORKER))
+    from main import WorkerError, load_audio
     if which == 'decode_audio':
         from faster_whisper.audio import decode_audio
         decode = lambda: decode_audio(path, sampling_rate=16000)  # noqa: E731
     else:
-        sys.path.insert(0, str(WORKER))
-        from main import load_audio
         decode = lambda: load_audio(path)  # noqa: E731
     try:
         i16 = np.round(decode() * 32768).astype('<i2')
         result = {'n': int(len(i16)), 'sha256': hashlib.sha256(i16.tobytes()).hexdigest()}
-    except Exception as e:
-        result = {'error': f'{type(e).__name__}: {e}'}
+    except WorkerError as e:
+        result = {'code': e.code, 'error': str(e)}
+    except Exception as e:  # the worker reports these as WORKER_ERROR "Type: text"
+        result = {'code': 'WORKER_ERROR', 'error': f'{type(e).__name__}: {e}'}
     print(json.dumps(result))
 
 
@@ -98,7 +100,7 @@ def main():
             old, new = got['decode_audio'], got['load_audio']
             counts['crash decode_audio'] += 'crash' in old
             counts['crash load_audio'] += 'crash' in new
-            if 'n' in old and ('n' not in new or new['n'] < old['n']):
+            if old.get('n') and ('n' not in new or new['n'] < old['n']):  # no audio from decode_audio is no transcript either
                 counts['worse'] += 1
                 print('worse:', path.name, old, new, flush=True)
             counts['identical'] += old == new

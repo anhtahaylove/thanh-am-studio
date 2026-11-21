@@ -186,6 +186,10 @@ fn decode_s16(site_packages: &Path, path: &str) -> Result<Vec<i16>> {
         unsafe { thanham_av_free(out) };
         copy
     };
+    if samples.is_empty() {
+        // e.g. every packet invalid: an empty transcript would pass for a silent recording
+        return Err(WorkerError::new("INVALID_MEDIA", "The file has no decodable audio."));
+    }
     Ok(samples)
 }
 
@@ -201,7 +205,7 @@ mod tests {
     use sha2::{Digest, Sha256};
 
     /// Row D at E0: every case of `THANHAM_DECODE_CASES` (written by `parity/decode_cases.py` from the worker's `load_audio` on this
-    /// machine) decodes to the same samples, or fails with the same exception. `THANHAM_PYTHON` names the runtime's python.exe.
+    /// machine) decodes to the same samples, or fails with the same code and message. `THANHAM_PYTHON` names the runtime's python.exe.
     #[test]
     fn decode_matches_pyav() {
         let Some(cases) = std::env::var_os("THANHAM_DECODE_CASES") else {
@@ -222,7 +226,7 @@ mod tests {
                     let bytes: Vec<u8> = s.iter().flat_map(|v| v.to_le_bytes()).collect();
                     serde_json::json!({"n": s.len(), "sha256": Sha256::digest(&bytes).iter().map(|b| format!("{b:02x}")).collect::<String>()})
                 }
-                Err(e) => serde_json::json!({"error": e.message}),
+                Err(e) => serde_json::json!({"code": e.code, "error": e.message}),
             };
             let want = &case["expected"];
             if &got == want {

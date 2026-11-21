@@ -624,6 +624,12 @@ class WorkerTests(unittest.TestCase):
             # 4096 bytes of 0xff in AAC: the decoder's ADTS parse codes are UndefinedErrors in PyAV, skipped too (5.1 s before).
             m4a = tone('tone.m4a', codec=('-c:a', 'aac', '-b:a', '128k'))
             self.assertGreater(seconds(m4a[:len(m4a) // 2] + b'\xff' * 4096 + m4a[len(m4a) // 2 + 4096:], '.m4a'), 9)
+            # Every packet invalid (the packet table in moov kept): an input error, not an empty transcript reported as success.
+            at = m4a.index(b'mdat')
+            end = at - 4 + int.from_bytes(m4a[at - 4:at], 'big')
+            with self.assertRaises(worker.WorkerError) as caught:
+                seconds(m4a[:at + 4] + b'\xff' * (end - at - 4) + m4a[end:], '.m4a')
+            self.assertEqual((caught.exception.code, str(caught.exception)), ('INVALID_MEDIA', 'The file has no decodable audio.'))
             # Two damaged regions: the first is skipped, then the AAC decoder returns EPERM on the second. That ends the input
             # there instead of failing the job, so it is no worse than decode_audio, which stopped at the first (2.6 s).
             a, b = len(m4a) // 4, len(m4a) * 65 // 100

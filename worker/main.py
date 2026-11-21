@@ -900,6 +900,8 @@ def load_audio(path):
             raw_buffer.write(array)
     del resampler
     gc.collect()  # as decode_audio: the resampler's objects are otherwise not freed (SYSTRAN/faster-whisper#390)
+    if not raw_buffer.tell():  # e.g. every packet invalid: an empty transcript would pass for a silent recording
+        raise WorkerError('INVALID_MEDIA', 'The file has no decodable audio.')
     return np.frombuffer(raw_buffer.getbuffer(), dtype=dtype).astype(np.float32) / 32768.0
 
 
