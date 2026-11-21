@@ -99,6 +99,12 @@ decodes), and the unused NVIDIA cuDNN library is left out.
 Updates and silent installs (`/S`) do not show the page again; the same terms apply to what they
 install.
 
+The Vietnamese pronunciation dictionary in `sea_g2p.bin`, which the bundled sea-g2p 0.10.0 package
+(Apache-2.0) ships and text-to-speech reads, has no stated source or licence of its own upstream. An
+issue asking the maintainer is open without an answer
+([pnnbao97/sea-g2p#26](https://github.com/pnnbao97/sea-g2p/issues/26)); until it is answered, the app
+ships the file as the package publishes it.
+
 ## Code signing policy
 
 Installers are not Authenticode-signed, so SmartScreen warns before the first install and Smart App
