@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {parseCsv,parseDictionaryCsv,dictionaryToCsv,mergeDictionary,importSummary,UTF8_HINT} from './csv';
+import {parseCsv,parseDictionaryCsv,dictionaryToCsv,mergeDictionary,importSummary,UTF8_HINT,ANSI_HINT} from './csv';
 describe('dictionary CSV',()=>{
  it('reads RFC 4180 quotes, doubled quotes and embedded separators and newlines',()=>{
   expect(parseCsv('a,"b, c"\r\n"say ""hi""","x\ny"\r\nlast,1')).toEqual([{line:1,cells:['a','b, c']},{line:2,cells:['say "hi"','x\ny']},{line:4,cells:['last','1']}]);
@@ -40,5 +40,32 @@ describe('dictionary CSV',()=>{
   expect(importSummary(2,1,[4])).toBe('Đã nhập CSV: thêm 2, cập nhật 1, bỏ qua 1 dòng không hợp lệ (dòng 4).');
   expect(importSummary(1,0,[1,2,3,4,5,6])).toBe('Đã nhập CSV: thêm 1, cập nhật 0, bỏ qua 6 dòng không hợp lệ.');
   expect(importSummary(0,0,[])).toBe('Từ điển không thay đổi.');
+ });
+ it('detects Excel plain CSV where Vietnamese letters became question marks',()=>{
+  expect(()=>parseDictionaryCsv('Từ gốc,Cách đọc\nVi?t Nam,Việt Nam')).toThrow(ANSI_HINT);
+  expect(()=>parseDictionaryCsv('người,ng??i')).toThrow(ANSI_HINT);
+  expect(()=>parseDictionaryCsv('H? N?i;Hà Nội')).toThrow(ANSI_HINT);
+  expect(ANSI_HINT).toContain('CSV UTF-8');
+ });
+ it('does not mistake a real question mark for lost letters',()=>{
+  expect(parseDictionaryCsv('gì?,gờ i hỏi\n?,dấu hỏi\nok? yes,ô kê\nBạn khỏe không?,hỏi thăm\nwhy??,tại sao').entries).toEqual({'gì?':'gờ i hỏi','?':'dấu hỏi','ok? yes':'ô kê','Bạn khỏe không?':'hỏi thăm','why??':'tại sao'});
+  expect(parseDictionaryCsv('a.com?id=3,đây là đường dẫn').entries).toEqual({'a.com?id=3':'đây là đường dẫn'});
+ });
+ it('keeps cells Excel would convert as text and defuses formulas on export',()=>{
+  const d={'1/2':'một phần hai','007':'không không bảy','2.0':'hai chấm không','1-2':'một đến hai','1e5':'một e năm','12:30':'mười hai giờ ba mươi','=SUM(A1)':'x','+1':'cộng một','-5':'âm năm','@a':'a',x:'=1+1',y:'007',"'007":'z'};
+  const csv=dictionaryToCsv(d);
+  for(const cell of ["'1/2","'007","'2.0","'1-2","'1e5","'12:30","'=SUM(A1)","'+1","'-5","'@a","''007"])expect(csv).toContain(cell+',');
+  expect(csv).toContain("\r\nx,'=1+1\r\n");
+  expect(csv).toContain("\r\ny,'007\r\n");
+  expect(csv).not.toMatch(/(^|,|\n)[=+\-@]/);
+  expect(parseDictionaryCsv(csv).entries).toEqual(d);
+ });
+ it('leaves safe cells unprotected and reads old files without apostrophes unchanged',()=>{
+  const d={'2024':'hai không hai bốn','0':'không','TP.HCM':'Thành phố Hồ Chí Minh',"'em":'ấy','5G':'năm gờ','hello-world':'x'};
+  const csv=dictionaryToCsv(d);
+  expect(csv).toBe('﻿Từ gốc,Cách đọc\r\n0,không\r\n2024,hai không hai bốn\r\nTP.HCM,Thành phố Hồ Chí Minh\r\n\'em,ấy\r\n5G,năm gờ\r\nhello-world,x\r\n');
+  expect(parseDictionaryCsv(csv).entries).toEqual(d);
+  expect(parseDictionaryCsv("'em,ấy\n'x,y\n007,a\n1/2,b\n=1+1,c").entries).toEqual({"'em":'ấy',"'x":'y','007':'a','1/2':'b','=1+1':'c'});
+  expect(parseDictionaryCsv("'1/2;một phần hai").entries).toEqual({'1/2':'một phần hai'});
  });
 });
