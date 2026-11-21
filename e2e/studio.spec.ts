@@ -13,7 +13,7 @@ test('browser preview edits and persists a real project without pretending infer
 test('script import, dictionary and segment controls remain functional',async({page})=>{
  await page.goto('/');await page.getByRole('button',{name:'Thêm nội dung',exact:true}).click();await page.getByRole('textbox',{name:'Nội dung cần thêm'}).fill('Xin chào TP.HCM\nChúng ta kể chuyện.');await page.getByRole('button',{name:'Thêm vào kịch bản'}).click();
  await expect(page.getByRole('textbox',{name:'Nội dung đoạn 2'})).toHaveValue('Chúng ta kể chuyện.');await page.getByRole('button',{name:'Từ điển phát âm'}).click();await page.getByRole('textbox',{name:'Từ gốc',exact:true}).fill('TP.HCM');await page.getByRole('textbox',{name:'Cách đọc',exact:true}).fill('Thành phố Hồ Chí Minh');await page.getByRole('button',{name:'Thêm cách đọc'}).click();
- await page.getByText('Văn bản sau chuẩn hóa',{exact:true}).click();await expect(page.getByText('Xin chào Thành phố Hồ Chí Minh',{exact:true})).toBeVisible();
+ await page.getByText('Văn bản sau chuẩn hóa',{exact:true}).click();await expect(page.locator('.normalization p')).toHaveText('Xin chào Thành phố Hồ Chí Minh (Từ điển phát âm: “TP.HCM” → “Thành phố Hồ Chí Minh”)');await expect(page.locator('.normalization p')).toBeVisible();
  await page.getByRole('button',{name:'Đưa đoạn xuống',exact:true}).first().click();await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toHaveValue('Chúng ta kể chuyện.');
 });
 test('Escape closes the add-content dialog and keeps what was typed',async({page})=>{
@@ -32,9 +32,9 @@ test('app dictionary persists, applies to every project and loses to the project
  await page.getByRole('textbox',{name:'Từ gốc',exact:true}).fill('TP.HCM');await page.getByRole('textbox',{name:'Cách đọc',exact:true}).fill('Thành phố Hồ Chí Minh');await page.getByRole('button',{name:'Thêm cách đọc'}).click();
  await expect(page.getByText('TP.HCM → Thành phố Hồ Chí Minh')).toBeVisible();await page.reload();await page.getByRole('button',{name:'Model & cài đặt',exact:true}).click();await expect(page.getByText('TP.HCM → Thành phố Hồ Chí Minh')).toBeVisible();
  await page.getByRole('button',{name:'Tạo giọng đọc',exact:true}).click();await page.getByRole('button',{name:'Viết đoạn đầu tiên'}).click();await page.getByRole('textbox',{name:'Nội dung đoạn 1'}).fill('Xin chào TP.HCM');
- await page.getByText('Văn bản sau chuẩn hóa',{exact:true}).click();await expect(page.getByText('Xin chào Thành phố Hồ Chí Minh',{exact:true})).toBeVisible();
+ await page.getByText('Văn bản sau chuẩn hóa',{exact:true}).click();await expect(page.locator('.normalization p')).toHaveText('Xin chào Thành phố Hồ Chí Minh (Từ điển phát âm: “TP.HCM” → “Thành phố Hồ Chí Minh”)');await expect(page.locator('.normalization p')).toBeVisible();
  await page.getByRole('button',{name:'Từ điển phát âm'}).click();await page.getByRole('textbox',{name:'Từ gốc',exact:true}).fill('TP.HCM');await page.getByRole('textbox',{name:'Cách đọc',exact:true}).fill('Sài Gòn');await page.getByRole('button',{name:'Thêm cách đọc'}).click();
- await expect(page.getByText('Xin chào Sài Gòn',{exact:true})).toBeVisible();
+ await expect(page.locator('.normalization p')).toHaveText('Xin chào Sài Gòn (Từ điển phát âm: “TP.HCM” → “Sài Gòn”)');await expect(page.locator('.normalization p')).toBeVisible();
 });
 test('speaker panel, split, merge and undo/redo edit the script',async({page})=>{
  await page.goto('/');await page.getByRole('button',{name:'Thêm nội dung',exact:true}).click();await page.getByRole('textbox',{name:'Nội dung cần thêm'}).fill('Câu một. Câu hai.\nDòng sau.');await page.getByRole('button',{name:'Thêm vào kịch bản'}).click();

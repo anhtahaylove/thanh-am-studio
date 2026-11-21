@@ -3,8 +3,9 @@ test('the normalized text marks what the dictionary and the text rules changed, 
  await page.goto('/');await page.getByRole('button',{name:'Viết đoạn đầu tiên'}).click();await page.getByRole('textbox',{name:'Nội dung đoạn 1'}).fill('Dùng AI đi 5 km.');
  await page.getByRole('button',{name:'Từ điển phát âm'}).click();await page.getByLabel('Từ gốc').fill('AI');await page.getByLabel('Cách đọc').fill('ây ai');await page.getByRole('button',{name:'Thêm cách đọc'}).click();
  const box=page.locator('.normalization');await box.locator('summary').click();
- await expect(box.locator('p')).toHaveText('Dùng ây ai đi 5 ki lô mét.');const marks=box.locator('mark');
- await expect(marks).toHaveText(['ây ai','ki lô mét.']);await expect(marks.first()).toHaveAttribute('title','Từ điển phát âm: “AI” → “ây ai”');await expect(marks.nth(1)).toHaveAttribute('title','Đổi theo quy tắc chuẩn hóa văn bản');
+ // Screen readers skip a mark's title, so each mark also carries the reason as visually hidden text.
+ await expect(box.locator('p')).toHaveText('Dùng ây ai (Từ điển phát âm: “AI” → “ây ai”) đi 5 ki lô mét. (Đổi theo quy tắc chuẩn hóa văn bản)');const marks=box.locator('mark');
+ await expect(marks).toHaveText(['ây ai (Từ điển phát âm: “AI” → “ây ai”)','ki lô mét. (Đổi theo quy tắc chuẩn hóa văn bản)']);await expect(marks.locator('.sr-only')).toHaveCount(2);await expect(marks.first()).toHaveAttribute('title','Từ điển phát âm: “AI” → “ây ai”');await expect(marks.nth(1)).toHaveAttribute('title','Đổi theo quy tắc chuẩn hóa văn bản');
 });
 test('subtitle-timed dubbing counts and marks the takes that still run past their cue at 1.5x',async({page})=>{
  await page.addInitScript(()=>{
