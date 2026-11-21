@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {jsonEqual,matchWords,chapterFileName,chapterGroups,dubPlan,dubSummary,takeTrim,progressLabel,jobProgressLabel,taskbarProgress,parseSubtitles,exportSubtitles,normalizeText,splitText,splitTranscript,mergeTranscript,clipDuration,validateRecipe,ttsTranscript,makeSegment,splitSegment,mergeSegments,restoreSnapshot,addTranscriptRow,validRange,replaceInTranscript,searchParts,rowAt,spokenText,insertAtCursor,checkSummary,transcriptToScript,barState,speakerSlots,scriptChunks,seconds,timestamp} from './domain';
+import {jsonEqual,matchWords,chapterFileName,chapterGroups,dubPlan,dubSummary,takeTrim,progressLabel,jobProgressLabel,taskbarProgress,parseSubtitles,exportSubtitles,normalizeText,splitText,splitTranscript,mergeTranscript,clipDuration,validateRecipe,ttsTranscript,makeSegment,splitSegment,mergeSegments,restoreSnapshot,addTranscriptRow,validRange,replaceInTranscript,searchParts,suspiciousRows,rowAt,spokenText,insertAtCursor,checkSummary,transcriptToScript,barState,speakerSlots,scriptChunks,seconds,timestamp} from './domain';
 import type {Project,Take} from './types';
 describe('subtitle and text contracts',()=>{
  it('reads BOM SRT and multiline Vietnamese',()=>{expect(parseSubtitles('\uFEFF1\r\n00:00:01,250 --> 00:00:03,500\r\nXin chào\r\nViệt Nam\r\n')).toMatchObject([{start_ms:1250,end_ms:3500,text:'Xin chào\nViệt Nam'}]);});
@@ -191,4 +191,33 @@ describe('chapters',()=>{
  it('drops footnote markers and superscript digits the engine would read aloud',()=>{expect(normalizeText('Ông nói thế.[1] Rồi đi[12], về nhà.',{})).toBe('Ông nói thế. Rồi đi, về nhà.');expect(normalizeText('Từ khóa[3] và "trích"[2].',{})).toBe('Từ khóa và "trích".');expect(normalizeText('Chú thích¹ ở đây²³ và năm 2020⁴.',{})).toBe('Chú thích ở đây và năm 2020.');expect(normalizeText('Nhà rộng 50 m² và 3 dm², thể tích 5 cm³.',{})).toBe('Nhà rộng 50 m² và 3 dm², thể tích 5 cm³.');for(const t of ['[1]','Mục [1] là số','Giá 3.5*2 và (12)','Mua [12 cái] nhé'])expect(normalizeText(t,{})).toBe(t);});
  it('keeps chapter markers, pause marks and emotion cues away from the footnote and superscript rules',()=>{const t='[P1] Mở đầu[nghỉ 1s]xong.[cười] Rồi[nghi 2s]đi[pause 2s]về[thở dài] ừ[hắng giọng].[1]';expect(normalizeText(t,{})).toBe('[P1] Mở đầu[nghỉ 1s]xong.[cười] Rồi[nghi 2s]đi[pause 2s]về[thở dài] ừ[hắng giọng].');expect(normalizeText('[nghỉ 1s]¹ [cười]²',{})).toBe('[nghỉ 1s] [cười]');expect(scriptChunks('[P1] Chương một[1]')).toEqual([{speaker:'Người dẫn',text:'Chương một[1]',chapter:'P1'}]);});
  it('does not speak lines that are only a scene break',()=>{for(const t of ['***','* * *','⁂','---','- - -','___','  ***  ']){expect(normalizeText(`Hết cảnh.\n${t}\nCảnh mới.`,{})).toBe('Hết cảnh.\n\nCảnh mới.');expect(scriptChunks(`Hết cảnh.\n${t}\nCảnh mới.`)).toEqual([{speaker:'Người dẫn',text:'Hết cảnh.'},{speaker:'Người dẫn',text:'Cảnh mới.'}]);}expect(normalizeText('3.5*2 = 7 và *nghiêng* --- dài',{})).toBe('3.5*2 = 7 và *nghiêng* --- dài');expect(scriptChunks('[P2]\n***\nLời đầu.')).toEqual([{speaker:'Người dẫn',text:'Lời đầu.',chapter:'P2'}]);});
+});
+describe('suspiciousRows',()=>{
+ const row=(id:string,start_ms:number,end_ms:number,text:string)=>({id,start_ms,end_ms,text});
+ it('flags a long row with almost no text, on both sides of the duration and rate thresholds',()=>{
+  const ok=(ms:number,text:string)=>suspiciousRows([row('a',0,ms,text)]).get('a');
+  expect(ok(4000,'abcdefg')).toEqual(['silence']);// 7 chars in 4 s = 1.75 per second
+  expect(ok(4000,'abcdefgh')).toBeUndefined();// 8 chars in 4 s = exactly 2 per second
+  expect(ok(3999,'')).toBeUndefined();// just under the minimum length
+  expect(ok(4000,'')).toEqual(['silence']);
+  expect(ok(10000,'... , !')).toEqual(['silence']);// punctuation and spaces are not text
+  expect(ok(10000,'Một câu bình thường đủ dài.')).toBeUndefined();
+ });
+ it('flags a row identical to the one before it after trimming, case and punctuation folding',()=>{
+  const m=suspiciousRows([row('a',0,2000,'Cảm ơn các bạn đã xem.'),row('b',2000,4000,'  cảm ơn các bạn đã xem  '),row('c',4000,6000,'Cảm ơn các bạn đã xem!'),row('d',6000,8000,'Cảm ơn các bạn đã xem video')]);
+  expect(m.has('a')).toBe(false);expect(m.get('b')).toEqual(['repeat']);expect(m.get('c')).toEqual(['repeat']);expect(m.has('d')).toBe(false);
+ });
+ it('keeps tone marks and does not call two empty rows a repeat or a row after a gap one',()=>{
+  expect(suspiciousRows([row('a',0,1000,'ma'),row('b',1000,2000,'má')]).size).toBe(0);
+  expect(suspiciousRows([row('a',0,1000,''),row('b',1000,2000,' ')]).size).toBe(0);
+  expect(suspiciousRows([row('a',0,1000,'Xin chào'),row('b',1000,2000,'Tạm biệt'),row('c',2000,3000,'Xin chào')]).size).toBe(0);
+ });
+ it('flags a row whose end is not after its start',()=>{
+  const m=suspiciousRows([row('a',1000,1000,'Có chữ'),row('b',2000,1500,'Có chữ khác'),row('c',2000,2001,'Ngắn'),row('d',0,Number.NaN,'Lỗi')]);
+  expect(m.get('a')).toEqual(['range']);expect(m.get('b')).toEqual(['range']);expect(m.has('c')).toBe(false);expect(m.get('d')).toEqual(['range']);
+ });
+ it('reports several reasons for one row and leaves the rows untouched',()=>{
+  const rows=[row('a',0,5000,'Xin chào'),row('b',5000,10000,'xin chào')],before=JSON.stringify(rows);
+  expect(suspiciousRows(rows).get('b')).toEqual(['silence','repeat']);expect(JSON.stringify(rows)).toBe(before);
+ });
 });
