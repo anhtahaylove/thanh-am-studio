@@ -5,18 +5,18 @@ import type {Page} from '@playwright/test';
 const IDS=['vieneu-v3','whisper-small','whisper-turbo','diarization','htdemucs','separation-runtime'];
 const NAMES:Record<string,string>={'vieneu-v3':'VieNeu v3 Turbo','whisper-small':'Whisper Small','whisper-turbo':'Whisper Large v3 Turbo','diarization':'Phân biệt người nói (pyannote + CAM++)','htdemucs':'Tách giọng và nhạc nền (HTDemucs)','separation-runtime':'Gói chạy tách nhạc nền (Python + PyTorch)'};
 const BADGE={recommended:'Đề xuất cho máy bạn',heavy:'Có thể nặng với máy này'};
-const mock=({total,names}:{total:number|null;names:Record<string,string>})=>{
- const w=window as any,models=Object.keys(names).map(id=>({id,name:names[id],engine:id.startsWith('whisper')||id==='diarization'?'stt':id==='vieneu-v3'?'tts':id==='htdemucs'?'separation':'runtime',kind:id==='separation-runtime'?'runtime':'model',installed:false,revision:'9f8e7d6c5b4a3921',license:'MIT',description:'Mô tả ngắn của model.'}));
+const mock=({total,names,engines,none}:{total:number|null;names:Record<string,string>;engines:Record<string,string>;none:boolean})=>{
+ const w=window as any,models=none?[]:Object.keys(names).map(id=>({id,name:names[id],engine:id.startsWith('whisper')||id==='diarization'?'stt':id==='vieneu-v3'?'tts':id==='htdemucs'?'separation':'runtime',kind:id==='separation-runtime'?'runtime':'model',installed:false,revision:'9f8e7d6c5b4a3921',license:'MIT',description:'Mô tả ngắn của model.'}));
  w.isTauri=true;
  w.__TAURI_INTERNALS__={convertFileSrc:(p:string)=>p,transformCallback:()=>1,unregisterCallback:()=>{},metadata:{currentWindow:{label:'main'},currentWebview:{label:'main',windowLabel:'main'}},
   invoke:async(cmd:string)=>{switch(cmd){
-   case 'list_projects':case 'list_jobs':case 'list_voices':return [];case 'list_models':return models;case 'get_settings':return {dictionary:{}};
+   case 'list_projects':case 'list_jobs':case 'list_voices':return [];case 'list_models':return models;case 'get_settings':return {dictionary:{},worker_engines:engines};
    case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,native_worker_ready:true,python_path:null,ffmpeg_path:null,native_worker_path:null,fallback_count:0,total_memory_mb:total,message:'Runtime đã tìm thấy.'};
    default:return null;}}};
 };
-const open=async(page:Page,total:number|null,width=1440,height=1000)=>{
- await page.setViewportSize({width,height});await page.addInitScript(mock,{total,names:NAMES});await page.goto('/');
- await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:'Model & cài đặt',exact:true}).click();await expect(page.locator('.model-card')).toHaveCount(IDS.length);
+const open=async(page:Page,total:number|null,width=1440,height=1000,engines:Record<string,string>={},none=false)=>{
+ await page.setViewportSize({width,height});await page.addInitScript(mock,{total,names:NAMES,engines,none});await page.goto('/');
+ await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:'Model & cài đặt',exact:true}).click();await expect(page.locator('.model-card')).toHaveCount(none?0:IDS.length);
 };
 const card=(page:Page,id:string)=>page.locator('.model-card').filter({has:page.getByRole('heading',{level:3,name:NAMES[id],exact:true})});
 const fact=(page:Page,id:string,label:string)=>card(page,id).locator('dt',{hasText:label}).locator('xpath=following-sibling::dd[1]');
@@ -34,10 +34,10 @@ test('each card shows its download size and RAM, and "Chưa đo" where no peak w
 // What modelAdvice says per machine (src/models.test.ts has the rules; the Playwright loader cannot import models.json through src/models.ts).
 const DEFAULT='Chưa đọc được RAM của máy; đây là lựa chọn mặc định.';
 const ADVICE:[number|null,string,string,string,string][]=[ // total, VieNeu badge, VieNeu reason, Small badge, Small reason
- [7910,'recommended','Máy có 7,9 GB RAM, đủ cho model này.','recommended','Cần khoảng 1,3 GB RAM, máy có 7,9 GB.'],
- [15760,'recommended','Máy có 15,8 GB RAM, đủ cho model này.','recommended','Cần khoảng 1,3 GB RAM, máy có 15,8 GB.'],
+ [7910,'recommended','Máy có 7,7 GB RAM, đủ cho model này.','recommended','Cần khoảng 1,3 GB RAM, máy có 7,7 GB.'],
+ [15760,'recommended','Máy có 15,4 GB RAM, đủ cho model này.','recommended','Cần khoảng 1,3 GB RAM, máy có 15,4 GB.'],
  [null,'recommended',DEFAULT,'recommended',DEFAULT],
- [3900,'heavy','Cần khoảng 2,2 GB RAM, máy chỉ có 3,9 GB. Đóng bớt ứng dụng khác trước khi đọc.','recommended','Cần khoảng 1,3 GB RAM, máy có 3,9 GB.'],
+ [3900,'heavy','Cần khoảng 2,2 GB RAM, máy chỉ có 3,8 GB. Đóng bớt ứng dụng khác trước khi đọc.','recommended','Cần khoảng 1,3 GB RAM, máy có 3,8 GB.'],
 ];
 for(const [total,tts,ttsReason,stt,sttReason] of ADVICE)test(`the badges and their reasons follow the machine memory (${total??'unknown'} MB)`,async({page})=>{
  await open(page,total);
@@ -81,4 +81,26 @@ test('the cards add no motion when the system asks for reduced motion',async({pa
  await page.emulateMedia({reducedMotion:'reduce'});await open(page,7910);
  const moving=await page.evaluate(()=>[...document.querySelectorAll('.model-card, .model-card *, details.mc-advanced, details.mc-advanced *')].filter(e=>{const s=getComputedStyle(e);return s.animationName!=='none'||s.transitionDuration.split(',').some(d=>parseFloat(d)>0);}).length);
  expect(moving).toBe(0);
+});
+test('the diagnostics button stays outside the fold',async({page})=>{
+ await open(page,7910);
+ await expect(page.locator('details.mc-advanced')).not.toHaveAttribute('open','');
+ const diag=page.getByRole('button',{name:'Xuất nhật ký chẩn đoán'});await expect(diag).toBeVisible();
+ expect(await diag.evaluate(b=>!b.closest('details'))).toBe(true);
+});
+test('"Nâng cao" starts open when an engine is set to Python',async({page})=>{
+ await open(page,7910,1440,1000,{tts:'python'});
+ await expect(page.locator('details.mc-advanced')).toHaveAttribute('open','');
+ await expect(page.locator('.engine-rows label').filter({hasText:'Đọc văn bản'}).locator('select')).toHaveValue('python');
+});
+test('the empty state comes right after the card grid',async({page})=>{
+ await open(page,null,1440,1000,{},true);
+ await expect(page.locator('.model-grid + .panel').filter({hasText:'Model local xuất hiện trong bản desktop'})).toHaveCount(1);
+});
+test('the badge follows the heading in the DOM and still sits in the top corner of the card',async({page})=>{
+ await open(page,3900);
+ const c=card(page,'vieneu-v3'),h=c.getByRole('heading',{level:3}),b=c.locator('.mc-badge');
+ await expect(c.locator('h3 + .mc-badge')).toHaveCount(1);
+ const [cb,hb,bb]=[await c.boundingBox(),await h.boundingBox(),await b.boundingBox()];
+ expect(bb!.y).toBeLessThan(hb!.y);expect(bb!.x+bb!.width).toBeGreaterThan(cb!.x+cb!.width-40);expect(bb!.x+bb!.width).toBeLessThanOrEqual(cb!.x+cb!.width);
 });
