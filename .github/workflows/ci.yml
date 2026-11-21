@@ -87,5 +87,5 @@ jobs:
         shell: bash
         run: |
           paths=$(git diff --name-only origin/$GITHUB_BASE_REF...HEAD -- worker worker-rs src-tauri/src/engine.rs src-tauri/src/store.rs src-tauri/src/pack.rs src-tauri/src/docx.rs src-tauri/src/update.rs src-tauri/src/lib.rs)
-          fixture=$(git diff --name-only --diff-filter=MDR origin/$GITHUB_BASE_REF...HEAD -- e2e/fixtures/payloads-1.0.21.json)
+          fixture=$(git diff --name-only --diff-filter=MDRT origin/$GITHUB_BASE_REF...HEAD -- e2e/fixtures/payloads-1.0.21.json)
           if [ -n "$paths$fixture" ]; then echo "::error::This pull request changes guarded paths:"; printf '%s\n' $paths $fixture; exit 1; fi
