@@ -87,13 +87,14 @@ export function normalizeText(text:string,dictionary:Record<string,string>,optio
  return text.normalize('NFC').split(new RegExp(`(${PAUSE_MARK.source}|${CUE_MARK.source})`,'iu')).map((part,i)=>i%2?part:normalizeSpoken(part,dictionary,options.codeSwitch)).join('');
 }
 /** normalizeText's output cut into parts that join back to it byte for byte, for display: a word no longer in the input (by a longest
- * common subsequence of whitespace-separated words) is `changed`, and `rule` names the dictionary entries whose reading it holds. */
-export function normalizedParts(text:string,dictionary:Record<string,string>,options:{codeSwitch?:boolean}={}):{text:string;changed:boolean;rule?:string}[]{
+ * common subsequence of whitespace-separated words) is `changed`, and `rule` names the dictionary entries whose reading it holds.
+ * `tooLong`: the changed stretch was too long to align, so nothing is marked. */
+export function normalizedParts(text:string,dictionary:Record<string,string>,options:{codeSwitch?:boolean}={}):{parts:{text:string;changed:boolean;rule?:string}[];tooLong:boolean}{
  const out=normalizeText(text,dictionary,options),src=text.normalize('NFC').split(/\s+/).filter(Boolean),tokens=out.split(/(\s+)/),at=tokens.flatMap((t,i)=>i%2||!t?[]:[i]),word=(j:number)=>tokens[at[j]],n=src.length,m=at.length,changed=new Set(at);
  // Words both ends share are kept before the LCS, so a long segment with its changes near one end stays cheap.
  let a=0,b=0;while(a<n&&a<m&&src[a]===word(a))changed.delete(at[a++]);while(b<n-a&&b<m-a&&src[n-1-b]===word(m-1-b))changed.delete(at[m-1-b++]);
- const N=n-a-b,M=m-a-b;
- if(N*M<=4e6){ // shortcut: a very long segment is shown without highlights
+ const N=n-a-b,M=m-a-b,tooLong=N*M>4e6;
+ if(!tooLong){ // shortcut: a very long changed stretch is shown without highlights (the inspector says so)
   const L=new Int32Array((N+1)*(M+1)),ix=(i:number,j:number)=>i*(M+1)+j;
   for(let i=N-1;i>=0;i--)for(let j=M-1;j>=0;j--)L[ix(i,j)]=src[a+i]===word(a+j)?L[ix(i+1,j+1)]+1:Math.max(L[ix(i+1,j)],L[ix(i,j+1)]);
   for(let i=0,j=0;i<N&&j<M;)if(src[a+i]===word(a+j)){changed.delete(at[a+j]);i++;j++;}else if(L[ix(i+1,j)]>=L[ix(i,j+1)])i++;else j++;
@@ -102,7 +103,7 @@ export function normalizedParts(text:string,dictionary:Record<string,string>,opt
  // Spaces between two changed words belong to the same highlight.
  tokens.forEach((t,i)=>{if(!t)return;const c=i%2?changed.has(i-1)&&changed.has(i+1):changed.has(i),last=parts.at(-1);if(last?.changed===c)last.text+=t;else parts.push({text:t,changed:c});});
  for(const p of parts){const keys=p.changed?used.filter(k=>p.text.includes(dictionary[k])):[];if(keys.length)p.rule=keys.map(k=>`“${k}” → “${dictionary[k]}”`).join(', ');}
- return parts;
+ return {parts,tooLong};
 }
 const CURRENCY:Record<string,string>={'₿':'bitcoin','₹':'rupi','₽':'rúp','¢':'xu'};
 // Code-switching idea ported from nguyenan97/VieNeu-TTS commit c836e480 (src/vieneu_utils/codeswitch.py, Apache-2.0): pinned sea-g2p reads <en>…</en> with its English engine.

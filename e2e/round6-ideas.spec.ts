@@ -40,3 +40,10 @@ test('a TXT export of a transcript with speakers reads as turns and comes back a
  await page.getByRole('button',{name:'Tạo giọng đọc',exact:true}).click();await page.getByRole('button',{name:'Thêm nội dung',exact:true}).click();await page.getByRole('textbox',{name:'Nội dung cần thêm'}).fill(txt);await page.getByRole('button',{name:'Thêm vào kịch bản'}).click();
  for(const [i,speaker,text] of [[1,'Người 1','Chào chị. Chị khỏe không?'],[2,'Người 2','Khỏe, cảm ơn em.'],[3,'Người 1','Vậy bắt đầu nhé.']] as const){await expect(page.getByRole('textbox',{name:`Nhân vật đoạn ${i}`})).toHaveValue(speaker);await expect(page.getByRole('textbox',{name:`Nội dung đoạn ${i}`})).toHaveValue(text);}
 });
+test('a segment too long to mark says so instead of showing no marks without a word',async({page})=>{
+ await page.goto('/');await page.getByRole('button',{name:'Viết đoạn đầu tiên'}).click();
+ await page.getByRole('textbox',{name:'Nội dung đoạn 1'}).fill(`5 km ${Array(2500).fill('chữ').join(' ')} 5 km`);
+ const box=page.locator('.normalization');await box.locator('summary').click();
+ await expect(box).toContainText('Đoạn quá dài nên không đánh dấu được những chữ đã đổi.');await expect(box.locator('mark')).toHaveCount(0);
+ await page.getByRole('textbox',{name:'Nội dung đoạn 1'}).fill('Đi 5 km.');await expect(box.locator('mark')).toHaveCount(1);await expect(box).not.toContainText('Đoạn quá dài');
+});
