@@ -191,5 +191,5 @@ test('transcript search ignores tone marks, counts matches and marks them in the
  // Replace stays exact: the toneless query matches rows, but nothing is rewritten.
  await box.fill('ca thu');await page.getByLabel('Thay bằng').fill('cá basa');await page.getByRole('button',{name:'Thay tất cả'}).click();
  await expect(page.getByRole('status')).toContainText('khớp đúng dấu');await expect(texts.nth(0)).toHaveValue('Mua cá thu tươi');
- await box.fill('');await expect(texts).toHaveCount(3);await expect(count).toHaveCount(0);await expect(marks).toHaveCount(0);
+ await box.fill('');await expect(texts).toHaveCount(3);await expect(count).toHaveText('');await expect(marks).toHaveCount(0);
 });

@@ -26,6 +26,8 @@ const foldVi=(s:string)=>s.normalize('NFD').replace(/\p{M}/gu,'').replace(/[đĐ
 /** Splits `text` at every match of `query`, ignoring case, tone marks and the stroke of đ; the parts always concatenate back to `text`. */
 export function searchParts(text:string,query:string):{text:string;hit:boolean}[]{
  const q=foldVi(query);if(!query)return [{text,hit:false}];
+ // Fast path: most rows do not match, and folding the whole text at once is far cheaper than the per-character loop below.
+ if(!foldVi(text).includes(q))return [{text,hit:false}];
  // Fold char by char so every folded index maps back to an offset in the original, whatever its normalization form.
  let folded='';const at:number[]=[];let i=0;
  for(const ch of text){const f=foldVi(ch);for(let k=0;k<f.length;k++)at.push(i);folded+=f;i+=ch.length;}

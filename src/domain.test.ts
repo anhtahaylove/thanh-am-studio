@@ -72,6 +72,7 @@ describe('transcript rows',()=>{
   expect(hits('cá thu','ca')).toEqual(['cá']);
   expect(hits('Xin chào','xyz')).toEqual([]);expect(hits('Xin chào','́')).toEqual([]);expect(hits('Xin chào','')).toEqual([]);
   expect(searchParts('a ế b','e').map(p=>p.text).join('')).toBe('a ế b');
+  expect(searchParts('Xin chào','xyz')).toEqual([{text:'Xin chào',hit:false}]);expect(searchParts('Xin chào','́')).toEqual([{text:'Xin chào',hit:false}]);
   expect(searchParts('aa','a')).toEqual([{text:'a',hit:true},{text:'a',hit:true}]);
  });
  it('replaces text case-insensitively across rows and counts each match',()=>{const rows=[{id:'a',start_ms:0,end_ms:1000,text:'Chợ biến thành, biến thành'},{id:'b',start_ms:1000,end_ms:2000,text:'không đổi'}];const r=replaceInTranscript(rows,'BIẾN thành','Bến Thành');expect(r.count).toBe(2);expect(r.rows[0].text).toBe('Chợ Bến Thành, Bến Thành');expect(r.rows[1]).toBe(rows[1]);expect(replaceInTranscript(rows,'',"x")).toEqual({rows,count:0});expect(replaceInTranscript(rows,'a.b','x').count).toBe(0);});
