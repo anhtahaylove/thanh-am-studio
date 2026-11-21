@@ -19,7 +19,7 @@ export function onboardingSteps({models,projects,jobs,hasText}:{models:ModelInfo
 }
 // The checklist is removed while it may hold the focus: hand it to the first control of the script panel, as the speaker merge does.
 const focusToolbar=()=>{requestAnimationFrame(()=>document.querySelector<HTMLElement>('.script-panel .panel-toolbar button')?.focus());};
-const ACTIONS={model:'Xem model giọng đọc',project:'Mở danh sách dự án',voice:'Tạo giọng ngay'};
+const ACTIONS={model:'Xem model giọng đọc',project:'Mở dự án mẫu',voice:'Tạo giọng ngay'};
 /** Mount it only after the first poll: the steps it sees on its first render are the baseline, and only a step that flips after that is announced. */
 export function FirstRunChecklist({steps,guide,visible,voiceBlock,onGuide,onNotice,onAction}:{steps:OnboardingStep[];guide:Guide;visible:boolean;voiceBlock:string|null;onGuide:(g:Guide)=>void;onNotice:(text:string)=>void;onAction:(id:OnboardingStep['id'])=>void}){
  const baseline=useRef(steps.map(s=>s.done)),told=useRef<boolean[]>([]),all=steps.every(s=>s.done);
