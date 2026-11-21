@@ -5,6 +5,15 @@ describe('subtitle and text contracts',()=>{
  it('reads BOM SRT and multiline Vietnamese',()=>{expect(parseSubtitles('\uFEFF1\r\n00:00:01,250 --> 00:00:03,500\r\nXin chào\r\nViệt Nam\r\n')).toMatchObject([{start_ms:1250,end_ms:3500,text:'Xin chào\nViệt Nam'}]);});
  it('reads VTT settings without treating header as dialogue',()=>{expect(parseSubtitles('WEBVTT\n\n00:01.000 --> 00:02.000 align:start\nChào bạn')).toMatchObject([{start_ms:1000,end_ms:2000,text:'Chào bạn'}]);});
  it('shows take lengths and timestamps with a Vietnamese decimal comma',()=>{expect(seconds(4100)).toBe('4,1 giây');expect(seconds(4000)).toBe('4,0 giây');expect(seconds(1234560)).toBe('1.234,6 giây');expect(timestamp(9200)).toBe('00:00:09,200');});
+ it('a TXT export with speakers joins each turn into one "Người N: lời" paragraph that the script import reads back',()=>{
+  const r=(id:string,text:string,speaker?:number)=>({id,start_ms:0,end_ms:1000,text,...(speaker!==undefined&&{speaker})});
+  const txt=exportSubtitles([r('a','Chào anh.',0),r('b','Anh khỏe không?',0),r('c',' ',0),r('d','Khỏe,\ncảm ơn.',1),r('e','Tốt quá.',0)],'txt');
+  expect(txt).toBe('Người 1: Chào anh. Anh khỏe không?\n\nNgười 2: Khỏe, cảm ơn.\n\nNgười 1: Tốt quá.');
+  expect(scriptChunks(txt)).toEqual([{speaker:'Người 1',text:'Chào anh. Anh khỏe không?'},{speaker:'Người 2',text:'Khỏe, cảm ơn.'},{speaker:'Người 1',text:'Tốt quá.'}]);
+  // A row without a speaker stays its own paragraph; a transcript without speakers exports exactly as before.
+  expect(exportSubtitles([r('a','X.',0),r('b','Y.'),r('c','Z.',0)],'txt')).toBe('Người 1: X.\n\nY.\n\nNgười 1: Z.');
+  expect(exportSubtitles([r('a','Một.'),r('b','Hai\nba.'),r('c','')],'txt')).toBe('Một.\n\nHai\nba.\n\n');
+ });
  it('rejects reversed subtitle ranges',()=>{expect(()=>parseSubtitles('1\n00:00:02,000 --> 00:00:01,000\nSai')).toThrow('thời gian');});
  it('roundtrips SRT and VTT with millisecond precision',()=>{const rows=[{id:'a',start_ms:1234,end_ms:5678,text:'Tiếng Việt'}]; for(const ext of ['srt','vtt'] as const)expect(parseSubtitles(exportSubtitles(rows,ext))).toMatchObject([{start_ms:1234,end_ms:5678,text:'Tiếng Việt'}]);});
  it('normalizes dictionary literally and prefers longer keys',()=>{expect(normalizeText('TP.HCM dùng AI.',{'TP.HCM':'Thành phố Hồ Chí Minh','AI':'ây ai'})).toBe('Thành phố Hồ Chí Minh dùng ây ai.');});

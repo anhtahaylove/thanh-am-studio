@@ -10,7 +10,8 @@ export function parseSubtitles(input:string):TranscriptSegment[]{
  if(!rows.length)throw Error('Không tìm thấy đoạn phụ đề hợp lệ');return rows;
 }
 export function exportSubtitles(rows:TranscriptSegment[],format:'srt'|'vtt'|'txt'):string {
- if(format==='txt')return rows.map(r=>r.text).join('\n\n');
+ // Consecutive rows of one speaker become one paragraph "Người N: lời", the form the script import reads back; a row without a speaker stays as it is.
+ if(format==='txt'){const out:{speaker?:number;text:string}[]=[];for(const r of rows){if(r.speaker===undefined){out.push({text:r.text});continue;}const text=r.text.trim().replace(/\s+/g,' '),last=out.at(-1);if(!text)continue;if(last?.speaker===r.speaker)last.text+=' '+text;else out.push({speaker:r.speaker,text});}return out.map(p=>p.speaker===undefined?p.text:`Người ${p.speaker+1}: ${p.text}`).join('\n\n');}
  for(const r of rows)if(!Number.isFinite(r.start_ms)||!Number.isFinite(r.end_ms)||r.start_ms<0||r.end_ms<=r.start_ms)throw Error('Khoảng thời gian phải tăng');
  return (format==='vtt'?'WEBVTT\n\n':'')+rows.map((r,i)=>`${format==='srt'?`${i+1}\n`:''}${timestamp(r.start_ms,format==='vtt'?'.':',')} --> ${timestamp(r.end_ms,format==='vtt'?'.':',')}\n${r.text}`).join('\n\n')+'\n';
 }
@@ -132,11 +133,12 @@ export function splitText(input:string,max=500):string[]{const out:string[]=[];f
 /** Trim for a take: its speech edges as the worker found them; the whole take when it has none (older takes) or when the segment's fades (`fade_ms`, in + out) would not fit inside them. */
 export function takeTrim(take?:Take,fade_ms=0){const start=take?.speech_start_ms??0,end=take?.speech_end_ms??null;return take&&(end??take.duration_ms)-start>=fade_ms?{trim_start_ms:start,trim_end_ms:end}:{trim_start_ms:0,trim_end_ms:null};}
 export function makeSegment(text=''):Segment{return {id:uid(),text,normalized_text:text,voice_id:null,speaker:'Người dẫn',gap_ms:300,takes:[],selected_take_id:null,trim_start_ms:0,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0,gain_db:0};}
-// A line "Tên: lời" or "[Tên]: lời" names its speaker. The name is at most 30 characters with no digits or URL (so "8:30" and "http://…" are not labels).
+// A line "Tên: lời" or "[Tên]: lời" names its speaker. The name is at most 30 characters with no digits or URL (so "8:30" and "http://…" are not labels),
+// except the app's own "Người 2", which a TXT export of a transcript with speakers writes.
 const LABEL=/^\s*(?:\[([^\][:\n]+)\]|([^:[\]\n]+?))\s*[:：](?!\/\/)\s*(.*)$/u;
 // A line starting with [P1] (any case, spaces allowed inside) starts a chapter; the rest of the line is ordinary script text.
 const CHAPTER=/^\s*\[\s*P(\d+)\s*\](.*)$/i;
-const labelOf=(line:string)=>{const m=line.match(LABEL),name=(m?.[1]??m?.[2])?.trim();return m&&name&&name.length<=30&&!/\d|www\.|@/i.test(name)?{name,rest:m[3]}:null;};
+const labelOf=(line:string)=>{const m=line.match(LABEL),name=(m?.[1]??m?.[2])?.trim();return m&&name&&name.length<=30&&(!/\d|www\.|@/i.test(name)||/^Người \d{1,3}$/u.test(name))?{name,rest:m[3]}:null;};
 /** Script chunks of pasted text. With at least two labelled lines each label starts a block (continuing until the next label) spoken by that name; otherwise one speaker reads everything, so a lone "Lưu ý:" stays text. */
 export function scriptChunks(text:string):{speaker:string;text:string;chapter?:string}[]{
  const lines=text.split(/\r?\n/).filter(l=>!SCENE_BREAK.test(l)).map(raw=>{
