@@ -10,8 +10,8 @@
   "dictionary": {"TP.HCM": "thành phố Hồ Chí Minh"},
   "transcript": [
    {"id": "r1", "start_ms": 0, "end_ms": 2400, "text": "Xin chào các bạn.", "speaker": 0},
-   {"id": "r2", "start_ms": 2400, "end_ms": 5200, "text": "Hôm nay trời đẹp quá.", "speaker": 1},
-   {"id": "r3", "start_ms": 5200, "end_ms": 8000, "text": "Chúng ta bắt đầu nhé.", "speaker": 0}
+   {"id": "r2", "start_ms": 2400, "end_ms": 5200, "text": "Hôm nay trời đẹp quá.", "speaker": 0},
+   {"id": "r3", "start_ms": 5200, "end_ms": 8000, "text": "Chúng ta bắt đầu nhé.", "speaker": 1}
   ],
   "segments": [
    {"id": "s1", "text": "Chào mừng đến TP.HCM. [nghỉ 0.5s] Hôm nay có 25 người.", "normalized_text": "Chào mừng đến thành phố Hồ Chí Minh. [nghỉ 0.5s] Hôm nay có 25 người.", "voice_id": "v-ref", "speaker": "Người dẫn", "gap_ms": 300, "speed": 0.9, "chapter": "Chương 1: Mở đầu", "cue_start_ms": 0, "cue_end_ms": 3000,
