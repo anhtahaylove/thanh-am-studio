@@ -80,8 +80,8 @@ export default function App(){
  // Focus goes to <main> because the toast button that had it is gone.
  function closeToast(undo=false){if(undo)travel('undo');setUndoToast(null);const m=document.querySelector<HTMLElement>('main');if(m){m.tabIndex=-1;m.focus();}}
  useEffect(()=>{setUndoToast(t=>t&&versionRef.current!==t.v?null:t);},[project]);
- // The source player follows the project's source_asset_id, so undo, redo, reload and open all agree with it. A missing source is left to the source picker rather than blocking the project.
- useEffect(()=>{const id=project?.source_asset_id??null;if(id===(source?.id??null))return;if(!id){setSource(null);return;}let live=true;call<Asset>('get_asset',{id}).then(a=>{if(live)setSource(a);},()=>{});return ()=>{live=false;};},[project?.source_asset_id]);
+ // The source player follows the project's source_asset_id, so undo, redo, reload and open all agree with it. It is cleared first, so a slow or failed load never leaves the previous project's audio in place; a missing source is left to the source picker rather than blocking the project.
+ useEffect(()=>{const id=project?.source_asset_id??null;if(id===(source?.id??null))return;setSource(null);if(!id)return;let live=true;call<Asset>('get_asset',{id}).then(a=>{if(live)setSource(a);},()=>{});return ()=>{live=false;};},[project?.source_asset_id]);
  useEffect(()=>{if(!undoToast)setHoldToast(false);},[undoToast]);
  useEffect(()=>{if(!undoToast||holdToast)return;const t=setTimeout(()=>setUndoToast(null),8000);return ()=>clearTimeout(t);},[undoToast,holdToast]);
  const saveProject=useCallback(async():Promise<Project>=>{

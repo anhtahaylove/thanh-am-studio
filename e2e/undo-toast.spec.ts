@@ -84,3 +84,20 @@ test('a toast that disappears while it has focus does not stop the next one from
  await page.getByRole('button',{name:'Xóa đoạn',exact:true}).first().click();await expect(toast).toBeVisible();
  await page.clock.fastForward(8500);await expect(toast).toHaveCount(0);
 });
+test('opening a project whose source asset is missing does not keep the source player of the previous project',async({page})=>{
+ await page.addInitScript(()=>{
+  const w=window as any;w.isTauri=true;
+  const proj=(id:string,name:string,source:string)=>({id,name,updated_at:'2026-01-01T00:00:00Z',revision:1,segments:[],transcript:[],dictionary:{},source_asset_id:source});
+  const projects=[proj('p1','Có nguồn','A'),proj('p2','Mất nguồn','Z')];
+  w.__TAURI_INTERNALS__={convertFileSrc:(p:string)=>p,transformCallback:()=>1,unregisterCallback:()=>{},metadata:{currentWindow:{label:'main'},currentWebview:{label:'main',windowLabel:'main'}},
+   invoke:async(cmd:string,args:any)=>{switch(cmd){
+    case 'list_projects':return projects.map(p=>({id:p.id,name:p.name,updated_at:p.updated_at,revision:p.revision}));case 'load_project':return projects.find(p=>p.id===args.id);
+    case 'get_asset':if(args.id==='Z')throw Error('ASSET_MISSING');return {id:args.id,path:args.id+'.wav',name:'cu-'+args.id+'.wav',duration_ms:1000,sample_rate:16000};
+    case 'list_jobs':case 'list_voices':case 'list_models':return [];case 'get_settings':return {dictionary:{}};
+    case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,python_path:null,ffmpeg_path:null,message:''};default:return null;}}};
+ });
+ await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();
+ await page.getByRole('button',{name:'Mở dự án'}).nth(0).click();await page.getByRole('button',{name:'Chép lời',exact:true}).click();await expect(page.locator('.source-player')).toContainText('cu-A.wav');
+ await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).nth(1).click();await page.getByRole('button',{name:'Chép lời',exact:true}).click();
+ await expect(page.locator('.source-player')).toHaveCount(0);
+});
