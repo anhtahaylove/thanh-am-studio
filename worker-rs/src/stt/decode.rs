@@ -145,7 +145,13 @@ fn error_class(code: c_int) -> &'static str {
     }
 }
 
-/// The worker's message for what `thanham_av_decode_audio` reported: Python's `{type}: {str(exception)}`.
+/// `load_audio`'s error about the input: `INVALID_MEDIA` with Python's `{type}: {str(exception)}`.
+fn invalid_media(kind: &str, text: impl std::fmt::Display) -> WorkerError {
+    WorkerError::new("INVALID_MEDIA", format!("{kind}: {text}"))
+}
+
+/// The worker's error for what `thanham_av_decode_audio` reported: `INVALID_MEDIA` as `load_audio` raises it, but memory and
+/// internal errors stay `WORKER_ERROR`.
 fn decode_error(err: &AvError) -> WorkerError {
     let place = c_text(&err.place);
     match err.kind {
@@ -157,11 +163,14 @@ fn decode_error(err: &AvError) -> WorkerError {
             } else {
                 format!("[Errno {errno}] {text}{at}")
             };
-            WorkerError::py(error_class(err.code), message)
+            match error_class(err.code) {
+                "MemoryError" => WorkerError::py("MemoryError", message),
+                class => invalid_media(class, message),
+            }
         }
-        2 => WorkerError::py("IndexError", "tuple index out of range"),
-        3 => WorkerError::py("ValueError", "Frame does not match AudioFifo parameters."),
-        4 => WorkerError::py("ValueError", "Frame does not match AudioResampler setup."),
+        2 => invalid_media("IndexError", "tuple index out of range"),
+        3 => invalid_media("ValueError", "Frame does not match AudioFifo parameters."),
+        4 => invalid_media("ValueError", "Frame does not match AudioResampler setup."),
         5 => WorkerError::py("MemoryError", ""),
         _ => WorkerError::py("RuntimeError", place),
     }
@@ -170,7 +179,7 @@ fn decode_error(err: &AvError) -> WorkerError {
 /// The decoded 16 kHz mono signed 16-bit samples.
 fn decode_s16(site_packages: &Path, path: &str) -> Result<Vec<i16>> {
     load(site_packages)?;
-    let c_path = CString::new(path).map_err(|_| WorkerError::py("ValueError", "embedded null byte"))?;
+    let c_path = CString::new(path).map_err(|_| invalid_media("ValueError", "embedded null byte"))?;
     let (mut out, mut len) = (std::ptr::null_mut(), 0i64);
     let mut err = AvError { kind: 0, code: 0, place: [0; 256], strerror: [0; 64] };
     // SAFETY: the library is bound (load), the path is NUL-terminated and the out-pointers are valid for writes.

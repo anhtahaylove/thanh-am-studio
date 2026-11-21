@@ -10,7 +10,7 @@ const announceSaved=(path:string)=>window.dispatchEvent(new CustomEvent(SAVED_EV
 const KEY='thanh-am-preview-projects-v1',SETTINGS_KEY='thanh-am-preview-settings-v1';
 function projects():Project[]{try{return JSON.parse(localStorage.getItem(KEY)||'[]');}catch{return [];}}
 const persist=(list:Project[])=>localStorage.setItem(KEY,JSON.stringify(list));
-const ERRORS:Record<string,string>={INVALID_DOCX:'Không đọc được tệp Word này. Hãy mở bằng Word rồi lưu lại dạng .docx.',DOCX_TOO_LARGE:'Tệp quá lớn: phần chữ vượt 10 MB.',TEXT_FILE_TOO_LARGE:'Tệp quá lớn: phần chữ vượt 10 MB.',UNSUPPORTED_TEXT:'Định dạng tệp không được hỗ trợ.',INVALID_MEDIA:'Không đọc được âm thanh trong tệp này: tệp bị hỏng hoặc không có âm thanh. Nếu tệp vẫn nghe được trong trình phát, hãy chuyển sang WAV rồi thử lại.'};
+const ERRORS:Record<string,string>={INVALID_DOCX:'Không đọc được tệp Word này. Hãy mở bằng Word rồi lưu lại dạng .docx.',DOCX_TOO_LARGE:'Tệp quá lớn: phần chữ vượt 10 MB.',TEXT_FILE_TOO_LARGE:'Tệp quá lớn: phần chữ vượt 10 MB.',UNSUPPORTED_TEXT:'Định dạng tệp không được hỗ trợ.',INVALID_MEDIA:'Không đọc được âm thanh trong tệp này: tệp bị hỏng, không có âm thanh hoặc ghép từ các phần khác tần số lấy mẫu hay số kênh. Nếu tệp vẫn nghe được trong trình phát, hãy chuyển sang WAV rồi thử lại.'};
 const known=(e:unknown)=>Object.keys(ERRORS).find(k=>String(e).startsWith(k));
 const friendly=(e:unknown)=>{const code=known(e);return code?Error(ERRORS[code]):e;};
 /** A failed job's `CODE: message` as the short Vietnamese message for its code, else as it is. */

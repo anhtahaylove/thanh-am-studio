@@ -14,5 +14,5 @@ test('a job that failed on its input shows the Vietnamese message for the code, 
  await page.addInitScript(mock);await page.goto('/');
  await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:/^Hàng đợi/}).click();
  const errors=page.locator('.job-error');
- await expect(errors).toHaveText(['Không đọc được âm thanh trong tệp này: tệp bị hỏng hoặc không có âm thanh. Nếu tệp vẫn nghe được trong trình phát, hãy chuyển sang WAV rồi thử lại.','WORKER_ERROR: RuntimeError: boom']);
+ await expect(errors).toHaveText(['Không đọc được âm thanh trong tệp này: tệp bị hỏng, không có âm thanh hoặc ghép từ các phần khác tần số lấy mẫu hay số kênh. Nếu tệp vẫn nghe được trong trình phát, hãy chuyển sang WAV rồi thử lại.','WORKER_ERROR: RuntimeError: boom']);
 });

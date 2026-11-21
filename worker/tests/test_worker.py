@@ -617,10 +617,15 @@ class WorkerTests(unittest.TestCase):
             self.assertAlmostEqual(seconds(data[:mid] + b'\xff' * 400 + data[mid + 400:]), 10, delta=0.2)
             # A part with more channels is decoded (the FIFO takes the first ones, as before).
             self.assertAlmostEqual(seconds(data + tone('stereo.mp3', channels=2)), 20, delta=0.2)
-            # A part with another rate or fewer channels is an error, not a transcript cut short or a crash.
-            for joined in (data + tone('22k.mp3', rate=22050), tone('stereo.mp3', channels=2) + data):
-                with self.assertRaisesRegex(ValueError, 'Frame does not match AudioFifo parameters'):
+            # A part with another rate or fewer channels is an error about the input, not a transcript cut short or a crash. So is a
+            # file FFmpeg cannot read: INVALID_MEDIA, which the desktop does not rerun on Python.
+            for joined, error in ((data + tone('22k.mp3', rate=22050), 'ValueError: Frame does not match AudioFifo parameters.'),
+                                  (tone('stereo.mp3', channels=2) + data, 'ValueError: Frame does not match AudioFifo parameters.'),
+                                  (b'not audio\n' * 100, 'InvalidDataError: [Errno 1094995529] Invalid data found when processing input')):
+                with self.assertRaises(worker.WorkerError) as caught:
                     seconds(joined)
+                self.assertEqual(caught.exception.code, 'INVALID_MEDIA')
+                self.assertTrue(str(caught.exception).startswith(error), caught.exception)
             # 4096 bytes of 0xff in AAC: the decoder's ADTS parse codes are UndefinedErrors in PyAV, skipped too (5.1 s before).
             m4a = tone('tone.m4a', codec=('-c:a', 'aac', '-b:a', '128k'))
             self.assertGreater(seconds(m4a[:len(m4a) // 2] + b'\xff' * 4096 + m4a[len(m4a) // 2 + 4096:], '.m4a'), 9)
