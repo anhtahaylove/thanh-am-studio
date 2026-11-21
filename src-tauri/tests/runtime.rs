@@ -176,3 +176,9 @@ fn a_separation_leaves_only_its_log_in_the_job_folder(){
  assert_eq!(std::fs::read_dir(t.path()).unwrap().map(|e|e.unwrap().file_name().into_string().unwrap()).collect::<Vec<_>>(),["worker.log"]);
  thanh_am_studio::runtime::remove_stems(&t.path().join("missing")); // a job that never started has no folder
 }
+#[cfg(windows)]
+#[test]
+fn status_reports_the_installed_memory(){
+ let t=tempfile::tempdir().unwrap();let status=thanh_am_studio::runtime::Runtime::new(t.path().join("none"),t.path().join("none")).status();
+ assert!(status["total_memory_mb"].as_u64().unwrap()>1000);
+}
