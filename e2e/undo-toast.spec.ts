@@ -56,11 +56,12 @@ test('applying a finished transcript over an open one replaces it at once and ca
  let dialogs=0;page.on('dialog',d=>{dialogs++;void d.dismiss();});
  await page.addInitScript(()=>{
   const w=window as any;w.isTauri=true;let project:any=null;
-  const job={id:'j1',kind:'stt',project_id:null,payload:{},status:'succeeded',progress:1,error:null,result:{segments:[{start:0,end:2,text:'Bản mới một'},{start:2,end:4,text:'Bản mới hai'}]},created_at:'2026-01-01T00:00:00Z',updated_at:'2026-01-01T00:00:00Z'};
+  const job={id:'j1',kind:'stt',project_id:null,payload:{asset_id:'B'},status:'succeeded',progress:1,error:null,result:{segments:[{start:0,end:2,text:'Bản mới một'},{start:2,end:4,text:'Bản mới hai'}]},created_at:'2026-01-01T00:00:00Z',updated_at:'2026-01-01T00:00:00Z'};
   w.__TAURI_INTERNALS__={convertFileSrc:(p:string)=>p,transformCallback:()=>1,unregisterCallback:()=>{},metadata:{currentWindow:{label:'main'},currentWebview:{label:'main',windowLabel:'main'}},
    invoke:async(cmd:string,args:any)=>{switch(cmd){
     case 'list_jobs':return [job];case 'list_projects':return project?[{id:project.id,name:project.name,updated_at:project.updated_at,revision:project.revision}]:[];
-    case 'create_project':project={id:'p1',name:args.name,updated_at:'2026-01-01T00:00:00Z',revision:0,segments:[],transcript:[],dictionary:{},source_asset_id:null};return project;
+    case 'create_project':project={id:'p1',name:args.name,updated_at:'2026-01-01T00:00:00Z',revision:0,segments:[],transcript:[],dictionary:{},source_asset_id:'A'};return project;
+    case 'get_asset':return {id:args.id,path:args.id+'.wav',name:args.id+'.wav',duration_ms:1000,sample_rate:16000};
     case 'save_project':project={...args.project,revision:args.project.revision+1};return project;
     case 'load_project':return project;case 'list_voices':case 'list_models':return [];case 'get_settings':return {dictionary:{}};
     case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,python_path:null,ffmpeg_path:null,message:''};
@@ -70,6 +71,16 @@ test('applying a finished transcript over an open one replaces it at once and ca
  const texts=page.getByLabel(/^Lời nói tại/);await texts.first().fill('Bản cũ');
  await page.getByRole('button',{name:'Hàng đợi',exact:true}).click();await page.getByRole('button',{name:'Áp dụng transcript'}).click();
  await expect(texts).toHaveCount(2);await expect(texts.first()).toHaveValue('Bản mới một');
- const toast=page.locator('.toast');await expect(toast).toContainText('Đã thay transcript');
- await toast.getByRole('button',{name:'Hoàn tác',exact:true}).click();await expect(texts).toHaveCount(1);await expect(texts.first()).toHaveValue('Bản cũ');expect(dialogs).toBe(0);
+ const toast=page.locator('.toast'),player=page.locator('.source-player');await expect(toast).toContainText('Đã thay transcript');await expect(player).toContainText('B.wav');
+ // The source player goes back with the transcript, through the toast, Ctrl+Y and Ctrl+Z alike.
+ await toast.getByRole('button',{name:'Hoàn tác',exact:true}).click();await expect(texts).toHaveCount(1);await expect(texts.first()).toHaveValue('Bản cũ');await expect(player).toContainText('A.wav');expect(dialogs).toBe(0);
+ await page.keyboard.press('Control+y');await expect(texts).toHaveCount(2);await expect(player).toContainText('B.wav');
+ await page.keyboard.press('Control+z');await expect(texts).toHaveCount(1);await expect(player).toContainText('A.wav');await expect(player).not.toContainText('B.wav');
+});
+test('a toast that disappears while it has focus does not stop the next one from timing out',async({page})=>{
+ await page.clock.install();await addTwo(page);const toast=page.locator('.toast');
+ await page.getByRole('button',{name:'Xóa đoạn',exact:true}).first().click();await toast.getByRole('button',{name:'Hoàn tác',exact:true}).focus();
+ await page.keyboard.press('Control+z');await expect(toast).toHaveCount(0);
+ await page.getByRole('button',{name:'Xóa đoạn',exact:true}).first().click();await expect(toast).toBeVisible();
+ await page.clock.fastForward(8500);await expect(toast).toHaveCount(0);
 });
