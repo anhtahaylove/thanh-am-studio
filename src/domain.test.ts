@@ -46,6 +46,11 @@ describe('subtitle and text contracts',()=>{
   expect(jsonEqual({error:null},{})).toBe(false);expect(jsonEqual({a:1},{b:1})).toBe(false);expect(jsonEqual(undefined,[])).toBe(false);expect(jsonEqual(0,'0')).toBe(false);});
  it('lets the dictionary win over number rules and keeps pause marks',()=>{expect(normalizeText('Giá 50k [nghỉ 0,5s] đ/cp',{'50k':'năm chục nghìn','đ/cp':'đồng một cổ phiếu'})).toBe('Giá năm chục nghìn [nghỉ 0,5s] đồng một cổ phiếu');expect(normalizeText('-2,5 [nghỉ 1s] 50k',{})).toBe('âm 2,5 [nghỉ 1s] 50 nghìn');});
  it('splits long prose without losing words',()=>{const x=Array.from({length:1000},()=> 'xin').join(' '); const parts=splitText(x);expect(parts.length).toBeGreaterThan(1);expect(parts.join(' ')).toBe(x);expect(parts.every(p=>p.length<=500)).toBe(true);});
+ it('both halves of a split row keep its speaker, so a TXT export still joins them into one turn',()=>{
+  const [a,b]=splitTranscript({id:'a',start_ms:0,end_ms:2000,text:'Xin chào bạn thân',speaker:1});expect([a.speaker,b.speaker]).toEqual([1,1]);
+  expect(exportSubtitles([a,b,{id:'c',start_ms:2000,end_ms:3000,text:'Chào.',speaker:0}],'txt')).toBe('Người 2: Xin chào bạn thân\n\nNgười 1: Chào.');
+  expect('speaker' in splitTranscript({id:'b',start_ms:0,end_ms:2000,text:'Một hai'})[1]).toBe(false);
+ });
  it('splits and merges transcript preserving endpoints',()=>{const x={id:'a',start_ms:1000,end_ms:5000,text:'Xin chào bạn thân'};const parts=splitTranscript(x);expect(parts[0].start_ms).toBe(1000);expect(parts[1].end_ms).toBe(5000);expect(mergeTranscript(parts[0],parts[1]).text).toBe(x.text);});
 });
 describe('preview/export recipe invariants',()=>{
