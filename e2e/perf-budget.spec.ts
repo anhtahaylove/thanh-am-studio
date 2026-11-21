@@ -114,3 +114,22 @@ test('a 1,200-row transcript stays responsive: no long task while polls bring no
  expect.soft(Math.max(0,...big.idle),`long tasks (ms) during 6 s of polling: ${big.idle.join(', ')||'none'}`).toBeLessThan(IDLE_MS);
  expect(big.ms[4],`median keystroke latency; all (ms): ${big.ms.join(', ')}`).toBeLessThan(KEY_MS);
 });
+// Search 2.0: with a query that marks every row, a keystroke still re-renders only its own row, and the O(n) search work per keystroke
+// (hits, the exact count for "Thay N chỗ") stays inside the budget.
+test('a 1,200-row transcript with an active search stays responsive: no long task while polls bring nothing new, and a keystroke in row 600 stays fast',async({page})=>{
+ test.setTimeout(240000);
+ await page.addInitScript(mockTranscript,ROWS);await page.goto('/');
+ await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();await page.getByRole('button',{name:'Chép lời',exact:true}).click();
+ const box=page.locator('[data-row="r600"] textarea');await expect(box).toBeAttached({timeout:90000});
+ await page.locator('input[aria-label="Tìm trong bản chép lời"]').fill('a');await expect(page.locator('.search-count')).toContainText('kết quả');await expect(page.locator('[data-row="r600"] .match-preview')).toBeAttached({timeout:90000});await page.waitForTimeout(2000);
+ await page.evaluate(()=>{(window as any).__lt=[];});await page.waitForTimeout(6000); // two or three polls
+ const idle:number[]=await page.evaluate(()=>(window as any).__lt);
+ await box.click();await page.keyboard.press('End');await page.waitForTimeout(500);await page.evaluate(()=>{(window as any).__keys=[];});
+ await page.keyboard.type('abcdefghij',{delay:80});await expect(box).toHaveValue(/abcdefghij$/);
+ const keys:{id:number;ms:number}[]=await page.evaluate(()=>(window as any).__keys),slowest=new Map<number,number>();
+ for(const k of keys)slowest.set(k.id,Math.max(slowest.get(k.id)??0,k.ms));
+ const ms=[...slowest.values(),...Array(Math.max(0,10-slowest.size)).fill(16)].sort((a,b)=>a-b);
+ console.log(`perf: transcript 1200 rows with a search: idle long tasks (ms) ${idle.join(', ')||'none'}; keystrokes (ms) ${ms.map(Math.round).join(', ')}`);
+ expect.soft(Math.max(0,...idle),`long tasks (ms) during 6 s of polling: ${idle.join(', ')||'none'}`).toBeLessThan(IDLE_MS);
+ expect(ms[4],`median keystroke latency; all (ms): ${ms.join(', ')}`).toBeLessThan(KEY_MS);
+});

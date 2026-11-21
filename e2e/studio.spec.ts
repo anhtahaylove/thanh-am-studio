@@ -56,7 +56,7 @@ test('transcript find and replace changes every match in one undo step',async({p
  await page.goto('/');await page.getByRole('button',{name:'Chép lời',exact:true}).click();await page.getByRole('button',{name:'Thêm dòng'}).click();await page.getByRole('button',{name:'Thêm dòng'}).click();
  const texts=page.getByLabel(/^Lời nói tại/);await texts.nth(0).fill('chợ biến thành');await texts.nth(1).fill('Chợ Biến Thành đông vui');
  await page.keyboard.press('Control+f');await expect(page.getByLabel('Tìm trong bản chép lời')).toBeFocused();await page.keyboard.type('biến thành');
- await page.getByLabel('Thay bằng').fill('Bến Thành');await page.getByRole('button',{name:'Thay tất cả'}).click();
+ await page.getByLabel('Thay bằng').fill('Bến Thành');await page.getByRole('button',{name:'Thay 2 chỗ',exact:true}).click();
  await expect(page.getByRole('status')).toContainText('Đã thay 2 chỗ');await expect(texts.nth(0)).toHaveValue('chợ Bến Thành');await expect(texts.nth(1)).toHaveValue('Chợ Bến Thành đông vui');
  await page.getByLabel('Tìm trong bản chép lời').fill('');await texts.nth(0).focus();await page.keyboard.press('Control+z');await expect(texts.nth(0)).toHaveValue('chợ biến thành');
 });
@@ -185,11 +185,11 @@ test('transcript search ignores tone marks, counts matches and marks them in the
  await page.goto('/');await page.getByRole('button',{name:'Chép lời',exact:true}).click();for(let i=0;i<3;i++)await page.getByRole('button',{name:'Thêm dòng'}).click();
  const texts=page.getByLabel(/^Lời nói tại/);await texts.nth(0).fill('Mua cá thu tươi');await texts.nth(1).fill('Cá Thu và cá thu nữa');await texts.nth(2).fill('Không liên quan');
  const box=page.getByLabel('Tìm trong bản chép lời'),count=page.locator('.search-count'),marks=page.locator('.match-preview mark');
- await box.fill('ca thu');await expect(texts).toHaveCount(2);await expect(count).toHaveText('3 kết quả');await expect(marks).toHaveText(['cá thu','Cá Thu','cá thu']);
+ await box.fill('ca thu');await expect(texts).toHaveCount(2);await expect(count).toHaveText('1/3 kết quả');await expect(marks).toHaveText(['cá thu','Cá Thu','cá thu']);
  await box.fill('CÁ THU');await expect(texts).toHaveCount(2);
  await box.fill('xyz');await expect(texts).toHaveCount(0);await expect(count).toHaveText('0 kết quả');
  // Replace stays exact: the toneless query matches rows, but nothing is rewritten.
- await box.fill('ca thu');await page.getByLabel('Thay bằng').fill('cá basa');await page.getByRole('button',{name:'Thay tất cả'}).click();
- await expect(page.getByRole('status')).toContainText('khớp đúng dấu');await expect(texts.nth(0)).toHaveValue('Mua cá thu tươi');
+ await box.fill('ca thu');await page.getByLabel('Thay bằng').fill('cá basa');const replace=page.getByRole('button',{name:'Thay 0 chỗ',exact:true});
+ await expect(replace).toBeDisabled();await expect(replace).toHaveAttribute('title',/chỉ khớp đúng dấu/);await expect(texts.nth(0)).toHaveValue('Mua cá thu tươi');
  await box.fill('');await expect(texts).toHaveCount(3);await expect(count).toHaveText('');await expect(marks).toHaveCount(0);
 });
