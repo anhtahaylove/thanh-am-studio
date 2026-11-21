@@ -66,6 +66,13 @@ npm test
 npm run test:e2e
 cargo test --manifest-path src-tauri/Cargo.toml --tests
 python -m unittest discover -s worker/tests -v
+# Native Rust worker (worker-rs): cargo reads rust-toolchain.toml and .cargo/config.toml from the working directory.
+# Tests that need the private runtime's ONNX Runtime or model files skip when those are missing.
+Push-Location worker-rs
+cargo fmt --all --check
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo test --workspace --locked
+Pop-Location
 ./scripts/setup-runtime.ps1       # private runtime the installer bundles (no admin, no system changes)
 npm run tauri dev
 ```
