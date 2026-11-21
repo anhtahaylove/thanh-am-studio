@@ -17,6 +17,11 @@ describe('model sizes',()=>{
  });
 });
 describe('model advice',()=>{
+ it('shows the machine total in GB of 1,024 MiB, one decimal, vi-VN',()=>{
+  expect(modelAdvice('vieneu-v3',32768).note).toContain('32 GB');
+  expect(modelAdvice('vieneu-v3',7910).note).toContain('7,7 GB');
+  expect(modelAdvice('whisper-small',15760).note).toContain('15,4 GB');
+ });
  it('keeps Turbo unmeasured, so Small is the only STT pick on every machine',()=>{
   expect(MODEL_RAM_MB['whisper-turbo']).toBeNull();
   for(const total of [null,3900,7910,15760,65536])expect(picks(total),String(total)).toEqual(['whisper-small']);
@@ -36,7 +41,7 @@ describe('model advice',()=>{
   const heavy=modelAdvice('vieneu-v3',3900);
   expect(heavy.badge).toBe('heavy');
   expect(heavy.note).toContain('2,2 GB');
-  expect(heavy.note).toContain('3,9 GB');
+  expect(heavy.note).toContain('3,8 GB'); // the machine total is MiB: 3,900 / 1,024
  });
  it('gives diarization, HTDemucs and the pack no badge',()=>{
   for(const id of ['diarization','htdemucs','separation-runtime'])expect(modelAdvice(id,15760)).toEqual({badge:null});

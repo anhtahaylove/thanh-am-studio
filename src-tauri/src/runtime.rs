@@ -23,8 +23,8 @@ struct Job(usize);
 pub struct Awake;
 impl Awake{pub fn hold()->Self{#[cfg(windows)] unsafe{use windows_sys::Win32::System::Power::*;SetThreadExecutionState(ES_CONTINUOUS|ES_SYSTEM_REQUIRED);}Awake}}
 impl Drop for Awake{fn drop(&mut self){#[cfg(windows)] unsafe{use windows_sys::Win32::System::Power::*;SetThreadExecutionState(ES_CONTINUOUS);}}}
-/// Installed physical memory in MB (`ullTotalPhys`), or null when the call fails or off Windows. Total, never available memory: the status is polled and a changing value would re-render the page.
-#[cfg(windows)] fn total_memory_mb()->Value{unsafe{use windows_sys::Win32::System::SystemInformation::*;let mut m:MEMORYSTATUSEX=std::mem::zeroed();m.dwLength=std::mem::size_of::<MEMORYSTATUSEX>() as u32;if GlobalMemoryStatusEx(&mut m)!=0{json!(m.ullTotalPhys/1_048_576)}else{Value::Null}}}
+/// Usable physical memory in MiB (`ullTotalPhys`), or null when the call fails or off Windows. Total, never available memory: the status is polled and a changing value would re-render the page.
+#[cfg(windows)] fn total_memory_mb()->Value{use windows_sys::Win32::System::SystemInformation::*;let mut m=MEMORYSTATUSEX{dwLength:std::mem::size_of::<MEMORYSTATUSEX>() as u32,..Default::default()};if unsafe{GlobalMemoryStatusEx(&mut m)}!=0{json!(m.ullTotalPhys/1_048_576)}else{Value::Null}}
 #[cfg(not(windows))] fn total_memory_mb()->Value{Value::Null}
 /// A plain-language cause for the Windows crash codes a worker most often dies with.
 pub fn exit_hint(code:Option<i32>)->&'static str{match code.map(|c|c as u32){
