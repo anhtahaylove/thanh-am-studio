@@ -22,7 +22,7 @@ test('the shortcuts the sheet lists work: Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z and Ctrl+
 test('Ctrl+K opens the palette, filters without tone marks, runs with arrows and Enter, and Escape returns focus',async({page})=>{
  await withSegment(page);const text=page.getByRole('textbox',{name:'Nội dung đoạn 1'});
  await text.focus();await page.keyboard.press('Control+k');await expect(palette(page)).toBeVisible();await expect(box(page)).toBeFocused();
- await expect(palette(page).getByRole('option')).toHaveCount(10);await expect(palette(page)).not.toContainText('Nhấn ?');
+ await expect(palette(page).getByRole('option')).toHaveCount(11);await expect(palette(page)).not.toContainText('Nhấn ?');
  await box(page).fill('cai dat');await expect(palette(page).getByRole('option')).toHaveText(['Mở Model & cài đặt']);
  await box(page).fill('tao giong');await expect(palette(page).getByRole('option')).toHaveCount(3);await expect(palette(page).getByRole('option').first()).toHaveAttribute('aria-selected','true');
  await box(page).fill('HANG doi');await expect(palette(page).getByRole('option')).toHaveText(['Đi tới Hàng đợi']);
@@ -83,4 +83,24 @@ test('enabled commands call the existing generate and export handlers',async({pa
  await expect.poll(jobs).toEqual([['tts','1'],['tts','2'],['tts','2']]);
  await page.keyboard.press('Control+k');await box(page).fill('xuat audio');await page.keyboard.press('Enter');
  await expect.poll(jobs).toEqual([['tts','1'],['tts','2'],['tts','2'],['render',null]]);
+});
+test('? typed with AltGr (Ctrl+Alt on Windows) opens the sheet, while Ctrl+? or Alt+? alone and AltGr+? in a text field do not',async({page})=>{
+ await withSegment(page);await page.getByRole('textbox',{name:'Nội dung đoạn 1'}).focus();await page.keyboard.press('Control+Alt+?');await expect(sheet(page)).toHaveCount(0);
+ const nav=page.getByRole('button',{name:'Thư viện giọng',exact:true});await nav.focus();
+ for(const combo of ['Control+?','Alt+?']){await page.keyboard.press(combo);await expect(sheet(page)).toHaveCount(0);}
+ await page.keyboard.press('Control+Alt+?');await expect(sheet(page)).toBeVisible();
+ await page.keyboard.press('Escape');await expect(sheet(page)).toHaveCount(0);await expect(nav).toBeFocused();
+});
+test('Ctrl+K closes the palette from its close button too, not only from the filter',async({page})=>{
+ await withSegment(page);const text=page.getByRole('textbox',{name:'Nội dung đoạn 1'});await text.focus();
+ await page.keyboard.press('Control+k');await expect(box(page)).toBeFocused();await page.keyboard.press('Shift+Tab');await expect(palette(page).getByRole('button',{name:'Đóng bảng lệnh'})).toBeFocused();
+ await page.keyboard.press('Control+k');await expect(palette(page)).toHaveCount(0);await expect(text).toBeFocused();
+});
+test('Ctrl+Alt+K (AltGr+K) neither opens nor closes the palette, and Meta+? does not open the sheet',async({page})=>{
+ await withSegment(page);await page.getByRole('textbox',{name:'Nội dung đoạn 1'}).focus();
+ await page.keyboard.press('Control+Alt+k');await expect(palette(page)).toHaveCount(0);
+ await page.keyboard.press('Control+k');await expect(box(page)).toBeFocused();
+ await page.keyboard.press('Control+Alt+k');await expect(palette(page)).toBeVisible();await page.keyboard.press('Control+k');await expect(palette(page)).toHaveCount(0);
+ await page.getByRole('button',{name:'Thư viện giọng',exact:true}).focus();await page.keyboard.press('Meta+?');await expect(sheet(page)).toHaveCount(0);
+ await page.keyboard.press('Shift+Slash');await expect(sheet(page)).toBeVisible();
 });

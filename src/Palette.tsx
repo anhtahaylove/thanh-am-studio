@@ -24,9 +24,10 @@ export function CommandPalette({commands,onClose}:{commands:Command[];onClose:()
   else if(e.key==='Home'&&n){e.preventDefault();setAt(0);}
   else if(e.key==='End'&&n){e.preventDefault();setAt(n-1);}
   else if(e.key==='Enter'){e.preventDefault();pick(shown[cur]);}
-  else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();e.stopPropagation();onClose();}
  };
- return <Modal><section className="modal panel palette" role="dialog" aria-modal="true" aria-labelledby="palette-title">
+ // Ctrl+K closes the palette wherever focus is inside it (the filter or the close button); like opening, not with Alt (AltGr+K).
+ const toggle=(e:React.KeyboardEvent)=>{if(!e.nativeEvent.isComposing&&(e.ctrlKey||e.metaKey)&&!e.altKey&&e.key.toLowerCase()==='k'){e.preventDefault();e.stopPropagation();onClose();}};
+ return <Modal><section className="modal panel palette" role="dialog" aria-modal="true" aria-labelledby="palette-title" onKeyDown={toggle}>
   <div className="panel-toolbar"><h3 id="palette-title">Bảng lệnh</h3><button type="button" className="icon-button" aria-label="Đóng bảng lệnh" title="Đóng bảng lệnh" onClick={onClose}><X size={17}/></button></div>
   <input autoFocus role="combobox" aria-expanded="true" aria-controls={list} aria-activedescendant={shown.length?`${list}-${cur}`:undefined} aria-label="Gõ để tìm lệnh" placeholder="Gõ để tìm lệnh… (không cần gõ dấu)" value={query} onChange={e=>{setQuery(e.target.value);setAt(0);}} onKeyDown={key}/>
   <ul id={list} role="listbox" aria-label="Lệnh">{shown.map((c,i)=><li key={c.id} id={`${list}-${i}`} role="option" aria-selected={i===cur} aria-disabled={c.disabled?true:undefined} onMouseMove={()=>{if(i!==cur)setAt(i);}} onClick={()=>pick(c)}><c.icon size={16}/><span>{c.label}</span>{c.disabled&&<small>{c.disabled}</small>}</li>)}</ul>

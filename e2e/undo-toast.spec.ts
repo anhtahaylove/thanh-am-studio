@@ -101,3 +101,29 @@ test('opening a project whose source asset is missing does not keep the source p
  await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).nth(1).click();await page.getByRole('button',{name:'Chép lời',exact:true}).click();
  await expect(page.locator('.source-player')).toHaveCount(0);
 });
+test('the toast names Ctrl+Z, and the palette offers Undo while the toast sits inert behind it',async({page})=>{
+ await addTwo(page);const toast=page.locator('.toast'),undo=toast.getByRole('button',{name:'Hoàn tác',exact:true}),palette=page.getByRole('dialog',{name:'Bảng lệnh'}),box=page.getByRole('combobox',{name:'Gõ để tìm lệnh'});
+ await page.getByRole('button',{name:'Xóa đoạn',exact:true}).first().click();await expect(toast).toBeVisible();
+ await expect(undo).toHaveAttribute('title','Hoàn tác (Ctrl+Z)');await expect(undo).toHaveAttribute('aria-keyshortcuts','Control+Z');
+ await page.keyboard.press('Control+k');await expect(palette).toBeVisible();expect(await toast.evaluate(e=>!!e.closest('[inert]'))).toBe(true);
+ await box.fill('hoan tac');const command=palette.getByRole('option',{name:/Hoàn tác thay đổi gần nhất/});await expect(command).not.toHaveAttribute('aria-disabled','true');
+ await page.keyboard.press('Enter');await expect(palette).toHaveCount(0);await expect(page.getByRole('textbox',{name:'Nội dung đoạn 2'})).toHaveValue('Câu hai.');await expect(toast).toHaveCount(0);
+ await page.getByRole('button',{name:'Hoàn tác (Ctrl+Z)'}).click();await expect(page.getByRole('button',{name:'Hoàn tác (Ctrl+Z)'})).toBeDisabled();
+ await page.keyboard.press('Control+k');await box.fill('hoan tac');await expect(command).toHaveAttribute('aria-disabled','true');await expect(command).toContainText('Chưa có thay đổi nào để hoàn tác');
+});
+test('Ctrl+Z on the toast Undo button undoes like a click and leaves focus on the page, not on nothing',async({page})=>{
+ await addTwo(page);const toast=page.locator('.toast');
+ await page.getByRole('button',{name:'Xóa đoạn',exact:true}).first().click();await toast.getByRole('button',{name:'Hoàn tác',exact:true}).focus();
+ await page.keyboard.press('Control+z');await expect(page.getByRole('textbox',{name:'Nội dung đoạn 2'})).toHaveValue('Câu hai.');await expect(toast).toHaveCount(0);
+ await expect(page.locator('main')).toBeFocused();
+ // Only one step was undone: the two added segments are still there.
+ await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toHaveValue('Câu một.');
+});
+test('running Undo from the palette leaves focus on the page',async({page})=>{
+ await addTwo(page);const toast=page.locator('.toast');
+ await page.getByRole('button',{name:'Xóa đoạn',exact:true}).first().click();await expect(toast).toBeVisible();
+ await page.keyboard.press('Control+k');await page.getByRole('combobox',{name:'Gõ để tìm lệnh'}).fill('hoan tac');await page.keyboard.press('Enter');
+ await expect(page.getByRole('textbox',{name:'Nội dung đoạn 2'})).toHaveValue('Câu hai.');await expect(page.locator('main')).toBeFocused();
+ await page.getByRole('textbox',{name:'Nội dung đoạn 1'}).focus();await page.keyboard.press('Control+k');await page.getByRole('combobox',{name:'Gõ để tìm lệnh'}).fill('hoan tac');await page.keyboard.press('Enter');
+ await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toHaveCount(0);await expect(page.locator('main')).toBeFocused();
+});

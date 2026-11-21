@@ -24,3 +24,16 @@ test('the three theme buttons stay inside the narrow rail and work there',async(
  await page.getByRole('button',{name:'Chuyển giao diện tối'}).click();await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
+test('a stored dark choice is on the root before the first frame, even against a light system',async({page})=>{
+ await page.emulateMedia({colorScheme:'light'});
+ await page.addInitScript(()=>{localStorage.setItem('thanh-am-theme','dark');const w=window as unknown as Record<string,unknown>,theme=()=>document.documentElement.dataset.theme??'none';document.addEventListener('DOMContentLoaded',()=>{w.atLoaded=theme();});const frame=()=>{if(document.body?.querySelector('#root > *'))w.atFirstPaint=theme();else requestAnimationFrame(frame);};requestAnimationFrame(frame);});
+ await page.goto('/');await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+ expect(await page.evaluate(()=>{const w=window as unknown as Record<string,unknown>;return [w.atLoaded,w.atFirstPaint];})).toEqual(['dark','dark']);
+});
+for(const stored of ['system','bogus'])test(`a stored "${stored}" value follows the system from the first frame`,async({page})=>{
+ await page.emulateMedia({colorScheme:'dark'});
+ await page.addInitScript(v=>{localStorage.setItem('thanh-am-theme',v);const w=window as unknown as Record<string,unknown>;document.addEventListener('DOMContentLoaded',()=>{w.atLoaded=document.documentElement.dataset.theme??'none';});},stored);
+ await page.goto('/');await expect(page.locator('html')).toHaveAttribute('data-theme','dark');expect(await page.evaluate(()=>(window as unknown as Record<string,unknown>).atLoaded)).toBe('dark');
+ await expect(page.getByRole('button',{name:'Chuyển giao diện theo hệ thống'})).toHaveAttribute('aria-pressed','true');
+ await page.emulateMedia({colorScheme:'light'});await expect(page.locator('html')).toHaveAttribute('data-theme','light');
+});
