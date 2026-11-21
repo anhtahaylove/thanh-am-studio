@@ -1,10 +1,28 @@
 import {describe,it,expect} from 'vitest';
-import {jsonEqual,matchWords,chapterFileName,chapterGroups,dubPlan,dubSummary,takeTrim,progressLabel,jobProgressLabel,taskbarProgress,parseSubtitles,exportSubtitles,normalizeText,splitText,splitTranscript,mergeTranscript,clipDuration,validateRecipe,ttsTranscript,makeSegment,splitSegment,mergeSegments,restoreSnapshot,addTranscriptRow,validRange,replaceInTranscript,searchParts,suspiciousRows,rowAt,spokenText,insertAtCursor,checkSummary,transcriptToScript,barState,speakerSlots,scriptChunks,seconds,timestamp} from './domain';
+import {jsonEqual,matchWords,chapterFileName,chapterGroups,dubPlan,dubSummary,dubOverruns,takeTrim,progressLabel,jobProgressLabel,taskbarProgress,parseSubtitles,exportSubtitles,normalizeText,splitText,splitTranscript,mergeTranscript,clipDuration,validateRecipe,ttsTranscript,makeSegment,splitSegment,mergeSegments,restoreSnapshot,addTranscriptRow,validRange,replaceInTranscript,searchParts,suspiciousRows,rowAt,spokenText,insertAtCursor,checkSummary,normalizedParts,transcriptToScript,barState,speakerSlots,scriptChunks,seconds,timestamp} from './domain';
 import type {Project,Take} from './types';
 describe('subtitle and text contracts',()=>{
  it('reads BOM SRT and multiline Vietnamese',()=>{expect(parseSubtitles('\uFEFF1\r\n00:00:01,250 --> 00:00:03,500\r\nXin chào\r\nViệt Nam\r\n')).toMatchObject([{start_ms:1250,end_ms:3500,text:'Xin chào\nViệt Nam'}]);});
  it('reads VTT settings without treating header as dialogue',()=>{expect(parseSubtitles('WEBVTT\n\n00:01.000 --> 00:02.000 align:start\nChào bạn')).toMatchObject([{start_ms:1000,end_ms:2000,text:'Chào bạn'}]);});
  it('shows take lengths and timestamps with a Vietnamese decimal comma',()=>{expect(seconds(4100)).toBe('4,1 giây');expect(seconds(4000)).toBe('4,0 giây');expect(seconds(1234560)).toBe('1.234,6 giây');expect(timestamp(9200)).toBe('00:00:09,200');});
+ it('a TXT export with speakers joins each turn into one "Người N: lời" paragraph that the script import reads back',()=>{
+  const r=(id:string,text:string,speaker?:number)=>({id,start_ms:0,end_ms:1000,text,...(speaker!==undefined&&{speaker})});
+  const txt=exportSubtitles([r('a','Chào anh.',0),r('b','Anh khỏe không?',0),r('c',' ',0),r('d','Khỏe,\ncảm ơn.',1),r('e','Tốt quá.',0)],'txt');
+  expect(txt).toBe('Người 1: Chào anh. Anh khỏe không?\n\nNgười 2: Khỏe, cảm ơn.\n\nNgười 1: Tốt quá.');
+  expect(scriptChunks(txt)).toEqual([{speaker:'Người 1',text:'Chào anh. Anh khỏe không?'},{speaker:'Người 2',text:'Khỏe, cảm ơn.'},{speaker:'Người 1',text:'Tốt quá.'}]);
+  // A row without a speaker stays its own paragraph; a transcript without speakers exports exactly as before.
+  expect(exportSubtitles([r('a','X.',0),r('b','Y.'),r('c','Z.',0)],'txt')).toBe('Người 1: X.\n\nY.\n\nNgười 1: Z.');
+  expect(exportSubtitles([r('a','Một.'),r('b','Hai\nba.'),r('c','')],'txt')).toBe('Một.\n\nHai\nba.\n\n');
+ });
+ it('reads "Người N:" as a label only with a space after the colon, in either Unicode spelling',()=>{
+  expect(scriptChunks('Người 8:30 sáng đi học.\nNgười 9:15 về nhà.').every(c=>c.speaker==='Người dẫn')).toBe(true);
+  expect(scriptChunks('Người 1: Chào.\nNgười 2: Khỏe.'.normalize('NFD'))).toEqual([{speaker:'Người 1',text:'Chào.'.normalize('NFD')},{speaker:'Người 2',text:'Khỏe.'.normalize('NFD')}]);
+ });
+ it('a TXT export with a single speaker turn stays as before, so the import never reads "Người 1:" aloud',()=>{
+  const r=(id:string,text:string)=>({id,start_ms:0,end_ms:1000,text,speaker:0});
+  const txt=exportSubtitles([r('a','Chào anh.'),r('b','Anh khỏe không?')],'txt');
+  expect(txt).toBe('Chào anh.\n\nAnh khỏe không?');expect(scriptChunks(txt)).toEqual([{speaker:'Người dẫn',text:'Chào anh.'},{speaker:'Người dẫn',text:'Anh khỏe không?'}]);
+ });
  it('rejects reversed subtitle ranges',()=>{expect(()=>parseSubtitles('1\n00:00:02,000 --> 00:00:01,000\nSai')).toThrow('thời gian');});
  it('roundtrips SRT and VTT with millisecond precision',()=>{const rows=[{id:'a',start_ms:1234,end_ms:5678,text:'Tiếng Việt'}]; for(const ext of ['srt','vtt'] as const)expect(parseSubtitles(exportSubtitles(rows,ext))).toMatchObject([{start_ms:1234,end_ms:5678,text:'Tiếng Việt'}]);});
  it('normalizes dictionary literally and prefers longer keys',()=>{expect(normalizeText('TP.HCM dùng AI.',{'TP.HCM':'Thành phố Hồ Chí Minh','AI':'ây ai'})).toBe('Thành phố Hồ Chí Minh dùng ây ai.');});
@@ -28,6 +46,11 @@ describe('subtitle and text contracts',()=>{
   expect(jsonEqual({error:null},{})).toBe(false);expect(jsonEqual({a:1},{b:1})).toBe(false);expect(jsonEqual(undefined,[])).toBe(false);expect(jsonEqual(0,'0')).toBe(false);});
  it('lets the dictionary win over number rules and keeps pause marks',()=>{expect(normalizeText('Giá 50k [nghỉ 0,5s] đ/cp',{'50k':'năm chục nghìn','đ/cp':'đồng một cổ phiếu'})).toBe('Giá năm chục nghìn [nghỉ 0,5s] đồng một cổ phiếu');expect(normalizeText('-2,5 [nghỉ 1s] 50k',{})).toBe('âm 2,5 [nghỉ 1s] 50 nghìn');});
  it('splits long prose without losing words',()=>{const x=Array.from({length:1000},()=> 'xin').join(' '); const parts=splitText(x);expect(parts.length).toBeGreaterThan(1);expect(parts.join(' ')).toBe(x);expect(parts.every(p=>p.length<=500)).toBe(true);});
+ it('both halves of a split row keep its speaker, so a TXT export still joins them into one turn',()=>{
+  const [a,b]=splitTranscript({id:'a',start_ms:0,end_ms:2000,text:'Xin chào bạn thân',speaker:1});expect([a.speaker,b.speaker]).toEqual([1,1]);
+  expect(exportSubtitles([a,b,{id:'c',start_ms:2000,end_ms:3000,text:'Chào.',speaker:0}],'txt')).toBe('Người 2: Xin chào bạn thân\n\nNgười 1: Chào.');
+  expect('speaker' in splitTranscript({id:'b',start_ms:0,end_ms:2000,text:'Một hai'})[1]).toBe(false);
+ });
  it('splits and merges transcript preserving endpoints',()=>{const x={id:'a',start_ms:1000,end_ms:5000,text:'Xin chào bạn thân'};const parts=splitTranscript(x);expect(parts[0].start_ms).toBe(1000);expect(parts[1].end_ms).toBe(5000);expect(mergeTranscript(parts[0],parts[1]).text).toBe(x.text);});
 });
 describe('preview/export recipe invariants',()=>{
@@ -90,6 +113,21 @@ describe('transcript rows',()=>{
  it('inserts a tag at the cursor with spaces only where it would touch a word',()=>{expect(insertAtCursor('chào bạn',4,4,'[cười]')).toEqual({text:'chào [cười] bạn',caret:11});expect(insertAtCursor('chào bạn',8,8,'[cười]')).toEqual({text:'chào bạn [cười] ',caret:16});expect(insertAtCursor('chào bạn',0,0,'[cười]')).toEqual({text:'[cười] chào bạn',caret:7});expect(insertAtCursor('chào hay bạn',5,8,'[thở dài]')).toEqual({text:'chào [thở dài] bạn',caret:14});expect(insertAtCursor('chào bạn',3,3,'[cười]')).toEqual({text:'chà [cười] o bạn',caret:11});expect(insertAtCursor('',0,0,'[cười]')).toEqual({text:'[cười] ',caret:7});expect(insertAtCursor('ab',9,1,'[x]').text).toBe('ab [x] ');});
  it('keeps pause marks out of dictionary rules and out of subtitles',()=>{expect(normalizeText('Nghỉ ngơi [nghỉ 0,5s] rồi đi',{'nghỉ':'NGHỈ','Nghỉ':'Ngơi'})).toBe('Ngơi ngơi [nghỉ 0,5s] rồi đi');expect(spokenText('A [nghỉ 1s]  B [NGHỈ 200ms]')).toBe('A B');expect(spokenText('giữ [ghi chú]')).toBe('giữ [ghi chú]');});
  it('summarizes a Whisper take check and ignores soft mismatches',()=>{expect(checkSummary(undefined)).toBeNull();expect(checkSummary({model:'whisper-small',error:'x'})).toBeNull();expect(checkSummary({model:'whisper-small',heard:'chợ',mismatches:[{expected:'chợ',heard:'trợ',soft:true}]})?.tone).toBe('ok');const w=checkSummary({model:'whisper-small',heard:'h',mismatches:[{expected:'bến',heard:'biến',soft:false},{expected:'a',heard:'',soft:false},{expected:'b',heard:'c',soft:false}]})!;expect(w.tone).toBe('warn');expect(w.label).toBe('Có thể đọc sai: “bến” → “biến”, “a” → “…” +1');});
+ it('says the voice looped when Whisper heard the end of the sentence again, and asks for a new take',()=>{
+  const loop=checkSummary({model:'whisper-small',heard:'Hãy chủ động thay đổi. Chủ động thay đổi.',mismatches:[{expected:'',heard:'chủ động thay đổi',soft:false}]})!;
+  expect(loop).toEqual({tone:'warn',label:'Giọng lặp lại cuối câu: tạo lại take',detail:'Whisper nghe: “Hãy chủ động thay đổi. Chủ động thay đổi.” Cuối take, giọng đọc lặp lại “chủ động thay đổi”. Bấm “Tạo take mới” để đọc lại đoạn này.'});
+  // Extra words that are not the sentence's tail, or a loop followed by other errors, keep the general wording.
+  expect(checkSummary({model:'whisper-small',heard:'Hãy chủ động nhé',mismatches:[{expected:'',heard:'nhé',soft:false}]})!.label).toBe('Có thể đọc sai: “…” → “nhé”');
+  expect(checkSummary({model:'whisper-small',heard:'a b c b c d',mismatches:[{expected:'',heard:'b c',soft:false},{expected:'',heard:'d',soft:false}]})!.label).toMatch(/^Có thể đọc sai/);
+ });
+ it('also names a loop that repeats the end two or more times, as the worker aligns it',()=>{
+  // Mismatches as worker/main.py compare_words (difflib) reports them for "Hãy chủ động thay đổi." and "Ta đi thôi." / "Hôm nay trời rất đẹp.".
+  const label=(heard:string,extra:string)=>checkSummary({model:'whisper-small',heard,mismatches:[{expected:'',heard:extra,soft:false}]})!.label;
+  expect(label('Hãy chủ động thay đổi. Chủ động thay đổi. Chủ động thay đổi.','chủ động thay đổi chủ động thay đổi')).toBe('Giọng lặp lại cuối câu: tạo lại take');
+  expect(label('Hãy chủ động thay đổi. Thay đổi. Thay đổi. Thay đổi.','thay đổi thay đổi thay đổi')).toBe('Giọng lặp lại cuối câu: tạo lại take');
+  expect(label('Ta đi thôi thôi thôi.','thôi thôi')).toBe('Giọng lặp lại cuối câu: tạo lại take');
+  expect(label('Hôm nay trời rất rất đẹp.','rất')).toMatch(/^Có thể đọc sai/); // a stutter inside the sentence is not a loop at the end
+ });
  it('a script made from the transcript keeps the time span of the rows it joins',()=>{const r=(text:string,start_ms:number,end_ms:number,speaker:number)=>({id:text,start_ms,end_ms,text,speaker});expect(transcriptToScript([r('Chào.',1000,2000,0),r('Khỏe không?',2100,3500,0),r('Khỏe.',3600,4200,1)])).toEqual([{speaker:'Người 1',text:'Chào. Khỏe không?',cue_start_ms:1000,cue_end_ms:3500},{speaker:'Người 2',text:'Khỏe.',cue_start_ms:3600,cue_end_ms:4200}]);});
  it('split shares a cue by text length and merge spans both cues',()=>{const s={...makeSegment('Một hai ba. Bốn năm sáu bảy tám.'),cue_start_ms:1000,cue_end_ms:4200};const [a,b]=splitSegment(s);expect([a.cue_start_ms,a.cue_end_ms,b.cue_start_ms,b.cue_end_ms]).toEqual([1000,2135,2135,4200]);expect(mergeSegments(a,b)).toMatchObject({cue_start_ms:1000,cue_end_ms:4200});expect(mergeSegments({...a,cue_start_ms:5000,cue_end_ms:6000},b)).toMatchObject({cue_start_ms:2135,cue_end_ms:6000});const [c,d]=splitSegment(makeSegment('Một hai ba. Bốn năm.'));expect([c.cue_start_ms,d.cue_start_ms,mergeSegments(c,d).cue_end_ms]).toEqual([undefined,undefined,undefined]);});
  it('dub plan places takes at their cues, speeds up at most 1.5x and pushes the next take back',()=>{const c=(duration_ms:number,cue_start_ms:number|null,cue_end_ms:number|null)=>({duration_ms,trim_start_ms:0,trim_end_ms:null,gap_ms:300,fade_in_ms:0,fade_out_ms:0,gain_db:0,cue_start_ms,cue_end_ms});
@@ -131,6 +169,10 @@ describe('transcript rows',()=>{
   const rows=at(rain,[['Câu',0],['thứ',200],['Xin',3000],['mọi',3010],['Chúng',3020],['tôi',3030]],9000);
   expect(rows.length).toBe(3);expect(rows[1][0]).toBe(3000);expect(rows[2][0]-rows[1][0]).toBeGreaterThan(1000);
  });
+ it('dub overruns name the takes that still run past their cue at 1.5x and by how much, not the ones only pushed back',()=>{const t=(id:string,duration_ms:number)=>({id,asset_id:'a',path:'a.wav',duration_ms,sample_rate:48000,created_at:''}),s=(id:string,ms:number,cue_start_ms:number,cue_end_ms:number)=>({...makeSegment('Câu.'),id,cue_start_ms,cue_end_ms,takes:[t('t'+id,ms)],selected_take_id:'t'+id});
+  expect([...dubOverruns([s('a',4000,0,2000),s('b',3000,2100,4100),s('c',1000,5000,7000)])]).toEqual([['a',667]]);
+  expect(dubOverruns([{...s('a',4000,0,2000),selected_take_id:null}]).size).toBe(0);expect(dubOverruns([{...s('a',4000,0,2000),trim_start_ms:5000}]).size).toBe(0);
+  expect(dubPlan([{...s('a',3000,0,2000),duration_ms:3000}]).places[0].over_ms).toBe(0);expect(dubPlan([{...s('a',1000,0,0),duration_ms:1000}]).places[0].over_ms).toBe(667);});
  it('dub summary counts the fit or waits for every take',()=>{const t={id:'t',asset_id:'a',path:'a.wav',duration_ms:4000,sample_rate:48000,created_at:''};const s={...makeSegment('Hai.'),cue_start_ms:0,cue_end_ms:2000,takes:[t],selected_take_id:'t'};expect(dubSummary([s,{...s,id:'b',cue_start_ms:2100,cue_end_ms:5000}])).toBe('2 đoạn đọc nhanh hơn · 1 đoạn bị lùi (tối đa 0,62 s)');expect(dubSummary([{...s,selected_take_id:null}])).toBe('');expect(dubSummary([{...s,trim_start_ms:5000}])).toBe('Trim và khoảng nghỉ phải nằm trong thời lượng audio');});
  it('turns a diarized transcript into one script line per speaker turn',()=>{const r=(id:string,text:string,speaker?:number)=>({id,start_ms:0,end_ms:1,text,speaker});expect(transcriptToScript([r('a','Chào bạn.',0),r('b','Hôm nay thế nào?',0),r('c','Ổn.',1),r('d','  ',1),r('e','Tốt.',0)])).toMatchObject([{speaker:'Người 1',text:'Chào bạn. Hôm nay thế nào?'},{speaker:'Người 2',text:'Ổn.'},{speaker:'Người 1',text:'Tốt.'}]);expect(transcriptToScript([r('a','x'),r('b','y')])).toMatchObject([{speaker:'Người dẫn',text:'x y'}]);expect(transcriptToScript([r('a','aaaa',0),r('b','bbbb',0)],6)).toHaveLength(2);});
  it('marks waveform bars as trimmed or played',()=>{const trim={trim_start_ms:1000,trim_end_ms:3000};expect(barState(0,10,4000,trim,null)).toBe('trimmed');expect(barState(9,10,4000,trim,null)).toBe('trimmed');expect(barState(3,10,4000,trim,null)).toBe('');expect(barState(3,10,4000,trim,1500)).toBe('played');expect(barState(5,10,4000,trim,1500)).toBe('');expect(barState(9,10,4000,{trim_start_ms:0,trim_end_ms:null},null)).toBe('');});
@@ -145,6 +187,26 @@ describe('transcript rows',()=>{
   const plain=(t:string)=>expect(scriptChunks(t).every(c=>c.speaker==='Người dẫn')).toBe(true);
   plain('Lưu ý: đọc chậm.\nCâu thứ hai.');plain('Lúc 8:30 sáng.\nHết giờ 9:45 rồi.');plain('Xem http://a.vn/x\nhttps://b.vn/y');plain(`${'a'.repeat(31)}: một\nMai2: hai\nlink www.x.vn: ba`);
   expect(scriptChunks('Lưu ý: đọc chậm.\nCâu thứ hai.').map(c=>c.text)).toEqual(['Lưu ý: đọc chậm.','Câu thứ hai.']);
+ });
+});
+describe('normalization highlights',()=>{
+ const dict={'TP.HCM':'Thành phố Hồ Chí Minh',AI:'ây ai',km:'ki lô mét'};
+ it('the highlighted parts join back to exactly what is sent to TTS, for every rule the normalization tests cover',()=>{
+  const inputs=['TP.HCM dùng AI.','OpenAI và AI, AIDS, 60kmh và 5 km, TP.HCM','**Chú ý:** xem [trang này](https://x.com).\n# Tiêu đề\n> Trích dẫn\n<i>Xin chào</i> {\an8}các bạn ♪ hạng #1, 5 * 3, <font color="red">đỏ</font>','Cứ do <en>it</en> đi','Ngày 10/11/2026, giá 20.000đ.','giá 25.000đ/cp, vàng 7.500.000 đ/cây','đ/c Lan, 25.000 đ/kg','-2,5°C, nhiệt độ −0,5 độ','từ 1,5-2,5 độ, -2.5, -3','Cà phê 50k, trà 1,5k, 100k/tháng','màn hình 4K, 5kg, 3km, mã ak47k','doanh thu 1.2B, 0,5B','lớp 12B, tầng 3B','tỷ giá từ 1.1200 về 1.0850.','ngày 1.2026, giá 13.1200, 1.120.000 người','0,5₿, ₹50, 100₽ và 50¢.','giá ₫ thấp, €10','Cứ do it đi, gửi file cho team rồi push code.','Let it go là bài hát hay.','Họp meeting với Facebook. [nghỉ 0,5s] Gửi file đi.','Giá 50k [nghỉ 0,5s] đ/cp','-2,5 [nghỉ 1s] 50k','Nghe hay quá [cười].','Nghỉ ngơi [nghỉ 0,5s] rồi đi','Ông nói thế.[1] Rồi đi[12], về nhà.','Chú thích¹ ở đây²³ và năm 2020⁴.','[nghỉ 1s]¹ [cười]²','Hết cảnh.\n***\nCảnh mới.','3.5*2 = 7 và *nghiêng* --- dài','  hai  khoảng   trắng  ',''];
+  for(const text of inputs)for(const d of [{},dict])for(const codeSwitch of [false,true])expect(normalizedParts(text,d,{codeSwitch}).parts.map(p=>p.text).join('')).toBe(normalizeText(text,d,{codeSwitch}));
+ });
+ it('marks what a dictionary rule changed with its key, and what a text rule changed without one',()=>{
+  expect(normalizedParts('TP.HCM dùng AI.',dict).parts).toEqual([{text:'Thành phố Hồ Chí Minh',changed:true,rule:'“TP.HCM” → “Thành phố Hồ Chí Minh”'},{text:' dùng ',changed:false},{text:'ây ai.',changed:true,rule:'“AI” → “ây ai”'}]);
+  expect(normalizedParts('Giá 50k ngày 1/2/2024 [nghỉ 0,5s] xong',{}).parts).toEqual([{text:'Giá ',changed:false},{text:'50 nghìn',changed:true},{text:' ngày ',changed:false},{text:'1 tháng 2 năm 2024',changed:true},{text:' [nghỉ 0,5s] xong',changed:false}]);
+  expect(normalizedParts('Không có gì đổi.',dict).parts).toEqual([{text:'Không có gì đổi.',changed:false}]);
+  expect(normalizedParts('',dict).parts).toEqual([]);
+ });
+ it('keeps marking a long segment whose changes sit near one end',()=>{
+  const long=Array(2500).fill('chữ').join(' ');
+  for(const text of [`${long} dùng AI`,`AI ${long}`]){const marked=normalizedParts(text,dict).parts.filter(p=>p.changed);expect(marked).toEqual([{text:'ây ai',changed:true,rule:'“AI” → “ây ai”'}]);}
+  // Changes at both ends of so many words are too much to align: the text is shown unmarked and the inspector says why.
+  const both=normalizedParts(`AI ${long} AI`,dict);expect(both.tooLong).toBe(true);expect(both.parts).toEqual([{text:normalizeText(`AI ${long} AI`,dict),changed:false}]);
+  expect(normalizedParts(`${long} dùng AI`,dict).tooLong).toBe(false);
  });
 });
 describe('chapters',()=>{
