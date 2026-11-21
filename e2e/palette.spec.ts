@@ -84,3 +84,10 @@ test('enabled commands call the existing generate and export handlers',async({pa
  await page.keyboard.press('Control+k');await box(page).fill('xuat audio');await page.keyboard.press('Enter');
  await expect.poll(jobs).toEqual([['tts','1'],['tts','2'],['tts','2'],['render',null]]);
 });
+test('? typed with AltGr (Ctrl+Alt on Windows) opens the sheet, while Ctrl+? or Alt+? alone and AltGr+? in a text field do not',async({page})=>{
+ await withSegment(page);await page.getByRole('textbox',{name:'Nội dung đoạn 1'}).focus();await page.keyboard.press('Control+Alt+?');await expect(sheet(page)).toHaveCount(0);
+ const nav=page.getByRole('button',{name:'Thư viện giọng',exact:true});await nav.focus();
+ for(const combo of ['Control+?','Alt+?']){await page.keyboard.press(combo);await expect(sheet(page)).toHaveCount(0);}
+ await page.keyboard.press('Control+Alt+?');await expect(sheet(page)).toBeVisible();
+ await page.keyboard.press('Escape');await expect(sheet(page)).toHaveCount(0);await expect(nav).toBeFocused();
+});
