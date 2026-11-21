@@ -32,6 +32,16 @@ test('muted text, success text, input borders and the focus ring keep AA contras
   if(theme==='light')await page.getByRole('button',{name:'Chuyển giao diện tối'}).click();
  }
 });
+test('each speaker colour keeps AA contrast on its tint, and its row rule keeps 3:1 on the page, in both themes',async({page})=>{
+ await page.goto('/');await page.getByRole('button',{name:'Viết đoạn đầu tiên'}).click();
+ const slots=[0,1,2,3,4,5,6,7],names=['--paper',...slots.flatMap(n=>[`--spk-${n}`,`--spk-${n}-soft`])];
+ for(const theme of ['light','dark']){
+  await expect(page.locator('html')).toHaveAttribute('data-theme',theme);
+  const c=await tokens(page,names);for(const [n,v] of Object.entries(c))expect(v,`${n} is defined, ${theme}`).not.toBe('');
+  for(const n of slots){expect(ratio(c[`--spk-${n}`],c[`--spk-${n}-soft`]),`--spk-${n} on its tint, ${theme}`).toBeGreaterThanOrEqual(4.5);expect(ratio(c[`--spk-${n}`],c['--paper']),`--spk-${n} on --paper, ${theme}`).toBeGreaterThanOrEqual(3);}
+  if(theme==='light')await page.getByRole('button',{name:'Chuyển giao diện tối'}).click();
+ }
+});
 test('lengths and times use the Vietnamese decimal comma and transcript play buttons say what they do',async({page})=>{
  const take={id:'t1',asset_id:'a1',path:'t1.wav',duration_ms:4100,sample_rate:44100,created_at:new Date().toISOString()};
  const segment={id:'s1',text:'Câu một.',normalized_text:'Câu một.',voice_id:null,speaker:'Người dẫn',gap_ms:300,takes:[take],selected_take_id:'t1',trim_start_ms:0,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0,gain_db:0};
@@ -42,7 +52,7 @@ test('lengths and times use the Vietnamese decimal comma and transcript play but
  await expect(page.getByRole('combobox',{name:'Take đang sử dụng'}).locator('option',{hasText:'Take 1'})).toHaveText('Take 1 · 4,1 giây');
  await page.getByRole('button',{name:'Chép lời',exact:true}).click();
  const play=page.getByRole('button',{name:/^Phát từ /});await expect(play).toHaveCount(2);
- await expect(play.nth(0)).toHaveAccessibleName('Phát từ 00:00:01,250');await expect(play.nth(0)).toHaveText('00:00:01,250');await expect(play.nth(1)).toHaveText('00:00:09,200');
+ await expect(play.nth(0)).toHaveAccessibleName('Phát từ 00:00:01,250');const times=page.locator('.tr-time');await expect(times.nth(0)).toContainText('0:01,250');await expect(times.nth(1)).toContainText('0:09,200');
 });
 test('the add-content dialog keeps Tab inside, makes the page inert and gives focus back to its opener',async({page})=>{
  await page.goto('/');

@@ -42,14 +42,14 @@ const SHORTCUTS:{group:string;items:{combos:string[];what:string}[]}[]=[
   {combos:['Ctrl+K'],what:'Mở bảng lệnh'},
   {combos:['?'],what:'Mở bảng phím tắt này (khi không gõ trong ô nhập)'},
   {combos:['Ctrl+S'],what:'Lưu dự án'},
-  {combos:['Ctrl+Z'],what:'Hoàn tác trong dự án (trong ô tìm kiếm, từ điển và ô số thì hoàn tác chữ đang gõ)'},
+  {combos:['Ctrl+Z'],what:'Hoàn tác trong dự án (trong ô tìm kiếm, từ điển, ô số và ô thời gian thì hoàn tác chữ đang gõ)'},
   {combos:['Ctrl+Shift+Z','Ctrl+Y'],what:'Làm lại'},
   {combos:['Esc'],what:'Đóng hộp thoại đang mở'}]},
  {group:'Tạo giọng đọc',items:[{combos:['Space'],what:'Phát hoặc dừng take của đoạn đang chọn (khi không gõ và không đứng trên nút)'}]},
  {group:'Chép lời',items:[
   {combos:['Ctrl+F'],what:'Tìm trong bản chép lời'},
   {combos:['Space'],what:'Phát hoặc tạm dừng audio nguồn (khi không gõ và không đứng trên nút)'}]},
- {group:'Ô nhập số (Từ, Đến, Nghỉ sau…)',items:[
+ {group:'Ô nhập số và thời gian (Bắt đầu, Kết thúc, Nghỉ sau…)',items:[
   {combos:['Enter','Ctrl+S'],what:'Áp dụng giá trị đang nhập'},
   {combos:['Esc'],what:'Bỏ giá trị đang nhập'}]}
 ];
