@@ -73,3 +73,19 @@ jobs:
           # thanham-diarize loads the wheel's sherpa-onnx-c-api.dll from here (its smoke test; no models in this job).
           THANHAM_SHERPA_LIB: ${{ runner.temp }}/ortvenv/Lib/site-packages/sherpa_onnx/lib
           THANHAM_DIARIZE_REQUIRE: '1'  # built in the step above
+  # A pull request may not touch the workers, the Tauri files that build or store audio, or the owner-locked payload snapshot (adding it is
+  # fine). A change there needs the owner, and a fixture change also needs owner listening.
+  guard:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+      # One assignment per diff, so a failing git command fails the step (bash -e) instead of printing nothing.
+      - name: Guarded paths are unchanged
+        shell: bash
+        run: |
+          paths=$(git diff --name-only origin/$GITHUB_BASE_REF...HEAD -- worker worker-rs src-tauri/src/engine.rs src-tauri/src/store.rs src-tauri/src/pack.rs src-tauri/src/docx.rs src-tauri/src/update.rs src-tauri/src/lib.rs)
+          fixture=$(git diff --name-only --diff-filter=MDRT origin/$GITHUB_BASE_REF...HEAD -- e2e/fixtures/payloads-1.0.21.json)
+          if [ -n "$paths$fixture" ]; then echo "::error::This pull request changes guarded paths:"; printf '%s\n' $paths $fixture; exit 1; fi

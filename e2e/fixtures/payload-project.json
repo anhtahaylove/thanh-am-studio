@@ -1,0 +1,46 @@
+{
+ "settings": {"dictionary": {"AI": "ây ai"}},
+ "voices": [
+  {"id": "v-ref", "name": "Giọng Lan (mẫu)", "kind": "reference", "reference_asset_id": "ref-lan", "consent": true, "engine_voice_id": null},
+  {"id": "v-preset", "name": "Giọng dẫn chuyện", "kind": "preset", "reference_asset_id": null, "consent": true, "engine_voice_id": "preset-1"}
+ ],
+ "source": {"id": "src", "path": "C:\\media\\src.mp4", "name": "nguồn có nhạc.mp4", "duration_ms": 15000, "sample_rate": 48000},
+ "project": {
+  "id": "p1", "name": "Sách nói mẫu", "updated_at": "2026-11-20T00:00:00Z", "revision": 1, "source_asset_id": "src",
+  "dictionary": {"TP.HCM": "thành phố Hồ Chí Minh"},
+  "transcript": [
+   {"id": "r1", "start_ms": 0, "end_ms": 2400, "text": "Xin chào các bạn.", "speaker": 0},
+   {"id": "r2", "start_ms": 2400, "end_ms": 5200, "text": "Hôm nay trời đẹp quá.", "speaker": 0},
+   {"id": "r3", "start_ms": 5200, "end_ms": 8000, "text": "Chúng ta bắt đầu nhé.", "speaker": 1}
+  ],
+  "segments": [
+   {"id": "s1", "text": "Chào mừng đến TP.HCM. [nghỉ 0.5s] Hôm nay có 25 người.", "normalized_text": "Chào mừng đến thành phố Hồ Chí Minh. [nghỉ 0.5s] Hôm nay có 25 người.", "voice_id": "v-ref", "speaker": "Người dẫn", "gap_ms": 300, "speed": 0.9, "chapter": "Chương 1: Mở đầu", "cue_start_ms": 0, "cue_end_ms": 3000,
+    "takes": [
+     {"id": "t1a", "asset_id": "a-t1a", "path": "C:\\takes\\t1a.wav", "duration_ms": 3200, "sample_rate": 48000, "created_at": "2026-11-20T00:00:01Z", "speech_start_ms": 80, "speech_end_ms": 3100},
+     {"id": "t1b", "asset_id": "a-t1b", "path": "C:\\takes\\t1b.wav", "duration_ms": 2900, "sample_rate": 48000, "created_at": "2026-11-20T00:00:02Z", "speech_start_ms": 150, "speech_end_ms": 2700}
+    ],
+    "selected_take_id": "t1a", "trim_start_ms": 80, "trim_end_ms": 3100, "fade_in_ms": 20, "fade_out_ms": 60, "gain_db": 0},
+   {"id": "s2", "text": "Chúng ta có meeting về project vào weekend.", "normalized_text": "Chúng ta có meeting về project vào weekend.", "voice_id": "v-preset", "speaker": "Lan", "gap_ms": 300, "speed": 1.1, "cue_start_ms": 3200, "cue_end_ms": 5600,
+    "takes": [{"id": "t2a", "asset_id": "a-t2a", "path": "C:\\takes\\t2a.wav", "duration_ms": 2600, "sample_rate": 48000, "created_at": "2026-11-20T00:00:03Z"}],
+    "selected_take_id": "t2a", "trim_start_ms": 0, "trim_end_ms": null, "fade_in_ms": 0, "fade_out_ms": 40, "gain_db": -1.5},
+   {"id": "s3", "text": "Trí tuệ AI giúp làm sách nói.", "normalized_text": "Trí tuệ ây ai giúp làm sách nói.", "voice_id": null, "speaker": "Người dẫn", "gap_ms": 450, "cue_start_ms": 5800, "cue_end_ms": 8000,
+    "takes": [{"id": "t3a", "asset_id": "a-t3a", "path": "C:\\takes\\t3a.wav", "duration_ms": 2100, "sample_rate": 24000, "created_at": "2026-11-20T00:00:04Z"}],
+    "selected_take_id": "t3a", "trim_start_ms": 50, "trim_end_ms": 2000, "fade_in_ms": 10, "fade_out_ms": 10, "gain_db": 2},
+   {"id": "s4", "text": "Tôi đã đọc 3 chương.", "normalized_text": "Tôi đã đọc 3 chương.", "voice_id": "v-ref", "speaker": "Lan", "gap_ms": 300, "speed": 1, "chapter": "Chương 2", "cue_start_ms": 8200, "cue_end_ms": 10000,
+    "takes": [{"id": "t4a", "asset_id": "a-t4a", "path": "C:\\takes\\t4a.wav", "duration_ms": 1900, "sample_rate": 48000, "created_at": "2026-11-20T00:00:05Z"}],
+    "selected_take_id": "t4a", "trim_start_ms": 0, "trim_end_ms": null, "fade_in_ms": 0, "fade_out_ms": 0, "gain_db": 0},
+   {"id": "s5", "text": "Cảm ơn TP.HCM và AI.", "normalized_text": "Cảm ơn thành phố Hồ Chí Minh và ây ai.", "voice_id": "v-preset", "speaker": "Người dẫn", "gap_ms": 300, "speed": 1.1, "cue_start_ms": 10200, "cue_end_ms": 12500,
+    "takes": [
+     {"id": "t5a", "asset_id": "a-t5a", "path": "C:\\takes\\t5a.wav", "duration_ms": 2400, "sample_rate": 48000, "created_at": "2026-11-20T00:00:06Z"},
+     {"id": "t5b", "asset_id": "a-t5b", "path": "C:\\takes\\t5b.wav", "duration_ms": 2300, "sample_rate": 48000, "created_at": "2026-11-20T00:00:07Z", "speech_start_ms": 40, "speech_end_ms": 2250}
+    ],
+    "selected_take_id": "t5b", "trim_start_ms": 40, "trim_end_ms": 2250, "fade_in_ms": 15, "fade_out_ms": 120, "gain_db": 0},
+   {"id": "s6", "text": "Hẹn gặp lại [nghỉ 0.5s] lần sau.", "normalized_text": "Hẹn gặp lại [nghỉ 0.5s] lần sau.", "voice_id": null, "speaker": "Lan", "gap_ms": 600, "speed": 1, "cue_start_ms": 12700, "cue_end_ms": 14000,
+    "takes": [{"id": "t6a", "asset_id": "a-t6a", "path": "C:\\takes\\t6a.wav", "duration_ms": 1700, "sample_rate": 48000, "created_at": "2026-11-20T00:00:08Z"}],
+    "selected_take_id": "t6a", "trim_start_ms": 0, "trim_end_ms": 1650, "fade_in_ms": 0, "fade_out_ms": 30, "gain_db": -3},
+   {"id": "s7", "text": "Hết.", "normalized_text": "Hết.", "voice_id": "v-ref", "speaker": "Người dẫn", "gap_ms": 300, "speed": 0.9, "cue_start_ms": 14200, "cue_end_ms": 15000,
+    "takes": [{"id": "t7a", "asset_id": "a-t7a", "path": "C:\\takes\\t7a.wav", "duration_ms": 900, "sample_rate": 48000, "created_at": "2026-11-20T00:00:09Z"}],
+    "selected_take_id": "t7a", "trim_start_ms": 0, "trim_end_ms": null, "fade_in_ms": 0, "fade_out_ms": 0, "gain_db": 0}
+  ]
+ }
+}
