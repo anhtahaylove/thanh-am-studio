@@ -4,7 +4,7 @@ const HEADER_NAMES=[['từ gốc','tu goc','word','original'],['cách đọc','c
 // The app settings backend rejects keys or values over 512 bytes.
 const MAX_BYTES=512;
 export const UTF8_HINT='Tệp CSV cần mã hóa UTF-8. Trong Excel, chọn Lưu dưới dạng › CSV UTF-8.';
-// Excel saves plain "CSV" in the ANSI code page: letters it cannot encode become "?" (Việt -> Vi?t, người -> ng??i). A "?" between two letters is that loss; a question mark at the end of a word or on its own is not, and neither is a URL query like a.com?id=3.
+// Excel saves plain "CSV" in the ANSI code page: letters it cannot encode become "?" (Việt -> Vi?t, người -> ng??i). Only a file with no non-ASCII character is tested, since any real Vietnamese letter proves the file is UTF-8 (the backend already rejects other encodings). A "?" between two letters is that loss; a question mark at the end of a word or on its own is not, and neither is a URL query like a.com?id=3.
 export const ANSI_HINT='Tệp CSV bị mất dấu tiếng Việt (chữ có dấu thành dấu ?) vì Excel lưu bằng bảng mã cũ. Hãy mở lại bảng tính gốc và chọn Lưu dưới dạng › CSV UTF-8.';
 const ANSI_LOSS=/\p{L}\?+(?!\p{L}*=)\p{L}/u;
 export interface CsvRecord {line:number;cells:string[];bad?:boolean}
@@ -32,7 +32,7 @@ export function parseCsv(text:string,sep=','):CsvRecord[]{
  return out;
 }
 // Excel turns 1/2, 3/4, 1-2, 2.0, 007, 1e5, 12:30 into dates or numbers and runs cells starting with = + - @ as formulas. A leading apostrophe (the OWASP CSV-injection mitigation) keeps such cells as text; import strips it again only when what follows is risky, so old files and words like 'em read back unchanged.
-const PLAIN_INT=/^(?:0|[1-9]\d{0,14})$/;
+const PLAIN_INT=/^(?:0|[1-9]\d{0,10})$/;
 const risky=(s:string)=>{s=s.replace(/^'+/,'');return /^[=+\-@\t\r]/.test(s)||(/^[\d.,:\/%+-]*\d[\d.,:\/%+-]*$|^[\d.]+[eE][+-]?\d+$/.test(s)&&!PLAIN_INT.test(s));};
 const unprotect=(s:string)=>s.startsWith("'")&&risky(s)?s.slice(1):s;
 const clean=(s:string)=>s.normalize('NFC').replace(/\s+/g,' ').trim();
@@ -41,7 +41,7 @@ const isHeader=(cells:string[])=>HEADER_NAMES.every((names,i)=>names.includes((c
 export function parseDictionaryCsv(text:string):{entries:Record<string,string>;skipped:number[]}{
  if(text.includes('�'))throw Error(UTF8_HINT);
  text=text.replace(/^﻿/,'');
- if(ANSI_LOSS.test(text))throw Error(ANSI_HINT);
+ if(!/[^\x00-\x7f]/.test(text)&&ANSI_LOSS.test(text))throw Error(ANSI_HINT);
  const first=(text.match(/^.*\S.*$/m)?.[0]??'').replace(/"(?:[^"]|"")*"/g,'');
  const sep=first.split(';').length>first.split(',').length?';':',';
  const entries=new Map<string,string>(),skipped:number[]=[],bytes=(s:string)=>new TextEncoder().encode(s).length;let seen=false;

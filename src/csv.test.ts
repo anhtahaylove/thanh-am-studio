@@ -42,14 +42,14 @@ describe('dictionary CSV',()=>{
   expect(importSummary(0,0,[])).toBe('Từ điển không thay đổi.');
  });
  it('detects Excel plain CSV where Vietnamese letters became question marks',()=>{
-  expect(()=>parseDictionaryCsv('Từ gốc,Cách đọc\nVi?t Nam,Việt Nam')).toThrow(ANSI_HINT);
-  expect(()=>parseDictionaryCsv('người,ng??i')).toThrow(ANSI_HINT);
-  expect(()=>parseDictionaryCsv('H? N?i;Hà Nội')).toThrow(ANSI_HINT);
+  expect(()=>parseDictionaryCsv('T? g?c,C?ch ??c\nHa N?i,Ha Noi')).toThrow(ANSI_HINT);
+  expect(()=>parseDictionaryCsv('ng??i,nguoi')).toThrow(ANSI_HINT);
+  expect(()=>parseDictionaryCsv('H? N?i;Ha Noi')).toThrow(ANSI_HINT);
   expect(ANSI_HINT).toContain('CSV UTF-8');
  });
  it('does not mistake a real question mark for lost letters',()=>{
   expect(parseDictionaryCsv('gì?,gờ i hỏi\n?,dấu hỏi\nok? yes,ô kê\nBạn khỏe không?,hỏi thăm\nwhy??,tại sao').entries).toEqual({'gì?':'gờ i hỏi','?':'dấu hỏi','ok? yes':'ô kê','Bạn khỏe không?':'hỏi thăm','why??':'tại sao'});
-  expect(parseDictionaryCsv('a.com?id=3,đây là đường dẫn').entries).toEqual({'a.com?id=3':'đây là đường dẫn'});
+  expect(parseDictionaryCsv('a.com?id=3,đây là đường dẫn').entries).toEqual({'a.com?id=3':'đây là đường dẫn'});expect(parseDictionaryCsv('Hả?Gì,hỏi lại\nok?Yes,ô kê\nx?foo&bar=1,đường dẫn').entries).toEqual({'Hả?Gì':'hỏi lại','ok?Yes':'ô kê','x?foo&bar=1':'đường dẫn'});
  });
  it('keeps cells Excel would convert as text and defuses formulas on export',()=>{
   const d={'1/2':'một phần hai','007':'không không bảy','2.0':'hai chấm không','1-2':'một đến hai','1e5':'một e năm','12:30':'mười hai giờ ba mươi','=SUM(A1)':'x','+1':'cộng một','-5':'âm năm','@a':'a',x:'=1+1',y:'007',"'007":'z'};
@@ -66,6 +66,6 @@ describe('dictionary CSV',()=>{
   expect(csv).toBe('﻿Từ gốc,Cách đọc\r\n0,không\r\n2024,hai không hai bốn\r\nTP.HCM,Thành phố Hồ Chí Minh\r\n\'em,ấy\r\n5G,năm gờ\r\nhello-world,x\r\n');
   expect(parseDictionaryCsv(csv).entries).toEqual(d);
   expect(parseDictionaryCsv("'em,ấy\n'x,y\n007,a\n1/2,b\n=1+1,c").entries).toEqual({"'em":'ấy',"'x":'y','007':'a','1/2':'b','=1+1':'c'});
-  expect(parseDictionaryCsv("'1/2;một phần hai").entries).toEqual({'1/2':'một phần hai'});
+  expect(parseDictionaryCsv("'1/2;một phần hai").entries).toEqual({'1/2':'một phần hai'});const big={'12345678901':'mười một số','123456789012':'mười hai số'};expect(dictionaryToCsv(big)).toContain("\r\n12345678901,mười một số\r\n'123456789012,mười hai số\r\n");expect(parseDictionaryCsv(dictionaryToCsv(big)).entries).toEqual(big);
  });
 });
