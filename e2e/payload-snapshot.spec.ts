@@ -101,9 +101,10 @@ const scenarios:Record<string,(page:Page)=>Promise<void>>={
   await pick(page,6);await type(page,'Cắt cuối (ms)','1600');
   await page.getByRole('combobox',{name:'Định dạng audio'}).selectOption({label:'MP3'});await page.getByRole('checkbox',{name:'Chuẩn hóa'}).uncheck();await exported(page);
  },
+ // The caret is not where a split without one would cut (the sentence end nearest the middle, after TP.HCM.).
  'edit (f): split at the caret, merge with the next segment, move down, then generate all and export by subtitle cues':async page=>{
-  const text=page.getByRole('textbox',{name:'Nội dung đoạn 1'});await text.click();await text.press('Control+Home');for(let i=0;i<'Chào mừng đến TP.HCM.'.length;i++)await text.press('ArrowRight');
-  await row(page,1).getByRole('button',{name:'Chia đoạn tại con trỏ'}).click();await expect(text).toHaveValue('Chào mừng đến TP.HCM.');
+  const text=page.getByRole('textbox',{name:'Nội dung đoạn 1'});await text.click();await text.press('Control+Home');for(let i=0;i<'Chào mừng đến TP.HCM. [nghỉ 0.5s]'.length;i++)await text.press('ArrowRight');
+  await row(page,1).getByRole('button',{name:'Chia đoạn tại con trỏ'}).click();await expect(text).toHaveValue('Chào mừng đến TP.HCM. [nghỉ 0.5s]');
   await row(page,4).getByRole('button',{name:'Gộp với đoạn sau'}).click();await expect(page.getByRole('textbox',{name:'Nội dung đoạn 4'})).toHaveValue('Trí tuệ AI giúp làm sách nói. Tôi đã đọc 3 chương.');
   await row(page,6).getByRole('button',{name:'Đưa đoạn xuống'}).click();await expect(page.getByRole('textbox',{name:'Nội dung đoạn 6'})).toHaveValue('Hết.');
   await generateAll(page);await check(page,'Theo mốc phụ đề');await exported(page);

@@ -2131,7 +2131,7 @@
      "reference_asset_id": "ref-lan",
      "segment_id": "s1",
      "speed": 0.9,
-     "text": "Chào mừng đến thành phố Hồ Chí Minh.",
+     "text": "Chào mừng đến thành phố Hồ Chí Minh. [nghỉ 0.5s]",
      "voice_id": "v-ref"
     },
     "projectId": "p1"
@@ -2146,7 +2146,7 @@
      "reference_asset_id": "ref-lan",
      "segment_id": "<uuid 1>",
      "speed": 0.9,
-     "text": "[nghỉ 0.5s] Hôm nay có 25 người.",
+     "text": "Hôm nay có 25 người.",
      "voice_id": "v-ref"
     },
     "projectId": "p1"
@@ -2238,7 +2238,7 @@
      "segments": [
       {
        "chapter": "Chương 1: Mở đầu",
-       "cue_end_ms": 1189,
+       "cue_end_ms": 1868,
        "cue_start_ms": 0,
        "dub_at_ms": 0,
        "dub_rate": 1.5,
@@ -2247,7 +2247,7 @@
        "gain_db": 0,
        "gap_ms": 300,
        "id": "s1",
-       "normalized_text": "Chào mừng đến thành phố Hồ Chí Minh.",
+       "normalized_text": "Chào mừng đến thành phố Hồ Chí Minh. [nghỉ 0.5s]",
        "selected_take_id": "t1a",
        "speaker": "Người dẫn",
        "speed": 0.9,
@@ -2281,22 +2281,22 @@
          "sample_rate": 48000
         }
        ],
-       "text": "Chào mừng đến TP.HCM.",
+       "text": "Chào mừng đến TP.HCM. [nghỉ 0.5s]",
        "trim_end_ms": 3100,
        "trim_start_ms": 80,
        "voice_id": "v-ref"
       },
       {
        "cue_end_ms": 3000,
-       "cue_start_ms": 1189,
+       "cue_start_ms": 1868,
        "dub_at_ms": 2063,
-       "dub_rate": 1.1043622308117063,
+       "dub_rate": 1.5,
        "fade_in_ms": 0,
        "fade_out_ms": 0,
        "gain_db": 0,
        "gap_ms": 300,
        "id": "<uuid 1>",
-       "normalized_text": "[nghỉ 0.5s] Hôm nay có 25 người.",
+       "normalized_text": "Hôm nay có 25 người.",
        "selected_take_id": "take-<uuid 1>-0",
        "speaker": "Người dẫn",
        "speed": 0.9,
@@ -2310,7 +2310,7 @@
          "sample_rate": 48000
         }
        ],
-       "text": "[nghỉ 0.5s] Hôm nay có 25 người.",
+       "text": "Hôm nay có 25 người.",
        "trim_end_ms": null,
        "trim_start_ms": 0,
        "voice_id": "v-ref"
@@ -2318,7 +2318,7 @@
       {
        "cue_end_ms": 5600,
        "cue_start_ms": 3200,
-       "dub_at_ms": 3924,
+       "dub_at_ms": 3447,
        "dub_rate": 1.0833333333333333,
        "fade_in_ms": 0,
        "fade_out_ms": 40,
@@ -2355,7 +2355,7 @@
       {
        "cue_end_ms": 10000,
        "cue_start_ms": 5800,
-       "dub_at_ms": 6374,
+       "dub_at_ms": 5897,
        "dub_rate": 1,
        "fade_in_ms": 10,
        "fade_out_ms": 10,
