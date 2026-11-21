@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {jsonEqual,matchWords,chapterFileName,chapterGroups,dubPlan,dubSummary,takeTrim,progressLabel,jobProgressLabel,parseSubtitles,exportSubtitles,normalizeText,splitText,splitTranscript,mergeTranscript,clipDuration,validateRecipe,ttsTranscript,makeSegment,splitSegment,mergeSegments,restoreSnapshot,addTranscriptRow,validRange,replaceInTranscript,searchParts,rowAt,spokenText,insertAtCursor,checkSummary,transcriptToScript,barState,speakerSlots,scriptChunks,seconds,timestamp} from './domain';
+import {jsonEqual,matchWords,chapterFileName,chapterGroups,dubPlan,dubSummary,takeTrim,progressLabel,jobProgressLabel,taskbarProgress,parseSubtitles,exportSubtitles,normalizeText,splitText,splitTranscript,mergeTranscript,clipDuration,validateRecipe,ttsTranscript,makeSegment,splitSegment,mergeSegments,restoreSnapshot,addTranscriptRow,validRange,replaceInTranscript,searchParts,rowAt,spokenText,insertAtCursor,checkSummary,transcriptToScript,barState,speakerSlots,scriptChunks,seconds,timestamp} from './domain';
 import type {Project,Take} from './types';
 describe('subtitle and text contracts',()=>{
  it('reads BOM SRT and multiline Vietnamese',()=>{expect(parseSubtitles('\uFEFF1\r\n00:00:01,250 --> 00:00:03,500\r\nXin chào\r\nViệt Nam\r\n')).toMatchObject([{start_ms:1250,end_ms:3500,text:'Xin chào\nViệt Nam'}]);});
@@ -63,6 +63,14 @@ describe('transcript rows',()=>{
  const rows=[{id:'a',start_ms:0,end_ms:2000,text:'x'},{id:'b',start_ms:2000,end_ms:3000,text:'y'}];
  it('inserts a one second row after the active row, or at the end',()=>{const r=addTranscriptRow(rows,'a');expect(r.map(x=>x.id)[0]).toBe('a');expect(r[1]).toMatchObject({start_ms:2000,end_ms:3000,text:''});expect(r).toHaveLength(3);const e=addTranscriptRow(rows,null);expect(e[2]).toMatchObject({start_ms:3000,end_ms:4000});expect(addTranscriptRow([],null)[0]).toMatchObject({start_ms:0,end_ms:1000});});
  it('labels job progress with a remaining-time estimate once it is meaningful',()=>{const start='2026-11-11T06:00:00Z',t=Date.parse(start);expect(progressLabel(0.05,start,t+60000)).toBe('5 %');expect(progressLabel(0.5,start,t+20*60000)).toBe('50 % · còn ~20 phút');expect(progressLabel(0.999,start,t+60000)).toBe('99 % · còn ~1 phút');expect(progressLabel(0.5,'bad',t)).toBe('50 %');});
+ it('maps the job list to taskbar progress: none when idle, average of running jobs, indeterminate when unknown',()=>{
+  const j=(status:string,progress=0)=>({status,progress});
+  expect(taskbarProgress([])).toEqual({status:'none'});expect(taskbarProgress([j('succeeded',1),j('failed'),j('cancelled')])).toEqual({status:'none'});
+  expect(taskbarProgress([j('running',0.5),j('running',0.3),j('succeeded',1)])).toEqual({status:'normal',progress:40});
+  expect(taskbarProgress([j('running',1),j('queued')])).toEqual({status:'normal',progress:100});
+  expect(taskbarProgress([j('running',2),j('running',0)])).toEqual({status:'normal',progress:50});expect(taskbarProgress([j('running',0.5),j('running',-1)])).toEqual({status:'normal',progress:25});
+  expect(taskbarProgress([j('running')])).toEqual({status:'indeterminate'});expect(taskbarProgress([j('queued'),j('queued')])).toEqual({status:'indeterminate'});
+ });
  it('marks batched TTS jobs that have not started as waiting',()=>{const start='2026-11-11T06:00:00Z',t=Date.parse(start);expect(jobProgressLabel('tts',0,start,t)).toBe('Chờ trong lô');expect(jobProgressLabel('tts',0.5,start,t+60000)).toBe('50 % · còn ~1 phút');expect(jobProgressLabel('stt',0,start,t)).toBe('0 %');});
  it('searches ignoring case, tone marks and the stroke of đ, and maps hits back to the original text',()=>{
   const hits=(t:string,q:string)=>searchParts(t,q).filter(p=>p.hit).map(p=>p.text);
