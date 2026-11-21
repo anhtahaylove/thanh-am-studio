@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {jsonEqual,matchWords,chapterFileName,chapterGroups,dubPlan,dubSummary,takeTrim,progressLabel,jobProgressLabel,taskbarProgress,parseSubtitles,exportSubtitles,normalizeText,splitText,splitTranscript,mergeTranscript,clipDuration,validateRecipe,ttsTranscript,makeSegment,splitSegment,mergeSegments,restoreSnapshot,addTranscriptRow,validRange,replaceInTranscript,searchParts,suspiciousRows,rowAt,spokenText,insertAtCursor,checkSummary,transcriptToScript,barState,speakerSlots,scriptChunks,seconds,timestamp} from './domain';
+import {jsonEqual,matchWords,chapterFileName,chapterGroups,dubPlan,dubSummary,takeTrim,progressLabel,jobProgressLabel,taskbarProgress,parseSubtitles,exportSubtitles,normalizeText,splitText,splitTranscript,mergeTranscript,clipDuration,validateRecipe,ttsTranscript,makeSegment,splitSegment,mergeSegments,restoreSnapshot,addTranscriptRow,validRange,replaceInTranscript,searchParts,suspiciousRows,rowAt,spokenText,insertAtCursor,checkSummary,normalizedParts,transcriptToScript,barState,speakerSlots,scriptChunks,seconds,timestamp} from './domain';
 import type {Project,Take} from './types';
 describe('subtitle and text contracts',()=>{
  it('reads BOM SRT and multiline Vietnamese',()=>{expect(parseSubtitles('\uFEFF1\r\n00:00:01,250 --> 00:00:03,500\r\nXin chào\r\nViệt Nam\r\n')).toMatchObject([{start_ms:1250,end_ms:3500,text:'Xin chào\nViệt Nam'}]);});
@@ -145,6 +145,19 @@ describe('transcript rows',()=>{
   const plain=(t:string)=>expect(scriptChunks(t).every(c=>c.speaker==='Người dẫn')).toBe(true);
   plain('Lưu ý: đọc chậm.\nCâu thứ hai.');plain('Lúc 8:30 sáng.\nHết giờ 9:45 rồi.');plain('Xem http://a.vn/x\nhttps://b.vn/y');plain(`${'a'.repeat(31)}: một\nMai2: hai\nlink www.x.vn: ba`);
   expect(scriptChunks('Lưu ý: đọc chậm.\nCâu thứ hai.').map(c=>c.text)).toEqual(['Lưu ý: đọc chậm.','Câu thứ hai.']);
+ });
+});
+describe('normalization highlights',()=>{
+ const dict={'TP.HCM':'Thành phố Hồ Chí Minh',AI:'ây ai',km:'ki lô mét'};
+ it('the highlighted parts join back to exactly what is sent to TTS, for every rule the normalization tests cover',()=>{
+  const inputs=['TP.HCM dùng AI.','OpenAI và AI, AIDS, 60kmh và 5 km, TP.HCM','**Chú ý:** xem [trang này](https://x.com).\n# Tiêu đề\n> Trích dẫn\n<i>Xin chào</i> {\an8}các bạn ♪ hạng #1, 5 * 3, <font color="red">đỏ</font>','Cứ do <en>it</en> đi','Ngày 10/11/2026, giá 20.000đ.','giá 25.000đ/cp, vàng 7.500.000 đ/cây','đ/c Lan, 25.000 đ/kg','-2,5°C, nhiệt độ −0,5 độ','từ 1,5-2,5 độ, -2.5, -3','Cà phê 50k, trà 1,5k, 100k/tháng','màn hình 4K, 5kg, 3km, mã ak47k','doanh thu 1.2B, 0,5B','lớp 12B, tầng 3B','tỷ giá từ 1.1200 về 1.0850.','ngày 1.2026, giá 13.1200, 1.120.000 người','0,5₿, ₹50, 100₽ và 50¢.','giá ₫ thấp, €10','Cứ do it đi, gửi file cho team rồi push code.','Let it go là bài hát hay.','Họp meeting với Facebook. [nghỉ 0,5s] Gửi file đi.','Giá 50k [nghỉ 0,5s] đ/cp','-2,5 [nghỉ 1s] 50k','Nghe hay quá [cười].','Nghỉ ngơi [nghỉ 0,5s] rồi đi','Ông nói thế.[1] Rồi đi[12], về nhà.','Chú thích¹ ở đây²³ và năm 2020⁴.','[nghỉ 1s]¹ [cười]²','Hết cảnh.\n***\nCảnh mới.','3.5*2 = 7 và *nghiêng* --- dài','  hai  khoảng   trắng  ',''];
+  for(const text of inputs)for(const d of [{},dict])for(const codeSwitch of [false,true])expect(normalizedParts(text,d,{codeSwitch}).map(p=>p.text).join('')).toBe(normalizeText(text,d,{codeSwitch}));
+ });
+ it('marks what a dictionary rule changed with its key, and what a text rule changed without one',()=>{
+  expect(normalizedParts('TP.HCM dùng AI.',dict)).toEqual([{text:'Thành phố Hồ Chí Minh',changed:true,rule:'“TP.HCM” → “Thành phố Hồ Chí Minh”'},{text:' dùng ',changed:false},{text:'ây ai.',changed:true,rule:'“AI” → “ây ai”'}]);
+  expect(normalizedParts('Giá 50k ngày 1/2/2024 [nghỉ 0,5s] xong',{})).toEqual([{text:'Giá ',changed:false},{text:'50 nghìn',changed:true},{text:' ngày ',changed:false},{text:'1 tháng 2 năm 2024',changed:true},{text:' [nghỉ 0,5s] xong',changed:false}]);
+  expect(normalizedParts('Không có gì đổi.',dict)).toEqual([{text:'Không có gì đổi.',changed:false}]);
+  expect(normalizedParts('',dict)).toEqual([]);
  });
 });
 describe('chapters',()=>{
