@@ -6,9 +6,10 @@ also give exactly what faster-whisper's decode_audio gives.
 
 The fixtures follow P0-core's row D (6 containers x 4 rates x mono/stereo, a two-track MP4, a long file over several 500000-sample
 groups) and add what the decode branches on: a 16 kHz mono s16 WAV (the resampler's passthrough), other sample formats (u8, s24,
-f32, 5.1), no audio stream, files FFmpeg cannot open, a truncated and a damaged file, invalid frames mid-file (an MP3 joined to
-itself, 400 bytes of 0xff in an MP3, 4096 in an M4A, an M4A damaged twice, an M4A with every packet invalid), MP3s joined from parts with another
-rate or channel count, an ADTS header of length 0 (a demuxer error), a missing file, a file another program holds and a non-ASCII name.
+f32, 5.1), WAVs of 0 to 10 samples, no audio stream, files FFmpeg cannot open, a truncated and a damaged file, invalid frames
+mid-file (an MP3 joined to itself, 400 bytes of 0xff in an MP3, 4096 in an M4A, an M4A damaged twice, an M4A with every packet
+invalid), MP3s joined from parts with another rate or channel count, an ADTS header of length 0 (a demuxer error), a missing file,
+a file another program holds and a non-ASCII name.
 
 With --vad, each decoded case also records faster-whisper's VAD on it (get_speech_timestamps with VadOptions(), as transcribe runs
 it): the Silero probabilities' SHA-256 and the speech chunks, for stt::vad::tests::vad_matches_python.
@@ -28,6 +29,7 @@ import json
 import random
 import subprocess
 import sys
+import wave
 from pathlib import Path
 
 import numpy as np
@@ -120,7 +122,12 @@ def main():
          '-ar:a:1', 44100, '-shortest')
     make('video-only.mp4', '-f', 'lavfi', '-i', 'color=c=gray:s=160x120:r=10:d=2', '-c:v', 'mpeg4')
     make('tiếng việt có dấu.flac', '-i', source(1), '-ar', 22050, '-c:a', 'flac')
-    for name, data in {'empty.wav': b'', 'not-media.mp3': 'Đây không phải âm thanh.\n'.encode() * 50}.items():
+    for n in (0, 1, 2, 3, 10):  # valid WAVs with almost no audio: none at 16 kHz is INVALID_MEDIA, where decode_audio gives nothing
+        with wave.open(str(fix / f'wav-48000-{n}samples.wav'), 'wb') as w:
+            w.setparams((1, 2, 48000, 0, 'NONE', 'not compressed'))
+            w.writeframes(np.full(n, 1000, '<i2').tobytes())
+        files.append(fix / f'wav-48000-{n}samples.wav')
+    for name, data in {'empty.wav': b'','not-media.mp3': 'Đây không phải âm thanh.\n'.encode() * 50}.items():
         (fix / name).write_bytes(data)
         files.append(fix / name)
     whole = (fix / 'mp3-44100-stereo.mp3').read_bytes()
@@ -177,7 +184,8 @@ def main():
                 if path.name not in DAMAGED:
                     try:
                         reference = decode_audio(str(path), sampling_rate=16000)
-                        same = 'n' in expected and np.array_equal(reference, pcm)
+                        same = (np.array_equal(reference, pcm) if 'n' in expected else  # no audio is an error in the worker
+                                len(reference) == 0 and expected == {'code': 'INVALID_MEDIA', 'error': 'The file has no decodable audio.'})
                     except Exception as e:  # a file deleted meanwhile is INPUT_MISSING in the worker
                         same = expected.get('error') == f'{type(e).__name__}: {e}' or (
                             isinstance(e, FileNotFoundError) and expected.get('code') == 'INPUT_MISSING')
