@@ -45,3 +45,32 @@ test('an 800-segment script stays responsive: no long task while polls bring not
  console.log(`perf: idle long tasks (ms) ${idle.join(', ')||'none'}; keystrokes (ms) ${ms.map(Math.round).join(', ')}`); // the list reporter prints this, so CI shows the margin on a pass
  expect(ms[4],`median keystroke latency; all (ms): ${ms.join(', ')}`).toBeLessThan(KEY_MS);
 });
+// One long selected segment: the normalized-text highlights are worked out only while "Văn bản sau chuẩn hóa" is open, so typing
+// with it closed costs what it did before them. On the machine that set this, a keystroke in 1,500 words took ~100 ms when they were
+// computed on every render and ~30 ms without them.
+const LONG_KEY_MS=60;
+test('typing in a 1,500-word selected segment stays fast while the normalized text is closed',async({page})=>{
+ await page.addInitScript(()=>{
+  const w=window as any;w.isTauri=true;w.__keys=[];
+  const base='Hôm nay trời đẹp, chúng ta đi 5 km tới TP.HCM dùng AI và 50k tiền.'.split(' '),text=Array.from({length:1500},(_,i)=>base[i%base.length]).join(' ');
+  let project:any={id:'p1',name:'Dài',updated_at:'2026-11-20T00:00:00Z',revision:1,transcript:[],dictionary:{AI:'ây ai'},source_asset_id:null,segments:[{id:'s0',text,normalized_text:text,voice_id:null,speaker:'Người dẫn',gap_ms:300,takes:[],selected_take_id:null,trim_start_ms:0,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0,gain_db:0}]};
+  const ipc=(v:unknown)=>JSON.parse(JSON.stringify(v));
+  w.__TAURI_INTERNALS__={convertFileSrc:(p:string)=>p,transformCallback:()=>1,unregisterCallback:()=>{},metadata:{currentWindow:{label:'main'},currentWebview:{label:'main',windowLabel:'main'}},
+   invoke:async(cmd:string,args:any)=>{switch(cmd){
+    case 'list_projects':return [{id:project.id,name:project.name,updated_at:project.updated_at,revision:project.revision}];case 'load_project':return ipc(project);
+    case 'list_voices':case 'list_models':case 'list_jobs':return [];case 'get_settings':return {dictionary:{}};
+    case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,native_worker_ready:true,python_path:null,ffmpeg_path:null,native_worker_path:null,fallback_count:0,message:''};
+    case 'save_project':project={...ipc(args.project),revision:args.project.revision+1};return ipc(project);
+    default:return null;}}};
+  new PerformanceObserver(l=>{for(const e of l.getEntries() as any[])if(e.interactionId)w.__keys.push({id:e.interactionId,ms:e.duration});}).observe({type:'event',durationThreshold:16} as PerformanceObserverInit);
+ });
+ await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();
+ const box=page.locator('textarea[aria-label="Nội dung đoạn 1"]');await expect(box).toBeAttached({timeout:30000});await expect(page.locator('.normalization')).not.toHaveAttribute('open');
+ await box.click();await page.keyboard.press('Control+End');await page.waitForTimeout(800);await page.evaluate(()=>{(window as any).__keys=[];});
+ await page.keyboard.type('abcdefghijklmnopqrst',{delay:80});await expect(box).toHaveValue(/abcdefghijklmnopqrst$/);
+ const keys:{id:number;ms:number}[]=await page.evaluate(()=>(window as any).__keys),slowest=new Map<number,number>();
+ for(const k of keys)slowest.set(k.id,Math.max(slowest.get(k.id)??0,k.ms));
+ const ms=[...slowest.values(),...Array(Math.max(0,20-slowest.size)).fill(16)].sort((a,b)=>a-b);
+ console.log(`perf: long-segment keystrokes (ms) ${ms.map(Math.round).join(', ')}`);
+ expect(ms[10],`median keystroke latency; all (ms): ${ms.join(', ')}`).toBeLessThan(LONG_KEY_MS);
+});

@@ -179,6 +179,10 @@ describe('normalization highlights',()=>{
   expect(normalizedParts('Không có gì đổi.',dict)).toEqual([{text:'Không có gì đổi.',changed:false}]);
   expect(normalizedParts('',dict)).toEqual([]);
  });
+ it('keeps marking a long segment whose changes sit near one end',()=>{
+  const long=Array(2500).fill('chữ').join(' ');
+  for(const text of [`${long} dùng AI`,`AI ${long}`]){const marked=normalizedParts(text,dict).filter(p=>p.changed);expect(marked).toEqual([{text:'ây ai',changed:true,rule:'“AI” → “ây ai”'}]);}
+ });
 });
 describe('chapters',()=>{
  const segs=(...ch:(string|null)[])=>ch.map((chapter,i)=>({...makeSegment(`Câu ${i+1}.`),chapter}));

@@ -86,11 +86,14 @@ export function normalizeText(text:string,dictionary:Record<string,string>,optio
 /** normalizeText's output cut into parts that join back to it byte for byte, for display: a word no longer in the input (by a longest
  * common subsequence of whitespace-separated words) is `changed`, and `rule` names the dictionary entries whose reading it holds. */
 export function normalizedParts(text:string,dictionary:Record<string,string>,options:{codeSwitch?:boolean}={}):{text:string;changed:boolean;rule?:string}[]{
- const out=normalizeText(text,dictionary,options),src=text.normalize('NFC').split(/\s+/).filter(Boolean),tokens=out.split(/(\s+)/),at=tokens.flatMap((t,i)=>i%2||!t?[]:[i]),n=src.length,m=at.length,changed=new Set(at);
- if(n*m<=4e6){ // shortcut: a very long segment is shown without highlights
-  const L=new Int32Array((n+1)*(m+1)),ix=(i:number,j:number)=>i*(m+1)+j;
-  for(let i=n-1;i>=0;i--)for(let j=m-1;j>=0;j--)L[ix(i,j)]=src[i]===tokens[at[j]]?L[ix(i+1,j+1)]+1:Math.max(L[ix(i+1,j)],L[ix(i,j+1)]);
-  for(let i=0,j=0;i<n&&j<m;)if(src[i]===tokens[at[j]]){changed.delete(at[j]);i++;j++;}else if(L[ix(i+1,j)]>=L[ix(i,j+1)])i++;else j++;
+ const out=normalizeText(text,dictionary,options),src=text.normalize('NFC').split(/\s+/).filter(Boolean),tokens=out.split(/(\s+)/),at=tokens.flatMap((t,i)=>i%2||!t?[]:[i]),word=(j:number)=>tokens[at[j]],n=src.length,m=at.length,changed=new Set(at);
+ // Words both ends share are kept before the LCS, so a long segment with its changes near one end stays cheap.
+ let a=0,b=0;while(a<n&&a<m&&src[a]===word(a))changed.delete(at[a++]);while(b<n-a&&b<m-a&&src[n-1-b]===word(m-1-b))changed.delete(at[m-1-b++]);
+ const N=n-a-b,M=m-a-b;
+ if(N*M<=4e6){ // shortcut: a very long segment is shown without highlights
+  const L=new Int32Array((N+1)*(M+1)),ix=(i:number,j:number)=>i*(M+1)+j;
+  for(let i=N-1;i>=0;i--)for(let j=M-1;j>=0;j--)L[ix(i,j)]=src[a+i]===word(a+j)?L[ix(i+1,j+1)]+1:Math.max(L[ix(i+1,j)],L[ix(i,j+1)]);
+  for(let i=0,j=0;i<N&&j<M;)if(src[a+i]===word(a+j)){changed.delete(at[a+j]);i++;j++;}else if(L[ix(i+1,j)]>=L[ix(i,j+1)])i++;else j++;
  }else changed.clear();
  const re=dictionaryRegex.get(dictionary),used=[...new Set(re?text.normalize('NFC').match(re):[])].filter(k=>dictionary[k]),parts:{text:string;changed:boolean;rule?:string}[]=[];
  // Spaces between two changed words belong to the same highlight.
