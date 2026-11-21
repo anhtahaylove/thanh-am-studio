@@ -14,6 +14,11 @@ describe('subtitle and text contracts',()=>{
   expect(exportSubtitles([r('a','X.',0),r('b','Y.'),r('c','Z.',0)],'txt')).toBe('Người 1: X.\n\nY.\n\nNgười 1: Z.');
   expect(exportSubtitles([r('a','Một.'),r('b','Hai\nba.'),r('c','')],'txt')).toBe('Một.\n\nHai\nba.\n\n');
  });
+ it('a TXT export with a single speaker turn stays as before, so the import never reads "Người 1:" aloud',()=>{
+  const r=(id:string,text:string)=>({id,start_ms:0,end_ms:1000,text,speaker:0});
+  const txt=exportSubtitles([r('a','Chào anh.'),r('b','Anh khỏe không?')],'txt');
+  expect(txt).toBe('Chào anh.\n\nAnh khỏe không?');expect(scriptChunks(txt)).toEqual([{speaker:'Người dẫn',text:'Chào anh.'},{speaker:'Người dẫn',text:'Anh khỏe không?'}]);
+ });
  it('rejects reversed subtitle ranges',()=>{expect(()=>parseSubtitles('1\n00:00:02,000 --> 00:00:01,000\nSai')).toThrow('thời gian');});
  it('roundtrips SRT and VTT with millisecond precision',()=>{const rows=[{id:'a',start_ms:1234,end_ms:5678,text:'Tiếng Việt'}]; for(const ext of ['srt','vtt'] as const)expect(parseSubtitles(exportSubtitles(rows,ext))).toMatchObject([{start_ms:1234,end_ms:5678,text:'Tiếng Việt'}]);});
  it('normalizes dictionary literally and prefers longer keys',()=>{expect(normalizeText('TP.HCM dùng AI.',{'TP.HCM':'Thành phố Hồ Chí Minh','AI':'ây ai'})).toBe('Thành phố Hồ Chí Minh dùng ây ai.');});

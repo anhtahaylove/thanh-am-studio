@@ -11,7 +11,8 @@ export function parseSubtitles(input:string):TranscriptSegment[]{
 }
 export function exportSubtitles(rows:TranscriptSegment[],format:'srt'|'vtt'|'txt'):string {
  // Consecutive rows of one speaker become one paragraph "Người N: lời", the form the script import reads back; a row without a speaker stays as it is.
- if(format==='txt'){const out:{speaker?:number;text:string}[]=[];for(const r of rows){if(r.speaker===undefined){out.push({text:r.text});continue;}const text=r.text.trim().replace(/\s+/g,' '),last=out.at(-1);if(!text)continue;if(last?.speaker===r.speaker)last.text+=' '+text;else out.push({speaker:r.speaker,text});}return out.map(p=>p.speaker===undefined?p.text:`Người ${p.speaker+1}: ${p.text}`).join('\n\n');}
+ // The import needs at least two labelled lines, so with a single turn the rows export as they always did.
+ if(format==='txt'){const out:{speaker?:number;text:string}[]=[];for(const r of rows){if(r.speaker===undefined){out.push({text:r.text});continue;}const text=r.text.trim().replace(/\s+/g,' '),last=out.at(-1);if(!text)continue;if(last?.speaker===r.speaker)last.text+=' '+text;else out.push({speaker:r.speaker,text});}return out.filter(p=>p.speaker!==undefined).length<2?rows.map(r=>r.text).join('\n\n'):out.map(p=>p.speaker===undefined?p.text:`Người ${p.speaker+1}: ${p.text}`).join('\n\n');}
  for(const r of rows)if(!Number.isFinite(r.start_ms)||!Number.isFinite(r.end_ms)||r.start_ms<0||r.end_ms<=r.start_ms)throw Error('Khoảng thời gian phải tăng');
  return (format==='vtt'?'WEBVTT\n\n':'')+rows.map((r,i)=>`${format==='srt'?`${i+1}\n`:''}${timestamp(r.start_ms,format==='vtt'?'.':',')} --> ${timestamp(r.end_ms,format==='vtt'?'.':',')}\n${r.text}`).join('\n\n')+'\n';
 }
