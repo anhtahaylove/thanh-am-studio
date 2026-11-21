@@ -6,11 +6,12 @@ const IDS=['vieneu-v3','whisper-small','whisper-turbo','diarization','htdemucs',
 const NAMES:Record<string,string>={'vieneu-v3':'VieNeu v3 Turbo','whisper-small':'Whisper Small','whisper-turbo':'Whisper Large v3 Turbo','diarization':'Phân biệt người nói (pyannote + CAM++)','htdemucs':'Tách giọng và nhạc nền (HTDemucs)','separation-runtime':'Gói chạy tách nhạc nền (Python + PyTorch)'};
 const BADGE={recommended:'Đề xuất cho máy bạn',heavy:'Có thể nặng với máy này'};
 const mock=({total,names,engines,none}:{total:number|null;names:Record<string,string>;engines:Record<string,string>;none:boolean})=>{
+ let settings:any={dictionary:{},worker_engines:engines};
  const w=window as any,models=none?[]:Object.keys(names).map(id=>({id,name:names[id],engine:id.startsWith('whisper')||id==='diarization'?'stt':id==='vieneu-v3'?'tts':id==='htdemucs'?'separation':'runtime',kind:id==='separation-runtime'?'runtime':'model',installed:false,revision:'9f8e7d6c5b4a3921',license:'MIT',description:'Mô tả ngắn của model.'}));
  w.isTauri=true;
  w.__TAURI_INTERNALS__={convertFileSrc:(p:string)=>p,transformCallback:()=>1,unregisterCallback:()=>{},metadata:{currentWindow:{label:'main'},currentWebview:{label:'main',windowLabel:'main'}},
-  invoke:async(cmd:string)=>{switch(cmd){
-   case 'list_projects':case 'list_jobs':case 'list_voices':return [];case 'list_models':return models;case 'get_settings':return {dictionary:{},worker_engines:engines};
+  invoke:async(cmd:string,args:any)=>{switch(cmd){
+   case 'list_projects':case 'list_jobs':case 'list_voices':return [];case 'list_models':return models;case 'get_settings':return settings;case 'save_settings':settings=args.settings;return settings;
    case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,native_worker_ready:true,python_path:null,ffmpeg_path:null,native_worker_path:null,fallback_count:0,total_memory_mb:total,message:'Runtime đã tìm thấy.'};
    default:return null;}}};
 };
@@ -92,6 +93,14 @@ test('"Nâng cao" starts open when an engine is set to Python',async({page})=>{
  await open(page,7910,1440,1000,{tts:'python'});
  await expect(page.locator('details.mc-advanced')).toHaveAttribute('open','');
  await expect(page.locator('.engine-rows label').filter({hasText:'Đọc văn bản'}).locator('select')).toHaveValue('python');
+});
+test('the panel the user opened stays open when the last non-default engine goes back to auto',async({page})=>{
+ await open(page,7910);
+ await page.getByText('Nâng cao: bộ xử lý').click();
+ const select=page.locator('.engine-rows label').filter({hasText:'Đọc văn bản'}).locator('select');
+ await select.selectOption('python');await expect(select).toHaveValue('python');
+ await select.selectOption('auto');await expect(select).toHaveValue('auto');
+ await expect(page.locator('details.mc-advanced')).toHaveJSProperty('open',true);await expect(select).toBeVisible(); // focus is not asserted: every select is disabled while a save runs (busy), which drops focus with or without the fold
 });
 test('the empty state comes right after the card grid',async({page})=>{
  await open(page,null,1440,1000,{},true);
