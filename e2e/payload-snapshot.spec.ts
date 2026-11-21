@@ -98,6 +98,7 @@ const scenarios:Record<string,(page:Page)=>Promise<void>>={
   await pick(page,2); // its trim end is unset
   await page.getByRole('textbox',{name:'Chương',exact:true}).fill('Chương 1b');
   for(const [label,value] of [['Nghỉ sau (ms)','750'],['Âm lượng (dB)','-4.5'],['Cắt đầu (ms)','120'],['Cắt cuối (ms)','0'],['To dần (ms)','35'],['Nhỏ dần (ms)','90']])await type(page,label,value);
+  await pick(page,4);await page.getByRole('textbox',{name:'Chương',exact:true}).fill(''); // a cleared chapter is null, not ''
   await pick(page,6);await type(page,'Cắt cuối (ms)','1600');
   await page.getByRole('combobox',{name:'Định dạng audio'}).selectOption({label:'MP3'});await page.getByRole('checkbox',{name:'Chuẩn hóa'}).uncheck();await exported(page);
  },
@@ -125,9 +126,9 @@ const scenarios:Record<string,(page:Page)=>Promise<void>>={
   await go(page,'Model & cài đặt');await addEntry(page,'.app-dictionary','TP.HCM','tê pê hát xê em');await addEntry(page,'.app-dictionary','weekend','cuối tuần');
   await go(page,'Tạo giọng đọc');await generateAll(page);
  },
- 'models: "Bộ xử lý" set to Python for TTS, then for STT':async page=>{
+ 'models: "Bộ xử lý" set to Python for TTS, STT, export and the cloned-voice preview':async page=>{
   await go(page,'Model & cài đặt');
-  for(const label of ['Đọc văn bản','Chép lời']){const s=page.locator('.engine-rows label').filter({hasText:label}).locator('select');await s.selectOption('python');await expect(s).toHaveValue('python');}
+  for(const label of ['Đọc văn bản','Chép lời','Xuất âm thanh','Nghe thử giọng nhân bản']){const s=page.locator('.engine-rows label').filter({hasText:label}).locator('select');await s.selectOption('python');await expect(s).toHaveValue('python');}
  },
 };
 

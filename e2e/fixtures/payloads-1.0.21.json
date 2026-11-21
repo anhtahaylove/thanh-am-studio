@@ -1997,7 +1997,7 @@
        "voice_id": null
       },
       {
-       "chapter": "Chương 2",
+       "chapter": null,
        "cue_end_ms": 10000,
        "cue_start_ms": 8200,
        "fade_in_ms": 0,
@@ -2707,7 +2707,7 @@
    "cmd": "enqueue_job"
   }
  ],
- "models: \"Bộ xử lý\" set to Python for TTS, then for STT": [
+ "models: \"Bộ xử lý\" set to Python for TTS, STT, export and the cloned-voice preview": [
   {
    "args": {
     "settings": {
@@ -2728,6 +2728,37 @@
       "AI": "ây ai"
      },
      "worker_engines": {
+      "stt": "python",
+      "tts": "python"
+     }
+    }
+   },
+   "cmd": "save_settings"
+  },
+  {
+   "args": {
+    "settings": {
+     "dictionary": {
+      "AI": "ây ai"
+     },
+     "worker_engines": {
+      "render": "python",
+      "stt": "python",
+      "tts": "python"
+     }
+    }
+   },
+   "cmd": "save_settings"
+  },
+  {
+   "args": {
+    "settings": {
+     "dictionary": {
+      "AI": "ây ai"
+     },
+     "worker_engines": {
+      "clone_preview": "python",
+      "render": "python",
       "stt": "python",
       "tts": "python"
      }
