@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {clock,parseTime,timestamp} from './domain';
+import {clock,countExact,parseTime,replaceInTranscript,searchParts,timestamp} from './domain';
 describe('transcript clock and time parsing',()=>{
  it('writes minutes, seconds and milliseconds, and hours only on request',()=>{
   expect(clock(9200)).toBe('0:09,200');expect(clock(0)).toBe('0:00,000');expect(clock(754321)).toBe('12:34,321');
@@ -12,5 +12,29 @@ describe('transcript clock and time parsing',()=>{
  it('accepts a short fraction and a dot, and rejects a bare number and minutes or seconds of 60',()=>{
   expect(parseTime('0:09,2')).toBe(9200);expect(parseTime('00:00:09.200')).toBe(9200);expect(parseTime(' 1:02 ')).toBe(62000);
   for(const bad of ['9','1:60','1:60:00','a:b','','-1:00'])expect(()=>parseTime(bad),bad).toThrow('Mốc thời gian không hợp lệ');
+ });
+});
+describe('countExact',()=>{
+ const rows=[{id:'a',start_ms:0,end_ms:1,text:'Mua cá thu, cá thu tươi'},{id:'b',start_ms:1,end_ms:2,text:'ca thu rẻ'},{id:'c',start_ms:2,end_ms:3,text:'CÁ THU và Cá Thu'},{id:'d',start_ms:3,end_ms:4,text:'a.b (c) a.b'}];
+ it('counts only the places replaceInTranscript would change: tone marks count, case does not',()=>{
+  expect(countExact(rows,'cá thu')).toBe(4);expect(countExact(rows,'ca thu')).toBe(1);expect(countExact(rows,'xyz')).toBe(0);expect(countExact(rows,'')).toBe(0);
+  for(const q of ['cá thu','ca thu','xyz','a.b','(c)'])expect(countExact(rows,q),q).toBe(replaceInTranscript(rows,q,'#').count);
+ });
+ it('treats the query as text, not a pattern, and builds no new rows',()=>{
+  expect(countExact(rows,'a.b')).toBe(2);expect(countExact(rows,'(c)')).toBe(1);expect(countExact(rows,'.')).toBe(2);
+  const before=JSON.stringify(rows);countExact(rows,'cá thu');expect(JSON.stringify(rows)).toBe(before);
+ });
+ it('matches across normalization forms like the replace does',()=>{
+  const nfd=[{id:'n',start_ms:0,end_ms:1,text:'cá thu'}];expect(countExact(nfd,'cá thu')).toBe(1);expect(replaceInTranscript(nfd,'cá thu','x').count).toBe(1);
+ });
+});
+describe('a query that overlaps itself after folding',()=>{
+ // Known limit, pinned: the preview folds tone marks, so "dạ dạ" in "da dạ dạ" is one hit over "da dạ" (shown dashed, not exact), while Replace
+ // and its count still find the exact pair at the end. Upgrade to an exact-first split if users run into it.
+ const rows=[{id:'a',start_ms:0,end_ms:1,text:'da dạ dạ'}];
+ it('shows one hit that is not the exact text, and Replace still changes the exact match',()=>{
+  expect(searchParts('da dạ dạ','dạ dạ')).toEqual([{text:'da dạ',hit:true},{text:' dạ',hit:false}]);
+  expect(countExact(rows,'dạ dạ')).toBe(1);
+  const r=replaceInTranscript(rows,'dạ dạ','X');expect(r.count).toBe(1);expect(r.rows[0].text).toBe('da X');
  });
 });

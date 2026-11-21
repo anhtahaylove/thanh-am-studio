@@ -19,12 +19,20 @@ export function exportSubtitles(rows:TranscriptSegment[],format:'srt'|'vtt'|'txt
  return (format==='vtt'?'WEBVTT\n\n':'')+rows.map((r,i)=>`${format==='srt'?`${i+1}\n`:''}${timestamp(r.start_ms,format==='vtt'?'.':',')} --> ${timestamp(r.end_ms,format==='vtt'?'.':',')}\n${r.text}`).join('\n\n')+'\n';
 }
 const escapeRegExp=(s:string)=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+const exactPattern=(find:string)=>new RegExp(escapeRegExp(find.normalize('NFC')),'giu');
 /** Replaces every case-insensitive literal match of `find` in transcript text; untouched rows keep their identity. */
 export function replaceInTranscript(rows:TranscriptSegment[],find:string,replacement:string):{rows:TranscriptSegment[];count:number}{
  if(!find)return {rows,count:0};
- const pattern=new RegExp(escapeRegExp(find.normalize('NFC')),'giu');let count=0;
+ const pattern=exactPattern(find);let count=0;
  const next=rows.map(r=>{const text=r.text.normalize('NFC').replace(pattern,()=>{count++;return replacement;});return text===r.text.normalize('NFC')?r:{...r,text};});
  return {rows:next,count};
+}
+/** How many places `replaceInTranscript` would change: the same pattern, but no row objects are built. */
+export function countExact(rows:TranscriptSegment[],find:string):number{
+ if(!find)return 0;
+ const pattern=exactPattern(find);let count=0;
+ for(const r of rows)for(const _ of r.text.normalize('NFC').matchAll(pattern))count++;
+ return count;
 }
 const foldVi=(s:string)=>s.normalize('NFD').replace(/\p{M}/gu,'').replace(/[đĐ]/g,'d').toLowerCase();
 /** Splits `text` at every match of `query`, ignoring case, tone marks and the stroke of đ; the parts always concatenate back to `text`. */
