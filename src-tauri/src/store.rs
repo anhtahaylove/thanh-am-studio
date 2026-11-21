@@ -74,9 +74,10 @@ impl Store {
   let n=db.execute("UPDATE projects SET name=?1,revision=?2,updated_at=?3,data=?4 WHERE id=?5 AND revision=?6",params![name,revision+1,p["updated_at"].as_str(),p.to_string(),id,revision]).map_err(err)?;
   if n!=1{return Err("REVISION_CONFLICT: Dự án đã thay đổi. Hãy tải lại trước khi lưu.".into())} Ok(p)
  }
- /// Refused while the project has queued or running jobs. Its failed, cancelled and interrupted jobs (no output) go with it;
- /// succeeded ones stay: other projects find separation stems by asset id, and the queue is where renders are saved from.
- pub fn delete_project(&self,id:&str)->Result<()> { let mut db=self.db.lock().map_err(err)?; let tx=db.transaction().map_err(err)?; let n:i64=tx.query_row("SELECT count(*) FROM jobs WHERE project_id=?1 AND status IN ('queued','running')",[id],|r|r.get(0)).map_err(err)?;if n>0{return Err("PROJECT_BUSY: Hủy công việc trước khi xóa.".into())}tx.execute("DELETE FROM jobs WHERE project_id=?1 AND status IN ('failed','cancelled','interrupted')",[id]).map_err(err)?;tx.execute("DELETE FROM projects WHERE id=?1",[id]).map_err(err)?;tx.commit().map_err(err) }
+ /// Refused while the project has queued or running jobs. Its failed, cancelled and interrupted jobs (no output) go with it,
+ /// and so do its succeeded tts jobs (each only fed a take of this project). Other succeeded ones stay: other projects find
+ /// separation stems by asset id, renders are saved from the queue, and a transcript can be applied to another project.
+ pub fn delete_project(&self,id:&str)->Result<()> { let mut db=self.db.lock().map_err(err)?; let tx=db.transaction().map_err(err)?; let n:i64=tx.query_row("SELECT count(*) FROM jobs WHERE project_id=?1 AND status IN ('queued','running')",[id],|r|r.get(0)).map_err(err)?;if n>0{return Err("PROJECT_BUSY: Hủy công việc trước khi xóa.".into())}tx.execute("DELETE FROM jobs WHERE project_id=?1 AND (status IN ('failed','cancelled','interrupted') OR (status='succeeded' AND kind='tts'))",[id]).map_err(err)?;tx.execute("DELETE FROM projects WHERE id=?1",[id]).map_err(err)?;tx.commit().map_err(err) }
  pub fn enqueue(&self,kind:&str,project:Option<&str>,payload:Value)->Result<Value>{
   if !["tts","stt","render","model_download","clone_preview","separate"].contains(&kind){return Err("INVALID_JOB_KIND".into())}
   let j=json!({"id":Uuid::new_v4().to_string(),"kind":kind,"project_id":project,"payload":payload,"status":"queued","progress":0.0,"error":null,"result":null,"created_at":now(),"updated_at":now()});

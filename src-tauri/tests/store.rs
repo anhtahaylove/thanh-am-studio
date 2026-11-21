@@ -254,7 +254,7 @@ fn a_database_without_the_jobs_index_gains_it_on_open_and_the_claim_query_uses_i
 }
 
 #[test]
-fn deleting_a_project_deletes_its_outputless_jobs_keeps_succeeded_ones_and_refuses_while_one_is_queued() {
+fn deleting_a_project_deletes_its_outputless_and_succeeded_tts_jobs_keeps_other_succeeded_ones_and_refuses_while_one_is_queued() {
     let tmp = tempfile::tempdir().unwrap();
     let (a, b, interrupted);
     {
@@ -281,6 +281,13 @@ fn deleting_a_project_deletes_its_outputless_jobs_keeps_succeeded_ones_and_refus
     let rendered = job("render", Some(&a), json!({}));
     s.claim_next().unwrap();
     s.finish(&rendered, json!({"path":"x.wav"})).unwrap();
+    // A succeeded tts job only fed a take of the deleted project; an stt result can still be applied to another project.
+    let spoken = job("tts", Some(&a), json!({"segment_id":"s1"}));
+    s.claim_next().unwrap();
+    s.finish(&spoken, json!({"path":"take.wav"})).unwrap();
+    let transcribed = job("stt", Some(&a), json!({}));
+    s.claim_next().unwrap();
+    s.finish(&transcribed, json!({"transcript":[]})).unwrap();
     let failed = job("render", Some(&a), json!({}));
     s.claim_next().unwrap();
     s.fail(&failed, "x").unwrap();
@@ -293,7 +300,7 @@ fn deleting_a_project_deletes_its_outputless_jobs_keeps_succeeded_ones_and_refus
     s.claim_next().unwrap();
     assert!(s.delete_project(&a).unwrap_err().starts_with("PROJECT_BUSY"), "a running job keeps the project too");
     s.cancel(&busy).unwrap();
-    let gone = [(&interrupted, "interrupted"), (&failed, "failed"), (&busy, "cancelled")];
+    let gone = [(&interrupted, "interrupted"), (&failed, "failed"), (&busy, "cancelled"), (&spoken, "succeeded")];
     for (id, want) in gone { assert_eq!(status(id).unwrap(), want); }
     s.delete_project(&a).unwrap();
     for (id, _) in gone { assert_eq!(status(id).unwrap_err(), "JOB_NOT_FOUND"); }
@@ -301,6 +308,7 @@ fn deleting_a_project_deletes_its_outputless_jobs_keeps_succeeded_ones_and_refus
     let jobs = s.list_jobs().unwrap();
     assert!(jobs.iter().any(|j| j["kind"] == "separate" && j["payload"]["asset_id"] == asset && j["status"] == "succeeded"));
     assert!(jobs.iter().any(|j| j["id"] == rendered.as_str() && j["status"] == "succeeded"));
+    assert!(jobs.iter().any(|j| j["id"] == transcribed.as_str() && j["status"] == "succeeded"));
     assert_eq!((status(&other).unwrap(), status(&unowned).unwrap()), ("cancelled".into(), "cancelled".into()));
     assert!(s.load_project(&a).is_err() && s.load_project(&b).is_ok() && kept.exists());
 }
