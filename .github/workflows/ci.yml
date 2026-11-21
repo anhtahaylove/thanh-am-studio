@@ -9,17 +9,17 @@ jobs:
   test:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.11'
       # src-tauri/rust-toolchain.toml pins the compiler (1.100.0, which built v1.0.20), as worker-rs pins its own.
       - run: rustup toolchain install 1.100.0 --profile minimal --component clippy
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: src-tauri
       - run: npm ci
@@ -48,17 +48,17 @@ jobs:
         # cargo reads .cargo/config.toml (dynamic CRT) from the working directory, not from --manifest-path.
         working-directory: worker-rs
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       # worker-rs/rust-toolchain.toml pins the compiler (rustup does not install a missing one by itself).
       - run: rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: worker-rs
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       # The wheels give the pinned onnxruntime.dll, sherpa's older one and the Silero asset at <venv>/Lib/site-packages. The VieNeu
       # tests need the 600 MB model and skip here; parity.yml runs them with ORTFFI_REQUIRE=1.
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.12'
       - name: ORT inputs for the ortffi tests
