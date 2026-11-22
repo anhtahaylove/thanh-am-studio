@@ -61,8 +61,8 @@ test('the arrow keys, Home and End move inside the toolbar and wrap, and Tab com
  await page.getByRole('textbox',{name:'Nhân vật đoạn 6'}).focus();await page.keyboard.press('Tab');
  expect(await active(page)).toBe('Chia đoạn tại con trỏ');
  await page.keyboard.press('ArrowRight');expect(await active(page)).toBe('Chèn khoảng nghỉ 0,5 giây tại con trỏ');
- await page.keyboard.press('End');expect(await active(page)).toBe('Tạo take mới');await page.keyboard.press('ArrowRight');expect(await active(page)).toBe('Chia đoạn tại con trỏ');
- await page.keyboard.press('ArrowLeft');expect(await active(page)).toBe('Tạo take mới');await page.keyboard.press('Home');expect(await active(page)).toBe('Chia đoạn tại con trỏ');
+ await page.keyboard.press('End');expect(await active(page)).toBe('Chi tiết đoạn 6');await page.keyboard.press('ArrowRight');expect(await active(page)).toBe('Chia đoạn tại con trỏ');
+ await page.keyboard.press('ArrowLeft');expect(await active(page)).toBe('Chi tiết đoạn 6');await page.keyboard.press('ArrowLeft');expect(await active(page)).toBe('Tạo take mới');await page.keyboard.press('Home');expect(await active(page)).toBe('Chia đoạn tại con trỏ');
  await page.keyboard.press('ArrowRight');await page.keyboard.press('ArrowRight');await page.keyboard.press('ArrowRight');expect(await active(page)).toBe('Đưa đoạn lên');
  await page.keyboard.press('Tab');expect(await active(page)).toBe('Nội dung đoạn 6');
  await page.keyboard.press('Shift+Tab');expect(await active(page)).toBe('Đưa đoạn lên');
@@ -114,6 +114,12 @@ test('with the voice model missing, Ctrl+Enter and the blocked generate button e
  expect(await calls(page,'enqueue_job')).toBe(0);
 });
 
+test('"Chi tiết đoạn N" is never blocked: with the voice model missing it still leads to the panel',async({page})=>{
+ await open(page,{installed:false});
+ const b=seg(page,3).getByRole('button',{name:'Chi tiết đoạn 3',exact:true});await expect(b).not.toHaveAttribute('aria-disabled','true');await expect(b).toBeEnabled();
+ await b.click();await expect(page.getByRole('combobox',{name:'Giọng đoạn 3'})).toBeFocused();
+});
+
 test('Ctrl+Enter generates this segment once, and Ctrl+Shift+Enter splits it at the caret',async({page})=>{
  await open(page);
  await area(page,3).focus();await page.keyboard.press('Control+Enter');await expect.poll(()=>calls(page,'enqueue_job')).toBe(1);await settle(page);expect(await calls(page,'enqueue_job')).toBe(1);
@@ -163,7 +169,7 @@ test('the toolbar shows on hover, focus and for the selected segment, and hides 
  await open(page);await page.mouse.move(2,2);
  const opacity=(n:number)=>toolbar(page,n).evaluate(t=>getComputedStyle(t).opacity);
  await expect.poll(()=>opacity(6)).toBe('0');await expect.poll(()=>opacity(1)).toBe('1'); // the first segment is the selected one
- await expect(toolbar(page,6)).toBeAttached();expect(await toolbar(page,6).getByRole('button').count()).toBe(7);
+ await expect(toolbar(page,6)).toBeAttached();expect(await toolbar(page,6).getByRole('button').count()).toBe(8);
  await page.getByRole('textbox',{name:'Nhân vật đoạn 6'}).focus();await page.keyboard.press('Tab');await expect.poll(()=>opacity(6)).toBe('1');
  await page.getByRole('textbox',{name:'Nhân vật đoạn 9'}).focus();await expect.poll(()=>opacity(6)).toBe('0');
  await seg(page,8).hover({position:{x:200,y:60}});await expect.poll(()=>opacity(8)).toBe('1');

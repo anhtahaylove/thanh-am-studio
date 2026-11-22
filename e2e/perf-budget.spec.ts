@@ -37,6 +37,7 @@ const script800=async(page:import('@playwright/test').Page,live:boolean,narrow=f
  // Finished TTS jobs make the app load the project once more; let that render land before measuring.
  await expect.poll(()=>page.evaluate(()=>(window as any).__loads),{timeout:30000}).toBe(2);await page.waitForTimeout(2000);
  if(live)await expect(page.locator('.segment .job-ring')).toHaveCount(32);
+ if(narrow)await page.locator('textarea[aria-label="Nội dung đoạn 400"]').click(); // the selected row, with the panel inside it, is not the job row: a poll must leave it alone too
  const label=live?await page.locator('.segment .job-ring').first().textContent():null;
  await page.evaluate(()=>{(window as any).__lt=[];});await page.waitForTimeout(6000); // two or three polls
  if(live)expect(await page.locator('.segment .job-ring').first().textContent(),'the running job advanced, so its label changed').not.toBe(label);

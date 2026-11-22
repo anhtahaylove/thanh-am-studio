@@ -4,25 +4,34 @@ import {readFileSync} from 'node:fs';
 // below, where the aside would fall under the whole script, the same panel is inside the selected row. Tauri is mocked; the script is the 12-segment fixture
 // (segments 2, 6 and 9 have a take; 2 and 9 have a checked one; segment 1 is selected when the project opens).
 const FIXTURE:string=readFileSync('e2e/fixtures/script-12.json','utf8');
-const mock=(o:{project:string}):void=>{
+const mock=(o:{project:string;live:boolean}):void=>{
  const w=window as any;w.isTauri=true;w.__calls=[];w.__kd=[];w.__TAURI_EVENT_PLUGIN_INTERNALS__={unregisterListener:()=>{}};
  const project:any=JSON.parse(o.project);
  const ipc=(v:unknown)=>JSON.parse(JSON.stringify(v));
  const voices=[{id:'v1',name:'Giọng một',kind:'preset',reference_asset_id:null,consent:true,engine_voice_id:'v1'},{id:'v2',name:'Giọng hai',kind:'preset',reference_asset_id:null,consent:true,engine_voice_id:'v2'}];
- w.__addVoice=()=>voices.push({id:'v3',name:'Giọng ba',kind:'preset',reference_asset_id:null,consent:true,engine_voice_id:'v3'});
+ let progress=0.1,settings:any={dictionary:{}};w.__addVoice=()=>voices.push({id:'v3',name:'Giọng ba',kind:'preset',reference_asset_id:null,consent:true,engine_voice_id:'v3'});
  w.__TAURI_INTERNALS__={convertFileSrc:(p:string)=>p,transformCallback:()=>1,unregisterCallback:()=>{},metadata:{currentWindow:{label:'main'},currentWebview:{label:'main',windowLabel:'main'}},
   invoke:async(cmd:string,args:any)=>{w.__calls.push(cmd);switch(cmd){
    case 'list_projects':return [{id:project.id,name:project.name,updated_at:project.updated_at,revision:project.revision}];case 'load_project':return ipc(project);
    case 'list_voices':return ipc(voices);case 'list_models':return [{id:'vieneu-v3',name:'VieNeu v3 Turbo',engine:'tts',installed:true,revision:'r',license:'Apache-2.0',description:''}];
-   case 'list_jobs':return [];case 'get_settings':return {dictionary:{}};
+   case 'list_jobs':if(o.live)progress=Math.min(.95,progress+.1);return o.live?[{id:'j1',kind:'tts',project_id:project.id,payload:{segment_id:'s1',text:''},status:'running',progress,error:null,result:null,created_at:'2026-11-20T00:00:00Z',updated_at:'2026-11-20T00:00:00Z'}]:[];case 'get_settings':return ipc(settings);case 'save_settings':settings=ipc(args.settings);return ipc(settings);
    case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,python_path:null,ffmpeg_path:null,message:''};
    case 'save_project':return {...ipc(args.project),revision:args.project.revision+1};
    default:return null;}}};
  // The keydown as it reaches the window, in the bubble phase: after the page's own handlers have run.
  window.addEventListener('keydown',e=>{if(e.altKey&&e.key==='ArrowDown')w.__kd.push(e.defaultPrevented);});
 };
-const open=async(page:Page,width=1440)=>{
- await page.setViewportSize({width,height:900});await page.addInitScript(mock,{project:FIXTURE});await page.goto('/');
+// Which rows React re-rendered: the commit hook walks each commit like React DevTools does, and counts a row's function running (PerformedWork) by segment id.
+const countRenders=():void=>{
+ const w=window as any;w.__renders={};
+ const walk=(next:any,prev:any):void=>{
+  if((next.tag===15||next.tag===0)&&/^SegmentRow\d*$/.test(next.type?.name)&&(next.flags&1)){const id=next.memoizedProps.segment.id;w.__renders[id]=(w.__renders[id]??0)+1;}
+  if(next.child!==prev.child)for(let c=next.child;c;c=c.sibling)if(c.alternate)walk(c,c.alternate);
+ };
+ w.__REACT_DEVTOOLS_GLOBAL_HOOK__={supportsFiber:true,renderers:new Map(),inject(r:any){const id=this.renderers.size+1;this.renderers.set(id,r);return id;},onCommitFiberRoot(_:number,root:any){if(root.current.alternate)walk(root.current,root.current.alternate);},onCommitFiberUnmount(){},onPostCommitFiberRoot(){},checkDCE(){}};
+};
+const open=async(page:Page,width=1440,live=false)=>{
+ await page.setViewportSize({width,height:900});if(live)await page.addInitScript(countRenders);await page.addInitScript(mock,{project:FIXTURE,live});await page.goto('/');
  await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
  await expect(page.getByRole('textbox',{name:'Nội dung đoạn 12'})).toBeVisible();
 };
@@ -38,6 +47,7 @@ test('the inspector is headed "Đoạn NN · speaker", with "(Chưa đặt tên)
  await open(page);const h=page.locator('.inspector .segment-detail h3');
  await expect(h).toHaveText('Đoạn 01 · Người dẫn');await pick(page,6);await expect(h).toHaveText('Đoạn 06 · Bà Tư');
  await page.getByRole('textbox',{name:'Nhân vật đoạn 6'}).fill('');await expect(h).toHaveText('Đoạn 06 · (Chưa đặt tên)');
+ await page.getByRole('textbox',{name:'Nhân vật đoạn 6'}).fill('   ');await expect(h).toHaveText('Đoạn 06 · (Chưa đặt tên)'); // blanks only
  await page.getByRole('textbox',{name:'Nhân vật đoạn 6'}).fill('Cô Ba');await expect(h).toHaveText('Đoạn 06 · Cô Ba');
 });
 
@@ -109,7 +119,7 @@ test('the panel is the next region after the selected segment text, within one s
 for(const width of [800,640])test(`the panel fits inside its row at ${width} px with no sideways scroll`,async({page})=>{
  await open(page,width);
  for(const n of [3,6]){
-  await pick(page,n);
+  await pick(page,n);await expect(seg(page,n).locator('.segment-detail'),`segment ${n} holds its panel`).toHaveCount(1);
   const m=await page.evaluate(i=>{const s=document.querySelectorAll('.segment')[i-1],r=s.getBoundingClientRect(),d=document.documentElement;
    const out=[...s.querySelectorAll('.segment-detail *')].filter(e=>{const b=e.getBoundingClientRect();return b.width>0&&(b.right>r.right+.5||b.left<r.left-.5);}).map(e=>e.tagName+'.'+e.className);
    return {over:d.scrollWidth-d.clientWidth,out};},n);
@@ -175,4 +185,67 @@ test('Alt+Down in the text moves the segment at 800 px and the panel goes with i
  await open(page,800);await pick(page,6);await area(page,6).focus();await page.keyboard.press('Alt+ArrowDown');await settle(page);
  expect((await texts(page))[6]).toBe(ORIGINAL[5]);
  await expect(panel(page)).toHaveCount(1);await expect(seg(page,7).locator('.segment-detail h3')).toHaveText('Đoạn 07 · Bà Tư');
+});
+
+// The keyboard path to the panel: the toolbar's "Chi tiết đoạn N" (Tab reaches the toolbar in two stops, while the aside is a screen of Tabs away) and Escape back.
+const detailButton=(page:Page,n:number)=>seg(page,n).getByRole('button',{name:`Chi tiết đoạn ${n}`,exact:true});
+for(const width of [1440,800])for(const how of ['Enter','click'])test(`"Chi tiết đoạn 5" in the toolbar, by ${how}, moves focus to "Giọng đoạn 5" at ${width} px`,async({page})=>{
+ await open(page,width);
+ if(how==='click')await detailButton(page,5).click(); // segment 1 is the selected one: the click selects segment 5 first
+ else{await page.getByRole('textbox',{name:'Nhân vật đoạn 5'}).focus();await page.keyboard.press('Tab');await page.keyboard.press('End');await expect(detailButton(page,5)).toBeFocused();await page.keyboard.press('Enter');}
+ await expect(page.getByRole('combobox',{name:'Giọng đoạn 5',exact:true})).toBeFocused();
+ await expect(seg(page,5)).toHaveClass(/selected/);await expect(page.locator('.segment-detail h3')).toHaveText('Đoạn 05 · Người dẫn');
+ await expect(seg(page,5).locator('.segment-detail')).toHaveCount(width===800?1:0);
+});
+
+for(const width of [1440,800])test(`Escape in the panel returns focus to the segment's text, which stays selected, at ${width} px`,async({page})=>{
+ await open(page,width);await detailButton(page,5).click();await expect(page.getByRole('combobox',{name:'Giọng đoạn 5'})).toBeFocused();
+ await page.keyboard.press('Escape');await expect(area(page,5)).toBeFocused();await expect(seg(page,5)).toHaveClass(/selected/);await expect(page.locator('.segment-detail h3')).toHaveText('Đoạn 05 · Người dẫn');
+ await expect(seg(page,1)).not.toHaveClass(/selected/);
+ await page.getByRole('textbox',{name:'Chương',exact:true}).focus();await page.keyboard.press('Escape');await expect(area(page,5)).toBeFocused(); // any control of the panel
+});
+
+test('Escape in a number field first drops the draft and keeps focus, the next one leaves the panel',async({page})=>{
+ await open(page);await pick(page,3);const gap=page.getByLabel('Nghỉ sau (ms)',{exact:true});
+ await gap.click();await gap.fill('999');await page.keyboard.press('Escape');
+ await expect(gap).toHaveValue('300');await expect(gap).toBeFocused();
+ await page.keyboard.press('Escape');await expect(area(page,3)).toBeFocused();await expect(gap).toHaveValue('300'); // nothing was committed on the way
+});
+
+test('Escape does nothing while an input method is composing',async({page})=>{
+ await open(page);await detailButton(page,5).click();const voice=page.getByRole('combobox',{name:'Giọng đoạn 5'});await expect(voice).toBeFocused();
+ await page.evaluate(()=>{const t=document.activeElement!;t.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',isComposing:true,bubbles:true,cancelable:true}));t.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',keyCode:229,bubbles:true,cancelable:true}));});
+ await settle(page);await expect(voice).toBeFocused();
+});
+
+test('crossing 920 px with focus in the panel keeps focus on the same control, after committing its draft',async({page})=>{
+ await open(page,1000);await detailButton(page,5).click();const voice=()=>page.getByRole('combobox',{name:'Giọng đoạn 5'});await expect(voice()).toBeFocused();
+ await page.setViewportSize({width:800,height:900});await expect(seg(page,5).locator('.segment-detail')).toHaveCount(1);await expect(voice()).toBeFocused();
+ await page.setViewportSize({width:1000,height:900});await expect(page.locator('.inspector .segment-detail')).toHaveCount(1);await expect(voice()).toBeFocused();
+ const gap=page.getByLabel('Nghỉ sau (ms)',{exact:true});await gap.click();await gap.fill('1234');
+ await page.setViewportSize({width:800,height:900});await expect(seg(page,5).locator('.segment-detail')).toHaveCount(1);
+ await expect(gap).toBeFocused();await expect(gap).toHaveValue('1234'); // committed by the blur, then focused again where the panel is now
+});
+
+for(const width of [800,1440])test(`a poll that changes nothing for a row re-renders no row but the job's, the selected one included, at ${width} px`,async({page})=>{
+ await open(page,width,true);await pick(page,5);await settle(page);
+ await page.evaluate(()=>{(window as any).__renders={};});await page.waitForTimeout(6500); // two or three polls, each moving the job of segment 1
+ const r:Record<string,number>=await page.evaluate(()=>(window as any).__renders);
+ expect(r.s1,'the job row re-renders as its progress moves (this is how the count is known to work)').toBeGreaterThan(0);
+ expect(Object.keys(r).filter(k=>k!=='s1'),`rows re-rendered: ${JSON.stringify(r)}`).toEqual([]);
+});
+
+test('the aside is named for what it holds: the segment panel beside the script, the dictionary and cast under 920 px',async({page})=>{
+ await open(page);await expect(page.getByRole('complementary',{name:'Chi tiết đoạn',exact:true})).toHaveCount(1);
+ await page.setViewportSize({width:800,height:900});
+ await expect(page.getByRole('complementary',{name:'Từ điển và phân vai'})).toHaveCount(1);await expect(page.getByRole('complementary',{name:'Chi tiết đoạn',exact:true})).toHaveCount(0);
+});
+
+test('the normalized text in the panel follows the app dictionary while it is open',async({page})=>{
+ await open(page);await pick(page,3);const word=ORIGINAL[2].split(' ')[0].replace(/[^\p{L}]/gu,'');
+ await page.getByText('Văn bản sau chuẩn hóa',{exact:true}).click();await expect(page.locator('.normalization p')).not.toContainText('xyzzy');
+ await page.getByRole('button',{name:'Model & cài đặt',exact:true}).click();const d=page.locator('.app-dictionary');
+ await d.getByRole('textbox',{name:'Từ gốc'}).fill(word);await d.getByRole('textbox',{name:'Cách đọc'}).fill('xyzzy');await d.getByRole('button',{name:'Thêm cách đọc'}).click();await expect(d.getByText(`${word} → xyzzy`)).toBeVisible();
+ await page.getByRole('button',{name:'Tạo giọng đọc',exact:true}).click();
+ await expect(page.locator('.normalization p')).toContainText('xyzzy');
 });
