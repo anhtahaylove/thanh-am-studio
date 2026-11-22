@@ -154,7 +154,7 @@ test('a checklist notice that comes late, with no job change, does not swallow t
 // The row list is memoized, so these pin what it must be rebuilt for.
 test('the generate button of every row is disabled while the app is busy, and enabled again after',async({page})=>{
  await open(page,[]);await page.evaluate(()=>{(window as any).__hold=true;});
- const buttons=page.locator('.segment .segment-footer .quiet.accent');await expect(buttons.nth(1)).toBeEnabled();
+ const buttons=page.locator('.segment .segment-toolbar .quiet.accent');await expect(buttons.nth(1)).toBeEnabled();
  await buttons.nth(0).click();await expect(buttons.nth(1)).toBeDisabled();await expect(buttons.nth(6)).toBeDisabled();
  await page.evaluate(()=>(window as any).__release());await expect(buttons.nth(1)).toBeEnabled();await expect(buttons.nth(6)).toBeEnabled();
 });

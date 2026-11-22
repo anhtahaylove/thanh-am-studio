@@ -1,0 +1,394 @@
+{
+ "id": "p1",
+ "name": "Chuyện bến Ba Lá",
+ "updated_at": "2026-11-20T00:00:00Z",
+ "revision": 1,
+ "transcript": [],
+ "dictionary": {},
+ "source_asset_id": null,
+ "segments": [
+  {
+   "id": "s1",
+   "text": "Chiều cuối tuần, cả xóm rủ nhau ra đình làng nghe kể chuyện cũ. Tiếng trống vang lên, ai nấy đều ngồi xuống chiếu cho gọn.",
+   "normalized_text": "Chiều cuối tuần, cả xóm rủ nhau ra đình làng nghe kể chuyện cũ. Tiếng trống vang lên, ai nấy đều ngồi xuống chiếu cho gọn.",
+   "voice_id": null,
+   "speaker": "Người dẫn",
+   "gap_ms": 300,
+   "takes": [],
+   "selected_take_id": null,
+   "trim_start_ms": 0,
+   "trim_end_ms": null,
+   "fade_in_ms": 0,
+   "fade_out_ms": 0,
+   "gain_db": 0
+  },
+  {
+   "id": "s2",
+   "text": "Ngày xưa, con sông này chưa có cầu. Muốn qua bên kia phải đợi chuyến đò sáng, mà đò thì chỉ chạy khi nước lên đủ cao.",
+   "normalized_text": "Ngày xưa, con sông này chưa có cầu. Muốn qua bên kia phải đợi chuyến đò sáng, mà đò thì chỉ chạy khi nước lên đủ cao.",
+   "voice_id": null,
+   "speaker": "Bà Tư",
+   "gap_ms": 300,
+   "takes": [
+    {
+     "id": "s2-t1",
+     "asset_id": "a-s2-1",
+     "path": "s2-1.wav",
+     "duration_ms": 7200,
+     "sample_rate": 24000,
+     "created_at": "2026-11-20T00:00:00Z",
+     "check": {
+      "model": "whisper-small",
+      "wer": 0.02,
+      "heard": "x",
+      "mismatches": [],
+      "words": [
+       {
+        "text": "từ0",
+        "start_ms": 0
+       },
+       {
+        "text": "từ1",
+        "start_ms": 200
+       },
+       {
+        "text": "từ2",
+        "start_ms": 400
+       },
+       {
+        "text": "từ3",
+        "start_ms": 600
+       },
+       {
+        "text": "từ4",
+        "start_ms": 800
+       },
+       {
+        "text": "từ5",
+        "start_ms": 1000
+       },
+       {
+        "text": "từ6",
+        "start_ms": 1200
+       },
+       {
+        "text": "từ7",
+        "start_ms": 1400
+       },
+       {
+        "text": "từ8",
+        "start_ms": 1600
+       },
+       {
+        "text": "từ9",
+        "start_ms": 1800
+       },
+       {
+        "text": "từ10",
+        "start_ms": 2000
+       },
+       {
+        "text": "từ11",
+        "start_ms": 2200
+       },
+       {
+        "text": "từ12",
+        "start_ms": 2400
+       },
+       {
+        "text": "từ13",
+        "start_ms": 2600
+       },
+       {
+        "text": "từ14",
+        "start_ms": 2800
+       },
+       {
+        "text": "từ15",
+        "start_ms": 3000
+       },
+       {
+        "text": "từ16",
+        "start_ms": 3200
+       },
+       {
+        "text": "từ17",
+        "start_ms": 3400
+       },
+       {
+        "text": "từ18",
+        "start_ms": 3600
+       },
+       {
+        "text": "từ19",
+        "start_ms": 3800
+       }
+      ]
+     }
+    }
+   ],
+   "selected_take_id": "s2-t1",
+   "trim_start_ms": 0,
+   "trim_end_ms": null,
+   "fade_in_ms": 0,
+   "fade_out_ms": 0,
+   "gain_db": 0
+  },
+  {
+   "id": "s3",
+   "text": "Nghe nói hồi đó có một ông lái đò tên Sáu, chèo suốt ba mươi năm mà chưa từng để ai ướt áo giữa dòng.",
+   "normalized_text": "Nghe nói hồi đó có một ông lái đò tên Sáu, chèo suốt ba mươi năm mà chưa từng để ai ướt áo giữa dòng.",
+   "voice_id": null,
+   "speaker": "Cậu Hai",
+   "gap_ms": 300,
+   "takes": [],
+   "selected_take_id": null,
+   "trim_start_ms": 0,
+   "trim_end_ms": null,
+   "fade_in_ms": 0,
+   "fade_out_ms": 0,
+   "gain_db": 0
+  },
+  {
+   "id": "s4",
+   "text": "Cô giáo hỏi cả lớp: các em có biết vì sao người ta gọi chỗ này là bến Ba Lá không? Cả lớp ngồi im, chờ cô nói tiếp.",
+   "normalized_text": "Cô giáo hỏi cả lớp: các em có biết vì sao người ta gọi chỗ này là bến Ba Lá không? Cả lớp ngồi im, chờ cô nói tiếp.",
+   "voice_id": null,
+   "speaker": "Cô giáo",
+   "gap_ms": 300,
+   "takes": [],
+   "selected_take_id": null,
+   "trim_start_ms": 0,
+   "trim_end_ms": null,
+   "fade_in_ms": 0,
+   "fade_out_ms": 0,
+   "gain_db": 0
+  },
+  {
+   "id": "s5",
+   "text": "Dạ, con nghe bà nội bảo là vì ba tán lá bàng lớn che cả khúc sông, mùa nắng ngồi dưới đó mát rượi như có điều hòa.",
+   "normalized_text": "Dạ, con nghe bà nội bảo là vì ba tán lá bàng lớn che cả khúc sông, mùa nắng ngồi dưới đó mát rượi như có điều hòa.",
+   "voice_id": null,
+   "speaker": "Người dẫn",
+   "gap_ms": 300,
+   "takes": [],
+   "selected_take_id": null,
+   "trim_start_ms": 0,
+   "trim_end_ms": null,
+   "fade_in_ms": 0,
+   "fade_out_ms": 0,
+   "gain_db": 0
+  },
+  {
+   "id": "s6",
+   "text": "Bà Tư cười hiền, kể rằng bà từng ngồi dưới gốc bàng đó đợi đò suốt một buổi chiều mưa, mà chẳng hề thấy sốt ruột.",
+   "normalized_text": "Bà Tư cười hiền, kể rằng bà từng ngồi dưới gốc bàng đó đợi đò suốt một buổi chiều mưa, mà chẳng hề thấy sốt ruột.",
+   "voice_id": null,
+   "speaker": "Bà Tư",
+   "gap_ms": 300,
+   "takes": [
+    {
+     "id": "s6-t1",
+     "asset_id": "a-s6-1",
+     "path": "s6-1.wav",
+     "duration_ms": 7200,
+     "sample_rate": 24000,
+     "created_at": "2026-11-20T00:00:00Z"
+    }
+   ],
+   "selected_take_id": "s6-t1",
+   "trim_start_ms": 0,
+   "trim_end_ms": null,
+   "fade_in_ms": 0,
+   "fade_out_ms": 0,
+   "gain_db": 0
+  },
+  {
+   "id": "s7",
+   "text": "Người dẫn chuyện nhẹ giọng: đò đến, mọi người lần lượt bước xuống, chuyện cũ cũng theo nhịp chèo mà trôi về phía bên kia sông.",
+   "normalized_text": "Người dẫn chuyện nhẹ giọng: đò đến, mọi người lần lượt bước xuống, chuyện cũ cũng theo nhịp chèo mà trôi về phía bên kia sông.",
+   "voice_id": null,
+   "speaker": "Cậu Hai",
+   "gap_ms": 300,
+   "takes": [],
+   "selected_take_id": null,
+   "trim_start_ms": 0,
+   "trim_end_ms": null,
+   "fade_in_ms": 0,
+   "fade_out_ms": 0,
+   "gain_db": 0
+  },
+  {
+   "id": "s8",
+   "text": "Cậu Hai gãi đầu, bảo mình nhớ mang máng có lần cả xóm góp gạo, góp tiền xây cái cầu khỉ đầu tiên bắc ngang đoạn nước cạn.",
+   "normalized_text": "Cậu Hai gãi đầu, bảo mình nhớ mang máng có lần cả xóm góp gạo, góp tiền xây cái cầu khỉ đầu tiên bắc ngang đoạn nước cạn.",
+   "voice_id": null,
+   "speaker": "Cô giáo",
+   "gap_ms": 300,
+   "takes": [],
+   "selected_take_id": null,
+   "trim_start_ms": 0,
+   "trim_end_ms": null,
+   "fade_in_ms": 0,
+   "fade_out_ms": 0,
+   "gain_db": 0
+  },
+  {
+   "id": "s9",
+   "text": "Cô giáo mỉm cười gật đầu, rồi dặn các em về nhà hỏi ông bà xem còn nhớ chuyến đò nào đáng nhớ nhất, mai kể lại cho cả lớp.",
+   "normalized_text": "Cô giáo mỉm cười gật đầu, rồi dặn các em về nhà hỏi ông bà xem còn nhớ chuyến đò nào đáng nhớ nhất, mai kể lại cho cả lớp.",
+   "voice_id": null,
+   "speaker": "Người dẫn",
+   "gap_ms": 300,
+   "takes": [
+    {
+     "id": "s9-t1",
+     "asset_id": "a-s9-1",
+     "path": "s9-1.wav",
+     "duration_ms": 7200,
+     "sample_rate": 24000,
+     "created_at": "2026-11-20T00:00:00Z",
+     "check": {
+      "model": "whisper-small",
+      "wer": 0.02,
+      "heard": "x",
+      "mismatches": [],
+      "words": [
+       {
+        "text": "từ0",
+        "start_ms": 0
+       },
+       {
+        "text": "từ1",
+        "start_ms": 200
+       },
+       {
+        "text": "từ2",
+        "start_ms": 400
+       },
+       {
+        "text": "từ3",
+        "start_ms": 600
+       },
+       {
+        "text": "từ4",
+        "start_ms": 800
+       },
+       {
+        "text": "từ5",
+        "start_ms": 1000
+       },
+       {
+        "text": "từ6",
+        "start_ms": 1200
+       },
+       {
+        "text": "từ7",
+        "start_ms": 1400
+       },
+       {
+        "text": "từ8",
+        "start_ms": 1600
+       },
+       {
+        "text": "từ9",
+        "start_ms": 1800
+       },
+       {
+        "text": "từ10",
+        "start_ms": 2000
+       },
+       {
+        "text": "từ11",
+        "start_ms": 2200
+       },
+       {
+        "text": "từ12",
+        "start_ms": 2400
+       },
+       {
+        "text": "từ13",
+        "start_ms": 2600
+       },
+       {
+        "text": "từ14",
+        "start_ms": 2800
+       },
+       {
+        "text": "từ15",
+        "start_ms": 3000
+       },
+       {
+        "text": "từ16",
+        "start_ms": 3200
+       },
+       {
+        "text": "từ17",
+        "start_ms": 3400
+       },
+       {
+        "text": "từ18",
+        "start_ms": 3600
+       },
+       {
+        "text": "từ19",
+        "start_ms": 3800
+       }
+      ]
+     }
+    }
+   ],
+   "selected_take_id": "s9-t1",
+   "trim_start_ms": 0,
+   "trim_end_ms": null,
+   "fade_in_ms": 0,
+   "fade_out_ms": 0,
+   "gain_db": 0
+  },
+  {
+   "id": "s10",
+   "text": "Trời sẩm tối, gió từ mặt sông thổi vào mang theo mùi phù sa và tiếng ếch nhái, ai cũng thấy lòng nhẹ đi một chút.",
+   "normalized_text": "Trời sẩm tối, gió từ mặt sông thổi vào mang theo mùi phù sa và tiếng ếch nhái, ai cũng thấy lòng nhẹ đi một chút.",
+   "voice_id": null,
+   "speaker": "Bà Tư",
+   "gap_ms": 300,
+   "takes": [],
+   "selected_take_id": null,
+   "trim_start_ms": 0,
+   "trim_end_ms": null,
+   "fade_in_ms": 0,
+   "fade_out_ms": 0,
+   "gain_db": 0
+  },
+  {
+   "id": "s11",
+   "text": "Bà Tư đứng dậy phủi áo, nói: thôi về kẻo muộn, mai còn phải dậy sớm ra chợ, chuyện đò chuyện sông kể mãi không hết được đâu.",
+   "normalized_text": "Bà Tư đứng dậy phủi áo, nói: thôi về kẻo muộn, mai còn phải dậy sớm ra chợ, chuyện đò chuyện sông kể mãi không hết được đâu.",
+   "voice_id": null,
+   "speaker": "Cậu Hai",
+   "gap_ms": 300,
+   "takes": [],
+   "selected_take_id": null,
+   "trim_start_ms": 0,
+   "trim_end_ms": null,
+   "fade_in_ms": 0,
+   "fade_out_ms": 0,
+   "gain_db": 0
+  },
+  {
+   "id": "s12",
+   "text": "Người dẫn chuyện khép lại: và thế là buổi kể chuyện chiều hôm ấy kết thúc, mỗi người mang về một mẩu ký ức nhỏ của dòng sông.",
+   "normalized_text": "Người dẫn chuyện khép lại: và thế là buổi kể chuyện chiều hôm ấy kết thúc, mỗi người mang về một mẩu ký ức nhỏ của dòng sông.",
+   "voice_id": null,
+   "speaker": "Cô giáo",
+   "gap_ms": 300,
+   "takes": [],
+   "selected_take_id": null,
+   "trim_start_ms": 0,
+   "trim_end_ms": null,
+   "fade_in_ms": 0,
+   "fade_out_ms": 0,
+   "gain_db": 0
+  }
+ ]
+}
