@@ -18,6 +18,8 @@ const mock=(o:{project:string;installed:boolean}):void=>{
  // The keydown as it reaches the window, in the bubble phase: after the page's own handlers have run.
  window.addEventListener('keydown',e=>{if(e.altKey&&e.key==='ArrowDown')w.__kd.push(e.defaultPrevented);});
  // Every action the app runs shows the busy indicator for a moment, so counting it tells whether a button's handler ran.
+ // What the live region receives: a node added to it is what a screen reader reads.
+ w.__said=[];new MutationObserver(l=>{for(const m of l)for(const n of m.addedNodes)if(n instanceof HTMLElement&&n.parentElement?.matches('.sr-only[aria-live=polite]'))w.__said.push(n.textContent);}).observe(document,{childList:true,subtree:true});
  w.__busy=0;new MutationObserver(l=>{for(const m of l)for(const n of m.addedNodes)if(n instanceof HTMLElement&&n.classList.contains('busy-indicator'))w.__busy++;}).observe(document,{childList:true,subtree:true});
 };
 const open=async(page:Page,o:{width?:number;installed?:boolean;empty?:boolean}={})=>{
@@ -30,6 +32,7 @@ const seg=(page:Page,n:number)=>page.locator('.segment').nth(n-1);
 const toolbar=(page:Page,n:number)=>seg(page,n).getByRole('toolbar');
 const area=(page:Page,n:number)=>page.getByRole('textbox',{name:`Nội dung đoạn ${n}`,exact:true});
 const texts=(page:Page)=>page.locator('.segment textarea').evaluateAll(l=>l.map(t=>(t as HTMLTextAreaElement).value));
+const region=(page:Page)=>page.locator('.sr-only[aria-live=polite]');
 const calls=(page:Page,name:string)=>page.evaluate(n=>((window as any).__calls as string[]).filter(c=>c===n).length,name);
 const active=(page:Page)=>page.evaluate(()=>{const e=document.activeElement;return e?(e.getAttribute('aria-label')??e.tagName):'';});
 const undo=(page:Page)=>page.getByRole('button',{name:'Hoàn tác (Ctrl+Z)'});
@@ -98,7 +101,7 @@ test('a blocked button runs no handler at all, while an enabled one does',async(
 
 test('with the voice model missing, Ctrl+Enter and the blocked generate button enqueue nothing',async({page})=>{
  await open(page,{installed:false});
- const gen=seg(page,3).getByRole('button',{name:'Tạo giọng',exact:true});await expect(gen).toHaveAttribute('aria-disabled','true');await expect(gen).toHaveAccessibleDescription(/Tải VieNeu v3 Turbo/);
+ const gen=seg(page,3).getByRole('button',{name:'Tạo giọng',exact:true});await expect(gen).toHaveAttribute('aria-disabled','true');await expect(gen).toHaveAccessibleDescription(/^((?!VieNeu).)*VieNeu((?!VieNeu).)*$/s) // the model sentence once, not twice (the hidden reason is not read as well);
  await area(page,3).focus();await page.keyboard.press('Control+Enter');await gen.click({force:true});await gen.focus();await page.keyboard.press('Enter');await page.keyboard.press('Control+Enter');await settle(page);
  expect(await calls(page,'enqueue_job')).toBe(0);
 });
@@ -111,15 +114,25 @@ test('Ctrl+Enter generates this segment once, and Ctrl+Shift+Enter splits it at 
  const t=await texts(page);expect(t[3]).toBe(ORIGINAL[3].slice(0,12).trim());expect(t[4]).toBe(ORIGINAL[3].slice(12).trim());expect(await calls(page,'enqueue_job')).toBe(1);
 });
 
-test('Alt+Down in the textarea moves the segment, focus stays in it, and the new position is announced; from the toolbar too',async({page})=>{
+test('Alt+Down in the textarea moves the segment and focus stays in it; from the toolbar too',async({page})=>{
  await open(page);
- await area(page,2).focus();await page.keyboard.press('Alt+ArrowDown');
- await expect(page.getByRole('status').filter({hasText:'Đoạn chuyển xuống vị trí 3'})).toBeVisible();await settle(page);
+ await area(page,2).focus();await page.keyboard.press('Alt+ArrowDown');await settle(page);
  expect((await texts(page)).slice(0,3)).toEqual([ORIGINAL[0],ORIGINAL[2],ORIGINAL[1]]);expect(await active(page)).toBe('Nội dung đoạn 3');
- await seg(page,3).getByRole('button',{name:'Chèn khoảng nghỉ 0,5 giây tại con trỏ'}).focus();await page.keyboard.press('Alt+ArrowUp');
- await expect(page.getByRole('status').filter({hasText:'Đoạn chuyển lên vị trí 2'})).toBeVisible();await settle(page);
+ await seg(page,3).getByRole('button',{name:'Chèn khoảng nghỉ 0,5 giây tại con trỏ'}).focus();await page.keyboard.press('Alt+ArrowUp');await settle(page);
  expect((await texts(page)).slice(0,3)).toEqual(ORIGINAL.slice(0,3));expect(await active(page)).toBe('Chèn khoảng nghỉ 0,5 giây tại con trỏ');
  expect(await toolbar(page,2).evaluate(t=>t.contains(document.activeElement))).toBe(true);
+});
+
+test('a move is said through the live region that is already in the page, again for the same words, and shows no banner',async({page})=>{
+ await open(page);const said=()=>page.evaluate(()=>(window as any).__said as string[]);
+ await expect(region(page)).toHaveCount(1);await expect(region(page)).toBeEmpty();await expect(region(page)).toHaveAttribute('aria-live','polite');expect(await said()).toEqual([]);
+ await area(page,2).focus();await page.keyboard.press('Alt+ArrowDown');await expect(region(page)).toHaveText('Đoạn chuyển xuống vị trí 3');
+ await page.keyboard.press('Alt+ArrowUp');await expect(region(page)).toHaveText('Đoạn chuyển lên vị trí 2');
+ await page.keyboard.press('Alt+ArrowDown'); // the same words as the first move, inside the 6 s the first one stays
+ await expect.poll(said).toEqual(['Đoạn chuyển xuống vị trí 3','Đoạn chuyển lên vị trí 2','Đoạn chuyển xuống vị trí 3']);
+ await seg(page,3).getByRole('button',{name:'Đưa đoạn xuống'}).click(); // a click on the button says it too
+ await expect.poll(said).toHaveLength(4);
+ await expect(page.locator('.alert.notice')).toHaveCount(0);
 });
 
 test('Alt+Down on the voice select, the speed select or the speaker input neither moves the segment nor is prevented',async({page})=>{
@@ -146,6 +159,17 @@ test('the toolbar shows on hover, focus and for the selected segment, and hides 
  await page.getByRole('textbox',{name:'Nhân vật đoạn 6'}).focus();await page.keyboard.press('Tab');await expect.poll(()=>opacity(6)).toBe('1');
  await page.getByRole('textbox',{name:'Nhân vật đoạn 9'}).focus();await expect.poll(()=>opacity(6)).toBe('0');
  await seg(page,8).hover({position:{x:200,y:60}});await expect.poll(()=>opacity(8)).toBe('1');
+});
+
+test('the toolbar shows while focus is inside it, even where the focus ring is not shown',async({page})=>{
+ await open(page);await page.mouse.move(2,2);
+ await area(page,9).click(); // selects another segment, so segment 6 is neither selected nor hovered
+ const opacity=()=>toolbar(page,6).evaluate(t=>getComputedStyle(t).opacity);
+ await expect.poll(opacity).toBe('0');
+ await toolbar(page,6).getByRole('button').nth(1).evaluate(b=>(b as HTMLElement).focus()); // from script: no :focus-visible, so the row is not selected
+ await page.mouse.move(2,2); // focusing scrolled the page under the pointer, which must not count as a hover
+ await expect.poll(opacity).toBe('1');
+ expect(await seg(page,6).evaluate(e=>e.classList.contains('selected'))).toBe(false);
 });
 
 test.describe('on a touch screen',()=>{
@@ -191,6 +215,7 @@ test('the skip link is the first stop of the page, shows on focus, and moves foc
  await open(page);
  const link=page.getByRole('link',{name:'Bỏ qua đến Xuất audio'});
  expect(await link.evaluate(l=>l.getBoundingClientRect().bottom)).toBeLessThan(0); // off screen until focused
+ await expect(link).toHaveAttribute('href','#audio-dock');await expect(page.locator('section.audio-dock')).toHaveAttribute('id','audio-dock');
  await skipTo(page);expect(await link.evaluate(l=>l.getBoundingClientRect().top)).toBeGreaterThanOrEqual(0);
  await page.keyboard.press('Enter');
  expect(await page.evaluate(()=>{const e=document.activeElement!;return e.matches('section.audio-dock[aria-label="Xuất audio"]');})).toBe(true);
