@@ -7,14 +7,14 @@ const FIXTURE:string=readFileSync('e2e/fixtures/script-12.json','utf8');
 const TRANSCRIPT=[0,1,0,1].map((speaker,i)=>({id:`t${i}`,start_ms:i*4000,end_ms:i*4000+3500,text:`Câu thứ ${i+1} của người nói.`,speaker}));
 const mock=(o:{project:string;transcript:unknown[]})=>{
  const w=window as any;w.isTauri=true;w.__TAURI_EVENT_PLUGIN_INTERNALS__={unregisterListener:()=>{}};
- const project:any={...JSON.parse(o.project),transcript:o.transcript};
+ const project:any={...JSON.parse(o.project),transcript:o.transcript,...o.transcript.length?{source_asset_id:'src'}:{}};
  const ipc=(v:unknown)=>JSON.parse(JSON.stringify(v));
  w.__TAURI_INTERNALS__={convertFileSrc:(p:string)=>p,transformCallback:()=>1,unregisterCallback:()=>{},metadata:{currentWindow:{label:'main'},currentWebview:{label:'main',windowLabel:'main'}},
   invoke:async(cmd:string,args:any)=>{switch(cmd){
    case 'list_projects':return [{id:project.id,name:project.name,updated_at:project.updated_at,revision:project.revision}];case 'load_project':return ipc(project);
    case 'list_voices':case 'list_jobs':return [];case 'list_models':return [{id:'vieneu-v3',name:'VieNeu v3 Turbo',engine:'tts',installed:true,revision:'r',license:'Apache-2.0',description:''}];
    case 'get_settings':return {dictionary:{}};case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,python_path:null,ffmpeg_path:null,message:''};
-   case 'save_project':return {...ipc(args.project),revision:args.project.revision+1};
+   case 'save_project':return {...ipc(args.project),revision:args.project.revision+1};case 'get_asset':return {id:'src',path:'goc.wav',name:'goc.wav',duration_ms:20000,sample_rate:48000};
    default:return null;}}};
 };
 const open=async(page:Page,o:{width?:number;height?:number;transcript?:unknown[]}={})=>{
@@ -75,4 +75,21 @@ for(const width of [800,640])test(`the script does not scroll sideways at ${widt
   return {inside:l.left>=b.left&&l.right<=b.right&&t.right<=b.right+0.5,beside:l.right<=t.left&&l.top<t.bottom,above:l.bottom<=t.top,wide:t.width>=b.width*0.85};}));
  expect(rows.filter(r=>!r.inside)).toEqual([]);
  expect(rows.every(r=>width>640?r.beside:r.above&&!r.beside&&r.wide)).toBe(true);
+});
+// L8: the playing row is a ring in the text colour, so it neither merges with the speaker rule beside it nor looks like a speaker colour.
+for(const theme of ['light','dark'])test(`the playing transcript row is marked by a ring, not a second bar beside the speaker rule, in ${theme} mode`,async({page})=>{
+ await page.emulateMedia({colorScheme:theme as 'light'|'dark',reducedMotion:'reduce'});await open(page,{transcript:TRANSCRIPT});
+ await page.getByRole('button',{name:'Chép lời',exact:true}).click();
+ const audio=page.locator('.source-player audio');await expect(audio).toBeAttached();
+ // No real playback: the player reports playing at 1 s (row t0, "Người 1", the green slot closest to the old green bar).
+ await audio.evaluate((a:HTMLAudioElement)=>{Object.defineProperty(a,'paused',{get:()=>false,configurable:true});Object.defineProperty(a,'currentTime',{get:()=>1,configurable:true});a.dispatchEvent(new Event('timeupdate'));});
+ const row=page.locator('.transcript-row[data-row="t0"]');await expect(row).toHaveAttribute('aria-current','true');
+ const m=await row.evaluate(e=>{const s=getComputedStyle(e),probe=document.createElement('i');probe.style.color='var(--ink)';document.body.append(probe);const ink=getComputedStyle(probe).color;probe.remove();
+  let p=e.parentElement;while(p&&/^rgba\(.*,\s*0\)$|^transparent$/.test(getComputedStyle(p).backgroundColor))p=p.parentElement;
+  return {shadow:s.boxShadow,rule:s.borderLeftColor,ink,behind:/^rgba\(.*,\s*0\)$|^transparent$/.test(s.backgroundColor)?getComputedStyle(p??document.documentElement).backgroundColor:s.backgroundColor};});
+ const [,color,x,y,blur,spread]=/^(rgba?\([^)]*\)) (-?[\d.]+)px (-?[\d.]+)px ([\d.]+)px ([\d.]+)px inset$/.exec(m.shadow)??[];
+ expect([x,y,blur],`a ring all round, not an offset bar: ${m.shadow}`).toEqual(['0','0','0']);expect(Number(spread)).toBeGreaterThanOrEqual(2);
+ expect(color,'the text colour, not a speaker colour').toBe(m.ink);expect(color).not.toBe(m.rule);
+ expect(ratio(color,m.behind),'visible on the row').toBeGreaterThanOrEqual(3);
+ await expect(page.locator('.transcript-row.playing')).toHaveCount(1);
 });
