@@ -142,6 +142,15 @@ test('with the checklist brought back from the palette, a success it does not an
  await finish(page,'j1');await expect.poll(()=>announced(page),{timeout:8000}).toEqual(['Đã tạo xong đoạn 5']);
 });
 
+test('a checklist notice that comes late, with no job change, does not swallow the next segment announcement',async({page})=>{
+ await open(page,[{segment:'s3',status:'running',progress:0.4},{segment:'s5',status:'running',progress:0.4}]);
+ await page.getByRole('button',{name:'Ẩn hướng dẫn'}).click();
+ await finish(page,'j0');await expect.poll(()=>announced(page),{timeout:8000}).toEqual(['Đã tạo xong đoạn 3']);
+ await page.keyboard.press('Control+k');await page.getByRole('dialog',{name:'Bảng lệnh'}).getByRole('option',{name:'Hiện hướng dẫn bắt đầu'}).click();
+ await expect(page.getByText(/Đã xong bước 3/)).toBeVisible({timeout:8000}); // the checklist speaks now, on a render that is not a poll
+ await finish(page,'j1');await expect.poll(()=>announced(page),{timeout:8000}).toEqual(['Đã tạo xong đoạn 3','Đã tạo xong đoạn 5']);
+});
+
 // The row list is memoized, so these pin what it must be rebuilt for.
 test('the generate button of every row is disabled while the app is busy, and enabled again after',async({page})=>{
  await open(page,[]);await page.evaluate(()=>{(window as any).__hold=true;});
