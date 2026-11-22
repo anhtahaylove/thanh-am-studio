@@ -1,4 +1,4 @@
-import {useId,useState} from 'react';
+import {useCallback,useId,useRef,useState,useSyncExternalStore} from 'react';
 import type {LucideIcon} from 'lucide-react';
 import {desktop} from './bridge';
 import type {Segment} from './types';
@@ -16,4 +16,10 @@ export function rovingKeyDown(e:React.KeyboardEvent,container:HTMLElement){
  if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key)||e.altKey||e.ctrlKey||e.metaKey)return;
  const items=[...container.querySelectorAll<HTMLButtonElement>('button')].filter(b=>!b.disabled),at=items.indexOf(e.target as HTMLButtonElement);if(at<0)return;
  e.preventDefault();items[e.key==='Home'?0:e.key==='End'?items.length-1:(at+(e.key==='ArrowRight'?1:-1)+items.length)%items.length].focus();
+}
+/** Whether a CSS media query matches, kept current. `beforeChange` runs first when it flips, so a caller can settle what the flip is about to move (a focused field's draft). */
+export function useMediaQuery(query:string,beforeChange?:()=>void){
+ const before=useRef(beforeChange);before.current=beforeChange;
+ const subscribe=useCallback((notify:()=>void)=>{const m=matchMedia(query),f=()=>{before.current?.();notify();};m.addEventListener('change',f);return()=>m.removeEventListener('change',f);},[query]);
+ return useSyncExternalStore(subscribe,()=>matchMedia(query).matches);
 }

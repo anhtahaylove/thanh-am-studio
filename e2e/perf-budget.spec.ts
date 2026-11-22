@@ -27,8 +27,9 @@ const mock=({n,live}:{n:number;live:boolean})=>{
 };
 
 // `live`: 1 running job and 31 batch jobs; 32 rows show a ring. The running job's progress moves on every poll (42 %, 43 %, ...), as a real job does, so its label changes each time and the jobs map is new on every poll. Only that one row may re-render.
-const script800=async(page:import('@playwright/test').Page,live:boolean)=>{
+const script800=async(page:import('@playwright/test').Page,live:boolean,narrow=false)=>{
  test.setTimeout(180000);
+ if(narrow)await page.setViewportSize({width:800,height:900}); // at 920 px and below the selected segment's panel is inside its row
  await page.addInitScript(mock,{n:800,live});await page.goto('/');
  await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();
  // CSS selectors from here on: computing accessible names over ~70k nodes takes seconds.
@@ -47,11 +48,12 @@ const script800=async(page:import('@playwright/test').Page,live:boolean)=>{
  const keys:{id:number;ms:number}[]=await page.evaluate(()=>(window as any).__keys),slowest=new Map<number,number>();
  for(const k of keys)slowest.set(k.id,Math.max(slowest.get(k.id)??0,k.ms));
  const ms=[...slowest.values(),...Array(Math.max(0,10-slowest.size)).fill(16)].sort((a,b)=>a-b); // an unreported keystroke took under 16 ms
- console.log(`perf: ${live?'800 segments with 1 running and 31 batch jobs: ':''}idle long tasks (ms) ${idle.join(', ')||'none'}; keystrokes (ms) ${ms.map(Math.round).join(', ')}`); // the list reporter prints this, so CI shows the margin on a pass
+ console.log(`perf: ${narrow?'800 segments at 800 px wide: ':''}${live?'800 segments with 1 running and 31 batch jobs: ':''}idle long tasks (ms) ${idle.join(', ')||'none'}; keystrokes (ms) ${ms.map(Math.round).join(', ')}`); // the list reporter prints this, so CI shows the margin on a pass
  expect(ms[4],`median keystroke latency; all (ms): ${ms.join(', ')}`).toBeLessThan(KEY_MS);
 };
 test('an 800-segment script stays responsive: no long task while polls bring nothing new, and keystrokes stay fast',async({page})=>{await script800(page,false);});
 test('an 800-segment script with 1 running and 31 batch jobs stays responsive: polls that change nothing for a row re-render no row, and keystrokes stay fast',async({page})=>{await script800(page,true);});
+test('an 800-segment script at 800 px wide, with the panel of the selected segment inside its row, stays responsive: the same, and a keystroke re-renders only that row',async({page})=>{await script800(page,true,true);});
 // One long selected segment: the normalized-text highlights are worked out only while "Văn bản sau chuẩn hóa" is open, so typing
 // with it closed costs what it did before them. On the machine that set this, a keystroke in 1,500 words took ~100 ms when they were
 // computed on every render and ~30 ms without them.

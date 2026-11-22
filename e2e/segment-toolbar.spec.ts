@@ -39,13 +39,21 @@ const undo=(page:Page)=>page.getByRole('button',{name:'Hoàn tác (Ctrl+Z)'});
 const settle=(page:Page)=>page.evaluate(()=>new Promise<void>(r=>requestAnimationFrame(()=>requestAnimationFrame(()=>r()))));
 const ORIGINAL:string[]=JSON.parse(FIXTURE).segments.map((s:{text:string})=>s.text);
 
-test('a segment that is not selected has five tab stops, in the order speaker, toolbar, text, voice, speed',async({page})=>{
+test('a segment that is not selected has three tab stops, in the order speaker, toolbar, text',async({page})=>{
  await open(page);
  const stops=await page.evaluate(()=>[...document.querySelectorAll('.segment')[5].querySelectorAll<HTMLElement>('a[href],button,input,select,textarea,[tabindex]')].filter(e=>e.tabIndex>=0&&!(e as HTMLButtonElement).disabled).map(e=>e.getAttribute('aria-label')??e.tagName));
- expect(stops).toEqual(['Nhân vật đoạn 6','Chia đoạn tại con trỏ','Nội dung đoạn 6','Giọng đoạn 6','Tốc độ đọc đoạn 6']);
+ expect(stops).toEqual(['Nhân vật đoạn 6','Chia đoạn tại con trỏ','Nội dung đoạn 6']); // the voice and speed selects are in the inspector now
  await page.getByRole('textbox',{name:'Nhân vật đoạn 6'}).focus();
  // Focusing the row selects it, which adds its emotion bar after the text; the count above is for a row that is not selected.
  for(const next of ['Chia đoạn tại con trỏ','Nội dung đoạn 6']){await page.keyboard.press('Tab');expect(await active(page)).toBe(next);}
+});
+
+test('a segment with a checked take has four tab stops: speaker, the check, toolbar, text',async({page})=>{
+ await open(page);
+ for(const n of [2,9]){
+  const stops=await page.evaluate(i=>[...document.querySelectorAll('.segment')[i-1].querySelectorAll<HTMLElement>('a[href],button,input,select,textarea,[tabindex]')].filter(e=>e.tabIndex>=0&&!(e as HTMLButtonElement).disabled).map(e=>e.getAttribute('aria-label')??e.textContent),n);
+  expect(stops,`segment ${n}`).toEqual(['Nhân vật đoạn '+n,'Khớp kịch bản','Chia đoạn tại con trỏ','Nội dung đoạn '+n]);
+ }
 });
 
 test('the arrow keys, Home and End move inside the toolbar and wrap, and Tab comes back to the item that last had focus',async({page})=>{
@@ -135,9 +143,9 @@ test('a move is said through the live region that is already in the page, again 
  await expect(page.locator('.alert.notice')).toHaveCount(0);
 });
 
-test('Alt+Down on the voice select, the speed select or the speaker input neither moves the segment nor is prevented',async({page})=>{
+test('Alt+Down on the speaker input neither moves the segment nor is prevented',async({page})=>{
  await open(page);
- for(const name of ['Giọng đoạn 3','Tốc độ đọc đoạn 3','Nhân vật đoạn 3']){
+ for(const name of ['Nhân vật đoạn 3']){
   await page.evaluate(()=>{(window as any).__kd=[];});
   await page.locator(`[aria-label="${name}"]`).focus();await page.keyboard.press('Alt+ArrowDown');await settle(page);
   expect(await texts(page),name).toEqual(ORIGINAL);expect(await page.evaluate(()=>(window as any).__kd),name).toEqual([false]);
