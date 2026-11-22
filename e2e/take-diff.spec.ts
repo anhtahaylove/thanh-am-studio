@@ -40,33 +40,35 @@ test('the chip is a button that opens the dialog with Enter, and the page behind
  await open(page);await expect(chip(page)).toHaveAttribute('aria-haspopup','dialog');expect(await chip(page).evaluate(e=>e.tagName)).toBe('BUTTON');
  await expect(chip(page)).toHaveText(/^Có thể đọc sai: “ký” → “kí”/);
  await chip(page).focus();await page.keyboard.press('Enter');
- await expect(dialog(page)).toBeVisible();await expect(dialog(page).getByRole('heading')).toHaveText('Whisper nghe khác kịch bản');
+ await expect(dialog(page)).toBeVisible();await expect(dialog(page).getByRole('heading',{level:3})).toHaveText('Whisper nghe khác kịch bản');
  expect(await page.locator('main').evaluate(e=>!!e.closest('[inert]'))).toBe(true);
 });
 
 test('an ok chip opens "Khớp kịch bản" with no form, and focus starts on Đóng',async({page})=>{
  await open(page,{mismatches:[],heard:'ký tên vào đây'});await expect(chip(page)).toHaveText('Khớp kịch bản');await chip(page).click();
- await expect(dialog(page).getByRole('heading')).toHaveText('Khớp kịch bản');await expect(dialog(page).locator('form')).toHaveCount(0);await expect(dialog(page).getByRole('button',{name:'Đóng'})).toBeFocused();
+ await expect(dialog(page).getByRole('heading',{level:3})).toHaveText('Khớp kịch bản');await expect(dialog(page).locator('form')).toHaveCount(0);await expect(dialog(page).getByRole('button',{name:'Đóng'})).toBeFocused();
 });
 
-test('a segment without a checked take has no chip, so the tab stops are one per checked segment',async({page})=>{
- await open(page,{twoSegments:true});await expect(page.locator('.segment')).toHaveCount(2);await expect(page.locator('.segment .take-check')).toHaveCount(1);
+test('a segment with a checked take adds one tab stop, the chip; one without adds none',async({page})=>{
+ await open(page,{twoSegments:true});await expect(page.locator('.segment')).toHaveCount(2);
+ await page.getByRole('textbox',{name:'Nhân vật đoạn 1'}).focus();await page.keyboard.press('Tab');await expect(chip(page)).toBeFocused();
+ await page.getByRole('textbox',{name:'Nhân vật đoạn 2'}).focus();await page.keyboard.press('Tab');expect(await page.evaluate(()=>document.activeElement?.classList.contains('take-check'))).toBe(false);
 });
-test('a take without a check has no chip',async({page})=>{await open(page,{noCheck:true});await expect(page.locator('.segment .take-check')).toHaveCount(0);});
 
 test('the dialog compares the text the take was made from, or says it is gone',async({page})=>{
  await open(page,{text:'Ký tên vào đây nhé.',sent:'Ký tên vào đây.'});await chip(page).click();
- await expect(dialog(page).locator('.diff-script')).toHaveText('Ký (không nghe thấy) tên vào đây '); // the word Whisper heard as "kí" is marked, the script has no "nhé"await expect(dialog(page)).not.toContainText('không còn văn bản đã gửi');
+ await expect(dialog(page).locator('.diff-script')).toHaveText('Ký (nghe khác) tên vào đây '); // the word Whisper heard as "kí" is marked, the script has no "nhé"
+ await expect(dialog(page)).not.toContainText('không còn văn bản đã gửi');await expect(dialog(page).getByRole('heading',{name:'Kịch bản đã gửi'})).toBeVisible();
  await page.keyboard.press('Escape');await expect(dialog(page)).toHaveCount(0);
 });
 test('without the job that made the take, it falls back to the current script and says so',async({page})=>{
  await open(page,{text:'Ký tên vào đây nhé.',sent:null});await chip(page).click();
- await expect(dialog(page)).toContainText('So với kịch bản hiện tại: không còn văn bản đã gửi lúc tạo take này');await expect(dialog(page).locator('.diff-script')).toHaveText('Ký (không nghe thấy) tên vào đây nhé (không nghe thấy) ');
+ await expect(dialog(page)).toContainText('So với kịch bản hiện tại: không còn văn bản đã gửi lúc tạo take này');await expect(dialog(page).locator('.diff-script')).toHaveText('Ký (nghe khác) tên vào đây nhé ');await expect(dialog(page).getByRole('heading',{name:'Kịch bản hiện tại'})).toBeVisible();
 });
 
 test('missed words are marked by weight and an underline, and by text for a screen reader',async({page})=>{
  await open(page,{heard:'kí tên đây',mismatches:[{expected:'vào',heard:'',soft:false}]});await chip(page).click();
- const miss=dialog(page).locator('.diff-word.miss');await expect(miss).toHaveCount(2);await expect(miss.first().locator('.sr-only')).toHaveText('(không nghe thấy)');
+ const miss=dialog(page).locator('.diff-word.miss');await expect(miss).toHaveCount(1);await expect(miss.first()).toContainText('vào');await expect(miss.first().locator('.sr-only')).toHaveText('(không nghe thấy)');
  const css=await miss.first().evaluate(e=>{const c=getComputedStyle(e);return {w:c.fontWeight,d:c.textDecorationLine};});expect(Number(css.w)).toBeGreaterThanOrEqual(700);expect(css.d).toContain('underline');
 });
 
@@ -152,4 +154,37 @@ for(const width of [1440,800,640])test(`the dialog fits at ${width} px: no sidew
   const inner=[...document.querySelectorAll('[role=dialog] button,[role=dialog] input,[role=dialog] small,[role=dialog] .diff-preview')].map(b=>b.getBoundingClientRect());
   return {over:el.scrollWidth-el.clientWidth,right:Math.max(...inner.map(r=>r.right)),left:Math.min(...inner.map(r=>r.left)),dRight:d.right,dLeft:d.left,top:d.top,bottom:d.bottom,vh:innerHeight,vw:innerWidth};});
  expect(m.over).toBeLessThanOrEqual(0);expect(m.right).toBeLessThanOrEqual(m.dRight+0.5);expect(m.left).toBeGreaterThanOrEqual(m.dLeft-0.5);expect(m.dRight).toBeLessThanOrEqual(m.vw);expect(m.dLeft).toBeGreaterThanOrEqual(0);expect(m.top).toBeGreaterThanOrEqual(0);expect(m.bottom).toBeLessThanOrEqual(m.vh);
+});
+
+test('a soft mismatch is neither marked nor listed: the dialog agrees with its "Khớp kịch bản" title',async({page})=>{
+ await open(page,{text:'Trời hôm nay đẹp.',sent:'Trời hôm nay đẹp.',heard:'chời hôm nay đẹp',mismatches:[{expected:'trời',heard:'chời',soft:true}]});
+ await expect(chip(page)).toHaveText('Khớp kịch bản');await chip(page).click();await expect(dialog(page).getByRole('heading',{level:3})).toHaveText('Khớp kịch bản');await expect(dialog(page).locator('.diff-word.miss')).toHaveCount(0);
+});
+
+test('a word heard as something else reads "nghe khác", visibly and for a screen reader',async({page})=>{
+ await open(page);await chip(page).click();const miss=dialog(page).locator('.diff-word.miss');await expect(miss).toHaveCount(1);await expect(miss.locator('.sr-only')).toHaveText('(nghe khác)');
+});
+
+test('a long chip label is cut at its end with an ellipsis, not at its start',async({page})=>{
+ await open(page,{text:'Trân trọng kính chào, hàng hóa đã về, nhận đi.',sent:'Trân trọng kính chào, hàng hóa đã về, nhận đi.',heard:'chân chọng kính chào hàn hoa đã về',mismatches:[{expected:'trân trọng',heard:'chân chọng',soft:false},{expected:'hàng hóa',heard:'hàn hoa',soft:false},{expected:'nhận đi',heard:'',soft:false}]});
+ const m=await chip(page).evaluate(b=>{const r=document.createRange();r.selectNodeContents(b);const c=b.getBoundingClientRect(),t=r.getBoundingClientRect();return {over:b.scrollWidth>b.clientWidth,ellipsis:getComputedStyle(b).textOverflow,textLeft:t.left,chipLeft:c.left,display:getComputedStyle(b).display};});
+ expect(m.over).toBe(true);expect(m.ellipsis).toBe('ellipsis');expect(m.display).toBe('block');expect(m.textLeft).toBeGreaterThanOrEqual(m.chipLeft);
+});
+
+test('an existing project entry with the same key is replaced openly: the hint before, "Đã thay" after, and Undo brings the old reading back',async({page})=>{
+ await open(page,{dictionary:{'Ký':'Kê'}});await chip(page).click();await valueBox(page).fill('Kí');
+ await expect(form(page)).toContainText('Thay mục hiện có “Ký” → “Kê”');await expect(addBtn(page)).toHaveText('Thêm vào từ điển');
+ expect(await addBtn(page).getAttribute('aria-describedby')).toContain('diff-replace-0');
+ await addBtn(page).click();await expect(dialog(page).getByRole('status')).toHaveText('Đã thay “Ký” → “Kí” trong từ điển dự án.');
+ await dialog(page).getByRole('button',{name:'Hoàn tác'}).click();await expect(dialog(page).getByRole('status')).toHaveText('Đã hoàn tác mục “Ký” → “Kí”.');
+ await page.keyboard.press('Escape');expect(await projectDictionary(page)).toEqual(['Ký → Kê']);
+});
+test('a key with no entry yet gets no replace hint and the status says "Đã thêm"',async({page})=>{
+ await open(page);await chip(page).click();await valueBox(page).fill('Kí');await expect(form(page)).not.toContainText('Thay mục hiện có');await addBtn(page).click();await expect(dialog(page).getByRole('status')).toContainText('Đã thêm');
+});
+
+test('focus returns to the chip after an add, with Escape and with Đóng',async({page})=>{
+ await open(page);await chip(page).click();await valueBox(page).fill('Kí');await addBtn(page).click();await expect(dialog(page).getByRole('status')).toContainText('Đã thêm');
+ await page.keyboard.press('Escape');await expect(dialog(page)).toHaveCount(0);await expect(chip(page)).toBeFocused();
+ await chip(page).click();await dialog(page).getByRole('button',{name:'Đóng'}).click();await expect(dialog(page)).toHaveCount(0);await expect(chip(page)).toBeFocused();
 });

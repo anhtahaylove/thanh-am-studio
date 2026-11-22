@@ -302,17 +302,22 @@ const WORD_RE=/[\p{L}\p{N}]+/gu;
 /** The words the self-check compares for a sent TTS text: pause marks, cues and <en> tags are not words. Mirrors worker/main.py `words()`, except that its `\w` also matches "_". */
 const checkText=(text:string)=>spokenText(text).replace(/<\/?en>/g,' ');
 export const checkWords=(text:string)=>wordTokens(checkText(text));
-/** A take's script set against what Whisper heard. `script` keeps each sent word's own case and the heard word it was matched to (null: not heard);
- *  `extra` is what was heard with no script word; `mismatches` are the hard ones from the worker's own comparison, which is the authority (this alignment is only for display). */
-export function takeDiff(source:string,check:TakeCheck):{script:{word:string;heard:string|null}[];extra:string[];mismatches:{expected:string;heard:string}[]}{
+/** A take's script set against what Whisper heard. `script` keeps each sent word's own case; a word is marked only when the worker's own comparison
+ *  has it in a hard mismatch (`different`: something else was heard there, `missing`: nothing was) and it found no place in this alignment, so a soft
+ *  mismatch is never marked. `mismatches` are the hard ones, which are the authority; the alignment is only for display.
+ *  shortcut: a segment too long for matchWords (it gives up above 4e6 cells) is shown with no marks, when matchWords can be asked to do it in pieces. */
+export function takeDiff(source:string,check:TakeCheck):{script:{word:string;mark:'different'|'missing'|null}[];mismatches:{expected:string;heard:string}[]}{
  const pieces=checkText(source).normalize('NFC').match(WORD_RE)??[],heard=check.words?.length?check.words:wordTokens(check.heard??'').map(text=>({text,start_ms:0}));
- const tokens=heard.flatMap(w=>wordTokens(w.text)),{match}=matchWords(pieces.map(w=>w.toLowerCase()),heard),used=new Set(match);
- return {script:pieces.map((word,i)=>({word,heard:match[i]>=0?tokens[match[i]]:null})),extra:tokens.filter((_,j)=>!used.has(j)),mismatches:(check.mismatches??[]).filter(m=>!m.soft).map(m=>({expected:m.expected,heard:m.heard}))};
+ const mismatches=(check.mismatches??[]).filter(m=>!m.soft).map(m=>({expected:m.expected,heard:m.heard}));
+ const hard=new Map<string,'different'|'missing'>();for(const m of mismatches)for(const w of wordTokens(m.expected))if(!hard.has(w))hard.set(w,wordTokens(m.heard).length?'different':'missing');
+ const skipped=pieces.length*heard.flatMap(w=>wordTokens(w.text)).length>4e6,{match}=matchWords(pieces.map(w=>w.toLowerCase()),heard);
+ return {script:pieces.map((word,i)=>({word,mark:skipped||match[i]>=0?null:hard.get(word.toLowerCase())??null})),mismatches};
 }
-/** The first whole-word, case-insensitive match of `expected` (words of the sent text) in the script, in the script's own spelling; null when the script has no such word (a number, a unit or a dictionary entry turned it into something else). */
+/** The first whole-word match of `expected` (words of the sent text) in the script, in the script's own spelling: exactly as written first, since dictionary keys are case-sensitive, then ignoring case. Punctuation between its words is fine. Null when the script has no such word (a number, a unit or a dictionary entry turned it into something else). */
 export function sourceSpelling(text:string,expected:string):string|null{
  const words=wordTokens(expected);if(!words.length)return null;
- return new RegExp(`(?<![\\p{L}\\p{N}])${words.map(escapeRegExp).join('\\s+')}(?![\\p{L}\\p{N}])`,'iu').exec(text.normalize('NFC'))?.[0]??null;
+ const re=(flags:string)=>new RegExp(`(?<![\\p{L}\\p{N}])${words.map(escapeRegExp).join('[^\\p{L}\\p{N}]+')}(?![\\p{L}\\p{N}])`,flags),src=text.normalize('NFC');
+ return re('u').exec(src)?.[0]??re('iu').exec(src)?.[0]??null;
 }
 /** Why `expected` is in the sent text although the script does not spell it: a dictionary entry whose reading holds it, or the text rules (number, unit, date...) that rewrote a stretch of the script; null when neither explains it.
  *  shortcut: the stretch of script is found by walking the unchanged words in order, so a repeated word before it can shift it; it is only shown in a hint. */

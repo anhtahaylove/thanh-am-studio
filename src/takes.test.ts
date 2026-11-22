@@ -18,30 +18,44 @@ describe('checkWords',()=>{
 });
 describe('sourceSpelling',()=>{
  it('gives the script spelling in its own case',()=>{expect(sourceSpelling('Ký tên vào đây.','ký')).toBe('Ký');expect(sourceSpelling('Phát sóng VTV hôm nay','vtv')).toBe('VTV');});
+ it('prefers the spelling exactly as given, since dictionary keys are case-sensitive',()=>expect(sourceSpelling('Ký tên rồi ký tiếp.','ký')).toBe('ký'));
  it('matches whole words only',()=>expect(sourceSpelling('Kýnh thưa','ký')).toBeNull());
  it('is null when a rule or the dictionary rewrote the word',()=>{expect(sourceSpelling('Nặng 12 kg.','ki lô gam')).toBeNull();expect(sourceSpelling('Họp HTX sáng nay','hợp tác xã')).toBeNull();});
- it('finds a phrase and ignores regex characters',()=>{expect(sourceSpelling('Xin chào các bạn','chào các')).toBe('chào các');expect(sourceSpelling('a (b)','.*')).toBeNull();});
+ it('finds a phrase across punctuation and ignores regex characters',()=>{expect(sourceSpelling('Xin chào các bạn','chào các')).toBe('chào các');expect(sourceSpelling('Xin chào, các bạn','chào các')).toBe('chào, các');expect(sourceSpelling('a (b)','.*')).toBeNull();});
 });
 describe('takeDiff',()=>{
  const w=(...t:string[])=>t.map((text,i)=>({text,start_ms:i*100}));
- it('an extra heard word has no script word and an empty expected',()=>{
+ const marks=(d:ReturnType<typeof takeDiff>)=>d.script.filter(s=>s.mark).map(s=>`${s.word}:${s.mark}`);
+ it('an extra heard word marks nothing and has an empty expected',()=>{
   const d=takeDiff('Xin chào các bạn',{model:'m',heard:'xin chào các bạn bạn',words:w('xin','chào','các','bạn','bạn'),mismatches:[{expected:'',heard:'bạn',soft:false}]});
-  expect(d.script.every(s=>s.heard!==null)).toBe(true);expect(d.extra).toEqual(['bạn']);expect(d.mismatches).toEqual([{expected:'',heard:'bạn'}]);
+  expect(marks(d)).toEqual([]);expect(d.mismatches).toEqual([{expected:'',heard:'bạn'}]);
  });
- it('a missed word is a script word that was not heard',()=>{
+ it('a word nothing was heard for reads missing',()=>{
   const d=takeDiff('Xin chào các bạn',{model:'m',heard:'xin chào bạn',words:w('xin','chào','bạn'),mismatches:[{expected:'các',heard:'',soft:false}]});
-  expect(d.script.filter(s=>s.heard===null).map(s=>s.word)).toEqual(['các']);expect(d.extra).toEqual([]);
+  expect(marks(d)).toEqual(['các:missing']);
  });
- it('a number span: the sent words are not heard, and what was heard is extra',()=>{
+ it('a word something else was heard for reads different',()=>{
+  const d=takeDiff('Xin chào các bạn',{model:'m',heard:'xin chao các bạn',words:w('xin','chao','các','bạn'),mismatches:[{expected:'chào',heard:'chao',soft:false}]});
+  expect(marks(d)).toEqual(['chào:different']);
+ });
+ it('a number span: every sent word of the span is marked different',()=>{
   const d=takeDiff('mười hai ki lô gam gạo',{model:'m',heard:'12 kg gạo',words:w('12','kg','gạo'),mismatches:[{expected:'mười hai ki lô gam',heard:'12 kg',soft:false}]});
-  expect(d.script.filter(s=>s.heard===null).map(s=>s.word)).toEqual(['mười','hai','ki','lô','gam']);expect(d.extra).toEqual(['12','kg']);
+  expect(marks(d)).toEqual(['mười:different','hai:different','ki:different','lô:different','gam:different']);
+ });
+ it('a soft mismatch is never marked, and is not listed',()=>{
+  const d=takeDiff('Trời hôm nay đẹp.',{model:'m',heard:'chời hôm nay đẹp',words:w('chời','hôm','nay','đẹp'),mismatches:[{expected:'trời',heard:'chời',soft:true}]});
+  expect(marks(d)).toEqual([]);expect(d.mismatches).toEqual([]);
  });
  it('keeps the script case, drops tags and marks, and lists only hard mismatches',()=>{
   const d=takeDiff('<en>Do it</en> [nghỉ 1s] Xin chào',{model:'m',heard:'do it xin chao',words:w('do','it','xin','chao'),mismatches:[{expected:'chào',heard:'chao',soft:true},{expected:'x',heard:'y',soft:false}]});
   expect(d.script.map(s=>s.word)).toEqual(['Do','it','Xin','chào']);expect(d.mismatches).toEqual([{expected:'x',heard:'y'}]);
  });
  it('without word times it aligns against the heard text',()=>{
-  const d=takeDiff('Xin chào các bạn',{model:'m',heard:'Xin chào, các bạn.',mismatches:[]});expect(d.script.map(s=>s.heard)).toEqual(['xin','chào','các','bạn']);expect(d.extra).toEqual([]);
+  const d=takeDiff('Xin chào các bạn',{model:'m',heard:'Xin chào, bạn.',mismatches:[{expected:'các',heard:'',soft:false}]});expect(marks(d)).toEqual(['các:missing']);
+ });
+ it('a segment too long to align is shown with no marks',()=>{
+  const text=Array.from({length:2100},(_,i)=>`từ${i}`).join(' '),heard=Array.from({length:2100},(_,i)=>`khác${i}`).join(' ');
+  const d=takeDiff(text,{model:'m',heard,mismatches:[{expected:'từ5',heard:'khác5',soft:false}]});expect(d.script.length).toBe(2100);expect(marks(d)).toEqual([]);
  });
 });
 describe('readingOrigin',()=>{

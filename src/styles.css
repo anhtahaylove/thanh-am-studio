@@ -68,16 +68,17 @@ progress::-webkit-progress-value{background:var(--green)}
 [data-theme=dark] .take-pick[aria-pressed=true]{box-shadow:inset 0 0 0 1px var(--ink)}
 [data-theme=dark] .take-using{color:var(--ink)}
 @media(max-width:800px){.audio-dock.compare .dock-main{gap:8px}.take-strip{flex:1 1 100%}}
-button.take-check{border:0;font:inherit;font-size:12px;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+button.take-check{display:block;border:0;font:inherit;font-size:12px;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
 button.take-check:hover{box-shadow:inset 0 0 0 1px currentColor}
 .diff-dialog{max-height:calc(100vh - 50px);overflow-y:auto}
-.diff-script{font-size:14px;line-height:1.8;color:var(--ink);margin:0 0 8px}
+.modal .diff-label{margin:0 0 4px;font-size:12px;font-weight:600;color:var(--muted)}
+.modal .diff-script{font-size:14px;line-height:1.8;color:var(--ink);margin:0 0 8px}
 .diff-word.miss{font-weight:700;text-decoration:underline wavy var(--danger);text-underline-offset:4px}
 .diff-heard{margin:0 0 12px}
 .diff-list{list-style:none;padding:0;margin:12px 0;display:grid;gap:16px;font-size:13px}
 .diff-form{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px 10px;margin-top:8px}
 .diff-form label{display:grid;gap:4px;font-size:12px;color:var(--muted)}
-.diff-form small,.diff-preview{grid-column:1/-1;margin:0;font-size:12px;color:var(--muted)}
+.diff-form small,.modal .diff-preview{grid-column:1/-1;margin:0;font-size:12px;color:var(--muted)}
 .diff-form button{grid-column:1/-1;justify-self:start;border:1px solid var(--border)}
 .diff-preview mark{background:var(--green-soft);color:var(--green);box-shadow:inset 0 -2px 0 var(--green);border-radius:3px;padding:0 2px}
 [data-theme=dark] .diff-preview mark{color:var(--ink);box-shadow:inset 0 -2px 0 var(--ink)}
