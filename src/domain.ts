@@ -155,6 +155,11 @@ const SENTENCE_END=/(?<=[.!?…]["'”’)\]]*)\s+/gu;
 function splitWords(text:string,max:number):string[]{const out:string[]=[];let current='';for(const word of text.split(/\s+/)){if(!word)continue;if(current.length+word.length+1>max&&current){out.push(current);current='';}if(word.length>max){if(current)out.push(current);for(let i=0;i<word.length;i+=max)out.push(word.slice(i,i+max));current='';}else current+=(current?' ':'')+word;}if(current)out.push(current);return out;}
 // Each line is its own paragraph; sentences are packed up to max chars and only a single over-long sentence is cut (at word boundaries).
 export function splitText(input:string,max=500):string[]{const out:string[]=[];for(const para of input.trim().split(/\n+/)){let current='';for(const sentence of para.trim().replace(/\s+/g,' ').split(SENTENCE_END)){if(!sentence)continue;if(current&&current.length+1+sentence.length<=max){current+=' '+sentence;continue;}if(current)out.push(current);if(sentence.length<=max)current=sentence;else{const parts=splitWords(sentence,max);current=parts.pop()!;out.push(...parts);}}if(current)out.push(current);}return out;}
+/** Where to resume when the listener switches take while one plays: the same distance from the start of speech, kept inside the trim window of the take being left and of the one entered (`from` and `to` are their recipes). */
+export function switchOffset(playedMs:number,from:Pick<Recipe,'trim_start_ms'|'trim_end_ms'|'duration_ms'>,to:Pick<Recipe,'trim_start_ms'|'trim_end_ms'|'duration_ms'>):number{
+ const len=(r:typeof from)=>Math.max(0,(r.trim_end_ms??r.duration_ms)-r.trim_start_ms);
+ return Math.round(Math.min(Math.max(playedMs||0,0),len(from),len(to)));
+}
 /** Trim for a take: its speech edges as the worker found them; the whole take when it has none (older takes) or when the segment's fades (`fade_ms`, in + out) would not fit inside them. */
 export function takeTrim(take?:Take,fade_ms=0){const start=take?.speech_start_ms??0,end=take?.speech_end_ms??null;return take&&(end??take.duration_ms)-start>=fade_ms?{trim_start_ms:start,trim_end_ms:end}:{trim_start_ms:0,trim_end_ms:null};}
 export function makeSegment(text=''):Segment{return {id:uid(),text,normalized_text:text,voice_id:null,speaker:'Người dẫn',gap_ms:300,takes:[],selected_take_id:null,trim_start_ms:0,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0,gain_db:0};}

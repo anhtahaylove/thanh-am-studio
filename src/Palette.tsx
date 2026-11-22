@@ -45,7 +45,9 @@ const SHORTCUTS:{group:string;items:{combos:string[];what:string}[]}[]=[
   {combos:['Ctrl+Z'],what:'Hoàn tác trong dự án (trong ô tìm kiếm, từ điển, ô số và ô thời gian thì hoàn tác chữ đang gõ)'},
   {combos:['Ctrl+Shift+Z','Ctrl+Y'],what:'Làm lại'},
   {combos:['Esc'],what:'Đóng hộp thoại đang mở'}]},
- {group:'Tạo giọng đọc',items:[{combos:['Space'],what:'Phát hoặc dừng take của đoạn đang chọn (khi không gõ và không đứng trên nút)'}]},
+ {group:'Tạo giọng đọc',items:[
+  {combos:['Space'],what:'Phát hoặc dừng take của đoạn đang chọn (khi không gõ và không đứng trên nút)'},
+  {combos:['1–9'],what:'Nghe take số N của đoạn đang chọn (đang phát thì nghe tiếp từ cùng chỗ)'}]},
  {group:'Chép lời',items:[
   {combos:['Ctrl+F'],what:'Tìm trong bản chép lời'},
   {combos:['Enter','Shift+Enter'],what:'Trong ô tìm kiếm: sang kết quả sau hoặc trước'},
