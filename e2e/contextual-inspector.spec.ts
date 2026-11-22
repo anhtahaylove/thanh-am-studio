@@ -16,7 +16,7 @@ const mock=(o:{project:string;live:boolean}):void=>{
    case 'list_voices':return ipc(voices);case 'list_models':return [{id:'vieneu-v3',name:'VieNeu v3 Turbo',engine:'tts',installed:true,revision:'r',license:'Apache-2.0',description:''}];
    case 'list_jobs':if(o.live)progress=Math.min(.95,progress+.1);return o.live?[{id:'j1',kind:'tts',project_id:project.id,payload:{segment_id:'s1',text:''},status:'running',progress,error:null,result:null,created_at:'2026-11-20T00:00:00Z',updated_at:'2026-11-20T00:00:00Z'}]:[];case 'get_settings':return ipc(settings);case 'save_settings':settings=ipc(args.settings);return ipc(settings);
    case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,python_path:null,ffmpeg_path:null,message:''};
-   case 'save_project':return {...ipc(args.project),revision:args.project.revision+1};
+   case 'save_project':if(w.__holdSave)return new Promise(()=>{});return {...ipc(args.project),revision:args.project.revision+1}; // held: the saved copy has new segment objects, which would rebuild the panel by itself
    default:return null;}}};
  // The keydown as it reaches the window, in the bubble phase: after the page's own handlers have run.
  window.addEventListener('keydown',e=>{if(e.altKey&&e.key==='ArrowDown')w.__kd.push(e.defaultPrevented);});
@@ -248,4 +248,20 @@ test('the normalized text in the panel follows the app dictionary while it is op
  await d.getByRole('textbox',{name:'Từ gốc'}).fill(word);await d.getByRole('textbox',{name:'Cách đọc'}).fill('xyzzy');await d.getByRole('button',{name:'Thêm cách đọc'}).click();await expect(d.getByText(`${word} → xyzzy`)).toBeVisible();
  await page.getByRole('button',{name:'Tạo giọng đọc',exact:true}).click();
  await expect(page.locator('.normalization p')).toContainText('xyzzy');
+});
+
+test('crossing 920 px with focus on the "Văn bản sau chuẩn hóa" summary keeps focus on it',async({page})=>{
+ await open(page,1000);await pick(page,5);const summary=()=>page.locator('.segment-detail summary');
+ await summary().focus();await expect(summary()).toBeFocused();
+ await page.setViewportSize({width:800,height:900});await expect(seg(page,5).locator('.segment-detail')).toHaveCount(1);await expect(summary()).toBeFocused();
+ await page.setViewportSize({width:1000,height:900});await expect(page.locator('.inspector .segment-detail')).toHaveCount(1);await expect(summary()).toBeFocused();
+});
+
+test('the panel follows its segment when it moves: Alt+Down takes "Đoạn 05" to "Đoạn 06", beside the script and inside the row',async({page})=>{
+ for(const width of [1440,800]){
+  await open(page,width);await page.evaluate(()=>{(window as any).__holdSave=true;});await pick(page,5);await area(page,5).focus();await page.keyboard.press('Alt+ArrowDown');await settle(page);
+  await expect(page.locator('.segment-detail h3')).toHaveText('Đoạn 06 · Người dẫn');await expect(page.getByRole('combobox',{name:'Giọng đoạn 6',exact:true})).toBeVisible();
+  await expect(page.getByRole('combobox',{name:'Giọng đoạn 5',exact:true})).toHaveCount(0);
+  await page.getByRole('combobox',{name:'Giọng đoạn 6',exact:true}).focus();await page.keyboard.press('Escape');await expect(area(page,6)).toBeFocused();
+ }
 });
