@@ -17,7 +17,7 @@ const mock=({n,live}:{n:number;live:boolean})=>{
  w.__TAURI_INTERNALS__={convertFileSrc:(p:string)=>p,transformCallback:()=>1,unregisterCallback:()=>{},metadata:{currentWindow:{label:'main'},currentWebview:{label:'main',windowLabel:'main'}},
   invoke:async(cmd:string,args:any)=>{switch(cmd){
    case 'list_projects':return [{id:project.id,name:project.name,updated_at:project.updated_at,revision:project.revision}];case 'load_project':w.__loads++;return ipc(project);
-   case 'list_voices':return ipc(voices);case 'list_models':return ipc(models);case 'list_jobs':return ipc(jobs);case 'get_settings':return {dictionary:{}};
+   case 'list_voices':return ipc(voices);case 'list_models':return ipc(models);case 'list_jobs':if(live)jobs[0].progress=Math.min(.99,jobs[0].progress+.01);return ipc(jobs); // a real job advances on every poll, so its label changes each timecase 'get_settings':return {dictionary:{}};
    case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,native_worker_ready:true,python_path:null,ffmpeg_path:null,native_worker_path:null,fallback_count:0,message:''};
    case 'save_project':project={...ipc(args.project),revision:args.project.revision+1};return ipc(project);
    default:return null;}}};
@@ -26,7 +26,7 @@ const mock=({n,live}:{n:number;live:boolean})=>{
  new PerformanceObserver(l=>{for(const e of l.getEntries() as any[])if(e.interactionId)w.__keys.push({id:e.interactionId,ms:e.duration});}).observe({type:'event',durationThreshold:16} as PerformanceObserverInit);
 };
 
-// `live`: 1 running job and 31 batch jobs, so every poll sets the jobs list again and 32 rows show a ring; the rows must still not re-render.
+// `live`: 1 running job and 31 batch jobs; 32 rows show a ring. The running job's progress moves on every poll (42 %, 43 %, ...), so its label changes each time and the jobs map is new on every poll. Only that one row may re-render.
 const script800=async(page:import('@playwright/test').Page,live:boolean)=>{
  test.setTimeout(180000);
  await page.addInitScript(mock,{n:800,live});await page.goto('/');
@@ -36,7 +36,9 @@ const script800=async(page:import('@playwright/test').Page,live:boolean)=>{
  // Finished TTS jobs make the app load the project once more; let that render land before measuring.
  await expect.poll(()=>page.evaluate(()=>(window as any).__loads),{timeout:30000}).toBe(2);await page.waitForTimeout(2000);
  if(live)await expect(page.locator('.segment .job-ring')).toHaveCount(32);
+ const label=live?await page.locator('.segment .job-ring').first().textContent():null;
  await page.evaluate(()=>{(window as any).__lt=[];});await page.waitForTimeout(6000); // two or three polls
+ if(live)expect(await page.locator('.segment .job-ring').first().textContent(),'the running job advanced, so its label changed').not.toBe(label);
  const idle:number[]=await page.evaluate(()=>(window as any).__lt);
  expect.soft(Math.max(0,...idle),`long tasks (ms) during 6 s of polling: ${idle.join(', ')||'none'}`).toBeLessThan(IDLE_MS);
  const box=page.locator('textarea[aria-label="Nội dung đoạn 400"]');await box.click();await page.keyboard.press('End');await page.waitForTimeout(500);

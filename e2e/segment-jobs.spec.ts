@@ -8,6 +8,7 @@ const mock=(o:{jobs:J[];takes?:Record<string,number>})=>{
  const segment=(i:number)=>{const n=o.takes?.['s'+i]??0,takes=Array.from({length:n},(_,k)=>take(`t${i}-${k}`));return {id:'s'+i,text:`Câu số ${i}.`,normalized_text:`Câu số ${i}.`,voice_id:null,speaker:'Người dẫn',gap_ms:300,takes,selected_take_id:takes[0]?.id??null,trim_start_ms:0,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0,gain_db:0};};
  const project:any={id:'p1',name:'Tiến trình',updated_at:'2026-11-22T00:00:00Z',revision:1,transcript:[],dictionary:{},source_asset_id:null,segments:[1,2,3,4,5,6,7].map(segment)};
  const mk=(j:J,i:number)=>({id:'j'+i,kind:'tts',project_id:'p1',payload:{segment_id:j.segment,text:'x'},status:j.status,progress:j.progress??0,error:null,result:j.status==='succeeded'?{asset_id:'r'+i}:null,created_at:j.created??'2026-11-22T00:00:0'+(i%10)+'Z',updated_at:'2026-11-22T00:00:00Z'}),jobs:any[]=o.jobs.map(mk);
+ const voices:any[]=[];w.__addVoice=()=>voices.push({id:'v1',name:'Giọng mới',kind:'preset',reference_asset_id:null,consent:true,engine_voice_id:'v1'});
  w.__addJob=(j:J)=>jobs.push(mk(j,jobs.length));
  w.__setJob=(id:string,patch:object)=>Object.assign(jobs.find(j=>j.id===id),patch);
  // A finished job: succeeded, with the take it made.
@@ -19,7 +20,8 @@ const mock=(o:{jobs:J[];takes?:Record<string,number>})=>{
  w.__TAURI_INTERNALS__={convertFileSrc:(p:string)=>p,transformCallback:()=>1,unregisterCallback:()=>{},metadata:{currentWindow:{label:'main'},currentWebview:{label:'main',windowLabel:'main'}},
   invoke:async(cmd:string,args:any)=>{switch(cmd){
    case 'list_projects':return [{id:project.id,name:project.name,updated_at:project.updated_at,revision:project.revision}];case 'load_project':return ipc(project);
-   case 'list_voices':return [];case 'list_models':return [{id:'vieneu-v3',name:'VieNeu v3 Turbo',engine:'tts',installed:true,revision:'r',license:'Apache-2.0',description:''}];
+   case 'list_voices':return ipc(voices);
+   case 'enqueue_job':if(w.__hold)await new Promise(r=>{w.__release=r;});return null;case 'list_models':return [{id:'vieneu-v3',name:'VieNeu v3 Turbo',engine:'tts',installed:true,revision:'r',license:'Apache-2.0',description:''}];
    case 'list_jobs':return ipc(jobs);case 'get_settings':return {dictionary:{}};
    case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,python_path:null,ffmpeg_path:null,message:''};
    case 'save_project':return {...ipc(args.project),revision:args.project.revision+1};
@@ -123,4 +125,34 @@ for(const theme of ['light','dark'])test(`every state's label has AA contrast ag
  const lum=(c:string)=>{const [r,g,b]=(c.match(/[\d.]+/g)??[]).slice(0,3).map(Number).map(v=>{v/=255;return v<=.03928?v/12.92:((v+.055)/1.055)**2.4;});return .2126*r+.7152*g+.0722*b;};
  const rows=await page.locator('.segment').evaluateAll(l=>l.slice(0,6).map(s=>{const j=getComputedStyle(s.querySelector('.job-ring')!);let bg='',e:Element|null=s;while(e&&(!bg||bg==='rgba(0, 0, 0, 0)')){bg=getComputedStyle(e).backgroundColor;e=e.parentElement;}return {fg:j.color,bg,theme:document.documentElement.dataset.theme};}));
  for(const r of rows){expect(r.theme).toBe(theme);const a=lum(r.fg),b=lum(r.bg),ratio=(Math.max(a,b)+.05)/(Math.min(a,b)+.05);expect(ratio,`${r.fg} on ${r.bg}`).toBeGreaterThanOrEqual(4.5);}
+});
+
+test('a segment that is running one job keeps showing it when another is queued, and the first one finishing is still announced',async({page})=>{
+ await open(page,[{segment:'s3',status:'running',progress:0.4,created:'2026-11-22T00:00:01Z'},{segment:'s3',status:'queued',created:'2026-11-22T00:00:05Z'},{segment:'s7',status:'succeeded'}]);
+ await expect(ring(page,3)).toHaveText('Đang tạo 40 %');
+ await finish(page,'j0');await expect.poll(()=>announced(page),{timeout:8000}).toEqual(['Đã tạo xong đoạn 3']);await expect(ring(page,3)).toHaveText('Đang chờ');
+});
+
+test('with the checklist brought back from the palette, a success it does not announce is announced by the segment line',async({page})=>{
+ await open(page,[{segment:'s3',status:'running',progress:0.4},{segment:'s5',status:'running',progress:0.4}]);
+ await finish(page,'j0');await expect(page.getByText(/Đã xong bước 3/)).toBeVisible({timeout:8000});
+ await page.keyboard.press('Control+k');await page.getByRole('dialog',{name:'Bảng lệnh'}).getByRole('option',{name:'Hiện hướng dẫn bắt đầu'}).click();
+ await expect(page.getByRole('heading',{name:'Bắt đầu với Thanh Âm'})).toBeVisible();
+ await set(page,'j0',{status:'failed'});await expect(page.getByText('Chưa làm',{exact:true})).toHaveCount(1,{timeout:8000}); // step 3 is undone and the checklist has already told it once
+ await finish(page,'j1');await expect.poll(()=>announced(page),{timeout:8000}).toEqual(['Đã tạo xong đoạn 5']);
+});
+
+// The row list is memoized, so these pin what it must be rebuilt for.
+test('the generate button of every row is disabled while the app is busy, and enabled again after',async({page})=>{
+ await open(page,[]);await page.evaluate(()=>{(window as any).__hold=true;});
+ const buttons=page.locator('.segment .segment-footer .quiet.accent');await expect(buttons.nth(1)).toBeEnabled();
+ await buttons.nth(0).click();await expect(buttons.nth(1)).toBeDisabled();await expect(buttons.nth(6)).toBeDisabled();
+ await page.evaluate(()=>(window as any).__release());await expect(buttons.nth(1)).toBeEnabled();await expect(buttons.nth(6)).toBeEnabled();
+});
+
+test('a voice added while the page is open appears in the voice select of every row',async({page})=>{
+ await open(page,[]);const select=page.getByRole('combobox',{name:'Giọng đoạn 3'});
+ await expect(select.locator('option')).toHaveCount(1);
+ await page.evaluate(()=>(window as any).__addVoice());
+ await expect(select.locator('option')).toHaveCount(2,{timeout:8000});await expect(select).toContainText('Giọng mới');
 });

@@ -250,17 +250,17 @@ export function taskbarProgress(jobs:{status:string;progress:number}[]):{status:
 }
 // A TTS batch marks all its jobs running but reports progress only for the one being synthesized.
 export const jobProgressLabel=(kind:string,progress:number,startedAt:string,now=Date.now())=>kind==='tts'&&progress<=0?'Chờ trong lô':progressLabel(progress,startedAt,now);
-/** The newest tts job of each segment of a project, matched on payload.segment_id. A queued or running job beats a finished one (a retry keeps its id and created_at, so it can be older than a job that failed after it), then the newest by created_at; the list comes newest first, so a tie keeps the first. */
-const live=(j:Job)=>j.status==='queued'||j.status==='running';
+/** The job of each segment of a project that its row shows, matched on payload.segment_id: running beats queued beats finished (a retry keeps its id and created_at, so it can be older than a job that failed after it, and a segment already running one job keeps showing it when the user queues another), then the newest by created_at; the list comes newest first, so a tie keeps the first. */
+const rank=(j:Job)=>j.status==='running'?2:j.status==='queued'?1:0;
 export function latestSegmentJobs(jobs:Job[],projectId:string|undefined):Map<string,Job>{
  const out=new Map<string,Job>();
- for(const j of jobs){const id=j.payload.segment_id;if(j.kind!=='tts'||j.project_id!==projectId||typeof id!=='string')continue;const seen=out.get(id);if(!seen||(live(j)===live(seen)?j.created_at>seen.created_at:live(j)))out.set(id,j);}
+ for(const j of jobs){const id=j.payload.segment_id;if(j.kind!=='tts'||j.project_id!==projectId||typeof id!=='string')continue;const seen=out.get(id);if(!seen||(rank(j)===rank(seen)?j.created_at>seen.created_at:rank(j)>rank(seen)))out.set(id,j);}
  return out;
 }
-/** What each segment's row shows about its newest tts job, as one string (so a memoized row re-renders only when its own text changes): `queued`, `batch` (running with no progress yet), `running:42`, `failed`, `cancelled`, `interrupted`. A segment whose newest job succeeded (or is in any other state) has no entry. `latest` is passed when the caller already has it. */
-export function segmentJobs(jobs:Job[],projectId:string|undefined,latest=latestSegmentJobs(jobs,projectId)):Map<string,string>{
+/** What each segment's row shows about its newest tts job, as one string (so a memoized row re-renders only when its own text changes): `queued`, `batch` (running with no progress yet), `running:42`, `failed`, `cancelled`, `interrupted`. A segment whose newest job succeeded (or is in any other state) has no entry. */
+export function segmentJobs(jobs:Job[],projectId:string|undefined):Map<string,string>{
  const out=new Map<string,string>();
- for(const [id,j] of latest){
+ for(const [id,j] of latestSegmentJobs(jobs,projectId)){
   const state=j.status==='running'?(j.progress>0?`running:${Math.round(100*Math.min(1,j.progress))}`:'batch'):j.status==='queued'||j.status==='failed'||j.status==='cancelled'||j.status==='interrupted'?j.status:null;
   if(state)out.set(id,state);
  }

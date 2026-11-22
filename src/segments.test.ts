@@ -24,6 +24,13 @@ describe('segmentJobs',()=>{
   expect(segmentJobs([b,{...a,status:'queued'}],'p1').get('s')).toBe('queued');expect(segmentJobs([b,{...a,status:'running',progress:0.5}],'p1').get('s')).toBe('running:50');
   expect(latestSegmentJobs([b,{...a,status:'queued'}],'p1').get('s')?.id).toBe('A');
  });
+ it('ranks running above queued above finished, then the newest',()=>{
+  // A runs while the user queues B: the row keeps showing A's progress.
+  const a=job('A','s','running',0.5,'2026-11-22T00:00:00Z'),b=job('B','s','queued',0,'2026-11-22T00:05:00Z');
+  expect(segmentJobs([b,a],'p1').get('s')).toBe('running:50');expect(segmentJobs([a,b],'p1').get('s')).toBe('running:50');expect(latestSegmentJobs([b,a],'p1').get('s')?.id).toBe('A');
+  expect(segmentJobs([job('C','s','running',0.1,'2026-11-22T00:09:00Z'),a],'p1').get('s')).toBe('running:10'); // same rank: the newest
+  expect(segmentJobs([job('D','s','queued',0,'2026-11-22T00:09:00Z'),b],'p1').get('s')).toBe('queued');
+ });
  it('a state it does not know shows nothing, not an interruption',()=>expect(segmentJobs([job('1','a','weird' as Job['status'])],'p1').size).toBe(0));
  it('on a tie the first of the list (the newest first) wins',()=>expect(segmentJobs([job('1','a','queued'),job('2','a','failed')],'p1').get('a')).toBe('queued'));
  it('ignores other projects, other kinds and jobs with no segment',()=>{
