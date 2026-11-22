@@ -1,12 +1,19 @@
 [
+ {"version": "1.0.22", "date": "2026-11-22", "changes": [
+  "Bắt đầu dễ hơn: thẻ model ghi dung lượng tải, RAM cần và model nên dùng cho máy này; trang Tạo giọng đọc có danh sách ba bước cho lần đầu; dự án mẫu \"Làng chài\" mở được ngay, chưa cần tải model.",
+  "Kịch bản dạng tài liệu: các đoạn gọn hơn, mỗi nhân vật một màu (cùng màu bên bản chép lời và Phân vai), mỗi đoạn tự hiện tiến độ tạo giọng và báo khi xong, khung chi tiết luôn theo đoạn đang chọn (màn hình hẹp thì nằm ngay trong đoạn).",
+  "Thao tác đoạn bằng bàn phím: thanh thao tác của đoạn đi bằng phím mũi tên; Alt+↑/↓ đưa đoạn lên hoặc xuống, Ctrl+Enter tạo giọng, Ctrl+Shift+Enter chia đoạn tại con trỏ; nút Chi tiết đoạn đưa thẳng tới giọng và tốc độ, Esc quay về ô nội dung; nút chưa dùng được thì nói lý do.",
+  "So sánh take ngay trong thanh phát (phím 1–9 nghe take số N); bấm nhãn kiểm tra của take để xem chỗ Whisper nghe khác kịch bản và thêm cách đọc vào từ điển.",
+  "Bản chép lời gọn mỗi dòng một hàng, sửa mốc thời gian ngay tại chỗ, màu theo người nói; Ctrl+bấm vào một từ (hoặc Ctrl+Enter) để nghe từ khoảng chỗ đó, bật \"Theo lời khi phát\" để tự cuộn theo; tìm kiếm có Enter/Shift+Enter sang kết quả sau hoặc trước, xem trước chỗ sẽ thay và đếm đúng số chỗ thay."
+ ]},
  {"version": "1.0.21", "date": "2026-11-21", "changes": [
-  "Giao diện dễ đọc hơn: chữ nhỏ nhất 11 px, độ tương phản đạt chuẩn WCAG AA, thanh Xuất audio luôn nằm trong màn hình, và có nút chọn giao diện Theo hệ thống, Sáng hoặc Tối.",
+  "Giao diện dễ đọc hơn: chữ nhỏ nhất 11 px; chữ phụ, viền ô nhập và viền focus đạt độ tương phản WCAG AA ở cả hai giao diện; thanh Xuất audio luôn nằm trong màn hình; ba nút ở thanh bên chọn giao diện theo hệ thống, sáng hoặc tối.",
   "Thao tác nhanh bằng bàn phím: Ctrl+K mở bảng lệnh, phím ? mở bảng phím tắt. Xóa hoặc gộp đoạn không còn hỏi xác nhận mà hiện thông báo kèm nút Hoàn tác (Ctrl+Z).",
   "Bản chép lời: tìm kiếm không phân biệt dấu, có đếm và tô sáng chỗ khớp; dòng có dấu hiệu Whisper nghe nhầm được gắn nhãn và lọc riêng; xuất TXT ghi người nói theo lượt (\"Người 1: …\") và nhập lại được.",
   "Khung chi tiết đoạn tô những chữ đã đổi khi chuẩn hóa, báo đoạn lồng tiếng dài hơn mốc phụ đề và gợi ý tạo lại take khi giọng lặp lại cuối câu.",
   "Kịch bản dài vẫn gõ mượt, thanh tác vụ Windows hiện tiến độ khi đang chạy việc, hộp thoại giữ focus bên trong và đóng bằng Esc.",
   "Chép lời đọc tiếp qua các đoạn âm thanh hỏng thay vì dừng; tệp không giải mã được thì báo lỗi rõ ràng bằng tiếng Việt và không chạy lại vô ích.",
-  "Sửa lỗi: báo rõ khi app khởi động thất bại hoặc phần nền liên tục lỗi; xóa dự án dọn luôn các việc đã xong; tệp CSV từ điển mở đúng trong Excel."
+  "Sửa lỗi: báo rõ khi app khởi động thất bại hoặc phần nền liên tục lỗi; xóa dự án xóa luôn các việc lỗi, đã hủy, bị gián đoạn và các việc tạo giọng đã xong của dự án đó; tệp CSV từ điển xuất ra giữ nguyên những ô mà Excel hay tự đổi thành ngày, số hoặc công thức."
  ]},
  {"version": "1.0.20", "date": "2026-11-19", "changes": [
   "Chép lời (kể cả khi tách người nói) giờ chạy bằng bộ xử lý gốc viết bằng Rust: văn bản, mốc thời gian và người nói giống hệt từng bit như trước. Nếu bộ xử lý gốc gặp lỗi, app tự chạy lại bằng Python; mục Bộ xử lý trong Model & cài đặt cho chọn \"Luôn dùng Python\" cho Chép lời.",
