@@ -298,6 +298,39 @@ export function matchWords(script:string[],heard:{text:string;start_ms:number}[]
  for(let i=0,j=0;i<n&&j<m;)if(script[i]===h[j][0])match[i++]=j++;else if(L[at(i+1,j)]>=L[at(i,j+1)])i++;else j++;
  return {match,starts};
 }
+const WORD_RE=/[\p{L}\p{N}]+/gu;
+/** The words the self-check compares for a sent TTS text: pause marks, cues and <en> tags are not words. Mirrors worker/main.py `words()`, except that its `\w` also matches "_". */
+const checkText=(text:string)=>spokenText(text).replace(/<\/?en>/g,' ');
+export const checkWords=(text:string)=>wordTokens(checkText(text));
+/** A take's script set against what Whisper heard. `script` keeps each sent word's own case and the heard word it was matched to (null: not heard);
+ *  `extra` is what was heard with no script word; `mismatches` are the hard ones from the worker's own comparison, which is the authority (this alignment is only for display). */
+export function takeDiff(source:string,check:TakeCheck):{script:{word:string;heard:string|null}[];extra:string[];mismatches:{expected:string;heard:string}[]}{
+ const pieces=checkText(source).normalize('NFC').match(WORD_RE)??[],heard=check.words?.length?check.words:wordTokens(check.heard??'').map(text=>({text,start_ms:0}));
+ const tokens=heard.flatMap(w=>wordTokens(w.text)),{match}=matchWords(pieces.map(w=>w.toLowerCase()),heard),used=new Set(match);
+ return {script:pieces.map((word,i)=>({word,heard:match[i]>=0?tokens[match[i]]:null})),extra:tokens.filter((_,j)=>!used.has(j)),mismatches:(check.mismatches??[]).filter(m=>!m.soft).map(m=>({expected:m.expected,heard:m.heard}))};
+}
+/** The first whole-word, case-insensitive match of `expected` (words of the sent text) in the script, in the script's own spelling; null when the script has no such word (a number, a unit or a dictionary entry turned it into something else). */
+export function sourceSpelling(text:string,expected:string):string|null{
+ const words=wordTokens(expected);if(!words.length)return null;
+ return new RegExp(`(?<![\\p{L}\\p{N}])${words.map(escapeRegExp).join('\\s+')}(?![\\p{L}\\p{N}])`,'iu').exec(text.normalize('NFC'))?.[0]??null;
+}
+/** Why `expected` is in the sent text although the script does not spell it: a dictionary entry whose reading holds it, or the text rules (number, unit, date...) that rewrote a stretch of the script; null when neither explains it.
+ *  shortcut: the stretch of script is found by walking the unchanged words in order, so a repeated word before it can shift it; it is only shown in a hint. */
+export function readingOrigin(text:string,dictionary:Record<string,string>,expected:string,options:{codeSwitch?:boolean}={}):{kind:'dictionary';key:string}|{kind:'rule';from:string|null}|null{
+ const want=wordTokens(expected).join(' ');if(!want)return null;
+ const key=Object.keys(dictionary).find(k=>dictionary[k]&&` ${wordTokens(dictionary[k]).join(' ')} `.includes(` ${want} `)&&sourceSpelling(text,k));
+ if(key)return {kind:'dictionary',key};
+ const src=text.normalize('NFC'),{parts}=normalizedParts(src,dictionary,options);let pos=0;
+ const find=(t:string)=>{const s=t.trim();return s?src.indexOf(s,pos):-1;};
+ for(let i=0;i<parts.length;i++){
+  const p=parts[i];
+  if(!p.changed){const at=find(p.text);if(at>=0)pos=at+p.text.trim().length;continue;}
+  if(!` ${wordTokens(p.text.replace(/<\/?en>/g,' ')).join(' ')} `.includes(` ${want} `))continue;
+  let end=src.length;for(const q of parts.slice(i+1))if(!q.changed){const at=find(q.text);if(at>=0){end=at;break;}}
+  return {kind:'rule',from:src.slice(pos,end).trim()||null};
+ }
+ return null;
+}
 /** Subtitle rows for the rendered takes: each segment's text in readable cues; a cue starts where the self-check heard its first word (`words`, take time) and the other cue edges share the time between those by character count; with `dub`, at the takes' places on the subtitle timeline, each shown at least as long as its cue. */
 export function ttsTranscript(clips:(Recipe&DubCue&{text:string;words?:{text:string;start_ms:number}[]})[],dub=false):TranscriptSegment[]{let time=0;const plan=dub?dubPlan(clips).places:null;return clips.flatMap((c,i)=>{let start=time;time+=clipDuration(c);let end=time-c.gap_ms;if(plan){start=plan[i].at_ms;end=Math.min(plan[i+1]?.at_ms??Infinity,Math.max(plan[i].end_ms,start+(c.cue_end_ms??0)-(c.cue_start_ms??0)));}
  const cues=cuePieces(spokenText(c.text)),total=cues.reduce((n,q)=>n+q.length,0),tokens=cues.map(wordTokens),{match,starts}=matchWords(c.words?.length?tokens.flat():[],c.words??[]),rate=plan?.[i].rate??1,share=(end-start)/total/2;
