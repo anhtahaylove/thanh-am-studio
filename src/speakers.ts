@@ -1,3 +1,4 @@
+import type {CSSProperties} from 'react';
 import type {TranscriptSegment} from './types';
 export interface SpeakerStat {speaker:number;rows:number;ms:number;sample:{start_ms:number;end_ms:number}}
 /** Row count, speaking time and a short sample (the start of the longest row, at most `sampleMs`) per diarized speaker, in speaker order. */
@@ -16,6 +17,8 @@ export function speakerPayload(on:boolean,choice:string):{num_speakers?:number|n
 }
 /** Colour slot 0-7 of a diarized speaker; the palette is `--spk-N` and `--spk-N-soft`. */
 export const speakerColor=(n:number)=>n%8;
+/** The `--spk`/`--spk-soft` pair of colour slot `slot`, as inline style for a speaker's rule and label. */
+export const speakerVars=(slot:number)=>({'--spk':`var(--spk-${slot})`,'--spk-soft':`var(--spk-${slot}-soft)`}) as CSSProperties;
 /** Slot per speaker name: "Người N" keeps N-1, any other name takes the lowest free slot in order of first appearance (a ninth wraps). */
 export function speakerColors(names:string[]):Map<string,number>{
  const out=new Map<string,number>(),used=new Set<number>();

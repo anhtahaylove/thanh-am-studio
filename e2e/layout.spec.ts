@@ -42,11 +42,13 @@ test('the segment inspector stays in view next to a segment far down the script'
   return {top:panel.top,bottom:inspector.bottom,dock:document.querySelector('.audio-dock')!.getBoundingClientRect().top,height:innerHeight};});
  expect(m.top,'inspector top').toBeGreaterThanOrEqual(0);expect(m.top,'inspector top').toBeLessThan(m.height);expect(m.bottom,'inspector bottom clears the dock').toBeLessThanOrEqual(m.dock);
 });
-test('script and transcript text boxes draw the input border and speaker chips are 24 px targets',async({page})=>{
+test('script and transcript text boxes draw the input border, and speaker labels and chips are 24 px targets',async({page})=>{
  await open(page,1440,1000);
  // a11y.spec.ts checks that this input border keeps 3:1 contrast in both themes.
  const input=await page.getByLabel('Nghỉ sau (ms)').evaluate(e=>getComputedStyle(e).borderTopColor),border=(name:string)=>page.getByRole('textbox',{name,exact:true}).evaluate(e=>[getComputedStyle(e).borderTopStyle,getComputedStyle(e).borderTopColor]);
  expect(await border('Nội dung đoạn 2')).toEqual(['solid',input]);
+ // The script's speaker labels set their height, so it does not hang on the font's line height.
+ for(const [h,min] of await page.locator('.speaker-input').evaluateAll(l=>l.map(e=>[e.getBoundingClientRect().height,parseFloat(getComputedStyle(e).minHeight)])))expect([h,min].every(v=>v>=24),`height ${h}, min-height ${min}`).toBe(true);
  await nav(page,'Chép lời');expect(await border('Lời nói tại 00:00:04,000')).toEqual(['solid',input]);
  for(const h of await page.locator('.speaker-chip').evaluateAll(chips=>chips.map(c=>c.getBoundingClientRect().height)))expect(h).toBeGreaterThanOrEqual(24);
 });
