@@ -21,10 +21,10 @@ export function onboardingSteps({models,projects,jobs,hasText}:{models:ModelInfo
 const focusToolbar=()=>{requestAnimationFrame(()=>document.querySelector<HTMLElement>('.script-panel .panel-toolbar button')?.focus());};
 const ACTIONS={model:'Xem model giọng đọc',project:'Mở dự án mẫu',voice:'Tạo giọng ngay'};
 /** Mount it only after the first poll: the steps it sees on its first render are the baseline, and only a step that flips after that is announced. */
-export function FirstRunChecklist({steps,guide,visible,voiceBlock,onGuide,onNotice,onAction}:{steps:OnboardingStep[];guide:Guide;visible:boolean;voiceBlock:string|null;onGuide:(g:Guide)=>void;onNotice:(text:string)=>void;onAction:(id:OnboardingStep['id'])=>void}){
+export function FirstRunChecklist({steps,guide,visible,voiceBlock,onGuide,onNotice,onAction}:{steps:OnboardingStep[];guide:Guide;visible:boolean;voiceBlock:string|null;onGuide:(g:Guide)=>void;onNotice:(text:string,id:OnboardingStep['id'])=>void;onAction:(id:OnboardingStep['id'])=>void}){
  const baseline=useRef(steps.map(s=>s.done)),told=useRef<boolean[]>([]),all=steps.every(s=>s.done);
 // A hidden or finished checklist announces nothing. This effect runs before the one below that writes `done`, so the step that finishes the list is still announced.
- useEffect(()=>{if(guide==='hidden'||guide==='done')return;steps.forEach((s,i)=>{if(s.done&&!baseline.current[i]&&!told.current[i]){told.current[i]=true;onNotice(`Đã xong bước ${i+1}: ${s.title}`);}});});
+ useEffect(()=>{if(guide==='hidden'||guide==='done')return;steps.forEach((s,i)=>{if(s.done&&!baseline.current[i]&&!told.current[i]){told.current[i]=true;onNotice(`Đã xong bước ${i+1}: ${s.title}`,s.id);}});});
  useEffect(()=>{if(all&&!guide){writeGuide('done');onGuide('done');if(visible&&document.activeElement===document.body)focusToolbar();}},[all,guide,onGuide]); // the section was just removed under the focus
  if(!visible||guide==='hidden'||guide==='done'||(all&&!guide))return null;
  return <section className="first-run panel" aria-labelledby="first-run-title">
