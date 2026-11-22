@@ -49,7 +49,7 @@ for(const theme of ['light','dark'])test(`speaker labels keep AA contrast on the
  await page.emulateMedia({colorScheme:theme as 'light'|'dark'});await open(page);
  await expect(page.locator('html')).toHaveAttribute('data-theme',theme);
  for(const n of [1,2,3,4]){const [,text,tint]=await paint(page.locator('article.segment').nth(n-1),page.getByRole('textbox',{name:`Nhân vật đoạn ${n}`,exact:true}));expect(tint,`label ${n} is tinted`).not.toMatch(/^rgba\(.*,\s*0\)$|^transparent$/);expect(ratio(text,tint),`label ${n}`).toBeGreaterThanOrEqual(4.5);}
- const index=await page.locator('article.segment').nth(1).locator('.segment-index').evaluate(e=>({size:parseFloat(getComputedStyle(e).fontSize),color:getComputedStyle(e).color,muted:getComputedStyle(document.documentElement).getPropertyValue('--muted')}));
+ const index=await page.locator('article.segment').nth(1).locator('.segment-index').evaluate(e=>({size:parseFloat(getComputedStyle(e).fontSize),color:getComputedStyle(e).color}));
  expect(index.size).toBeGreaterThanOrEqual(11);expect(index.size).toBeLessThanOrEqual(12);
  expect(await page.evaluate(c=>{const i=document.createElement('i');i.style.color='var(--muted)';document.body.append(i);const v=getComputedStyle(i).color;i.remove();return v===c;},index.color)).toBe(true);
 });
@@ -66,6 +66,32 @@ test('"Người 2" has the same colour in the transcript, in the script after "T
  expect(await cast.evaluate(e=>[getComputedStyle(e).borderLeftColor,getComputedStyle(e).color,getComputedStyle(e).backgroundColor]),'Phân vai').toEqual(heard);
  expect(await cast.evaluate(e=>getComputedStyle(e).borderLeftWidth),'Phân vai rule').toBe('4px');
  expect((await paint(segment(page,'Người 1'),segment(page,'Người 1').locator('.speaker-input')))[0]).not.toBe(heard[0]);
+});
+// The label is an input: a line under it at rest that thickens on hover and focus (shape, not colour alone), the focus ring kept.
+const shadow=(s:string)=>{const m=/^(rgba?\([^)]*\)) (-?[\d.]+)px (-?[\d.]+)px ([\d.]+)px ([\d.]+)px inset$/.exec(s);return m?{color:m[1],x:Number(m[2]),y:Number(m[3]),blur:Number(m[4]),spread:Number(m[5])}:null;};
+for(const theme of ['light','dark'])test(`the speaker label reads as an input: a line under it at rest that thickens on hover and focus, in ${theme} mode`,async({page})=>{
+ await page.emulateMedia({colorScheme:theme as 'light'|'dark'});await open(page);
+ const label=page.getByRole('textbox',{name:'Nhân vật đoạn 2',exact:true});await page.mouse.move(0,0);
+ const look=()=>label.evaluate(e=>{const s=getComputedStyle(e);return {shadow:s.boxShadow,text:s.color,tint:s.backgroundColor,outline:`${s.outlineStyle} ${s.outlineWidth}`};});
+ const rest=await look(),line=shadow(rest.shadow);
+ expect(line,`a line under the label at rest: ${rest.shadow}`).toMatchObject({x:0,blur:0,spread:0});expect(line!.y).toBeLessThan(0);
+ expect(line!.color,'in the speaker colour').toBe(rest.text);expect(ratio(line!.color,rest.tint),'3:1 on its tint').toBeGreaterThanOrEqual(3);
+ await label.hover();const hover=shadow((await look()).shadow);expect(Math.abs(hover!.y),'thicker on hover').toBeGreaterThan(Math.abs(line!.y));
+ await page.mouse.move(0,0);await page.keyboard.press('Tab');await label.focus();const focus=await look();
+ expect(Math.abs(shadow(focus.shadow)!.y),'thicker on focus').toBeGreaterThan(Math.abs(line!.y));expect(focus.outline,'the focus ring stays').toBe('solid 2px');
+});
+test('a long speaker name ends in an ellipsis inside the margin and is told in full by the title',async({page})=>{
+ await open(page);const name='Người dẫn chuyện chính của cả làng chài ven sông';
+ const label=page.getByRole('textbox',{name:'Nhân vật đoạn 3',exact:true});await label.fill(name);await page.getByRole('textbox',{name:'Nội dung đoạn 3',exact:true}).click();
+ const m=await label.evaluate(e=>{const s=getComputedStyle(e),r=e.getBoundingClientRect(),col=e.closest('.segment-label')!.getBoundingClientRect();return {overflow:s.textOverflow,cut:e.scrollWidth>e.clientWidth,inside:r.left>=col.left&&r.right<=col.right+0.5};});
+ expect(m).toEqual({overflow:'ellipsis',cut:true,inside:true});await expect(label).toHaveAttribute('title',name);
+});
+for(const theme of ['light','dark'])test(`an empty speaker name shows "(Chưa đặt tên)" with AA contrast on the tint, and no title, in ${theme} mode`,async({page})=>{
+ await page.emulateMedia({colorScheme:theme as 'light'|'dark'});await open(page);
+ const label=page.getByRole('textbox',{name:'Nhân vật đoạn 3',exact:true});await label.fill('');
+ await expect(label).toHaveAttribute('placeholder','(Chưa đặt tên)');await expect(label).not.toHaveAttribute('title',/.*/);
+ const c=await label.evaluate(e=>({hint:getComputedStyle(e,'::placeholder').color,tint:getComputedStyle(e).backgroundColor}));
+ expect(c.tint).not.toMatch(/^rgba\(.*,\s*0\)$|^transparent$/);expect(ratio(c.hint,c.tint)).toBeGreaterThanOrEqual(4.5);
 });
 // Beside the text down to 641 px; at 640 px and below the label goes above it so the text keeps its width.
 for(const width of [800,640])test(`the script does not scroll sideways at ${width} px and each label stays inside its segment, ${width>640?'beside':'above'} the text`,async({page})=>{
