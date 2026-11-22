@@ -1,0 +1,78 @@
+import {test,expect,type Locator,type Page} from '@playwright/test';
+import {readFileSync} from 'node:fs';
+// The script reads like a document: one paragraph per segment with its speaker as a coloured label in the left margin, in the colours the
+// transcript and "Phân vai" use for the same name. Tauri is mocked; the script is the 12-segment, 4-speaker fixture (segment 1 is selected when it opens).
+const FIXTURE:string=readFileSync('e2e/fixtures/script-12.json','utf8');
+// Two diarized speakers, so "Thành kịch bản" adds "Người 1" and "Người 2".
+const TRANSCRIPT=[0,1,0,1].map((speaker,i)=>({id:`t${i}`,start_ms:i*4000,end_ms:i*4000+3500,text:`Câu thứ ${i+1} của người nói.`,speaker}));
+const mock=(o:{project:string;transcript:unknown[]})=>{
+ const w=window as any;w.isTauri=true;w.__TAURI_EVENT_PLUGIN_INTERNALS__={unregisterListener:()=>{}};
+ const project:any={...JSON.parse(o.project),transcript:o.transcript};
+ const ipc=(v:unknown)=>JSON.parse(JSON.stringify(v));
+ w.__TAURI_INTERNALS__={convertFileSrc:(p:string)=>p,transformCallback:()=>1,unregisterCallback:()=>{},metadata:{currentWindow:{label:'main'},currentWebview:{label:'main',windowLabel:'main'}},
+  invoke:async(cmd:string,args:any)=>{switch(cmd){
+   case 'list_projects':return [{id:project.id,name:project.name,updated_at:project.updated_at,revision:project.revision}];case 'load_project':return ipc(project);
+   case 'list_voices':case 'list_jobs':return [];case 'list_models':return [{id:'vieneu-v3',name:'VieNeu v3 Turbo',engine:'tts',installed:true,revision:'r',license:'Apache-2.0',description:''}];
+   case 'get_settings':return {dictionary:{}};case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,python_path:null,ffmpeg_path:null,message:''};
+   case 'save_project':return {...ipc(args.project),revision:args.project.revision+1};
+   default:return null;}}};
+};
+const open=async(page:Page,o:{width?:number;height?:number;transcript?:unknown[]}={})=>{
+ await page.setViewportSize({width:o.width??1440,height:o.height??1000});await page.addInitScript(mock,{project:FIXTURE,transcript:o.transcript??[]});await page.goto('/');
+ await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
+ await expect(page.getByRole('textbox',{name:'Nội dung đoạn 12',exact:true})).toBeVisible();
+};
+const ratio=(a:string,b:string)=>{const lum=(c:string)=>{const [r,g,b]=c.match(/[\d.]+/g)!.slice(0,3).map(v=>{const x=Number(v)/255;return x<=0.03928?x/12.92:((x+0.055)/1.055)**2.4;});return 0.2126*r+0.7152*g+0.0722*b;};const [x,y]=[lum(a),lum(b)].sort((p,q)=>q-p);return (x+0.05)/(y+0.05);};
+// The colours a speaker is drawn with: its rule (the row's left border), its label text and the label's tint.
+const paint=(rule:Locator,label:Locator)=>Promise.all([rule.evaluate(e=>getComputedStyle(e).borderLeftColor),label.evaluate(e=>getComputedStyle(e).color),label.evaluate(e=>getComputedStyle(e).backgroundColor)]);
+const segment=(page:Page,speaker:string)=>page.locator('article.segment').filter({has:page.locator(`input[value="${speaker}"]`)}).first();
+
+test('at 1440x1000 at least eight of the twelve segments are fully on screen with the first one at the top',async({page})=>{
+ await open(page);
+ // PLAN §8: the first segment scrolled to the viewport top, counting segments that lie fully between the viewport top and the dock's top.
+ const m=await page.evaluate(()=>{const rows=[...document.querySelectorAll('article.segment')];rows[0].scrollIntoView({block:'start'});const dock=document.querySelector('.audio-dock')!.getBoundingClientRect().top;
+  return {shown:rows.filter(r=>{const b=r.getBoundingClientRect();return b.top>=-0.5&&b.bottom<=dock+0.5;}).length,heights:rows.map(r=>Math.round(r.getBoundingClientRect().height))};});
+ console.log(`density: ${m.shown} of 12 fully visible, heights ${m.heights.join(',')}`);
+ expect(m.shown).toBeGreaterThanOrEqual(8);
+});
+test('each segment has a 4 px rule and a tinted speaker label in its speaker colour; the same name shares a colour, other names differ',async({page})=>{
+ await open(page);
+ const narrator=await paint(page.locator('article.segment').nth(0),page.locator('article.segment').nth(0).getByRole('textbox',{name:'Nhân vật đoạn 1',exact:true}));
+ expect(await page.locator('article.segment').nth(0).evaluate(e=>getComputedStyle(e).borderLeftWidth)).toBe('4px');
+ expect(await paint(page.locator('article.segment').nth(4),page.getByRole('textbox',{name:'Nhân vật đoạn 5',exact:true})),'segment 5 is the narrator too').toEqual(narrator);
+ const second=await paint(page.locator('article.segment').nth(1),page.getByRole('textbox',{name:'Nhân vật đoạn 2',exact:true}));
+ expect(second[0]).not.toBe(narrator[0]);expect(second[1]).not.toBe(narrator[1]);
+ // The label keeps its text: colour is never the only signal.
+ await expect(page.getByRole('textbox',{name:'Nhân vật đoạn 2',exact:true})).toHaveValue('Bà Tư');
+});
+for(const theme of ['light','dark'])test(`speaker labels keep AA contrast on their tint, and the index stays small and muted, in ${theme} mode`,async({page})=>{
+ await page.emulateMedia({colorScheme:theme as 'light'|'dark'});await open(page);
+ await expect(page.locator('html')).toHaveAttribute('data-theme',theme);
+ for(const n of [1,2,3,4]){const [,text,tint]=await paint(page.locator('article.segment').nth(n-1),page.getByRole('textbox',{name:`Nhân vật đoạn ${n}`,exact:true}));expect(tint,`label ${n} is tinted`).not.toMatch(/^rgba\(.*,\s*0\)$|^transparent$/);expect(ratio(text,tint),`label ${n}`).toBeGreaterThanOrEqual(4.5);}
+ const index=await page.locator('article.segment').nth(1).locator('.segment-index').evaluate(e=>({size:parseFloat(getComputedStyle(e).fontSize),color:getComputedStyle(e).color,muted:getComputedStyle(document.documentElement).getPropertyValue('--muted')}));
+ expect(index.size).toBeGreaterThanOrEqual(11);expect(index.size).toBeLessThanOrEqual(12);
+ expect(await page.evaluate(c=>{const i=document.createElement('i');i.style.color='var(--muted)';document.body.append(i);const v=getComputedStyle(i).color;i.remove();return v===c;},index.color)).toBe(true);
+});
+test('"Người 2" has the same colour in the transcript, in the script after "Thành kịch bản" and in "Phân vai"',async({page})=>{
+ await open(page,{transcript:TRANSCRIPT});
+ await page.getByRole('button',{name:'Chép lời',exact:true}).click();
+ const row=page.locator('.transcript-row').nth(1);await expect(row.locator('select.speaker-chip')).toHaveValue('1');
+ const heard=await paint(row,row.locator('select.speaker-chip'));
+ await page.getByRole('button',{name:'Thành kịch bản'}).click();
+ await expect(page.getByRole('textbox',{name:'Nội dung đoạn 16',exact:true})).toBeVisible();
+ const script=segment(page,'Người 2');await expect(script.locator('.speaker-input')).toHaveValue('Người 2');
+ expect(await paint(script,script.locator('.speaker-input')),'script').toEqual(heard);
+ const cast=page.locator('.speaker-tag',{hasText:/^Người 2$/});
+ expect(await cast.evaluate(e=>[getComputedStyle(e).borderLeftColor,getComputedStyle(e).color,getComputedStyle(e).backgroundColor]),'Phân vai').toEqual(heard);
+ expect(await cast.evaluate(e=>getComputedStyle(e).borderLeftWidth),'Phân vai rule').toBe('4px');
+ expect((await paint(segment(page,'Người 1'),segment(page,'Người 1').locator('.speaker-input')))[0]).not.toBe(heard[0]);
+});
+// Beside the text down to 641 px; at 640 px and below the label goes above it so the text keeps its width.
+for(const width of [800,640])test(`the script does not scroll sideways at ${width} px and each label stays inside its segment, ${width>640?'beside':'above'} the text`,async({page})=>{
+ await open(page,{width,height:800});
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+ const rows=await page.locator('article.segment').evaluateAll(rows=>rows.map(r=>{const b=r.getBoundingClientRect(),l=r.querySelector('.speaker-input')!.getBoundingClientRect(),t=r.querySelector('textarea')!.getBoundingClientRect();
+  return {inside:l.left>=b.left&&l.right<=b.right&&t.right<=b.right+0.5,beside:l.right<=t.left&&l.top<t.bottom,above:l.bottom<=t.top,wide:t.width>=b.width*0.85};}));
+ expect(rows.filter(r=>!r.inside)).toEqual([]);
+ expect(rows.every(r=>width>640?r.beside:r.above&&!r.beside&&r.wide)).toBe(true);
+});
