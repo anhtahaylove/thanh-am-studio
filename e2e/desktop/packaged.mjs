@@ -613,6 +613,7 @@ try {
       await page.getByRole('button', {name: 'Chèn khoảng nghỉ 0,5 giây tại con trỏ'}).first().click();
       // Since 1.0.8 the pause button inserts like the emotion buttons: at the end of the text it adds a space after the tag.
       if (!/\[nghỉ 0\.5s\] ?$/.test(await box.inputValue())) throw Error(`pause mark missing: ${await box.inputValue()}`);
+      await box.click(); // the speed select is in the inspector, which shows the selected segment
       await page.getByRole('combobox', {name: 'Tốc độ đọc đoạn 1'}).selectOption('1.1');
       const check = page.getByRole('checkbox', {name: 'Tự kiểm bằng Whisper'});
       if (!(await check.isChecked())) await check.check();
@@ -796,6 +797,7 @@ try {
       return `${got.length} segments with their cues`;
     });
     await step('generate the takes', async () => {
+      await page.getByRole('textbox', {name: 'Nội dung đoạn 2'}).click(); // select segment 2: its speed select is in the inspector
       await page.getByRole('combobox', {name: 'Tốc độ đọc đoạn 2'}).selectOption('1.2');
       await page.waitForTimeout(1500); // autosave
       const before = await done('tts');

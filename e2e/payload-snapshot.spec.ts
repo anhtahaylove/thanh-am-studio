@@ -81,6 +81,7 @@ const scenarios:Record<string,(page:Page)=>Promise<void>>={
   await page.getByRole('combobox',{name:'Take đang sử dụng'}).selectOption('t1b');await exported(page);
  },
  'edit (b): a row\'s voice and speed changed, then generate with "Tự kiểm bằng Whisper" on':async page=>{
+  await pick(page,3); // the voice and speed selects are in the inspector, which shows the selected segment
   await page.getByRole('combobox',{name:'Giọng đoạn 3'}).selectOption('v-ref');await page.getByRole('combobox',{name:'Tốc độ đọc đoạn 3'}).selectOption('1.15');await check(page,'Tự kiểm bằng Whisper');
   await row(page,3).getByRole('button',{name:'Tạo take mới'}).click();await queued(page);
  },

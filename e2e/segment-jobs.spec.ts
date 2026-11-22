@@ -159,8 +159,8 @@ test('the generate button of every row is disabled while the app is busy, and en
  await page.evaluate(()=>(window as any).__release());await expect(buttons.nth(1)).toBeEnabled();await expect(buttons.nth(6)).toBeEnabled();
 });
 
-test('a voice added while the page is open appears in the voice select of every row',async({page})=>{
- await open(page,[]);const select=page.getByRole('combobox',{name:'Giọng đoạn 3'});
+test('a voice added while the page is open appears in the voice select of the inspector',async({page})=>{
+ await open(page,[]);await page.getByRole('textbox',{name:'Nội dung đoạn 3'}).click();const select=page.getByRole('combobox',{name:'Giọng đoạn 3'}); // the voice select is in the inspector, which shows the selected segment
  await expect(select.locator('option')).toHaveCount(1);
  await page.evaluate(()=>(window as any).__addVoice());
  await expect(select.locator('option')).toHaveCount(2,{timeout:8000});await expect(select).toContainText('Giọng mới');
