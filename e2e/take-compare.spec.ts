@@ -139,7 +139,7 @@ test('a superseded load that fails neither stops the dock nor raises an alert',a
 });
 
 test('choosing a take in the inspector drops the audition: the strip, the dock and Space follow the chosen take',async({page})=>{
- await open(page);await strip(page).getByRole('button').nth(1).click();await expect(play(page)).toHaveAccessibleName('Dừng nghe thử');await page.keyboard.press('Space');await expect(play(page)).toHaveAccessibleName('Nghe thử đoạn');
+ await open(page);await strip(page).getByRole('button').nth(1).click();await expect(play(page)).toHaveAccessibleName('Dừng nghe thử');await page.getByRole('heading',{level:1}).click();await page.keyboard.press('Space');await expect(play(page)).toHaveAccessibleName('Nghe thử đoạn'); // focus off the strip button, where Space would press it
  await page.getByRole('combobox',{name:'Take đang sử dụng'}).selectOption('t3');
  await expect(strip(page).getByRole('button').nth(2)).toHaveAttribute('aria-pressed','true');await expect(strip(page).getByRole('button').nth(1)).toHaveAttribute('aria-pressed','false');
  await expect(use(page)).toHaveCount(0);await expect(page.locator('.audio-control strong')).toHaveText('Take 3');
