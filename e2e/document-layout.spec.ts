@@ -93,3 +93,23 @@ for(const theme of ['light','dark'])test(`the playing transcript row is marked b
  expect(ratio(color,m.behind),'visible on the row').toBeGreaterThanOrEqual(3);
  await expect(page.locator('.transcript-row.playing')).toHaveCount(1);
 });
+// CIEDE2000 colour difference of two computed rgb() colours (sRGB, D65), so the speaker slots can be checked for being told apart.
+const lab=(c:string)=>{const [r,g,b]=c.match(/[\d.]+/g)!.slice(0,3).map(v=>{const x=Number(v)/255;return x<=0.04045?x/12.92:((x+0.055)/1.055)**2.4;});
+ const f=(t:number)=>t>0.008856?Math.cbrt(t):7.787*t+16/116,[x,y,z]=[(0.4124*r+0.3576*g+0.1805*b)/0.95047,0.2126*r+0.7152*g+0.0722*b,(0.0193*r+0.1192*g+0.9505*b)/1.08883].map(f);
+ return [116*y-16,500*(x-y),200*(y-z)];};
+const de2000=([L1,a1,b1]:number[],[L2,a2,b2]:number[])=>{const rad=Math.PI/180,C7=(c:number)=>Math.sqrt(c**7/(c**7+25**7)),G=0.5*(1-C7((Math.hypot(a1,b1)+Math.hypot(a2,b2))/2));
+ const [p1,p2]=[a1*(1+G),a2*(1+G)],[C1,C2]=[Math.hypot(p1,b1),Math.hypot(p2,b2)],hue=(a:number,b:number)=>(Math.atan2(b,a)/rad+360)%360,[h1,h2]=[hue(p1,b1),hue(p2,b2)];
+ const dh=C1*C2===0?0:Math.abs(h2-h1)<=180?h2-h1:h2-h1>180?h2-h1-360:h2-h1+360,dH=2*Math.sqrt(C1*C2)*Math.sin(dh*rad/2),L=(L1+L2)/2,C=(C1+C2)/2;
+ const H=C1*C2===0?h1+h2:Math.abs(h1-h2)<=180?(h1+h2)/2:h1+h2<360?(h1+h2+360)/2:(h1+h2-360)/2;
+ const T=1-0.17*Math.cos((H-30)*rad)+0.24*Math.cos(2*H*rad)+0.32*Math.cos((3*H+6)*rad)-0.2*Math.cos((4*H-63)*rad),Rt=-Math.sin(60*Math.exp(-(((H-275)/25)**2))*rad)*2*C7(C);
+ const [sL,sC,sH]=[1+0.015*(L-50)**2/Math.sqrt(20+(L-50)**2),1+0.045*C,1+0.015*C*T],[l,c,h]=[(L2-L1)/sL,(C2-C1)/sC,dH/sH];return Math.sqrt(l*l+c*c+h*h+Rt*c*h);};
+test('every two of the eight speaker colours are at least 15 apart (CIEDE2000) in both themes',async({page})=>{
+ expect(de2000([50,2.6772,-79.7751],[50,0,-82.7485])).toBeCloseTo(2.0425,3);expect(de2000([50,2.5,0],[73,25,-18])).toBeCloseTo(27.1492,3); // Sharma et al. 2005 test pairs
+ for(const theme of ['light','dark']){
+  await page.emulateMedia({colorScheme:theme as 'light'|'dark'});await page.goto('/');await expect(page.locator('html')).toHaveAttribute('data-theme',theme);
+  const c:string[]=await page.evaluate(()=>[0,1,2,3,4,5,6,7].map(n=>{const i=document.createElement('i');i.style.color=`var(--spk-${n})`;document.body.append(i);const v=getComputedStyle(i).color;i.remove();return v;}));
+  const close=[];for(let i=0;i<8;i++)for(let j=i+1;j<8;j++){const d=de2000(lab(c[i]),lab(c[j]));if(d<15)close.push(`${i}-${j} ${d.toFixed(1)}`);}
+  expect(close,theme).toEqual([]);
+ }
+});
+
