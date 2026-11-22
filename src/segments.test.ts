@@ -15,8 +15,16 @@ describe('segmentJobs',()=>{
  it('the newest job of a segment wins, whatever the order of the list',()=>{
   const old=job('1','a','failed',0,'2026-11-22T00:00:00Z'),fresh=job('2','a','queued',0,'2026-11-22T00:05:00Z');
   expect(segmentJobs([fresh,old],'p1').get('a')).toBe('queued');expect(segmentJobs([old,fresh],'p1').get('a')).toBe('queued');
-  expect(segmentJobs([job('3','a','succeeded',1,'2026-11-22T00:09:00Z'),fresh,old],'p1').has('a')).toBe(false);
+  expect(segmentJobs([job('3','a','succeeded',1,'2026-11-22T00:09:00Z'),old],'p1').has('a')).toBe(false);
  });
+ it('a job retried in place (same id and created_at, queued again) beats a newer finished job',()=>{
+  // store.rs requeues a job under its own id: A failed, B newer and failed, A retried: the segment shows A running again.
+  const a=job('A','s','failed',0,'2026-11-22T00:00:00Z'),b=job('B','s','failed',0,'2026-11-22T00:05:00Z');
+  expect(segmentJobs([b,a],'p1').get('s')).toBe('failed');
+  expect(segmentJobs([b,{...a,status:'queued'}],'p1').get('s')).toBe('queued');expect(segmentJobs([b,{...a,status:'running',progress:0.5}],'p1').get('s')).toBe('running:50');
+  expect(latestSegmentJobs([b,{...a,status:'queued'}],'p1').get('s')?.id).toBe('A');
+ });
+ it('a state it does not know shows nothing, not an interruption',()=>expect(segmentJobs([job('1','a','weird' as Job['status'])],'p1').size).toBe(0));
  it('on a tie the first of the list (the newest first) wins',()=>expect(segmentJobs([job('1','a','queued'),job('2','a','failed')],'p1').get('a')).toBe('queued'));
  it('ignores other projects, other kinds and jobs with no segment',()=>{
   const m=segmentJobs([job('1','a','queued',0,undefined,{project_id:'p2'}),job('2','b','queued',0,undefined,{kind:'stt'}),job('3','c','queued',0,undefined,{payload:{}}),job('4','d','queued',0,undefined,{payload:{segment_id:7}})],'p1');

@@ -27,9 +27,6 @@ const mock=({n,live}:{n:number;live:boolean})=>{
 };
 
 // `live`: 1 running job and 31 batch jobs, so every poll sets the jobs list again and 32 rows show a ring; the rows must still not re-render.
-// App itself still renders on those polls: in this dev build creating the 800 row elements (jsxDEV) costs about 100 ms a poll, on main as well, which is why this case has its
-// own budget; without the memoized rows every poll was a ~900 ms long task.
-const LIVE_IDLE_MS=250;
 const script800=async(page:import('@playwright/test').Page,live:boolean)=>{
  test.setTimeout(180000);
  await page.addInitScript(mock,{n:800,live});await page.goto('/');
@@ -41,7 +38,7 @@ const script800=async(page:import('@playwright/test').Page,live:boolean)=>{
  if(live)await expect(page.locator('.segment .job-ring')).toHaveCount(32);
  await page.evaluate(()=>{(window as any).__lt=[];});await page.waitForTimeout(6000); // two or three polls
  const idle:number[]=await page.evaluate(()=>(window as any).__lt);
- expect.soft(Math.max(0,...idle),`long tasks (ms) during 6 s of polling: ${idle.join(', ')||'none'}`).toBeLessThan(live?LIVE_IDLE_MS:IDLE_MS);
+ expect.soft(Math.max(0,...idle),`long tasks (ms) during 6 s of polling: ${idle.join(', ')||'none'}`).toBeLessThan(IDLE_MS);
  const box=page.locator('textarea[aria-label="Nội dung đoạn 400"]');await box.click();await page.keyboard.press('End');await page.waitForTimeout(500);
  await page.evaluate(()=>{(window as any).__keys=[];});
  await page.keyboard.type('abcdefghij',{delay:80});await expect(box).toHaveValue(/abcdefghij$/);
