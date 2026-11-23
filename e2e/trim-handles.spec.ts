@@ -98,7 +98,8 @@ test('a drag shows a draft and commits once on release: one undo step',async({pa
 });
 
 test('Esc during a drag drops the draft and commits nothing',async({page})=>{
- await open(page);const start=slider(page,'Cắt đầu'),trimmed=()=>page.locator('.waveform i.trimmed').count();
+ await open(page);await expect(page.locator('.waveform i')).toHaveCount(100); // the bars are decoded after open() returns; count the trimmed ones only once they are there
+ const start=slider(page,'Cắt đầu'),trimmed=()=>page.locator('.waveform i.trimmed').count();
  const before=await trimmed(),box=(await start.boundingBox())!,wave=(await page.locator('.waveform').boundingBox())!,y=box.y+box.height/2;
  await page.mouse.move(box.x+box.width/2,y);await page.mouse.down();await page.mouse.move(wave.x+12+(wave.width-24)*.5,y,{steps:4});
  await expect(start).toHaveAttribute('aria-valuenow',/^(19[7-9]\d|20[0-2]\d)$/);expect(await trimmed()).toBeGreaterThan(before+20); // the bars follow the draft
