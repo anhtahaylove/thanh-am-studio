@@ -8,7 +8,7 @@ test('? opens the shortcut sheet outside text fields only, lists the real shortc
  await text.focus();await page.keyboard.type('Hỏi?');await expect(text).toHaveValue('Hỏi?');await expect(sheet(page)).toHaveCount(0);
  const speaker=page.getByRole('textbox',{name:'Nhân vật đoạn 1'});await speaker.focus();await page.keyboard.type('?');await expect(sheet(page)).toHaveCount(0);
  await page.getByRole('button',{name:'Thư viện giọng',exact:true}).focus();await page.keyboard.press('Shift+Slash');await expect(sheet(page)).toBeVisible();
- await expect(sheet(page).locator('dt')).toHaveText(['Ctrl+K','?','Ctrl+S','Ctrl+Z','Ctrl+Shift+Z hoặc Ctrl+Y','Esc','Space','1–9','Alt+↑ hoặc Alt+↓','Ctrl+Enter','Ctrl+Shift+Enter','Esc','Ctrl+F','Enter hoặc Shift+Enter','Space','Ctrl+bấm','Ctrl+Enter','Enter hoặc Ctrl+S','Esc']);
+ await expect(sheet(page).locator('dt')).toHaveText(['Ctrl+K','Ctrl+P','?','Ctrl+S','Ctrl+Z','Ctrl+Shift+Z hoặc Ctrl+Y','Esc','Space','1–9','Alt+↑ hoặc Alt+↓','Ctrl+Enter','Ctrl+Shift+Enter','Esc','Ctrl+F','Enter hoặc Shift+Enter','Space','Ctrl+bấm','Ctrl+Enter','Enter hoặc Ctrl+S','Esc']);
  await expect(sheet(page)).toContainText('Mở bảng lệnh');await expect(sheet(page)).toContainText('Tìm trong bản chép lời');
  await page.keyboard.press('Escape');await expect(sheet(page)).toHaveCount(0);await expect(page.getByRole('button',{name:'Thư viện giọng',exact:true})).toBeFocused();
 });
@@ -22,7 +22,7 @@ test('the shortcuts the sheet lists work: Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z and Ctrl+
 test('Ctrl+K opens the palette, filters without tone marks, runs with arrows and Enter, and Escape returns focus',async({page})=>{
  await withSegment(page);const text=page.getByRole('textbox',{name:'Nội dung đoạn 1'});
  await text.focus();await page.keyboard.press('Control+k');await expect(palette(page)).toBeVisible();await expect(box(page)).toBeFocused();
- await expect(palette(page).getByRole('option')).toHaveCount(13);await expect(palette(page)).not.toContainText('Nhấn ?');
+ await expect(palette(page).getByRole('option')).toHaveCount(14);await expect(palette(page)).not.toContainText('Nhấn ?');
  await box(page).fill('cai dat');await expect(palette(page).getByRole('option')).toHaveText(['Mở Model & cài đặt']);
  await box(page).fill('tao giong');await expect(palette(page).getByRole('option')).toHaveCount(3);await expect(palette(page).getByRole('option').first()).toHaveAttribute('aria-selected','true');
  await box(page).fill('HANG doi');await expect(palette(page).getByRole('option')).toHaveText(['Đi tới Hàng đợi']);
@@ -76,7 +76,7 @@ test('enabled commands call the existing generate and export handlers',async({pa
     case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,python_path:null,ffmpeg_path:null,message:''};default:return null;}}};
  });
  const jobs=()=>page.evaluate(()=>(window as any).__calls.filter((c:any)=>c.cmd==='enqueue_job').map((c:any)=>[c.args.kind,c.args.payload.segment_id??null]));
- await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();await expect(page.getByRole('textbox',{name:'Nội dung đoạn 2'})).toBeVisible();
+ await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();await expect(page.getByRole('textbox',{name:'Nội dung đoạn 2'})).toBeVisible();
  await page.keyboard.press('Control+k');await expect(palette(page).getByRole('option',{name:/Tạo giọng tất cả/})).not.toHaveAttribute('aria-disabled','true');
  await box(page).fill('tao giong tat ca');await page.keyboard.press('Enter');await expect.poll(jobs).toEqual([['tts','1'],['tts','2']]);
  await page.getByRole('textbox',{name:'Nội dung đoạn 2'}).click();await page.keyboard.press('Control+k');await box(page).fill('dang chon');await page.keyboard.press('Enter');
