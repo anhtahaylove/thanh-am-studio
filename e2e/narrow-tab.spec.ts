@@ -75,6 +75,7 @@ for(const [width,height,scale] of [[441,320,' (225 %)'],[668,481,' (150 %)'],[80
  await open(page,width,height,COMPARE);
  // Tab through the script. Focus scrolls a text field only as far as its caret, which Tab leaves on the first line: that line, once focused
  // (the browser scrolls after focusin), is inside the window and clear of the dock.
+ await page.getByRole('textbox',{name:'Nội dung đoạn 2',exact:true}).evaluate(t=>(t as HTMLTextAreaElement).setSelectionRange(0,0)); // the click in open() left its caret mid-text
  await page.getByRole('textbox',{name:'Nhân vật đoạn 1',exact:true}).focus();
  const seen=new Set<string>();
  for(let i=0;i<120&&seen.size<12;i++){
