@@ -9,7 +9,7 @@ const mock=()=>{
  AudioBufferSourceNode.prototype.stop=function(this:AudioBufferSourceNode,...a:any[]){w.__ev.push('stop');return (stop as any).apply(this,a);};
  const take=(id:string)=>({id,asset_id:'a'+id,path:'/tone.wav',duration_ms:8000,sample_rate:8000,created_at:new Date().toISOString()});
  const seg=(id:string,takes:any[])=>({id,text:'Xin chào '+id+'.',normalized_text:'Xin chào '+id+'.',voice_id:null,speaker:'Người dẫn',gap_ms:300,takes,selected_take_id:takes[0].id,trim_start_ms:0,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0,gain_db:0});
- const make=(id:string,name:string)=>({id,name,updated_at:new Date().toISOString(),revision:1,segments:[seg('1',[take('t1')]),seg('2',[take('t2')])],transcript:[],dictionary:{},source_asset_id:null});
+ const make=(id:string,name:string)=>({id,name,updated_at:new Date().toISOString(),revision:1,segments:[seg('1',[take('t1'),take('t1b')]),seg('2',[take('t2')])],transcript:[],dictionary:{},source_asset_id:null});
  // The project list is ordered like a real one: p1 first, p2 second. Both projects use segment ids 1 and 2.
  const projects:any[]=[make('p1','Dự án một'),make('p2','Dự án hai')];
  w.__TAURI_INTERNALS__={convertFileSrc:(p:string)=>p,transformCallback:()=>1,unregisterCallback:()=>{},metadata:{currentWindow:{label:'main'},currentWebview:{label:'main',windowLabel:'main'}},
@@ -44,11 +44,11 @@ test('selecting another segment stops the playing preview and clears the wavefor
 });
 
 test('a preview still loading when another segment is selected never starts',async({page})=>{
- const delay={ms:500};
+ const delay={ms:1500};
  await open(page,delay);
  await page.keyboard.press('Space');
  await page.locator('article.segment').nth(1).click();
- await page.waitForTimeout(1200);
+ await page.waitForTimeout(2000);
  expect(await events(page)).not.toContain('start');
  await expect(play(page)).toHaveAccessibleName('Nghe thử đoạn');
 });
@@ -58,7 +58,7 @@ test('opening another project stops the playing preview',async({page})=>{
  await page.keyboard.press('Space');await expect(play(page)).toHaveAccessibleName('Dừng nghe thử');
  await expect.poll(()=>events(page)).toEqual(['start']);
  await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).nth(1).click();
- await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toHaveValue('Xin chào 1.');
+ await expect.poll(()=>page.evaluate(()=>(window as any).__loads)).toBe(2); // the second project was loaded, so the stop is not just the first open
  await expect(play(page)).toHaveAccessibleName('Nghe thử đoạn');
  expect(await events(page)).toEqual(['start','stop']);
  expect(await bars(page)).toBe(0);
@@ -83,4 +83,14 @@ test('a new take arriving in the playing segment does not stop the preview',asyn
  await expect(page.getByRole('toolbar',{name:'So sánh take'})).toBeVisible();
  await expect(play(page)).toHaveAccessibleName('Dừng nghe thử');
  expect(await events(page)).toEqual(['start']);
+});
+
+test('switching segments drops the audition: back on segment 1 the dock shows its selected take',async({page})=>{
+ await open(page);
+ const dockTake=page.locator('.audio-control strong');
+ await page.keyboard.press('2');await expect(dockTake).toHaveText('Take 2');
+ await page.locator('article.segment').nth(1).click();
+ await page.locator('article.segment').nth(0).click();
+ await expect(dockTake).toHaveText('Take 1');
+ await expect(page.getByRole('button',{name:'Dùng take này'})).toHaveCount(0);
 });
