@@ -11,7 +11,7 @@ test('browser preview edits and persists a real project without pretending infer
  await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toHaveValue('Xin chào Việt Nam. Đây là câu chuyện của tôi.');
 });
 test('script import, dictionary and segment controls remain functional',async({page})=>{
- await page.goto('/');await page.getByRole('button',{name:'Thêm nội dung',exact:true}).click();await page.getByRole('textbox',{name:'Nội dung cần thêm'}).fill('Xin chào TP.HCM\nChúng ta kể chuyện.');await page.getByRole('button',{name:'Thêm vào kịch bản'}).click();
+ await page.goto('/');await page.getByRole('button',{name:'Thêm nội dung',exact:true}).click();await page.getByRole('textbox',{name:'Nội dung cần thêm'}).fill('Xin chào TP.HCM\nChúng ta kể chuyện.');await page.getByRole('button',{name:/^Thêm \d+ đoạn vào kịch bản$/}).click();
  await expect(page.getByRole('textbox',{name:'Nội dung đoạn 2'})).toHaveValue('Chúng ta kể chuyện.');await page.getByRole('button',{name:'Từ điển phát âm'}).click();await page.getByRole('textbox',{name:'Từ gốc',exact:true}).fill('TP.HCM');await page.getByRole('textbox',{name:'Cách đọc',exact:true}).fill('Thành phố Hồ Chí Minh');await page.getByRole('button',{name:'Thêm cách đọc'}).click();
  await page.getByText('Văn bản sau chuẩn hóa',{exact:true}).click();await expect(page.locator('.normalization p')).toHaveText('Xin chào Thành phố Hồ Chí Minh (Từ điển phát âm: “TP.HCM” → “Thành phố Hồ Chí Minh”)');await expect(page.locator('.normalization p')).toBeVisible();
  await page.getByRole('button',{name:'Đưa đoạn xuống',exact:true}).first().click();await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toHaveValue('Chúng ta kể chuyện.');
@@ -37,7 +37,7 @@ test('app dictionary persists, applies to every project and loses to the project
  await expect(page.locator('.normalization p')).toHaveText('Xin chào Sài Gòn (Từ điển phát âm: “TP.HCM” → “Sài Gòn”)');await expect(page.locator('.normalization p')).toBeVisible();
 });
 test('speaker panel, split, merge and undo/redo edit the script',async({page})=>{
- await page.goto('/');await page.getByRole('button',{name:'Thêm nội dung',exact:true}).click();await page.getByRole('textbox',{name:'Nội dung cần thêm'}).fill('Câu một. Câu hai.\nDòng sau.');await page.getByRole('button',{name:'Thêm vào kịch bản'}).click();
+ await page.goto('/');await page.getByRole('button',{name:'Thêm nội dung',exact:true}).click();await page.getByRole('textbox',{name:'Nội dung cần thêm'}).fill('Câu một. Câu hai.\nDòng sau.');await page.getByRole('button',{name:/^Thêm \d+ đoạn vào kịch bản$/}).click();
  await expect(page.getByRole('combobox',{name:'Giọng của Người dẫn'})).toBeVisible();
  await page.getByRole('button',{name:'Chia đoạn tại con trỏ'}).first().click();
  await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toHaveValue('Câu một.');await expect(page.getByRole('textbox',{name:'Nội dung đoạn 2'})).toHaveValue('Câu hai.');await expect(page.getByRole('textbox',{name:'Nội dung đoạn 3'})).toHaveValue('Dòng sau.');
@@ -61,7 +61,7 @@ test('transcript find and replace changes every match in one undo step',async({p
  await page.getByLabel('Tìm trong bản chép lời').fill('');await texts.nth(0).focus();await page.keyboard.press('Control+z');await expect(texts.nth(0)).toHaveValue('chợ biến thành');
 });
 test('a pause mark is inserted at the cursor',async({page})=>{
- await page.goto('/');await page.getByRole('button',{name:'Thêm nội dung',exact:true}).click();await page.getByRole('textbox',{name:'Nội dung cần thêm'}).fill('Câu một. Câu hai.');await page.getByRole('button',{name:'Thêm vào kịch bản'}).click();
+ await page.goto('/');await page.getByRole('button',{name:'Thêm nội dung',exact:true}).click();await page.getByRole('textbox',{name:'Nội dung cần thêm'}).fill('Câu một. Câu hai.');await page.getByRole('button',{name:/^Thêm \d+ đoạn vào kịch bản$/}).click();
  const box=page.getByRole('textbox',{name:'Nội dung đoạn 1'});await box.click();await page.keyboard.press('Control+Home');for(let i=0;i<8;i++)await page.keyboard.press('ArrowRight');
  await page.getByRole('button',{name:'Chèn khoảng nghỉ 0,5 giây tại con trỏ'}).click();await expect(box).toHaveValue('Câu một. [nghỉ 0.5s] Câu hai.');
 });
@@ -89,7 +89,7 @@ test('speaker panel summarizes diarized rows and merges one speaker into another
 });
 test('pasting a script with "Tên:" labels creates one role per speaker and drops the prefix',async({page})=>{
  await page.goto('/');await page.getByRole('button',{name:'Thêm nội dung',exact:true}).click();
- await page.getByRole('textbox',{name:'Nội dung cần thêm'}).fill('Mai: Chào anh.\nAnh vẫn khỏe chứ?\n[Nam]: Khỏe, cảm ơn.\nLúc 8:30 gặp lại.');await page.getByRole('button',{name:'Thêm vào kịch bản'}).click();
+ await page.getByRole('textbox',{name:'Nội dung cần thêm'}).fill('Mai: Chào anh.\nAnh vẫn khỏe chứ?\n[Nam]: Khỏe, cảm ơn.\nLúc 8:30 gặp lại.');await page.getByRole('button',{name:/^Thêm \d+ đoạn vào kịch bản$/}).click();
  await expect(page.getByRole('textbox',{name:'Nhân vật đoạn 1'})).toHaveValue('Mai');await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toHaveValue('Chào anh.');
  await expect(page.getByRole('textbox',{name:'Nhân vật đoạn 2'})).toHaveValue('Mai');await expect(page.getByRole('textbox',{name:'Nhân vật đoạn 3'})).toHaveValue('Nam');await expect(page.getByRole('textbox',{name:'Nội dung đoạn 3'})).toHaveValue('Khỏe, cảm ơn.');
  await expect(page.getByRole('textbox',{name:'Nội dung đoạn 4'})).toHaveValue('Lúc 8:30 gặp lại.');await expect(page.getByRole('textbox',{name:'Nhân vật đoạn 4'})).toHaveValue('Nam');

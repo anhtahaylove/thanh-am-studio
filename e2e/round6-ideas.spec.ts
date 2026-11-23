@@ -38,7 +38,7 @@ test('a TXT export of a transcript with speakers reads as turns and comes back a
  const [download]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:'TXT',exact:true}).click()]);
  const txt=await (await import('node:fs/promises')).readFile(await download.path(),'utf8');
  expect(txt).toBe('Người 1: Chào chị. Chị khỏe không?\n\nNgười 2: Khỏe, cảm ơn em.\n\nNgười 1: Vậy bắt đầu nhé.');
- await page.getByRole('button',{name:'Tạo giọng đọc',exact:true}).click();await page.getByRole('button',{name:'Thêm nội dung',exact:true}).click();await page.getByRole('textbox',{name:'Nội dung cần thêm'}).fill(txt);await page.getByRole('button',{name:'Thêm vào kịch bản'}).click();
+ await page.getByRole('button',{name:'Tạo giọng đọc',exact:true}).click();await page.getByRole('button',{name:'Thêm nội dung',exact:true}).click();await page.getByRole('textbox',{name:'Nội dung cần thêm'}).fill(txt);await page.getByRole('button',{name:/^Thêm \d+ đoạn vào kịch bản$/}).click();
  for(const [i,speaker,text] of [[1,'Người 1','Chào chị. Chị khỏe không?'],[2,'Người 2','Khỏe, cảm ơn em.'],[3,'Người 1','Vậy bắt đầu nhé.']] as const){await expect(page.getByRole('textbox',{name:`Nhân vật đoạn ${i}`})).toHaveValue(speaker);await expect(page.getByRole('textbox',{name:`Nội dung đoạn ${i}`})).toHaveValue(text);}
 });
 test('a segment too long to mark says so instead of showing no marks without a word',async({page})=>{

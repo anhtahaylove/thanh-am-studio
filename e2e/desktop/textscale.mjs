@@ -111,7 +111,7 @@ async function openProject(first) {
     await page.getByRole('navigation', {name: 'Điều hướng chính'}).getByRole('button').first().click();
     await page.getByRole('button', {name: 'Thêm nội dung', exact: true}).click();
     await page.getByRole('textbox', {name: 'Nội dung cần thêm'}).fill('Lan: Xin chào, đây là Thanh Âm Studio. Hôm nay trời Hà Nội trong xanh.\nMinh: Chúng tôi kiểm tra giọng đọc tiếng Việt trên máy tính.');
-    await page.getByRole('button', {name: 'Thêm vào kịch bản'}).click();
+    await page.getByRole('button', {name: /^Thêm \d+ đoạn vào kịch bản$/}).click();
     await page.getByRole('textbox', {name: 'Nội dung đoạn 2'}).waitFor();
     await page.waitForTimeout(1500); // autosave
     return;

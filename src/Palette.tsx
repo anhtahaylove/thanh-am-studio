@@ -49,6 +49,7 @@ const SHORTCUTS:{group:string;items:{combos:string[];what:string}[]}[]=[
   {combos:['Ctrl+Shift+Z','Ctrl+Y'],what:'Làm lại'},
   {combos:['Esc'],what:'Đóng hộp thoại đang mở'}]},
  {group:'Tạo giọng đọc',items:[
+  {combos:['Ctrl+V'],what:'Dán kịch bản nhiều vai (“Tên: lời”): xem trước rồi mới thêm đoạn'},
   {combos:['Space'],what:'Phát hoặc dừng take của đoạn đang chọn (khi không gõ và không đứng trên nút)'},
   {combos:['1–9'],what:'Nghe take số N của đoạn đang chọn (đang phát thì nghe tiếp từ cùng chỗ)'},
   {combos:['Alt+↑','Alt+↓'],what:'Đưa đoạn lên hoặc xuống (trong ô nội dung đoạn hoặc thanh thao tác của đoạn)'},
