@@ -61,7 +61,7 @@ test('the "Tên - lời" checkbox is absent when dash labels change nothing, and
 test('a "Tên: lời" line whose name is longer than 30 characters stays narration',async({page})=>{
  await page.goto('/');await expect(page.getByRole('button',{name:'Viết đoạn đầu tiên'})).toBeVisible();
  const long='Một người rất dài dòng không bao giờ ngừng nói';
- expect(await paste(page.locator('body'),`${long}: Chào anh.\nMai: Ừ.`)).toBe(false);
+ expect(await paste(page.locator('body'),`${long}: Chào anh.\nMai: Ừ.\nHùng: Vâng.`)).toBe(false);
  await expect(status(page)).toHaveText('Sẽ thêm 3 đoạn · 3 nhân vật');await expect(dialog(page).getByRole('listitem')).toHaveText([`Người dẫn: ${long}: Chào anh.`,'Mai: Ừ.','Hùng: Vâng.']);
  await dialog(page).getByRole('button',{name:'Thêm 3 đoạn vào kịch bản'}).click();
  await expect(who(page,1)).toHaveValue('Người dẫn');await expect(seg(page,1)).toHaveValue(`${long}: Chào anh.`);await expect(who(page,2)).toHaveValue('Mai');
