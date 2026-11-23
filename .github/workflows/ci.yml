@@ -62,18 +62,24 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.12'
+      # The venv, and TEMP while the tests run, sit in a folder named outside cp1252 and cp1258 (a Vietnamese user profile): a DLL,
+      # model or temp file reached through a narrow (ANSI) path fails here. docs/STATUS.md, "Unicode paths".
       - name: ORT inputs for the ortffi tests
+        env:
+          ORTVENV: ${{ runner.temp }}/Thử nghiệm ễ 中文/ortvenv
         run: |
-          python -m venv "$env:RUNNER_TEMP/ortvenv"
-          & "$env:RUNNER_TEMP/ortvenv/Scripts/python.exe" -m pip install --no-deps onnxruntime==1.31.1 faster-whisper==1.2.1 sherpa-onnx==2.0.1 sherpa-onnx-core==2.0.1
+          python -m venv "$env:ORTVENV"
+          & "$env:ORTVENV/Scripts/python.exe" -m pip install --no-deps onnxruntime==1.31.1 faster-whisper==1.2.1 sherpa-onnx==2.0.1 sherpa-onnx-core==2.0.1
       # `cargo test` builds no exe for a package without integration tests; the worker's diarization test runs this one.
       - run: cargo build -p thanham-diarize --locked
       - run: cargo test --workspace --locked
         env:
-          ORTFFI_RUNTIME: ${{ runner.temp }}/ortvenv
+          ORTFFI_RUNTIME: ${{ runner.temp }}/Thử nghiệm ễ 中文/ortvenv
           # thanham-diarize loads the wheel's sherpa-onnx-c-api.dll from here (its smoke test; no models in this job).
-          THANHAM_SHERPA_LIB: ${{ runner.temp }}/ortvenv/Lib/site-packages/sherpa_onnx/lib
+          THANHAM_SHERPA_LIB: ${{ runner.temp }}/Thử nghiệm ễ 中文/ortvenv/Lib/site-packages/sherpa_onnx/lib
           THANHAM_DIARIZE_REQUIRE: '1'  # built in the step above
+          TEMP: ${{ runner.temp }}\Thử nghiệm ễ 中文
+          TMP: ${{ runner.temp }}\Thử nghiệm ễ 中文
   # A pull request may not touch the workers, the Tauri files that build or store audio, or the owner-locked payload snapshot (adding it is
   # fine). A change there needs the owner, and a fixture change also needs owner listening.
   guard:
