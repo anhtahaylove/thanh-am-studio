@@ -42,7 +42,7 @@ export function countExact(rows:TranscriptSegment[],find:string):number{
  for(const r of rows)for(const _ of r.text.normalize('NFC').matchAll(pattern))count++;
  return count;
 }
-const foldVi=(s:string)=>s.normalize('NFD').replace(/\p{M}/gu,'').replace(/[đĐ]/g,'d').toLowerCase();
+export const foldVi=(s:string)=>s.normalize('NFD').replace(/\p{M}/gu,'').replace(/[đĐ]/g,'d').toLowerCase();
 /** Splits `text` at every match of `query`, ignoring case, tone marks and the stroke of đ; the parts always concatenate back to `text`. */
 export function searchParts(text:string,query:string):{text:string;hit:boolean}[]{
  const q=foldVi(query);if(!query)return [{text,hit:false}];
@@ -59,6 +59,15 @@ export function searchParts(text:string,query:string):{text:string;hit:boolean}[
  }
  if(last<text.length||!parts.length)parts.push({text:text.slice(last),hit:false});
  return parts;
+}
+/** Quick-open match, ignoring case, tone marks and the stroke of đ: 0 when every typed word is in `label`, 1 when the typed letters
+ * (spaces removed) appear in it in order, else null. */
+export function fuzzyRank(label:string,query:string):0|1|null{
+ const l=foldVi(label),q=foldVi(query);
+ if(q.split(/\s+/).every(w=>l.includes(w)))return 0;
+ const s=q.replace(/\s+/g,'');let i=0;
+ for(let j=0;j<l.length&&i<s.length;j++)if(l[j]===s[i])i++;
+ return i===s.length?1:null;
 }
 /** Badge for a take that Whisper listened back to; soft mismatches (merged initials/finals) do not warn. */
 export function checkSummary(check:TakeCheck|undefined):{tone:'ok'|'warn';label:string;detail:string}|null{

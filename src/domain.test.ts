@@ -1,5 +1,6 @@
 import {describe,it,expect} from 'vitest';
 import {jsonEqual,matchWords,chapterFileName,chapterGroups,dubPlan,dubSummary,dubOverruns,takeTrim,progressLabel,jobProgressLabel,taskbarProgress,parseSubtitles,exportSubtitles,normalizeText,splitText,splitTranscript,mergeTranscript,clipDuration,validateRecipe,ttsTranscript,makeSegment,splitSegment,mergeSegments,restoreSnapshot,addTranscriptRow,validRange,replaceInTranscript,searchParts,suspiciousRows,rowAt,spokenText,insertAtCursor,checkSummary,normalizedParts,transcriptToScript,barState,speakerSlots,scriptChunks,seconds,timestamp} from './domain';
+import {fuzzyRank} from './domain';
 import type {Project,Take} from './types';
 describe('subtitle and text contracts',()=>{
  it('reads BOM SRT and multiline Vietnamese',()=>{expect(parseSubtitles('\uFEFF1\r\n00:00:01,250 --> 00:00:03,500\r\nXin chào\r\nViệt Nam\r\n')).toMatchObject([{start_ms:1250,end_ms:3500,text:'Xin chào\nViệt Nam'}]);});
@@ -105,6 +106,13 @@ describe('transcript rows',()=>{
   expect(searchParts('a ế b','e').map(p=>p.text).join('')).toBe('a ế b');
   expect(searchParts('Xin chào','xyz')).toEqual([{text:'Xin chào',hit:false}]);expect(searchParts('Xin chào','́')).toEqual([{text:'Xin chào',hit:false}]);
   expect(searchParts('aa','a')).toEqual([{text:'a',hit:true},{text:'a',hit:true}]);
+ });
+ it('ranks quick-open names: 0 when every typed word is in the name, 1 when the typed letters appear in order, else null, ignoring case, tone marks and đ',()=>{
+  expect(fuzzyRank('Làng chài · dự án mẫu','lang chai')).toBe(0);expect(fuzzyRank('Làng chài · dự án mẫu','CHAI  lang')).toBe(0);expect(fuzzyRank('Đường làng','duong')).toBe(0);expect(fuzzyRank('Làng chài','')).toBe(0);
+  expect(fuzzyRank('Làng chài · dự án mẫu','lgch')).toBe(1);expect(fuzzyRank('Làng chài · dự án mẫu','lg ch')).toBe(1);
+  expect(fuzzyRank('Làng chài · dự án mẫu','xyz')).toBeNull();expect(fuzzyRank('Làng chài','chl')).toBeNull();expect(fuzzyRank('Làng chài','lang chai x')).toBeNull();
+  // Ordering: a name holding the typed word ranks above one that only holds its letters in order, whatever the list order.
+  expect(['Lớp anh ngữ Giang','Làng chài','Bản tin sáng','Làng nghề'].map(n=>fuzzyRank(n,'lang'))).toEqual([1,0,null,0]);
  });
  it('replaces text case-insensitively across rows and counts each match',()=>{const rows=[{id:'a',start_ms:0,end_ms:1000,text:'Chợ biến thành, biến thành'},{id:'b',start_ms:1000,end_ms:2000,text:'không đổi'}];const r=replaceInTranscript(rows,'BIẾN thành','Bến Thành');expect(r.count).toBe(2);expect(r.rows[0].text).toBe('Chợ Bến Thành, Bến Thành');expect(r.rows[1]).toBe(rows[1]);expect(replaceInTranscript(rows,'',"x")).toEqual({rows,count:0});expect(replaceInTranscript(rows,'a.b','x').count).toBe(0);});
  it('finds the row being heard at a playback position',()=>{const rows=[{id:'a',start_ms:0,end_ms:1000,text:''},{id:'b',start_ms:1500,end_ms:2000,text:''}];expect(rowAt(rows,999)).toBe('a');expect(rowAt(rows,1000)).toBeNull();expect(rowAt(rows,1500)).toBe('b');expect(rowAt(rows,2000)).toBeNull();});
