@@ -28,8 +28,9 @@ const headHeight=(page:Page,n:number)=>page.locator('.segment').nth(n-1).locator
 // The jobs the next poll returns, one per segment, all in the same state.
 const jobs=(page:Page,segments:string[],status:string,progress=0)=>page.evaluate(([s,st,pr])=>{(window as any).__jobs=(s as string[]).map(id=>({id:'j'+id,kind:'tts',project_id:'p1',payload:{segment_id:id,text:'x'},status:st,progress:pr,error:null,result:null,created_at:'2026-11-22T00:00:00Z',updated_at:'2026-11-22T00:00:00Z'}));},[segments,status,progress] as const);
 
-// Segment 2 has a checked take (its "Khớp kịch bản" chip), segment 3 has no take. The ring needs 27 px beside the chips (icon 16 + gap 5 + head gap 6); where the chips'
-// line has less spare, the toolbar still wraps while a job runs. At 800x720 segment 2 has 10 px spare, so that cell is left out: a residual band, see PLAN §16.
+// Segment 2 has a checked take (its "Khớp kịch bản" chip), segment 3 has no take. The ring needs 27 px beside the chips (icon 16 + gap 5 + head gap 6). The residual band:
+// a head whose first line has under 27 px spare still grows while a job runs, its ring alone on a second line. At 800x720 segment 2 has 10 px spare, so that cell is left
+// out; a long "Có thể đọc sai" warning chip does the same at 1024x720 (12 px spare, the head grows from 89 to 111 px). See PLAN §16.
 for(const [width,height,segments] of [[800,720,[3]],[921,720,[2,3]],[1024,720,[2,3]],[1152,720,[2,3]],[1280,720,[2,3]],[1366,768,[2,3]],[1440,960,[2,3]]] as const)test(`at ${width}x${height} a waiting or running job leaves the head of segment ${segments.join(' and ')} as tall as it was, and nothing scrolls sideways`,async({page})=>{
  await open(page,width,height);
  const idle=new Map<number,number>();for(const n of segments)idle.set(n,await headHeight(page,n));
@@ -47,8 +48,8 @@ test('a label longer than the room beside the chips ends in an ellipsis on one l
  await jobs(page,['s2'],'interrupted');
  await expect(ring(page,2)).toHaveText(LONG);await expect(ring(page,2)).toHaveAttribute('title',LONG);
  expect(Math.abs(await headHeight(page,2)-idle),`idle ${idle} px`).toBeLessThanOrEqual(1);
- const label=await ring(page,2).locator('.job-ring-label').evaluate(e=>({scroll:e.scrollWidth,client:e.clientWidth,ellipsis:getComputedStyle(e).textOverflow}));
- expect(label.scroll,'the label is cut, not wrapped').toBeGreaterThan(label.client);expect(label.ellipsis).toBe('ellipsis');
+ const label=await ring(page,2).locator('.job-ring-label').evaluate(e=>({scroll:e.scrollWidth,client:e.clientWidth,ellipsis:getComputedStyle(e).textOverflow,overflow:getComputedStyle(e).overflowX}));
+ expect(label.scroll,'the label is cut, not wrapped').toBeGreaterThan(label.client);expect(label.ellipsis).toBe('ellipsis');expect(label.overflow,'the ellipsis shows only when the overflow is hidden').toBe('hidden');
 });
 
 // 1024x720 is the largest of the desktop sizes (1024x720, 1440x960) at which segment 2 is at most 600 px wide, where the `@container (max-width:600px)` rules apply.
