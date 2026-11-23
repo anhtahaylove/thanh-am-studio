@@ -329,6 +329,15 @@ export function takeDiff(source:string,check:TakeCheck):{script:{word:string;mar
  const skipped=pieces.length*heard.flatMap(w=>wordTokens(w.text)).length>4e6,{match}=matchWords(pieces.map(w=>w.toLowerCase()),heard);
  return {script:pieces.map((word,i)=>({word,mark:skipped||match[i]>=0?null:hard.get(word.toLowerCase())??null})),mismatches};
 }
+/** A playing take's script for karaoke: the words checkWords compares, each with the start (ms in the take) of the heard word matchWords aligns it to, or null,
+ *  and the text between them as plain parts (no start_ms). Above matchWords' 4e6 cells every word is null. */
+export function karaokeParts(text:string,words:{text:string;start_ms:number}[]):{text:string;start_ms?:number|null}[]{
+ const src=checkText(text).normalize('NFC'),pieces=[...src.matchAll(WORD_RE)],{match,starts}=matchWords(pieces.map(m=>m[0].toLowerCase()),words),parts:{text:string;start_ms?:number|null}[]=[];
+ let at=0;pieces.forEach((m,i)=>{if(m.index>at)parts.push({text:src.slice(at,m.index)});parts.push({text:m[0],start_ms:match[i]>=0?starts[match[i]]:null});at=m.index+m[0].length;});
+ if(at<src.length)parts.push({text:src.slice(at)});return parts;
+}
+/** The part lit at `ms`: the last word that starts at or before it, so a word with no start keeps the one before it lit; -1 before the first. */
+export const karaokeAt=(parts:{start_ms?:number|null}[],ms:number)=>parts.reduce((lit,p,i)=>p.start_ms!=null&&p.start_ms<=ms?i:lit,-1);
 /** The first whole-word match of `expected` (words of the sent text) in the script, in the script's own spelling: exactly as written first, since dictionary keys are case-sensitive, then ignoring case. Punctuation between its words is fine. Null when the script has no such word (a number, a unit or a dictionary entry turned it into something else). */
 export function sourceSpelling(text:string,expected:string):string|null{
  const words=wordTokens(expected);if(!words.length)return null;

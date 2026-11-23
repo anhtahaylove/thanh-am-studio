@@ -1,5 +1,5 @@
 import {describe,expect,it} from 'vitest';
-import {checkWords,readingOrigin,sourceSpelling,switchOffset,takeDiff} from './domain';
+import {checkWords,karaokeAt,karaokeParts,readingOrigin,sourceSpelling,switchOffset,takeDiff} from './domain';
 // Offsets are measured from the start of speech, so switching take keeps the same place in the speech.
 const r=(trim_start_ms:number,trim_end_ms:number|null,duration_ms:number)=>({trim_start_ms,trim_end_ms,duration_ms});
 describe('switchOffset',()=>{
@@ -62,4 +62,33 @@ describe('readingOrigin',()=>{
  it('names the dictionary entry whose reading holds the word',()=>expect(readingOrigin('Họp HTX sáng nay.',{HTX:'hợp tác xã'},'hợp tác xã')).toEqual({kind:'dictionary',key:'HTX'}));
  it('names the stretch of script a text rule rewrote',()=>{const o=readingOrigin('Nặng 12 kg.',{},'ki lô gam');expect(o).toEqual({kind:'rule',from:'kg.'});});
  it('is null when nothing explains the word',()=>expect(readingOrigin('Xin chào.',{},'abc')).toBeNull());
+});
+// Karaoke: the script words of a playing take with the heard word times, the text between them plain.
+describe('karaokeParts',()=>{
+ const w=(...t:[string,number][])=>t.map(([text,start_ms])=>({text,start_ms}));
+ const words=(parts:ReturnType<typeof karaokeParts>)=>parts.filter(p=>p.start_ms!==undefined);
+ it('an exact match times every word, and the parts spell the text',()=>{
+  const parts=karaokeParts('Xin chào, bạn.',w(['xin',0],['chào',400],['bạn',800]));
+  expect(parts).toEqual([{text:'Xin',start_ms:0},{text:' '},{text:'chào',start_ms:400},{text:', '},{text:'bạn',start_ms:800},{text:'.'}]);
+  expect(parts.map(p=>p.text).join('')).toBe('Xin chào, bạn.');
+ });
+ it('an unmatched "12" has no start, and the word before it stays lit',()=>{
+  const parts=karaokeParts('Tôi có 12 quả cam',w(['tôi',0],['có',200],['mười',400],['hai',600],['quả',800],['cam',1000]));
+  expect(words(parts).map(p=>[p.text,p.start_ms])).toEqual([['Tôi',0],['có',200],['12',null],['quả',800],['cam',1000]]);
+  expect(parts[karaokeAt(parts,700)].text).toBe('có');expect(parts[karaokeAt(parts,800)].text).toBe('quả');expect(karaokeAt(parts,-1)).toBe(-1);
+ });
+ it('drops <en> tags and pause marks, and its words are the checkWords of the text',()=>{
+  const text='<en>Do it</en> [nghỉ 0.5s] Xin [thở dài] chào',parts=karaokeParts(text,w(['do',0],['it',300],['xin',900],['chào',1200]));
+  expect(words(parts).map(p=>p.text.toLowerCase())).toEqual(checkWords(text));expect(words(parts).map(p=>p.start_ms)).toEqual([0,300,900,1200]);
+  expect(parts.map(p=>p.text).join('')).not.toMatch(/[<>[\]]|nghỉ|thở/);
+ });
+ it('punctuation is plain text, never a word',()=>{
+  const parts=karaokeParts('“Ừ… được!” — anh nói.',w(['ừ',0],['được',300],['anh',600],['nói',900]));
+  expect(words(parts).map(p=>p.text)).toEqual(['Ừ','được','anh','nói']);
+  expect(parts.filter(p=>p.start_ms===undefined).map(p=>p.text)).toEqual(['“','… ','!” — ',' ','.']);
+ });
+ it('a segment too long to align gives every word no start',()=>{
+  const text=Array.from({length:2100},(_,i)=>`từ${i}`).join(' '),parts=karaokeParts(text,Array.from({length:2100},(_,i)=>({text:`từ${i}`,start_ms:i*10})));
+  expect(words(parts)).toHaveLength(2100);expect(words(parts).every(p=>p.start_ms===null)).toBe(true);expect(karaokeAt(parts,99999)).toBe(-1);
+ });
 });

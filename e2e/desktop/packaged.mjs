@@ -650,6 +650,17 @@ try {
       if (!played) throw Error(`no played bars of ${bars}`);
       return `${played}/${bars} bars played after 1.5 s`;
     });
+    await step('karaoke highlights the checked take while it plays', async () => {
+      // The selected take is the checked one above, with at least 5 word times, so its script words must light up.
+      await page.getByRole('button', {name: 'Nghe thử đoạn'}).first().click();
+      const mark = page.locator('.karaoke mark');
+      const found = await mark.first().waitFor({timeout: 3000}).then(() => true, () => false);
+      const [lit, line] = await page.evaluate(() => [document.querySelector('.karaoke mark')?.textContent ?? '', document.querySelector('.karaoke, .karaoke-none')?.textContent ?? 'no karaoke line']);
+      if (found) await shot('features-karaoke');
+      await page.getByRole('button', {name: 'Dừng nghe thử'}).click().catch(() => {}); // may already have ended
+      if (!found) throw Error(`no .karaoke mark within 3 s of playing: ${line}`);
+      return `"${lit}" lit in "${line.slice(0, 120)}"`;
+    });
     await step('stt with speakers becomes a multi-voice script', async () => {
       const src = process.env.THANHAM_UX_AUDIO;
       if (!src || !existsSync(src)) throw Error(`THANHAM_UX_AUDIO missing: ${src}`);
