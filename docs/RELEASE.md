@@ -81,7 +81,17 @@ differs.
    Turbo download, MP3 export, Turbo STT), `offline` (network adapters disabled) and `export`
    (render, save dialog to a Unicode path, STT, SRT, M4A/FLAC/Opus export checked with ffprobe, STT of the M4A, still offline). `-Only full,clone,dpi` runs chosen
    phases instead (`clone`: cleaned-sample preview of a reference padded with 6 s of tone bursts, reference voice with consent and cloned takes; `dpi`: layout at high-DPI
-   viewports; `longstt`: STT of `long.mp3` next to the installer, scored against `long.txt`; `ux`: drag and drop of a script and of `THANHAM_UX_AUDIO` (in the Sandbox: `dialogue.wav` next to the installer), then transcript follow-along during playback; `features`: pause mark, per-segment speed and Whisper self-check on a new take, waveform playback progress, diarization model download, speaker-labelled STT with a known speaker count, a row relabelled by hand and saved, turned into a script), and
+   viewports; `longstt`: STT of `long.mp3` next to the installer, scored against `long.txt`; `ux`: drag and drop of a script and of `THANHAM_UX_AUDIO` (in the Sandbox: `dialogue.wav` next to the installer), then transcript follow-along during playback; `features`: pause mark, per-segment speed and Whisper self-check on a new take, waveform playback progress, diarization model download, speaker-labelled STT with a known speaker count, a row relabelled by hand and saved, turned into a script; `nvda`: the NVDA screen-reader check, last in the run and only
+   inside the Sandbox: `nvda.ps1` downloads the pinned NVDA from NV Access, checks its SHA-256 and signer and runs a portable
+   copy with the silent synth, browse mode off on page load and an IO log that `nvdalog.mjs` reads (`node nvdalog.mjs --self-test`
+   checks the parser). It seeds a project "NVDA kiểm tra" and checks what NVDA says for the skip link, the segment toolbar, a
+   blocked Ctrl+Enter, the details panel and Esc, the native drop-down closed with Esc, "Đã tạo xong", transcript
+   follow-along and Ctrl+P (no print UI, the quick-open dialog). Page keys go over CDP, Ctrl+P and the drop-down keys
+   are OS input. Each step logs PASS/FAIL without stopping the phase and writes `nvda-speech.jsonl`. With
+   `THANHAM_NVDA_BASELINE=1` it runs against 1.0.22, a release without these fixes, and ABORTs on any other version (never
+   set it in a gate run): an expected failure logs `NOTE expected-fail-1.0.22`, an unexpected pass logs FAIL, and S7b
+   checks that a page-level `preventDefault` leaves the print detector silent. `nvda.ps1 -Install`/`-Start` and
+   `textscale.mjs` refuse to run outside Windows Sandbox), and
    `-Gate 500` runs the long-project gate inside the Sandbox.
    `update` serves the release's own `latest.json` and installer (both next to the installer) from a local
    feed: a cut-off package must be refused, the signed one must install itself and reopen the app with its
