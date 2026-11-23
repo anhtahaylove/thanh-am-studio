@@ -136,7 +136,7 @@ main:focus{outline:none}
 .speaker-tag{align-self:flex-start;max-width:100%;padding:2px 8px;border-left:4px solid var(--spk);border-radius:0 6px 6px 0;background:var(--spk-soft);color:var(--spk);font-weight:600;overflow-wrap:anywhere}
 @media(max-width:640px){.segment>*,.segment>.segment-label{grid-column:1;grid-row:auto}.segment-count{flex-basis:auto}}
 /* B3b: WebView2 applies Windows text size as page zoom, so the 1024x720 minimum window is 820x576, 683x481 and 456x320 CSS px at 125, 150 and 225 %. The rail scrolls when it is taller than the window, the page heading and its actions wrap instead of scrolling sideways, and in a window under 440 px tall the dock scrolls with the page, since stuck to the bottom it would cover most of it. */
-.sidebar{overflow:hidden auto}
+.sidebar{overflow:hidden auto;scrollbar-width:thin}
 @media(max-width:640px){.page-heading,.hero-actions{flex-wrap:wrap}}
 @media(max-height:440px){.audio-dock{position:static}html:has(.audio-dock){scroll-padding-bottom:0}html:has(.audio-dock) .busy-indicator{bottom:20px}}
 /* B1: the hint under a blocked segment's text after Ctrl+Enter, and the reason bubble of a focused blocked control (ReasonBubble): fixed and outside every panel, click-through so it never takes a click meant for what is under it, above the dock (5) and the busy indicator (20), below the toast (25) and dialogs (30). */

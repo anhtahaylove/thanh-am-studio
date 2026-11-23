@@ -54,6 +54,27 @@ test('at 800 px, focus alone leaves segment 4 unselected; typing "a" in it selec
  await expect(seg(page,4).locator('.segment-detail')).toHaveCount(1);
 });
 
+test('at 800 px, Escape pressed in segment 3 does not select it',async({page})=>{
+ await open(page,800,720);
+ await page.getByRole('textbox',{name:'Nội dung đoạn 3',exact:true}).focus();await page.keyboard.press('Escape');await settle(page);
+ await expect(seg(page,3)).not.toHaveClass(/selected/);await expect(seg(page,2)).toHaveClass(/selected/);
+});
+
+test('at 800 px, text that arrives without a key (insertText, as paste, drop and voice typing do) selects segment 3',async({page})=>{
+ await open(page,800,720);
+ const area=page.getByRole('textbox',{name:'Nội dung đoạn 3',exact:true}),before=await area.inputValue();
+ await area.focus();await settle(page);await expect(seg(page,3)).not.toHaveClass(/selected/);
+ await page.keyboard.insertText('a');
+ await expect(seg(page,3)).toHaveClass(/selected/);await expect(area).toBeFocused();expect((await area.inputValue()).length).toBe(before.length+1);
+});
+
+// 920 px is the last narrow width and 921 px the first wide one (NARROW in ui.tsx): focus alone selects a row only at 921 px.
+for(const [width,selects] of [[920,false],[921,true]] as const)test(`at ${width} px, focus alone ${selects?'selects':'does not select'} segment 3`,async({page})=>{
+ await open(page,width,720);
+ await page.getByRole('textbox',{name:'Nội dung đoạn 3',exact:true}).focus();await settle(page);
+ if(selects)await expect(seg(page,3)).toHaveClass(/selected/);else await expect(seg(page,3)).not.toHaveClass(/selected/);
+});
+
 test('above 920 px, Tab into a segment still selects it',async({page})=>{
  await open(page,921,720);
  for(let i=0;i<10&&(await focused(page)).name!=='Nhân vật đoạn 3';i++)await page.keyboard.press('Tab');
@@ -71,7 +92,7 @@ for(const width of [641,700,800])test(`at ${width}x800 the busy indicator stays 
 });
 
 const PAGES=['Tạo giọng đọc','Chép lời','Thư viện giọng','Hàng đợi','Dự án','Model & cài đặt'];
-for(const [width,height,scale] of [[441,320,' (225 %)'],[668,481,' (150 %)'],[806,576,' (125 %)'],[800,720,''],[640,720,'']] as const)test(`at ${width}x${height}${scale} every rail control can be reached, no page scrolls sideways, and the dock covers no focused segment text`,async({page})=>{
+for(const [width,height,scale] of [[441,320,' (225 %)'],[668,481,' (150 %)'],[806,576,' (125 %)'],[800,720,''],[640,720,''],[1024,720,''],[1440,960,'']] as const)test(`at ${width}x${height}${scale} every rail control can be reached, no page scrolls sideways, and the dock covers no focused segment text`,async({page})=>{
  await open(page,width,height,COMPARE);
  // Tab through the script. Focus scrolls a text field only as far as its caret, which Tab leaves on the first line: that line, once focused
  // (the browser scrolls after focusin), is inside the window and clear of the dock.
