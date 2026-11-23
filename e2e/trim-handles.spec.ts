@@ -9,7 +9,7 @@ const mock=()=>{
  const w=window as any;w.isTauri=true;w.__calls=[];w.__ctx=0;w.__decodes=0;
  const Ctx=window.AudioContext;(window as any).AudioContext=class extends Ctx{constructor(o?:AudioContextOptions){super(o);w.__ctx++;}};
  const decode=BaseAudioContext.prototype.decodeAudioData;BaseAudioContext.prototype.decodeAudioData=function(this:BaseAudioContext,...a:any[]){w.__decodes++;return (decode as any).apply(this,a);};
- const take=(id:string)=>({id,asset_id:'a'+id,path:`/${id}.wav`,duration_ms:4000,sample_rate:8000,created_at:'2026-11-23T00:00:00Z'});
+ const take=(id:string)=>({id,asset_id:'a'+id,path:`/${w.__shared&&id==='s2'?'s1':id}.wav`,duration_ms:4000,sample_rate:8000,created_at:'2026-11-23T00:00:00Z'});
  const seg=(n:number,takes:any[],trim:[number,number|null])=>({id:'s'+n,text:`Câu số ${n}.`,normalized_text:`Câu số ${n}.`,voice_id:null,speaker:'Người dẫn',gap_ms:300,takes,selected_take_id:takes[0].id,trim_start_ms:trim[0],trim_end_ms:trim[1],fade_in_ms:0,fade_out_ms:0,gain_db:0});
  let project:any={id:'p1',name:'Cắt take',updated_at:'2026-11-23T00:00:00Z',revision:1,transcript:[],dictionary:{},source_asset_id:null,segments:[seg(1,[take('s1'),take('s1b')],[500,3500]),...[2,3,4,5,6].map(n=>seg(n,[take('s'+n)],[0,null]))]};
  const ipc=(v:unknown)=>JSON.parse(JSON.stringify(v));
@@ -22,9 +22,9 @@ const mock=()=>{
    case 'enqueue_job':return {id:'j'+w.__calls.length,kind:args.kind,project_id:args.projectId,payload:args.payload,status:'queued',progress:0,error:null,result:null,created_at:'2026-11-23T00:00:00Z',updated_at:'2026-11-23T00:00:00Z'};
    default:return null;}}};
 };
-const open=async(page:Page,width=1440,height=960)=>{
+const open=async(page:Page,width=1440,height=960,lateMs=0)=>{
  await page.setViewportSize({width,height});
- await page.route(/\/s\d+b?\.wav$/,r=>{const id=new URL(r.request().url()).pathname.slice(1,-4);return r.fulfill({body:tone(id==='s1b'?.9:.2+.1*Number(id.slice(1))),contentType:'audio/wav'});});
+ await page.route(/\/s\d+b?\.wav$/,async r=>{const id=new URL(r.request().url()).pathname.slice(1,-4);if(id==='s1'&&lateMs)await new Promise(z=>setTimeout(z,lateMs));return r.fulfill({body:tone(id==='s1b'?.9:.2+.1*Number(id.slice(1))),contentType:'audio/wav'});});
  await page.addInitScript(mock);await page.goto('/');
  await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
  await page.getByRole('heading',{level:1}).click(); // the take keys (1-9) act when focus is not in a field
@@ -85,7 +85,8 @@ test('a drag shows a draft and commits once on release: one undo step',async({pa
  await expect(end).toHaveAttribute('aria-valuenow','3500');
  const box=(await end.boundingBox())!,wave=(await page.locator('.waveform').boundingBox())!,x=(f:number)=>wave.x+12+(wave.width-24)*f,y=box.y+box.height/2;
  await page.mouse.move(box.x+box.width/2,y);await page.mouse.down();
- // Moves spread over more than a second: a commit per move would make several undo steps (edits only merge within 1 s).
+ // While the pointer is down nothing is committed: the number field keeps the old value and nothing is saved (one Ctrl+Z after the release cannot show this
+ // by itself, since mutate() merges same-key edits that follow each other within 1 s).
  for(const f of [.8,.75,.7]){await page.mouse.move(x(f),y,{steps:3});await page.waitForTimeout(450);}
  const draft=Number(await end.getAttribute('aria-valuenow'));expect(Math.abs(draft-2800)).toBeLessThanOrEqual(30);
  await expect(field(page,'Cắt cuối (ms)')).toHaveValue('3500');expect((await spy(page)).calls.filter(c=>c.cmd==='save_project')).toHaveLength(0); // the draft is only drawn
@@ -156,4 +157,59 @@ for(const [width,height] of [[1024,720],[1440,960]])test(`at ${width}x${height} 
   const c=await start.evaluate(el=>{const s=getComputedStyle(el),dock=getComputedStyle(el.closest('.audio-dock')!).backgroundColor,r=getComputedStyle(document.querySelector('.trim-readout')!);return {line:getComputedStyle(el,'::before').backgroundColor,ring:s.outlineColor,dock,text:r.color,textBg:r.backgroundColor};});
   expect(ratio(c.line,c.dock),`${theme}: handle line`).toBeGreaterThanOrEqual(3);expect(ratio(c.ring,c.dock),`${theme}: focus ring`).toBeGreaterThanOrEqual(3);expect(ratio(c.text,c.textBg),`${theme}: readout`).toBeGreaterThanOrEqual(4.5);
  }
+});
+
+// Review of #211: a draft never outlives its row, late or shared decodes land on the right row, an out-of-range stored trim stays inside the waveform,
+// the digit keys leave a focused handle alone, and the stripe survives Windows forced colours.
+test('a row switch in the middle of a drag carries no draft to the new row and commits nothing to either',async({page})=>{
+ await open(page);const end=slider(page,'Cắt cuối');await expect(end).toHaveAttribute('aria-valuenow','3500');
+ const box=(await end.boundingBox())!,wave=(await page.locator('.waveform').boundingBox())!,y=box.y+box.height/2;
+ await page.mouse.move(box.x+box.width/2,y);await page.mouse.down();await page.mouse.move(wave.x+12+(wave.width-24)*.995,y,{steps:4});
+ await expect.poll(async()=>Number(await end.getAttribute('aria-valuenow'))).toBeGreaterThan(3900); // segment 1's draft
+ await page.evaluate(()=>document.querySelectorAll<HTMLElement>('article.segment')[1].click());
+ await expect(page.locator('.waveform i')).toHaveCount(100);await expect(slider(page,'Cắt cuối')).toHaveAttribute('aria-valuenow','4000'); // segment 2's own end
+ await page.mouse.up();await page.waitForTimeout(300);
+ await expect(slider(page,'Cắt cuối')).toHaveAttribute('aria-valuenow','4000');
+ const payload=await rendered(page);
+ expect(payload.payload.segments.slice(0,2).map((s:any)=>[s.id,s.trim_start_ms,s.trim_end_ms])).toEqual([['s1',500,3500],['s2',0,null]]);
+});
+
+test('a late decode of the row left behind never replaces the bars of the row the user stopped on',async({page})=>{
+ await open(page,1440,960,1500);await page.waitForTimeout(400); // segment 1's decode has started; its file arrives 1.5 s late
+ await page.evaluate(()=>document.querySelectorAll<HTMLElement>('article.segment')[1].click());
+ await expect(page.locator('.waveform i')).toHaveCount(100);
+ const tallest=()=>page.locator('.waveform i').evaluateAll(l=>Math.max(...l.map(i=>parseFloat((i as HTMLElement).style.height))));
+ expect(await tallest()).toBeGreaterThan(30);await page.waitForTimeout(2000);
+ expect(await tallest(),'segment 2 (level .4, about 35 %), not segment 1 (level .3, about 26 %)').toBeGreaterThan(30);
+});
+
+test('a row whose take shares the previous row file still gets its bars after the switch',async({page})=>{
+ await page.addInitScript(()=>{(window as any).__shared=true;}); // the mock gives segment 2 segment 1's file
+ await open(page);await expect(page.locator('.waveform i')).toHaveCount(100);
+ await page.evaluate(()=>document.querySelectorAll<HTMLElement>('article.segment')[1].click());
+ await expect(page.locator('.waveform i')).toHaveCount(100);await expect(slider(page,'Cắt cuối')).toHaveAttribute('aria-valuenow','4000');
+});
+
+test('a stored end past the take end keeps the handle inside the waveform and off the format select, without changing the stored value',async({page})=>{
+ await open(page);
+ const f=field(page,'Cắt cuối (ms)');await f.fill('4600');await f.press('Enter');
+ const end=slider(page,'Cắt cuối');await expect(end).toHaveAttribute('aria-valuenow','4000');await expect(end).toHaveAttribute('aria-valuemax','4000');await expect(end).toHaveAttribute('aria-valuetext','4,00 giây');
+ const wave=(await page.locator('.waveform').boundingBox())!,b=(await end.boundingBox())!;
+ expect(b.x).toBeGreaterThanOrEqual(wave.x-0.5);expect(b.x+b.width).toBeLessThanOrEqual(wave.x+wave.width+0.5);
+ const select=page.getByRole('combobox',{name:'Định dạng audio'}),s=(await select.boundingBox())!;
+ expect(await page.evaluate(([x,y])=>document.elementFromPoint(x,y)?.closest('select')?.getAttribute('aria-label')??null,[s.x+s.width/2,s.y+s.height/2])).toBe('Định dạng audio');
+ await select.click({trial:true,timeout:3000});
+ await expect(f).toHaveValue('4600'); // stored as typed
+});
+
+test('the digit keys do not audition a take while a handle has focus',async({page})=>{
+ await open(page);const start=slider(page,'Cắt đầu');await start.focus();
+ await page.keyboard.press('2');await page.waitForTimeout(300);
+ await expect(page.locator('.audio-control strong')).toHaveText('Take 1');await expect(start).toBeFocused();expect((await spy(page)).ctx).toBe(0);
+});
+
+test('in Windows forced colours the handle stripe is drawn in CanvasText',async({page})=>{
+ await page.emulateMedia({forcedColors:'active'});await open(page);
+ const c=await slider(page,'Cắt đầu').evaluate(el=>({line:getComputedStyle(el,'::before').backgroundColor,dock:getComputedStyle(el.closest('.audio-dock')!).backgroundColor}));
+ expect(ratio(c.line,c.dock),JSON.stringify(c)).toBeGreaterThanOrEqual(3);
 });
