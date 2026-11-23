@@ -1,5 +1,7 @@
 import {describe,expect,it} from 'vitest';
 import {checkWords,karaokeAt,karaokeParts,readingOrigin,sourceSpelling,switchOffset,takeDiff} from './domain';
+import {clampTrim} from './audio';
+import {validateRecipe} from './domain';
 // Offsets are measured from the start of speech, so switching take keeps the same place in the speech.
 const r=(trim_start_ms:number,trim_end_ms:number|null,duration_ms:number)=>({trim_start_ms,trim_end_ms,duration_ms});
 describe('switchOffset',()=>{
@@ -90,5 +92,32 @@ describe('karaokeParts',()=>{
  it('a segment too long to align gives every word no start',()=>{
   const text=Array.from({length:2100},(_,i)=>`từ${i}`).join(' '),parts=karaokeParts(text,Array.from({length:2100},(_,i)=>({text:`từ${i}`,start_ms:i*10})));
   expect(words(parts)).toHaveLength(2100);expect(words(parts).every(p=>p.start_ms===null)).toBe(true);expect(karaokeAt(parts,99999)).toBe(-1);
+ });
+});
+
+// A3: a trim handle's value, clamped inside the take with the fades plus 50 ms between the edges; an end at the take's end is stored as null.
+describe('clampTrim',()=>{
+ const seg=(trim_start_ms:number,trim_end_ms:number|null,fade_in_ms=0,fade_out_ms=0)=>({trim_start_ms,trim_end_ms,fade_in_ms,fade_out_ms}),take={duration_ms:4000};
+ it('keeps the start between 0 and 50 ms before the end',()=>{
+  expect(clampTrim(seg(500,3500),take,'start',-200)).toEqual({trim_start_ms:0});
+  expect(clampTrim(seg(500,3500),take,'start',1234.4)).toEqual({trim_start_ms:1234});
+  expect(clampTrim(seg(500,3500),take,'start',9999)).toEqual({trim_start_ms:3450});
+  expect(clampTrim(seg(500,null),take,'start',Infinity)).toEqual({trim_start_ms:3950});
+ });
+ it('keeps the end between 50 ms after the start and the take end, which is stored as null',()=>{
+  expect(clampTrim(seg(500,3500),take,'end',100)).toEqual({trim_end_ms:550});
+  expect(clampTrim(seg(500,3500),take,'end',2800.6)).toEqual({trim_end_ms:2801});
+  expect(clampTrim(seg(500,3500),take,'end',4000)).toEqual({trim_end_ms:null});
+  expect(clampTrim(seg(500,3500),take,'end',3999.6)).toEqual({trim_end_ms:null});
+  expect(clampTrim(seg(500,null),take,'end',-Infinity)).toEqual({trim_end_ms:550});
+ });
+ it('leaves room for the fades, so the store and the render never see end <= start or fades longer than the clip',()=>{
+  expect(clampTrim(seg(0,2000,300,200),take,'start',1900)).toEqual({trim_start_ms:1450});
+  expect(clampTrim(seg(1000,null,300,200),take,'end',1000)).toEqual({trim_end_ms:1550});
+  for(const ms of [-1e9,0,700,1449,1450,1451,5000,1e9]){const p=clampTrim(seg(0,2000,300,200),take,'start',ms),r={...seg(0,2000,300,200),...p,duration_ms:4000,gap_ms:0,gain_db:0};expect(()=>validateRecipe(r)).not.toThrow();}
+ });
+ it('never leaves the take, even when the fades do not fit in it',()=>{
+  expect(clampTrim(seg(0,null,3000,2000),take,'start',800)).toEqual({trim_start_ms:0});
+  expect(clampTrim(seg(0,null,3000,2000),take,'end',800)).toEqual({trim_end_ms:null});
  });
 });

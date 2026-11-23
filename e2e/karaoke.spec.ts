@@ -69,7 +69,7 @@ test('a take that was never checked shows a one-line hint while it plays, and no
 // The hint would be wrong for a take that was checked: self-check was on. A failed check, or words that place nowhere in the script, show nothing.
 for(const [n,what] of [[4,'whose check failed'],[5,'whose heard words match none of the script']] as const)test(`a take ${what} shows neither the line nor the hint while it plays`,async({page})=>{
  await open(page);await row(page,n).click();await play(page).click();
- await expect(play(page)).toHaveAccessibleName('Dừng nghe thử');await expect.poll(()=>page.locator('.waveform i').count()).toBeGreaterThan(0); // playing, past the decode
+ await expect(play(page)).toHaveAccessibleName('Dừng nghe thử');await expect.poll(()=>page.locator('.waveform i.played').count()).toBeGreaterThan(0); // playing, past the decode (the dock draws a take's bars before Play, so only played bars say the take started)
  await page.waitForTimeout(300);await expect(page.locator('.karaoke, .karaoke-none')).toHaveCount(0);
 });
 
@@ -179,7 +179,7 @@ test('while a take plays in an 800-segment script, polls re-render no row (the p
  await expect(page.locator('textarea[aria-label="Nội dung đoạn 800"]')).toBeAttached({timeout:90000});
  await expect.poll(()=>page.evaluate(()=>(window as any).__loads),{timeout:30000}).toBe(2);await page.waitForTimeout(2000);
  await page.locator('.play-button').click();
- await expect(page.locator('.play-button[aria-label="Dừng nghe thử"]')).toBeAttached();await expect.poll(()=>page.locator('.waveform i').count()).toBeGreaterThan(0);
+ await expect(page.locator('.play-button[aria-label="Dừng nghe thử"]')).toBeAttached();await expect.poll(()=>page.locator('.waveform i.played').count()).toBeGreaterThan(0); // the take started: the bars alone are drawn before Play
  await page.waitForTimeout(500); // the start of playback has landed
  await page.evaluate(()=>{const w=window as any;w.__renders={};w.__app=0;w.__lt=[];w.__grow=true;});
  await page.waitForTimeout(3000); // one or two polls (every 2.5 s)
