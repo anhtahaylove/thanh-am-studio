@@ -23,14 +23,16 @@ const card=(page:Page,id:string)=>page.locator('.model-card').filter({has:page.g
 const fact=(page:Page,id:string,label:string)=>card(page,id).locator('dt',{hasText:label}).locator('xpath=following-sibling::dd[1]');
 const sideways=(page:Page)=>page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth);
 
-test('each card shows its download size and RAM, and "Chưa đo" where no peak was measured',async({page})=>{
+test('each card shows its download size and RAM in binary GB, and "Chưa đo" where no peak was measured',async({page})=>{
  await open(page,7910);
  // 636,939,541 B; 486,212,372 B; 1,621,665,983 B; 34,275,138 B; 84,025,440 B; the pack, 173,988,339 B.
  for(const [id,size] of Object.entries({'vieneu-v3':'637 MB','whisper-small':'486 MB','whisper-turbo':'1,6 GB',diarization:'34 MB',htdemucs:'84 MB','separation-runtime':'174 MB'}))await expect(fact(page,id,'Dung lượng tải'),id).toHaveText(size);
- await expect(fact(page,'vieneu-v3','RAM khi chạy')).toContainText('khoảng 2,2 GB');
+ await expect(fact(page,'vieneu-v3','RAM khi chạy')).toContainText('khoảng 2,1 GB'); // 2,200 MiB / 1,024, like the machine total
  await expect(fact(page,'vieneu-v3','RAM khi chạy')).toContainText('Chưa tính Whisper Small khi bật Tự kiểm bằng Whisper');
  await expect(fact(page,'whisper-small','RAM khi chạy')).toHaveText('khoảng 1,3 GB');
- for(const id of ['whisper-turbo','diarization','htdemucs','separation-runtime'])await expect(fact(page,id,'RAM khi chạy'),id).toHaveText('Chưa đo');
+ for(const id of ['whisper-turbo','htdemucs'])await expect(fact(page,id,'RAM khi chạy'),id).toHaveText('Chưa đo');
+ await expect(fact(page,'diarization','RAM khi chạy')).toHaveText('Chưa đoCộng thêm vào RAM của model chép lời khi bật tách người nói');
+ await expect(fact(page,'separation-runtime','RAM khi chạy')).toHaveText('Đã tính trong thẻ Tách giọng và nhạc nền');
 });
 // What modelAdvice says per machine (src/models.test.ts has the rules; the Playwright loader cannot import models.json through src/models.ts).
 const DEFAULT='Chưa đọc được RAM của máy; đây là lựa chọn mặc định.';
@@ -38,7 +40,7 @@ const ADVICE:[number|null,string,string,string,string][]=[ // total, VieNeu badg
  [7910,'recommended','Máy có 7,7 GB RAM, đủ cho model này.','recommended','Cần khoảng 1,3 GB RAM, máy có 7,7 GB.'],
  [15760,'recommended','Máy có 15,4 GB RAM, đủ cho model này.','recommended','Cần khoảng 1,3 GB RAM, máy có 15,4 GB.'],
  [null,'recommended',DEFAULT,'recommended',DEFAULT],
- [3900,'heavy','Cần khoảng 2,2 GB RAM, máy chỉ có 3,8 GB. Đóng bớt ứng dụng khác trước khi đọc.','recommended','Cần khoảng 1,3 GB RAM, máy có 3,8 GB.'],
+ [3900,'heavy','Cần khoảng 2,1 GB RAM, máy chỉ có 3,8 GB. Đóng bớt ứng dụng khác trước khi đọc.','recommended','Cần khoảng 1,3 GB RAM, máy có 3,8 GB.'],
 ];
 for(const [total,tts,ttsReason,stt,sttReason] of ADVICE)test(`the badges and their reasons follow the machine memory (${total??'unknown'} MB)`,async({page})=>{
  await open(page,total);
