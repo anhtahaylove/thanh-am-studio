@@ -115,9 +115,10 @@ test('under reduced motion the take pop does not animate',async({page})=>{
 
 for(const width of [1440,800,640])test(`the head fits at ${width} px: no sideways scroll, the ring stays inside the row`,async({page})=>{
  await open(page,[{segment:'s6',status:'interrupted'},{segment:'s2',status:'failed'}],width,{s6:1});
- const m=await page.evaluate(()=>{const el=document.documentElement,r=document.querySelectorAll('.segment')[5].querySelector('.job-ring')!.getBoundingClientRect(),row=document.querySelectorAll('.segment')[5].getBoundingClientRect(),head=document.querySelectorAll('.segment')[5].querySelector('.segment-head')!.getBoundingClientRect(),take=document.querySelectorAll('.segment')[5].querySelector('.take-status')!.getBoundingClientRect();return {above:r.top-take.bottom,over:el.scrollWidth-el.clientWidth,right:r.right,rowRight:row.right,headRight:head.right,left:r.left,rowLeft:row.left};});
- expect(m.over).toBeLessThanOrEqual(0);expect(m.above).toBeGreaterThanOrEqual(-0.5); // second line of the head, under the chips
+ const m=await page.evaluate(()=>{const el=document.documentElement,r=document.querySelectorAll('.segment')[5].querySelector('.job-ring')!.getBoundingClientRect(),row=document.querySelectorAll('.segment')[5].getBoundingClientRect(),head=document.querySelectorAll('.segment')[5].querySelector('.segment-head')!.getBoundingClientRect(),take=document.querySelectorAll('.segment')[5].querySelector('.take-status')!.getBoundingClientRect(),bar=document.querySelectorAll('.segment')[5].querySelector('.segment-toolbar')!.getBoundingClientRect();return {clear:Math.max(r.left-take.right,r.top-take.bottom),barLine:r.top<bar.bottom&&bar.top<r.bottom,barLeft:bar.left,over:el.scrollWidth-el.clientWidth,right:r.right,rowRight:row.right,headRight:head.right,left:r.left,rowLeft:row.left};});
+ expect(m.over).toBeLessThanOrEqual(0);expect(m.clear).toBeGreaterThanOrEqual(-0.5); // beside the chips or under them, never on them
  expect(m.right).toBeLessThanOrEqual(m.headRight+0.5);expect(m.right).toBeLessThanOrEqual(m.rowRight);expect(m.left).toBeGreaterThanOrEqual(m.rowLeft);
+ if(m.barLine)expect(m.right,'the ring ends before the toolbar on their shared line').toBeLessThanOrEqual(m.barLeft+0.5);
 });
 
 for(const theme of ['light','dark'])test(`every state's label has AA contrast against the row in ${theme} mode`,async({page})=>{
