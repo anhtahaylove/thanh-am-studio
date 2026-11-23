@@ -21,6 +21,7 @@ import {ReasonBubble,ReasonButton} from './ui';
 import {playError} from './bridge';
 import {CHANGELOG} from './changelog';
 import type {ChangelogEntry} from './changelog';
+import {slotsOf,withSpeakerSlots} from './speakers';
 import {preview,stopPreview} from './audio';
 import {SegmentRow,speedOptions} from './SegmentRow';
 import type {RowApi} from './SegmentRow';
@@ -109,7 +110,7 @@ export default function App(){
  useEffect(()=>{const q=matchMedia('(prefers-color-scheme: dark)'),f=()=>setSystemDark(q.matches);q.addEventListener('change',f);return ()=>q.removeEventListener('change',f);},[]);
  useEffect(()=>{document.documentElement.dataset.theme=dark?'dark':'light';localStorage.setItem('thanh-am-theme',theme);},[dark,theme]);
  // Edits sharing a key within 1s (typing) collapse into one undo step. History keeps at most 50 snapshots.
- function mutate(fn:(p:Project)=>Project,key?:string){if(!projectRef.current)return;const now=Date.now();if(!(key&&lastMutRef.current.key===key&&now-lastMutRef.current.at<1000))undoRef.current=[...undoRef.current,projectRef.current].slice(-50);lastMutRef.current={key,at:now};redoRef.current=[];versionRef.current++;const next=fn(projectRef.current);projectRef.current=next;dirtyRef.current=true;setProject(next);setDirty(true);setSaveState('Chưa lưu');setHist({u:undoRef.current.length,r:0});}
+ function mutate(fn:(p:Project)=>Project,key?:string){if(!projectRef.current)return;const now=Date.now();if(!(key&&lastMutRef.current.key===key&&now-lastMutRef.current.at<1000))undoRef.current=[...undoRef.current,projectRef.current].slice(-50);lastMutRef.current={key,at:now};redoRef.current=[];versionRef.current++;const prev=slotsOf(projectRef.current),next=withSpeakerSlots(fn(projectRef.current),prev);projectRef.current=next;dirtyRef.current=true;setProject(next);setDirty(true);setSaveState('Chưa lưu');setHist({u:undoRef.current.length,r:0});}
  function travel(dir:'undo'|'redo'){const cur=projectRef.current,from=dir==='undo'?undoRef:redoRef,to=dir==='undo'?redoRef:undoRef,snap=from.current.at(-1);if(!cur||!snap)return;from.current=from.current.slice(0,-1);to.current=[...to.current,cur].slice(-50);const next=restoreSnapshot(snap,cur);lastMutRef.current={at:0};versionRef.current++;projectRef.current=next;dirtyRef.current=true;setProject(next);setDirty(true);setSaveState('Chưa lưu');setHist({u:undoRef.current.length,r:redoRef.current.length});}
  function resetHistory(){undoRef.current=[];redoRef.current=[];setHist({u:0,r:0});setUndoToast(null);}
  // The toast's Undo is only offered while its change is still the latest one; any later edit, undo or redo bumps versionRef and retires it.
@@ -226,8 +227,8 @@ export default function App(){
  const finishedTts=jobs.some(j=>j.kind==='tts'&&j.project_id===project?.id&&j.status==='succeeded');
  const voiceOptions=useMemo(()=>voices.map(v=><option key={v.id} value={v.id}>{v.name}</option>),[voices]),rowApi=useRef<RowApi>(null!);rowApi.current={run,select:setSelected,update:updateSegment,mutate,offerUndo,split:splitActive,merge:mergeNext,pause:insertPause,cue:insertCue,openDiff:setDiffFor,generate,move:moveSegment,detail:openDetail,cursor:cursorRef,dictionary,jobs:jobStore,say:text=>setSaying(d=>({text,n:(d?.n??0)+1}))};const transcriptApi=useRef<TranscriptApi>(null!);transcriptApi.current={run,update:updateTranscript,mutate,focus:setActiveRow,play:ms=>{setSample(null);if(!sourcePlayer.current){setNotice('Dự án chưa có audio gốc để nghe');return;}sourcePlayer.current.currentTime=ms/1000;void sourcePlayer.current.play().catch(e=>{const m=playError(e);if(m)setError(m);});}};
  // The rows are rebuilt only when something a row shows changes, so a poll that leaves every ring as it was reuses the same elements and React skips all of them.
- // One colour slot per speaker name for the script rows and "Phân vai"; "Người N" gets the slot the transcript gives speaker N.
- const castColors=useMemo(()=>speakerColors(project?.segments.map(s=>s.speaker)??[]),[project?.segments]);
+ // One colour slot per speaker name, kept in the project; "Người N" gets the transcript's slot N-1 when that slot is free.
+ const castColors=useMemo(()=>speakerColors(project?.segments.map(s=>s.speaker)??[],slotsOf(project)),[project?.segments,project?.speaker_slots]);
  const segmentRows=useMemo(()=>project?.segments.map((segment,index)=><SegmentRow key={segment.id} segment={segment} index={index} last={index===count-1} selected={active?.id===segment.id} busy={busy} ttsBlock={ttsBlock} needModel={needModel} overMs={dubOver.get(segment.id)} spk={castColors.get(segment.speaker)??0} api={rowApi}/>),[project?.segments,count,active?.id,busy,ttsBlock,needModel,dubOver,castColors]);
  // The selected segment's details: in the inspector beside the script, and, at 920 px and below where the inspector falls under the whole script, inside the selected row (its `inspector` prop; every other row gets undefined). Keyed by segment, so a field's draft never carries over to another segment.
  const activeIndex=active?project!.segments.indexOf(active):-1,hasTakes=!!active&&active.takes.length>0;
