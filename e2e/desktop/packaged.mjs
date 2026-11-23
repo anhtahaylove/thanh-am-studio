@@ -1,5 +1,5 @@
 // Acceptance run against the packaged desktop app (UI -> Rust -> worker -> files).
-// usage: node packaged.mjs <app.exe> <outDir> <phase: full|reopen|turbo|offline|export|clone|dpi|longstt|ux|features|dub|scripts|update|update-seeded|ab>
+// usage: node packaged.mjs <app.exe> <outDir> <phase: full|reopen|turbo|offline|export|clone|dpi|longstt|ux|features|dub|scripts|update|update-seeded|ab|nvda>
 // Drives the real WebView2 over CDP; native file dialogs are filled by file-dialog.ps1.
 import {chromium} from 'playwright-core';
 import {spawn, execFileSync} from 'node:child_process';
@@ -1256,6 +1256,280 @@ try {
       await page.getByRole('button', {name: 'Tạo take mới'}).nth(1).click();
       await waitJobs('tts', before + 1, 5 * 60000);
     });
+  }
+  if (phase === 'nvda') {
+    // What NVDA announces for focus, live messages, the native drop-down and Ctrl+P. Only inside the Sandbox: nvda.ps1 downloads
+    // a pinned NVDA, checks it and runs a portable copy with the silent synth, browse mode off on page load and an IO log that
+    // records every sequence it would speak (nvdalog.mjs reads it). Page-level keys go over CDP; Ctrl+P and the native select
+    // popup need OS input (nvda.ps1 -Keys), since CDP reaches neither WebView2's host accelerators nor the popup.
+    // nvdaStep() never rethrows, so every S-step runs. THANHAM_NVDA_BASELINE=1 runs it on a release without these fixes
+    // (1.0.22): a failing step marked baselineExpectFail logs `NOTE expected-fail-1.0.22`, a passing one logs FAIL, and S7b, the
+    // print detector's negative control, runs. Needs THANHAM_UX_AUDIO; S6 needs the first-run checklist done (run `full` first),
+    // since the checklist announces the first take instead of "Đã tạo xong".
+    const {readNew, speechOf} = await import('./nvdalog.mjs');
+    const baseline = process.env.THANHAM_NVDA_BASELINE === '1', nvdaLog = join(out, 'nvda.log'), jsonl = join(out, 'nvda-speech.jsonl');
+    const nvda = (...args) => execFileSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', join(here, 'nvda.ps1'), ...args], {encoding: 'utf8'}).trim();
+    const osKeys = (keys) => nvda('-Keys', keys, '-Pid', String(app.pid));
+    const windows = () => JSON.parse(nvda('-Windows', '-Pid', String(app.pid)) || '[]');
+    let offset = 0, heard = [], said = [], rec = null, carried = {heard: [], said: []}, s7fresh = [], projectId;
+    const poll = () => { const r = readNew(nvdaLog, offset); offset = r.offset; for (const s of speechOf(r.entries)) { heard.push(s.strings.join(' ')); said.push(...s.strings); } };
+    const mark = () => { poll(); rec?.spoken.push(...heard); heard = []; said = []; }; // a new input: keep what was heard with the step
+    const has = (fragment) => heard.join(' | ').normalize('NFC').toLowerCase().includes(fragment.normalize('NFC').toLowerCase());
+    const hear = async (fragments, ms) => {
+      rec.expected.push(...fragments);
+      const end = Date.now() + ms;
+      for (poll(); !fragments.every(has) && Date.now() < end; poll()) await page.waitForTimeout(200);
+      const missing = fragments.filter((f) => !has(f));
+      if (missing.length) throw Error(`not heard ${JSON.stringify(missing)}; heard ${JSON.stringify(heard).slice(0, 400)}`);
+    };
+    const activeLabel = () => page.evaluate(() => { const a = document.activeElement; return !a || a === document.body ? 'BODY' : a.getAttribute('aria-label') ?? a.textContent.trim().slice(0, 60); });
+    const focusIs = async (label) => { const a = await activeLabel(); if (a !== label) throw Error(`CDP focus is on "${a}", not "${label}"`); };
+    const focus = async (locator) => { await locator.focus(); await page.waitForTimeout(500); };
+    // carry: the step starts with what the previous step heard (S7a-dialog judges the same Ctrl+P as S7a-print).
+    const nvdaStep = async (name, fn, {baselineExpectFail = false, carry = false} = {}) => {
+      const t = Date.now();
+      poll();
+      [heard, said] = carry ? [[...carried.heard, ...heard], [...carried.said, ...said]] : [[], []];
+      rec = {step: name, input: '', expected: [], spoken: []};
+      let error = null;
+      try { await fn(rec); } catch (e) { error = String(e?.message ?? e).split('\n')[0].slice(0, 600); }
+      poll();
+      rec.spoken.push(...heard);
+      carried = {heard, said};
+      heard = []; said = [];
+      const detector = rec.detector ? ` detector: ${rec.detector}` : '';
+      let verdict = error ? 'FAIL' : 'PASS', line = `${verdict} ${name}${detector} ${error ?? `${rec.spoken.length} spoken sequences`}`;
+      if (baseline && baselineExpectFail) {
+        if (!error) { verdict = 'FAIL'; line = `FAIL ${name} baseline unexpectedly passed${detector}`; }
+        else if (name !== 'S7a-print' || rec.detector === 'fired') { verdict = 'NOTE'; line = `NOTE expected-fail-1.0.22 ${name}${detector} ${error}`; }
+      }
+      Object.assign(rec, {verdict, error, ms: Date.now() - t});
+      results.push({name, ok: verdict !== 'FAIL', ms: rec.ms, detail: line, error: error ?? undefined});
+      log(line);
+      // S7a-print without a fired detector proves nothing on a baseline release: the section 7 fallback applies.
+      if (baseline && name === 'S7a-print' && rec.detector === 'blind') log('NOTE detector-blind S7a-print');
+      appendFileSync(jsonl, JSON.stringify(rec) + '\n');
+      if (verdict === 'FAIL') await shot(`fail-${name}`);
+      rec = null;
+    };
+    // Ctrl+P's three detectors: beforeprint in the page, NVDA naming a print dialog, a new window of the app's process tree.
+    const printCount = () => Promise.race([page.evaluate(() => window.__printCount ?? {before: 0, after: 0}), new Promise((r) => setTimeout(() => r({before: -1, after: -1}), 2000))]);
+    const printDetect = async (before) => {
+      await page.waitForTimeout(3000);
+      poll();
+      const count = await printCount(), fresh = windows().filter((w) => !before.some((b) => b.handle === w.handle)), speech = said.filter((s) => /^(print|in)\b/i.test(s));
+      Object.assign(rec, {ctrlPKeydowns: count.keys, beforeprint: count.before, afterprint: count.after, windows: {before, new: fresh}});
+      // `reached`: the page saw the Ctrl+P keydown; without it, "nothing printed" proves nothing.
+      return {fresh, reached: count.keys > 0, fired: [...(count.before > 0 ? [`beforeprint x${count.before}`] : []), ...(speech.length ? [`speech ${JSON.stringify(speech)}`] : []), ...fresh.map((w) => `window ${w.class} "${w.title}"`)]};
+    };
+    const NOT_REACHED = 'Ctrl+P never reached the page (no keydown), so the missing print UI proves nothing';
+    const countPrint = () => page.evaluate(() => {
+      if (!window.__printCount) {
+        const c = window.__printCount = {before: 0, after: 0, keys: 0};
+        addEventListener('beforeprint', () => c.before++);
+        addEventListener('afterprint', () => c.after++);
+        addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') c.keys++; }, true);
+      }
+      Object.assign(window.__printCount, {before: 0, after: 0, keys: 0});
+    });
+    const segmentText = (n) => page.getByRole('textbox', {name: `Nội dung đoạn ${n}`});
+    try {
+      await step('voice model ready', voiceModel);
+      await step('nvda setup: download, verify, portable copy', async () => nvda('-Install', '-Out', out));
+      await step('nvda start', async () => nvda('-Start', '-Out', out));
+      await step('nvda seed project "NVDA kiểm tra"', async () => {
+        const src = process.env.THANHAM_UX_AUDIO;
+        if (!src || !existsSync(src)) throw Error(`THANHAM_UX_AUDIO missing: ${src}`);
+        const audio = join(saves, `nvda ${Date.now()}${src.slice(src.lastIndexOf('.'))}`);
+        copyFileSync(src, audio);
+        const asset = await invoke('import_asset', {path: audio}), created = await invoke('create_project', {name: 'NVDA kiểm tra'}), d = asset.duration_ms ?? 12000;
+        const seg = (speaker, text, chapter = null) => ({id: crypto.randomUUID(), text, normalized_text: text, voice_id: null, speaker, gap_ms: 300, takes: [], selected_take_id: null, trim_start_ms: 0, trim_end_ms: null, fade_in_ms: 0, fade_out_ms: 0, gain_db: 0, chapter});
+        const rows = ['Dòng thứ nhất của bản chép lời', 'Dòng thứ hai nói tiếp câu chuyện', 'Dòng thứ ba kết thúc đoạn nghe'].map((text, i) => ({id: crypto.randomUUID(), start_ms: Math.round(d * i / 3), end_ms: Math.round(d * (i + 1) / 3), text, speaker: null, overlap_speaker: null}));
+        await invoke('save_project', {project: {...created, segments: [seg('Lan', 'Xin chào, đây là bài kiểm tra trình đọc màn hình.', 'P1'), seg('Minh', 'Chúng tôi nghe NVDA đọc từng nút.'), seg('Lan', '')], transcript: rows, source_asset_id: asset.id}});
+        projectId = created.id;
+        await nav('Dự án');
+        const open = page.locator('article.project-card', {has: page.getByRole('heading', {name: 'NVDA kiểm tra', exact: true})}).getByRole('button', {name: 'Mở dự án', exact: true}).first();
+        await open.waitFor({timeout: 15000});
+        await open.click();
+        await segmentText(3).waitFor();
+        return `3 segments, ${rows.length} transcript rows over ${asset.name} (${d} ms)`;
+      });
+      await step('nvda hears the app', async () => {
+        const f = nvda('-Focus', '-Pid', String(app.pid));
+        rec = {expected: [], spoken: []}; // not an S-step: only proves that focus changes reach NVDA's log
+        mark();
+        await segmentText(2).focus();
+        await hear(['Nội dung đoạn 2'], 10000).finally(() => { rec = null; });
+        return f;
+      });
+      await nvdaStep('S1 skip link', async (r) => {
+        r.input = 'CDP: focus the page start, Tab; Enter';
+        await nav('Tạo giọng đọc');
+        // Tab from the start of the page: blur() alone would keep Chromium's sequential focus starting point where focus was.
+        await page.evaluate(() => { const s = document.querySelector('.app-shell'); s.tabIndex = -1; s.addEventListener('blur', () => s.removeAttribute('tabindex'), {once: true}); s.focus(); });
+        await page.waitForTimeout(500);
+        mark();
+        await page.keyboard.press('Tab');
+        await hear(['Bỏ qua đến Xuất audio', 'link'], 5000);
+        await focusIs('Bỏ qua đến Xuất audio');
+        mark();
+        await page.keyboard.press('Enter');
+        await hear(['Xuất audio'], 5000);
+        await focusIs('Xuất audio');
+      });
+      await nvdaStep('S2 toolbar', async (r) => {
+        r.input = 'CDP: focus segment 1 textarea, Shift+Tab; ArrowRight x3';
+        await focus(segmentText(1));
+        mark();
+        await page.keyboard.press('Shift+Tab');
+        await hear(['Thao tác đoạn 1', 'tool bar', 'Chia đoạn tại con trỏ'], 5000); // NVDA's role label is "tool bar"
+        await focusIs('Chia đoạn tại con trỏ');
+        mark();
+        for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowRight');
+        await hear(['Đưa đoạn lên', 'unavailable', 'Đây là đoạn đầu tiên'], 5000);
+        await focusIs('Đưa đoạn lên');
+      });
+      await nvdaStep('S3 blocked Ctrl+Enter', async (r) => {
+        r.input = 'CDP: focus segment 3 textarea (empty), Ctrl+Enter';
+        await focus(segmentText(3));
+        mark();
+        await page.keyboard.press('Control+Enter');
+        await hear(['Chưa tạo giọng được: Đoạn này chưa có nội dung'], 5000);
+      }, {baselineExpectFail: true});
+      await nvdaStep('S4 inspector and Esc', async (r) => {
+        r.input = 'CDP: focus segment 1 toolbar, End, Enter; Escape';
+        await focus(page.getByRole('toolbar', {name: 'Thao tác đoạn 1'}).locator('button[tabindex="0"]'));
+        mark();
+        await page.keyboard.press('End');
+        await hear(['Chi tiết đoạn 1', 'button'], 5000);
+        await focusIs('Chi tiết đoạn 1');
+        mark();
+        await page.keyboard.press('Enter');
+        await hear(['Giọng đoạn 1', 'combo box'], 5000);
+        await focusIs('Giọng đoạn 1');
+        mark();
+        await page.keyboard.press('Escape');
+        await hear(['Nội dung đoạn 1', 'edit'], 5000);
+        await focusIs('Nội dung đoạn 1');
+      });
+      await nvdaStep('S5 native popup Esc', async (r) => {
+        r.input = 'CDP: focus "Giọng đoạn 1"; OS %{DOWN}; OS {ESC}; then CDP Escape';
+        const select = page.getByRole('combobox', {name: 'Giọng đoạn 1'}), options = await select.locator('option').allInnerTexts();
+        await focus(select);
+        const before = windows();
+        mark();
+        osKeys('%{DOWN}');
+        // Open: NVDA names an option of this select, or the app's process tree shows a new popup window.
+        let opened = null;
+        for (const end = Date.now() + 2000; !opened;) {
+          poll();
+          const fresh = windows().filter((w) => !before.some((b) => b.handle === w.handle));
+          if (fresh.length) opened = {by: 'window', windows: fresh};
+          else if (options.some(has)) opened = {by: 'speech', windows: []};
+          else if (Date.now() > end) break;
+          else await page.waitForTimeout(200);
+        }
+        r.windows = {before, popup: opened?.windows ?? null};
+        if (!opened) throw Error('popup not opened');
+        r.popupProof = opened.by;
+        mark();
+        const t = Date.now();
+        osKeys('{ESC}');
+        // Closed: its window is gone, or NVDA says "collapsed". Only then the CDP Escape, which could otherwise close a still-open popup by blur.
+        let closed = null;
+        for (const end = Date.now() + 2000; !closed;) {
+          poll();
+          if (opened.windows.length && !windows().some((w) => opened.windows.some((o) => o.handle === w.handle))) closed = 'window';
+          else if (has('collapsed')) closed = 'speech';
+          else if (Date.now() > end) break;
+          else await page.waitForTimeout(200);
+        }
+        r.closeProof = closed;
+        if (!closed) throw Error('popup not closed by Esc');
+        await page.waitForTimeout(Math.max(0, 2000 - (Date.now() - t)));
+        poll();
+        if (has('Nội dung đoạn 1')) throw Error('the Esc that closed the popup also moved focus out of the select');
+        await focusIs('Giọng đoạn 1');
+        mark();
+        await page.keyboard.press('Escape');
+        await hear(['Nội dung đoạn 1'], 5000);
+      });
+      await nvdaStep('S6 Đã tạo xong', async (r) => {
+        r.input = 'CDP: focus segment 1 textarea, Ctrl+Enter';
+        await focus(segmentText(1));
+        mark();
+        await page.keyboard.press('Control+Enter');
+        await hear(['Đã tạo xong đoạn 1'], 180000);
+      });
+      await nvdaStep('S8 transcript follow', async (r) => {
+        r.input = 'CDP: STT page, Space (5 s of playback); focus "Theo lời khi phát", Space';
+        await nav('Chép lời');
+        const audio = page.locator('.source-player audio'), rows = (await invoke('load_project', {id: projectId})).transcript.map((x) => x.text);
+        await audio.waitFor({timeout: 10000});
+        await audio.evaluate((a) => { a.muted = true; a.currentTime = 0; });
+        await page.evaluate(() => document.activeElement?.blur());
+        await page.waitForTimeout(500);
+        const before = await activeLabel();
+        mark();
+        await page.keyboard.press('Space');
+        await page.waitForTimeout(5000);
+        poll();
+        r.forbidden = rows;
+        const played = await audio.evaluate((a) => { const t = a.currentTime; a.pause(); return t; }), named = rows.filter(has), after = await activeLabel();
+        if (played < 1) throw Error(`the source did not play (currentTime ${played} s)`);
+        if (named.length) throw Error(`rows named during playback: ${JSON.stringify(named)}`);
+        if (after !== before) throw Error(`focus moved during playback: "${before}" -> "${after}"`);
+        const follow = page.getByRole('button', {name: 'Theo lời khi phát'}), pressed = (await follow.getAttribute('aria-pressed')) === 'true';
+        mark();
+        await follow.focus();
+        await page.waitForTimeout(300);
+        await page.keyboard.press('Space');
+        await hear(['Theo lời khi phát', 'toggle button', pressed ? 'not pressed' : 'pressed'], 5000);
+      });
+      // One Ctrl+P, two verdicts: S7a-print (no print UI: the gate criterion) and S7a-dialog (quick-open).
+      await nvdaStep('S7a-print', async (r) => {
+        r.input = 'CDP: beforeprint/afterprint/Ctrl+P keydown counters, focus segment 1 textarea; OS ^p';
+        await nav('Tạo giọng đọc');
+        await countPrint();
+        await focus(segmentText(1));
+        const before = windows();
+        mark();
+        osKeys('^p');
+        const {fired, fresh, reached} = await printDetect(before);
+        s7fresh = fresh;
+        r.detector = fired.length ? 'fired' : 'blind';
+        if (fired.length) throw Error(`print UI detected: ${fired.join('; ')}`);
+        if (!reached) throw Error(NOT_REACHED);
+      }, {baselineExpectFail: true});
+      await nvdaStep('S7a-dialog', async (r) => {
+        r.input = 'the Ctrl+P of S7a-print; then CDP Escape';
+        const dialog = page.getByRole('dialog', {name: 'Mở nhanh dự án'});
+        await hear(['Mở nhanh dự án', 'dialog'], 5000);
+        if (!(await dialog.count())) throw Error('no "Mở nhanh dự án" dialog in the page');
+        mark();
+        await page.keyboard.press('Escape');
+        await page.waitForTimeout(500);
+        await focusIs('Nội dung đoạn 1');
+      }, {baselineExpectFail: true, carry: true});
+      if (baseline) await nvdaStep('S7b detector control', async (r) => {
+        r.input = 'OS {ESC} until the print UI is gone (3 tries at most); CDP capture keydown preventDefault on Ctrl+P; OS ^p';
+        const open = async () => { const c = await printCount(), w = windows(); return c.after < c.before || s7fresh.some((x) => w.some((y) => y.handle === x.handle)); };
+        for (let i = 0; i < 3 && (i === 0 || await open()); i++) { osKeys('{ESC}'); await page.waitForTimeout(1500); }
+        if (await open()) throw Error('the print UI from S7a did not close');
+        await countPrint();
+        await page.evaluate(() => addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') e.preventDefault(); }, true));
+        await focus(segmentText(1));
+        const before = windows();
+        mark();
+        osKeys('^p');
+        const {fired, reached} = await printDetect(before);
+        r.printDetected = fired;
+        if (fired.length) throw Error(`print UI detected despite a page-level preventDefault: ${fired.join('; ')} (PLAN section 11 Q8)`);
+        if (!reached) throw Error(NOT_REACHED);
+      });
+    } finally {
+      try { log(`nvda stop: ${nvda('-Stop')}`); } catch (e) { log(`nvda stop failed: ${String(e).split('\n')[0]}`); }
+    }
   }
   await shot(`end-${phase}`);
 } catch (e) {
