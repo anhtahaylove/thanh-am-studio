@@ -6,13 +6,14 @@ import type {Segment} from './types';
 /** `blocked` is the reason the action cannot run: the button then says so (aria-disabled, a hidden description and the title) yet stays focusable, and its click does nothing, so Enter and Space are no-ops too. */
 export function IconButton({label,icon:Icon,onClick,disabled=false,pressed,blocked,tabIndex,onFocus}:{label:string;icon:LucideIcon;onClick:()=>void;disabled?:boolean;pressed?:boolean;blocked?:string|null;tabIndex?:number;onFocus?:()=>void}){const why=useId();return <button type="button" className="icon-button" aria-label={label} title={blocked?`${label}: ${blocked}`:label} aria-pressed={pressed} aria-disabled={blocked?true:undefined} aria-describedby={blocked?why:undefined} tabIndex={tabIndex} onFocus={onFocus} onClick={()=>{if(!blocked)onClick();}} disabled={disabled}><Icon size={17}/>{blocked&&<span id={why} className="sr-only">{blocked}</span>}</button>;}
 /** A text button with IconButton's `blocked` behaviour. Its reason is a `hidden` child, so it is the accessible description without joining the name; the title shows it on hover. */
-export function ReasonButton({blocked,title,onClick,children,...rest}:React.ButtonHTMLAttributes<HTMLButtonElement>&{blocked?:string|null}){const why=useId();return <button type="button" {...rest} title={blocked??title} aria-disabled={blocked?true:undefined} aria-describedby={blocked?why:undefined} onClick={e=>{if(!blocked)onClick?.(e);}}>{children}{blocked&&<span id={why} hidden>{blocked}</span>}</button>;}
+export function ReasonButton({blocked,title,onClick,children,...rest}:React.ButtonHTMLAttributes<HTMLButtonElement>&{blocked?:string|null}){const why=useId();return <button type="button" {...rest} title={blocked??title} aria-disabled={blocked?true:undefined} aria-describedby={blocked?why:rest['aria-describedby']} onClick={e=>{if(!blocked)onClick?.(e);}}>{children}{blocked&&<span id={why} hidden>{blocked}</span>}</button>;}
 /** The reason of the focused `aria-disabled` control, in one fixed bubble rendered outside every panel, so no `overflow:hidden` clips it and the control's dimming does not fade it. The control's description stays the accessible text, so the bubble is aria-hidden.
  *  It follows the control on any scroll (capture phase) or resize, because Tab to an off-screen control scrolls it into view after focusin, and is hidden while the control is wholly off screen. */
 export function ReasonBubble(){
  const [tip,setTip]=useState<{text:string}|null>(null),target=useRef<HTMLElement|null>(null),box=useRef<HTMLDivElement>(null);
  const place=useCallback(()=>{
   const el=target.current,b=box.current;if(!el||!b)return;
+  b.style.left='0px'; // measured at the left edge: an old left would narrow (and wrap) a fixed box sized to its text
   const r=el.getBoundingClientRect(),vw=document.documentElement.clientWidth,vh=document.documentElement.clientHeight,gap=6,w=b.offsetWidth,h=b.offsetHeight;
   b.style.visibility=r.bottom<=0||r.top>=vh||r.right<=0||r.left>=vw?'hidden':'';
   b.style.top=`${r.bottom+gap+h>vh?r.top-gap-h:r.bottom+gap}px`; // below the control, above it near the bottom (the dock)
@@ -20,14 +21,15 @@ export function ReasonBubble(){
  },[]);
  useLayoutEffect(place,[tip,place]);
  useEffect(()=>{
-  let frame=0;
-  // The reason can change or go while the control keeps focus (a busy action ends), so the focused control is watched.
-  const watch=new MutationObserver(()=>show(target.current));
+  let frame=0,focused:Element|null=null;
+  // The focused control can become blocked or unblocked, or change its reason, while it keeps focus (Ctrl+Z, a busy action), so it is watched:
+  // its two attributes always, and its reason text only while it is blocked (not a field's text on every keystroke).
+  const watch=new MutationObserver(()=>show(focused));
   // A new object for every focus, so the bubble is placed again even when the next control has the same reason.
   const show=(el:Element|null)=>{
    const text=el instanceof HTMLElement&&el.matches('[aria-disabled="true"][aria-describedby]')?el.getAttribute('aria-describedby')!.split(/\s+/).map(id=>document.getElementById(id)?.textContent??'').join(' ').trim():'';
-   watch.disconnect();target.current=text?el as HTMLElement:null;setTip(text?{text}:null);
-   if(text)watch.observe(el!,{attributes:true,attributeFilter:['aria-disabled','aria-describedby'],childList:true,characterData:true,subtree:true});
+   watch.disconnect();focused=el;target.current=text?el as HTMLElement:null;setTip(text?{text}:null);
+   if(el)watch.observe(el,{attributes:true,attributeFilter:['aria-disabled','aria-describedby'],...text?{childList:true,characterData:true,subtree:true}:{}});
   };
   const focusIn=(e:FocusEvent)=>show(e.target as Element),focusOut=()=>show(null),follow=()=>{if(target.current&&!frame)frame=requestAnimationFrame(()=>{frame=0;place();});};
   document.addEventListener('focusin',focusIn);document.addEventListener('focusout',focusOut);addEventListener('scroll',follow,true);addEventListener('resize',follow);

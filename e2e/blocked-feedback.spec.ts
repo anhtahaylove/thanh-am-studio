@@ -45,9 +45,11 @@ const ratio=(a:string,b:string)=>{const lum=(c:string)=>{const [r,g,b]=c.match(/
 // The bubble against the viewport and the focused control, and its colours with the opacity of the bubble and every ancestor.
 const measure=(page:Page)=>page.evaluate(()=>{
  const b=document.querySelector<HTMLElement>('.reason-bubble');if(!b)return null;
- const r=b.getBoundingClientRect(),f=document.activeElement!.getBoundingClientRect(),vw=document.documentElement.clientWidth,vh=document.documentElement.clientHeight,s=getComputedStyle(b);
+ const r=b.getBoundingClientRect(),f=document.activeElement!.getBoundingClientRect(),vw=document.documentElement.clientWidth,vh=document.documentElement.clientHeight,s=getComputedStyle(b),pointerEvents=s.pointerEvents;
  let opacity=1;for(let e:Element|null=b;e;e=e.parentElement)opacity*=Number(getComputedStyle(e).opacity);
- return {text:b.textContent,visible:s.visibility!=='hidden'&&r.width>0&&r.height>0,inside:r.left>=0&&r.top>=0&&r.right<=vw&&r.bottom<=vh,topmost:document.elementFromPoint(r.left+r.width/2,r.top+r.height/2)===b,
+ // The bubble lets clicks through, which elementFromPoint also skips, so it is hit-testable just for this check: nothing is drawn over it.
+ b.style.pointerEvents='auto';const topmost=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2)===b;b.style.pointerEvents='';
+ return {text:b.textContent,ariaHidden:b.getAttribute('aria-hidden'),pointerEvents,visible:s.visibility!=='hidden'&&r.width>0&&r.height>0,inside:r.left>=0&&r.top>=0&&r.right<=vw&&r.bottom<=vh,topmost,
   overlaps:r.left<f.right&&f.left<r.right&&r.top<f.bottom&&f.top<r.bottom,inPanelOrButton:!!b.closest('button,.panel'),fg:s.color,bg:s.backgroundColor,page:getComputedStyle(document.documentElement).backgroundColor,opacity};
 });
 // Text and background as drawn: the background over the page by its alpha, the text over the background by its alpha, then both faded over the page by the opacity.
@@ -59,7 +61,7 @@ const drawn=(m:{fg:string;bg:string;page:string;opacity:number})=>{
 const readable=async(page:Page,text:string,label:string)=>{
  await settle(page);const m=await measure(page);
  expect(m,`${label}: a bubble`).not.toBeNull();
- expect(m!,label).toMatchObject({text,visible:true,inside:true,topmost:true,overlaps:false,inPanelOrButton:false});
+ expect(m!,label).toMatchObject({text,ariaHidden:'true',pointerEvents:'none',visible:true,inside:true,topmost:true,overlaps:false,inPanelOrButton:false});
  expect(ratio(...drawn(m!)),`${label}: contrast of ${m!.fg} on ${m!.bg} at opacity ${m!.opacity}`).toBeGreaterThanOrEqual(4.5);
 };
 
@@ -69,19 +71,20 @@ test('Ctrl+Enter in an empty segment says why, aloud and under the text, again o
  const text='Chưa tạo giọng được: Đoạn này chưa có nội dung',hint=seg(page,3).locator('.row-hint');
  await page.keyboard.press('Control+Enter');
  await expect(hint).toHaveText(text);await expect(hint).toHaveAttribute('aria-hidden','true');await expect(region(page)).toHaveText(text);
- await page.keyboard.press('Control+Enter');
+ // The hint lasts 4 s from the last press: pressed again after 2.5 s, it is still there 2.5 s later, then goes.
+ await page.waitForTimeout(2500);await page.keyboard.press('Control+Enter');
  await expect.poll(()=>page.evaluate(t=>((window as any).__said as string[]).filter(s=>s===t).length,text)).toBe(2);
- await expect(area(page,3)).toHaveValue(''); // not a newline either
- // The hint stays 4 s from the last press, then goes.
- await page.waitForTimeout(3000);await expect(hint).toHaveText(text);await expect(hint).toHaveCount(0,{timeout:3000});
+ await expect(area(page,3)).toHaveValue(''); // a precaution: Chromium types nothing for Ctrl+Enter anyway, and the blocked shortcut keeps preventDefault
+ await page.waitForTimeout(2500);await expect(hint).toHaveText(text);await expect(hint).toHaveCount(0,{timeout:3000});
  expect(await calls(page,'enqueue_job')).toBe(0);
 });
 
-test('with VieNeu missing, Ctrl+Enter gives the model reason',async({page})=>{
+test('with VieNeu missing, Ctrl+Enter gives the model reason, and editing the text clears the hint',async({page})=>{
  await desktop(page,FIXTURE.segments,{installed:false});
  await area(page,3).click();await page.keyboard.press('Control+Enter');
- const text='Chưa tạo giọng được: Tải VieNeu v3 Turbo trong Model & cài đặt để bật';
- await expect(seg(page,3).locator('.row-hint')).toHaveText(text);await expect(region(page)).toHaveText(text);
+ const text='Chưa tạo giọng được: Tải VieNeu v3 Turbo trong Model & cài đặt để bật',hint=seg(page,3).locator('.row-hint');
+ await expect(hint).toHaveText(text);await expect(region(page)).toHaveText(text);
+ await page.keyboard.type('x');await expect(hint).toHaveCount(0,{timeout:1000}); // at once, well inside its 4 s: still blocked, but the hint was about the text before the edit
  expect(await calls(page,'enqueue_job')).toBe(0);
 });
 
@@ -108,16 +111,30 @@ test('Tab to a blocked item of an off-screen row: the bubble follows the scroll 
  await page.getByRole('textbox',{name:'Nhân vật đoạn 30',exact:true}).evaluate(el=>(el as HTMLElement).focus({preventScroll:true}));
  await page.keyboard.press('Tab');await expect(gen).toBeFocused();
  await readable(page,'Đoạn này chưa có nội dung','the item Tab scrolled into view');
+ // A small scroll that keeps the item in view moves the bubble with it.
+ const gap=()=>page.evaluate(()=>{const b=document.querySelector('.reason-bubble')!.getBoundingClientRect(),f=document.activeElement!.getBoundingClientRect();return Math.round(b.top-f.bottom);});
+ const g0=await gap(),y0=await page.evaluate(()=>scrollY);await page.evaluate(()=>scrollBy(0,-40));await settle(page);
+ expect(await page.evaluate(()=>scrollY),'the page scrolled').toBe(y0-40);expect(await gap(),'the bubble kept its place under the item').toBe(g0);
+ await readable(page,'Đoạn này chưa có nội dung','the item after a small scroll');
  await page.evaluate(()=>scrollTo(0,0));await settle(page);
  await expect(bubble(page)).toBeHidden();await expect(gen).toBeFocused();
 });
 
-test('the bubble goes when the focused control stops being blocked: Ctrl+Z brings the text back while its "Tạo giọng" keeps focus',async({page})=>{
+test('the bubble follows the focused control: Ctrl+Z unblocks "Tạo giọng" and the bubble goes, Ctrl+Shift+Z blocks it again and the bubble is back',async({page})=>{
  await desktop(page,FIXTURE.segments);
  await area(page,3).fill('');const gen=seg(page,3).getByRole('button',{name:'Tạo giọng',exact:true});
  await gen.focus();await readable(page,'Đoạn này chưa có nội dung','"Tạo giọng" of the emptied segment');
  await page.keyboard.press('Control+z');await expect(area(page,3)).toHaveValue(FIXTURE.segments[2].text);
  await expect(gen).not.toHaveAttribute('aria-disabled','true');await expect(gen).toBeFocused();await expect(bubble(page)).toHaveCount(0);
+ await page.keyboard.press('Control+Shift+z');await expect(area(page,3)).toHaveValue('');
+ await expect(gen).toHaveAttribute('aria-disabled','true');await expect(gen).toBeFocused();await readable(page,'Đoạn này chưa có nội dung','"Tạo giọng" blocked again');
+});
+
+test('an enabled control with a description shows no bubble: "Nghỉ sau (ms)" holding an invalid value',async({page})=>{
+ await desktop(page,FIXTURE.segments);
+ const field=page.getByLabel('Nghỉ sau (ms)');await field.fill('-5');await expect(field).toHaveAccessibleDescription(/trở lên/);
+ await page.keyboard.press('Tab');await field.focus();await settle(page); // a fresh focusin on the field, which keeps its draft and description
+ await expect(field).toBeFocused();await expect(field).toHaveAccessibleDescription(/trở lên/);await expect(bubble(page)).toHaveCount(0);
 });
 
 test('"Thay N chỗ" with no exact match is focusable and shows its reason',async({page})=>{
