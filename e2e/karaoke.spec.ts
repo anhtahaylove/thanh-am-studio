@@ -81,9 +81,11 @@ test('a trimmed take lights the word at its trim start first',async({page})=>{
 
 test('switching to another take mid-play keeps the place in the speech: the lit word holds',async({page})=>{
  await open(page);await play(page).click();await whenLit(page,'bạn');
- await page.keyboard.press('3');await expect(page.locator('.take-pick').nth(2)).toHaveAttribute('aria-pressed','true'); // take 3 has the same word times
- await page.waitForTimeout(250);
- await expect(lit(page)).toHaveText('bạn');
+ await page.keyboard.press('3'); // take 3 has the same word times
+ // Every frame for 600 ms after the switch: a take restarted from its start would light "Xin" again.
+ const seen=await page.evaluate(()=>new Promise<string[]>(done=>{const words=new Set<string>(),t0=performance.now();const tick=()=>{words.add(document.querySelector('.karaoke mark')?.textContent??'(none)');if(performance.now()-t0<600)requestAnimationFrame(tick);else done([...words]);};tick();}));
+ await expect(page.locator('.take-pick').nth(2)).toHaveAttribute('aria-pressed','true');
+ expect(seen,'the words lit after the switch').toEqual(['bạn']);
 });
 
 test('stopping clears every 100 ms timer the line and the dock started, also after a mid-play take switch',async({page})=>{
