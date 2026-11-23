@@ -15,7 +15,7 @@ test('export loads the takes the server already made instead of failing on a sta
     case 'enqueue_job':{const job={id:'j'+(jobs.length+1),kind:args.kind,project_id:args.projectId,payload:args.payload,status:'succeeded',progress:1,error:null,result:{asset_id:'r1'},created_at:new Date().toISOString(),updated_at:new Date().toISOString()};jobs.push(job);return job;}
     default:return null;}}};
  });
- await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();
+ await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
  await expect(page.getByRole('textbox',{name:'Nội dung đoạn 2'})).toHaveValue('Câu 2.');
  await page.getByRole('button',{name:'Xuất audio'}).click();
  await expect.poll(()=>page.evaluate(()=>(window as any).__calls.filter((c:any)=>c.cmd==='enqueue_job').length)).toBe(1);

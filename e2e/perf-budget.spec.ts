@@ -31,7 +31,7 @@ const script800=async(page:import('@playwright/test').Page,live:boolean,narrow=f
  test.setTimeout(180000);
  if(narrow)await page.setViewportSize({width:800,height:900}); // at 920 px and below the selected segment's panel is inside its row
  await page.addInitScript(mock,{n:800,live});await page.goto('/');
- await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();
+ await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
  // CSS selectors from here on: computing accessible names over ~70k nodes takes seconds.
  await expect(page.locator('textarea[aria-label="Nội dung đoạn 800"]')).toBeAttached({timeout:90000});
  // Finished TTS jobs make the app load the project once more; let that render land before measuring.
@@ -74,7 +74,7 @@ test('typing in a 1,500-word selected segment stays fast while the normalized te
     default:return null;}}};
   new PerformanceObserver(l=>{for(const e of l.getEntries() as any[])if(e.interactionId)w.__keys.push({id:e.interactionId,ms:e.duration});}).observe({type:'event',durationThreshold:16} as PerformanceObserverInit);
  });
- await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();
+ await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
  const box=page.locator('textarea[aria-label="Nội dung đoạn 1"]');await expect(box).toBeAttached({timeout:30000});await expect(page.locator('.normalization')).not.toHaveAttribute('open');
  await box.click();await page.keyboard.press('Control+End');await page.waitForTimeout(800);await page.evaluate(()=>{(window as any).__keys=[];});
  await page.keyboard.type('abcdefghijklmnopqrst',{delay:80});await expect(box).toHaveValue(/abcdefghijklmnopqrst$/);
@@ -89,42 +89,42 @@ test('typing in a 1,500-word selected segment stays fast while the normalized te
 // The rows are synthetic and generated: word salad, 3 speakers, about 3.7 s each, a silent row at every 200th, so the fixture can be regenerated.
 const ROWS:{id:string}[]=JSON.parse(readFileSync('e2e/fixtures/transcript-1200.json','utf8'));
 const mockTranscript=(rows:unknown[])=>{
- const w=window as any;w.isTauri=true;w.__lt=[];w.__keys=[];
+ const w=window as any;w.isTauri=true;w.__lt=[];w.__ltd=[];w.__ipc=[];w.__keys=[];
  let project:any={id:'p1',name:'Phỏng vấn',updated_at:'2026-11-20T00:00:00Z',revision:1,transcript:rows,dictionary:{},source_asset_id:null,segments:[]};
  const ipc=(v:unknown)=>JSON.parse(JSON.stringify(v));
  w.__TAURI_INTERNALS__={convertFileSrc:(p:string)=>p,transformCallback:()=>1,unregisterCallback:()=>{},metadata:{currentWindow:{label:'main'},currentWebview:{label:'main',windowLabel:'main'}},
-  invoke:async(cmd:string,args:any)=>{switch(cmd){
+  invoke:async(cmd:string,args:any)=>{w.__ipc.push(`${cmd}@${Math.round(performance.now())}`);switch(cmd){
    case 'list_projects':return [{id:project.id,name:project.name,updated_at:project.updated_at,revision:project.revision}];case 'load_project':return ipc(project);
    case 'list_voices':case 'list_models':case 'list_jobs':return [];case 'get_settings':return {dictionary:{}};
    case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,native_worker_ready:true,python_path:null,ffmpeg_path:null,native_worker_path:null,fallback_count:0,message:''};
    case 'save_project':project={...ipc(args.project),revision:args.project.revision+1};return ipc(project);
    default:return null;}}};
- new PerformanceObserver(l=>{for(const e of l.getEntries())w.__lt.push(Math.round(e.duration));}).observe({type:'longtask'});
+ new PerformanceObserver(l=>{for(const e of l.getEntries() as any[]){w.__lt.push(Math.round(e.duration));w.__ltd.push(`${Math.round(e.duration)} ms at ${Math.round(e.startTime)} (${(e.attribution||[]).map((x:any)=>x.containerType+':'+x.name).join('|')||'no attribution'})`);}}).observe({type:'longtask'});
  new PerformanceObserver(l=>{for(const e of l.getEntries() as any[])if(e.interactionId)w.__keys.push({id:e.interactionId,ms:e.duration});}).observe({type:'event',durationThreshold:16} as PerformanceObserverInit);
 };
 // Opens the transcript in a fresh page and returns the long tasks of a 6 s idle window (when `idle`) and the sorted keystroke times in row `id`.
 // With a `query` the search box is filled first and the hits are marked in every matching row.
 const measure=async(context:BrowserContext,rows:{id:string}[],id:string,idle=true,query='')=>{
  const page=await context.newPage();await page.addInitScript(mockTranscript,rows);await page.goto('/');
- await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();await page.getByRole('button',{name:'Chép lời',exact:true}).click();
+ await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();await page.getByRole('button',{name:'Chép lời',exact:true}).click();
  const box=page.locator(`[data-row="${id}"] textarea`);await expect(box).toBeAttached({timeout:90000});
  if(query){await page.locator('input[aria-label="Tìm trong bản chép lời"]').fill(query);await expect(page.locator(`[data-row="${id}"] .match-preview`)).toBeAttached({timeout:90000});await expect(page.getByRole('button',{name:/^Thay \d+ chỗ$/})).toBeVisible();}
  await page.waitForTimeout(2000);
- await page.evaluate(()=>{(window as any).__lt=[];});if(idle)await page.waitForTimeout(6000); // two or three polls
- const longTasks:number[]=await page.evaluate(()=>(window as any).__lt);
+ await page.evaluate(()=>{const w=window as any;w.__lt=[];w.__ltd=[];w.__ipc=[];});if(idle)await page.waitForTimeout(6000); // two or three polls
+ const longTasks:number[]=await page.evaluate(()=>(window as any).__lt),detail:string=await page.evaluate(()=>{const w=window as any;return `${w.__ltd.join('; ')||'none'}; IPC calls in the window: ${w.__ipc.join(', ')||'none'}`;});
  await box.click();await page.keyboard.press('End');await page.waitForTimeout(500);await page.evaluate(()=>{(window as any).__keys=[];});
  await page.keyboard.type('abcdefghij',{delay:80});await expect(box).toHaveValue(/abcdefghij$/);
  const keys:{id:number;ms:number}[]=await page.evaluate(()=>(window as any).__keys),slowest=new Map<number,number>();
  for(const k of keys)slowest.set(k.id,Math.max(slowest.get(k.id)??0,k.ms));
  await page.close();
- return {idle:longTasks,ms:[...slowest.values(),...Array(Math.max(0,10-slowest.size)).fill(16)].sort((a,b)=>a-b)};
+ return {idle:longTasks,detail,ms:[...slowest.values(),...Array(Math.max(0,10-slowest.size)).fill(16)].sort((a,b)=>a-b)};
 };
 test('a 1,200-row transcript stays responsive: no long task while polls bring nothing new, and a keystroke in row 600 stays fast',async({context})=>{
  test.setTimeout(240000);
  const big=await measure(context,ROWS,'r600'),small=await measure(context,ROWS.slice(0,100),'r50',false);
  // Evidence only, not a gate: App still does O(n) work per keystroke (speakerStats, suspiciousRows, the hits filter), and an unreported keystroke counts as 16 ms.
  console.log(`perf: transcript 1200 rows: idle long tasks (ms) ${big.idle.join(', ')||'none'}; keystrokes (ms) ${big.ms.map(Math.round).join(', ')}; 100 rows: keystrokes (ms) ${small.ms.map(Math.round).join(', ')}; median ratio 1200/100 ${(big.ms[4]/small.ms[4]).toFixed(2)}`);
- expect.soft(Math.max(0,...big.idle),`long tasks (ms) during 6 s of polling: ${big.idle.join(', ')||'none'}`).toBeLessThan(IDLE_MS);
+ expect.soft(Math.max(0,...big.idle),`long tasks (ms) during 6 s of polling: ${big.idle.join(', ')||'none'}. Long tasks with start time (ms since load) and attribution: ${big.detail}`).toBeLessThan(IDLE_MS);
  expect(big.ms[4],`median keystroke latency; all (ms): ${big.ms.join(', ')}`).toBeLessThan(KEY_MS);
 });
 // Search 2.0: with a query that marks nearly every row (the letter "a": 1,194 of the 1,200 rows), a keystroke still re-renders only its own row, and

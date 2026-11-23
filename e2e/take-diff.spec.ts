@@ -182,6 +182,11 @@ test('an existing project entry with the same key is replaced openly: the hint b
 test('a key with no entry yet gets no replace hint and the status says "Đã thêm"',async({page})=>{
  await open(page);await chip(page).click();await valueBox(page).fill('Kí');await expect(form(page)).not.toContainText('Thay mục hiện có');await addBtn(page).click();await expect(dialog(page).getByRole('status')).toContainText('Đã thêm');
 });
+test('an inherited object key such as "constructor" is not an existing entry: no replace hint, "Đã thêm"',async({page})=>{
+ await open(page,{text:'Ký constructor vào đây.',sent:'Ký constructor vào đây.',heard:'kí constructor vào đây'});await chip(page).click();await keyBox(page).fill('constructor');await valueBox(page).fill('kơn');
+ await expect(form(page)).not.toContainText('Thay mục hiện có');expect(await addBtn(page).getAttribute('aria-describedby')??'').not.toContain('diff-replace-0');
+ await addBtn(page).click();await expect(dialog(page).getByRole('status')).toContainText('Đã thêm');
+});
 
 test('focus returns to the chip after an add, with Escape and with Đóng',async({page})=>{
  await open(page);await chip(page).click();await valueBox(page).fill('Kí');await addBtn(page).click();await expect(dialog(page).getByRole('status')).toContainText('Đã thêm');

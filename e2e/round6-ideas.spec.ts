@@ -13,7 +13,7 @@ test('subtitle-timed dubbing counts and marks the takes that still run past thei
   // 4 s in a 2 s cue is 667 ms too long even at 1.5x; 3 s in the next 2 s cue fits at 1.5x but is pushed back; 1 s fits as is.
   localStorage.setItem('thanh-am-preview-projects-v1',JSON.stringify([{id:'p1',name:'Lồng tiếng',updated_at:'2026-01-01T00:00:00Z',revision:0,segments:[seg('1',4000,0,2000),seg('2',3000,2100,4100),seg('3',1000,6000,8000)],transcript:[],dictionary:{},source_asset_id:null}]));
  });
- await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();
+ await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
  const marker=page.locator('.segment .take-check',{hasText:'Dài hơn mốc'});await expect(page.getByRole('textbox',{name:'Nội dung đoạn 3'})).toBeVisible();await expect(marker).toHaveCount(0);
  await page.getByRole('checkbox',{name:'Theo mốc phụ đề'}).check();
  await expect(page.locator('.dub-stats')).toContainText('1 đoạn vẫn dài hơn mốc ở 1,5×');await expect(page.locator('.dub-stats')).toContainText('1 đoạn bị lùi');
@@ -26,7 +26,7 @@ test('a take whose end Whisper heard twice says the voice looped and asks for a 
   const take={id:'t1',asset_id:'a1',path:'t1.wav',duration_ms:3000,sample_rate:24000,created_at:'2026-01-01T00:00:00Z',check};
   localStorage.setItem('thanh-am-preview-projects-v1',JSON.stringify([{id:'p1',name:'Lặp',updated_at:'2026-01-01T00:00:00Z',revision:0,segments:[{id:'s1',text:'Hãy chủ động thay đổi.',normalized_text:'Hãy chủ động thay đổi.',voice_id:null,speaker:'Người dẫn',gap_ms:300,takes:[take],selected_take_id:'t1',trim_start_ms:0,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0,gain_db:0}],transcript:[],dictionary:{},source_asset_id:null}]));
  });
- await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();
+ await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
  const chip=page.locator('.segment .take-check');await expect(chip).toHaveText('Giọng lặp lại cuối câu: tạo lại take');await expect(chip).toHaveAttribute('title',/giọng đọc lặp lại “chủ động thay đổi”\. Bấm “Tạo take mới”/);
 });
 test('a TXT export of a transcript with speakers reads as turns and comes back as roles through Thêm nội dung',async({page})=>{
@@ -34,7 +34,7 @@ test('a TXT export of a transcript with speakers reads as turns and comes back a
   const row=(id:string,start_ms:number,text:string,speaker:number)=>({id,start_ms,end_ms:start_ms+900,text,speaker});
   localStorage.setItem('thanh-am-preview-projects-v1',JSON.stringify([{id:'p1',name:'Phỏng vấn',updated_at:'2026-01-01T00:00:00Z',revision:0,segments:[],transcript:[row('a',0,'Chào chị.',0),row('b',1000,'Chị khỏe không?',0),row('c',2000,'Khỏe, cảm ơn em.',1),row('d',3000,'Vậy bắt đầu nhé.',0)],dictionary:{},source_asset_id:null}]));
  });
- await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();await page.getByRole('button',{name:'Chép lời',exact:true}).click();
+ await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();await page.getByRole('button',{name:'Chép lời',exact:true}).click();
  const [download]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:'TXT',exact:true}).click()]);
  const txt=await (await import('node:fs/promises')).readFile(await download.path(),'utf8');
  expect(txt).toBe('Người 1: Chào chị. Chị khỏe không?\n\nNgười 2: Khỏe, cảm ơn em.\n\nNgười 1: Vậy bắt đầu nhé.');

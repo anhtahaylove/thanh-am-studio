@@ -20,7 +20,7 @@ const calls=(page:any,cmd:string)=>page.evaluate((c:string)=>(window as any).__c
 
 for(const [value,label] of [['wav','WAV'],['mp3','MP3'],['m4a','M4A'],['flac','FLAC'],['opus','Opus']]){
  test(`${label} is offered, sent as payload.format and saved with a ${value} file name and filter`,async({page})=>{
-  await page.addInitScript(mock);await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();
+  await page.addInitScript(mock);await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
   const menu=page.getByRole('combobox',{name:'Định dạng audio'});
   await expect(menu.locator('option')).toHaveText(['WAV','MP3','M4A','FLAC','Opus']);
   await menu.selectOption(value);await page.getByRole('button',{name:'Xuất audio'}).click();

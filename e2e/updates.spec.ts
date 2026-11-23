@@ -76,7 +76,7 @@ test('Escape closes only the top dialog when the install question opens over the
 test('install now saves the open project first, then restarts into the new version; download progress is shown',async({page})=>{
  await page.addInitScript(mock,{found:{version:next,notes:null,date:null},project:true});
  await page.addInitScript(()=>{const w=window as any;w.__hold=new Promise(r=>w.__release=r);});
- await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();
+ await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
  await expect(page.getByText(`Đang tải bản ${next}…`)).toBeVisible({timeout:10000});
  await page.evaluate(()=>(window as any).__fire('update-progress',{downloaded:40,total:100}));await expect(page.getByText(`Đang tải bản ${next} · 40 %`)).toBeVisible();
  await page.evaluate(()=>(window as any).__release());

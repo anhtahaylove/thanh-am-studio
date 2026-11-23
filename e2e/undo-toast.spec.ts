@@ -44,7 +44,7 @@ test('the toast respects reduced motion and has a keyboard reachable close butto
 });
 test('merging into a segment that already has audio no longer asks, says what happens to the take, and undoes',async({page})=>{
  let dialogs=0;page.on('dialog',d=>{dialogs++;void d.dismiss();});
- await page.addInitScript(seedWithTake);await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();
+ await page.addInitScript(seedWithTake);await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
  await expect(page.getByRole('textbox',{name:'Nội dung đoạn 2'})).toHaveValue('Câu hai.');await expect(page.getByText('1 take',{exact:true})).toHaveCount(1);
  await page.getByRole('button',{name:'Gộp với đoạn sau'}).first().click();
  await expect(page.getByRole('textbox',{name:'Nội dung đoạn 2'})).toHaveCount(0);await expect(page.getByText('1 take',{exact:true})).toHaveCount(0);
@@ -97,8 +97,8 @@ test('opening a project whose source asset is missing does not keep the source p
     case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,python_path:null,ffmpeg_path:null,message:''};default:return null;}}};
  });
  await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();
- await page.getByRole('button',{name:'Mở dự án'}).nth(0).click();await page.getByRole('button',{name:'Chép lời',exact:true}).click();await expect(page.locator('.source-player')).toContainText('cu-A.wav');
- await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).nth(1).click();await page.getByRole('button',{name:'Chép lời',exact:true}).click();
+ await page.getByRole('button',{name:'Mở dự án',exact:true}).nth(0).click();await page.getByRole('button',{name:'Chép lời',exact:true}).click();await expect(page.locator('.source-player')).toContainText('cu-A.wav');
+ await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).nth(1).click();await page.getByRole('button',{name:'Chép lời',exact:true}).click();
  await expect(page.locator('.source-player')).toHaveCount(0);
 });
 test('the toast names Ctrl+Z, and the palette offers Undo while the toast sits inert behind it',async({page})=>{

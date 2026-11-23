@@ -14,7 +14,7 @@ const mock=()=>{
    case 'plugin:dialog|save':return 'C:\\Users\\a\\Bản xuất\\Từ điển chung.csv';
    case 'save_project':project={...args.project,revision:args.project.revision+1};return project;default:return null;}}};
 };
-const open=async(page:any)=>{await page.route('**/tone.wav',(r:any)=>r.fulfill({body:tone(),contentType:'audio/wav'}));await page.addInitScript(mock);await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();};
+const open=async(page:any)=>{await page.route('**/tone.wav',(r:any)=>r.fulfill({body:tone(),contentType:'audio/wav'}));await page.addInitScript(mock);await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();};
 
 test('Space plays and stops the selected take on the studio page, but types a space in the editor',async({page})=>{
  await open(page);await page.getByRole('heading',{level:1}).click();

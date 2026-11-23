@@ -1,6 +1,6 @@
 import {test,expect,type Page} from '@playwright/test';
 const KEY='thanh-am-preview-projects-v1';
-const seed=async(page:Page,project:object)=>{await page.goto('/');await page.evaluate(([k,p])=>localStorage.setItem(k,JSON.stringify([p])),[KEY,project] as const);await page.reload();await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();};
+const seed=async(page:Page,project:object)=>{await page.goto('/');await page.evaluate(([k,p])=>localStorage.setItem(k,JSON.stringify([p])),[KEY,project] as const);await page.reload();await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();};
 test('Ctrl+Z in a dialog or a side field undoes that text only, and still undoes the script from the script',async({page})=>{
  await page.goto('/');await page.getByRole('button',{name:'Viết đoạn đầu tiên'}).click();
  const first=page.getByRole('textbox',{name:'Nội dung đoạn 1'});await first.click();await page.keyboard.type('Một hai');await expect(first).toHaveValue('Một hai');await expect(page.getByRole('button',{name:'Đã lưu'})).toBeVisible();
@@ -53,7 +53,7 @@ test('desktop generation waits for the VieNeu model and says where to get it',as
     case 'enqueue_job':w.__jobs.push(args.payload.segment_id);return {id:'j'+w.__jobs.length};case 'list_models':return [{id:'vieneu-v3',name:'VieNeu v3 Turbo',engine:'tts',installed:w.__voice,revision:'r',license:'Apache-2.0',description:''},{id:'whisper-small',name:'Whisper Small',engine:'stt',installed:true,revision:'r',license:'MIT',description:''}];
     case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,python_path:null,ffmpeg_path:null,message:''};default:return null;}}};
  });
- await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();
+ await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
  const all=page.getByRole('button',{name:'Tạo giọng tất cả'}),one=page.getByRole('button',{name:'Tạo giọng',exact:true}).first(),reason='Tải VieNeu v3 Turbo trong Model & cài đặt để bật';
  await expect(all).toBeDisabled();await expect(all).toHaveAttribute('title',reason);await expect(all).toHaveAccessibleDescription(/tải VieNeu v3 Turbo trong Model & cài đặt/);
  await expect(one).toBeDisabled();await expect(one).toHaveAttribute('title',reason);await expect(page.getByText('Chưa có model giọng đọc',{exact:false})).toBeVisible();

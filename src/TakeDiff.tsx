@@ -23,7 +23,7 @@ function MismatchForm({index,expected,segment,dictionary,projectDictionary,codeS
   :origin.kind==='dictionary'?`“${expected}” đến từ mục từ điển “${origin.key}”: sửa mục đó trong Từ điển phát âm.`
   :`“${expected}” do quy tắc chuẩn hóa văn bản tạo ra${origin.from?` từ “${origin.from.replace(/[.,;:!?]+$/,'')}”`:''}: gõ chữ trong kịch bản mà bạn muốn đọc khác đi.`;
  // Adding over a project entry with the same key and another reading replaces it; the form says so before, and the status after.
- const replaced=k&&v&&projectDictionary[k]!==undefined&&projectDictionary[k]!==v?projectDictionary[k]:null,notes=[hint&&`diff-hint-${index}`,why&&`diff-why-${index}`,replaced!==null&&`diff-replace-${index}`].filter(Boolean).join(' ')||undefined;
+ const replaced=k&&v&&Object.hasOwn(projectDictionary,k)&&projectDictionary[k]!==v?projectDictionary[k]:null,notes=[hint&&`diff-hint-${index}`,why&&`diff-why-${index}`,replaced!==null&&`diff-replace-${index}`].filter(Boolean).join(' ')||undefined;
  return <form className="diff-form" data-form={index} onSubmit={e=>{e.preventDefault();if(!why)onAdd(k,v,index,replaced);}}>
   <label>Từ trong kịch bản<input aria-label="Từ trong kịch bản" aria-describedby={notes} value={key} autoFocus={autoFocus} onChange={e=>setKey(e.target.value)}/></label>
   <label>Cách đọc mới<input aria-label="Cách đọc mới" placeholder="ví dụ: kí" value={value} onChange={e=>setValue(e.target.value)}/></label>

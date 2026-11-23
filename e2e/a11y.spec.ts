@@ -47,7 +47,7 @@ test('lengths and times use the Vietnamese decimal comma and transcript play but
  const segment={id:'s1',text:'Câu một.',normalized_text:'Câu một.',voice_id:null,speaker:'Người dẫn',gap_ms:300,takes:[take],selected_take_id:'t1',trim_start_ms:0,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0,gain_db:0};
  const project={id:'p1',name:'Dấu phẩy',updated_at:new Date().toISOString(),revision:1,segments:[segment],transcript:[{id:'r1',start_ms:1250,end_ms:3500,text:'Xin chào'},{id:'r2',start_ms:9200,end_ms:10000,text:'Tạm biệt'}],dictionary:{},source_asset_id:null};
  await page.goto('/');await page.evaluate(p=>localStorage.setItem('thanh-am-preview-projects-v1',JSON.stringify([p])),project);await page.reload();
- await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();
+ await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
  await expect(page.locator('.audio-dock')).toContainText('4,1 giây · 44,1 kHz');
  await expect(page.getByRole('combobox',{name:'Take đang sử dụng'}).locator('option',{hasText:'Take 1'})).toHaveText('Take 1 · 4,1 giây');
  await page.getByRole('button',{name:'Chép lời',exact:true}).click();
