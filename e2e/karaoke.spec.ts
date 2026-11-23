@@ -1,17 +1,21 @@
 import {test,expect,type Page} from '@playwright/test';
 // Karaoke: while a take with self-check word times plays, the words of the playing segment light up under its text; a take without them gets a one-line hint.
-// Tauri is mocked; the take is a real 8 s WAV (the tone of preview-switch.spec.ts). Segment 1 has take 1 (words at 0/400/800 ms) and take 2 (only its last word,
-// at 0 ms); segment 2 has a checked take without word times (made before 1.0.10, or by a check that kept none).
+// Tauri is mocked; the take is a real 8 s WAV (the tone of preview-switch.spec.ts). Segment 1 has take 1 (words at 0/400/800 ms), take 2 (only its last word,
+// at 0 ms) and take 3 (the times of take 1); segment 2 has a take that was never checked; segment 3 is trimmed to 2000 ms with words at 0/2000/2400 ms;
+// segment 4's check failed (`error`); segment 5's heard words match none of its script words.
 const tone=()=>{const rate=8000,n=rate*8,b=Buffer.alloc(44+n*2);b.write('RIFF',0);b.writeUInt32LE(36+n*2,4);b.write('WAVEfmt ',8);b.writeUInt32LE(16,16);b.writeUInt16LE(1,20);b.writeUInt16LE(1,22);b.writeUInt32LE(rate,24);b.writeUInt32LE(rate*2,28);b.writeUInt16LE(2,32);b.writeUInt16LE(16,34);b.write('data',36);b.writeUInt32LE(n*2,40);for(let i=0;i<n;i++)b.writeInt16LE(Math.round(Math.sin(2*Math.PI*440*i/rate)*6000),44+i*2);return b;};
 const ratio=(a:string,b:string)=>{const lum=(c:string)=>{const [r,g,b]=c.match(/[\d.]+/g)!.slice(0,3).map(v=>{const x=Number(v)/255;return x<=0.03928?x/12.92:((x+0.055)/1.055)**2.4;});return 0.2126*r+0.7152*g+0.0722*b;};const [x,y]=[lum(a),lum(b)].sort((p,q)=>q-p);return (x+0.05)/(y+0.05);};
 const HINT='Chữ chạy theo giọng chỉ có ở take tạo khi bật “Tự kiểm bằng Whisper”.';
 const mock=()=>{
  const w=window as any;w.isTauri=true;
- const check=(words?:[string,number][])=>({model:'whisper-small',wer:0,heard:'',mismatches:[],...(words?{words:words.map(([text,start_ms])=>({text,start_ms}))}:{})});
- const take=(id:string,c:object)=>({id,asset_id:'a'+id,path:'/tone.wav',duration_ms:8000,sample_rate:8000,created_at:new Date().toISOString(),check:c});
- const seg=(id:string,text:string,takes:any[])=>({id,text,normalized_text:text,voice_id:null,speaker:'Người dẫn',gap_ms:300,takes,selected_take_id:takes[0].id,trim_start_ms:0,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0,gain_db:0});
+ const check=(words:[string,number][])=>({model:'whisper-small',wer:0,heard:'',mismatches:[],words:words.map(([text,start_ms])=>({text,start_ms}))});
+ const take=(id:string,c?:object)=>({id,asset_id:'a'+id,path:'/tone.wav',duration_ms:8000,sample_rate:8000,created_at:new Date().toISOString(),...(c?{check:c}:{})});
+ const seg=(id:string,text:string,takes:any[],trim=0)=>({id,text,normalized_text:text,voice_id:null,speaker:'Người dẫn',gap_ms:300,takes,selected_take_id:takes[0].id,trim_start_ms:trim,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0,gain_db:0});
+ const ws:[string,number][]=[['xin',0],['chào',400],['bạn',800]];
  const project={id:'p1',name:'Chữ chạy',updated_at:new Date().toISOString(),revision:1,transcript:[],dictionary:{},source_asset_id:null,segments:[
-  seg('1','Xin chào, bạn.',[take('t1',check([['xin',0],['chào',400],['bạn',800]])),take('t1b',check([['bạn',0]]))]),seg('2','Một câu khác.',[take('t2',check())])]};
+  seg('1','Xin chào, bạn.',[take('t1',check(ws)),take('t1b',check([['bạn',0]])),take('t1c',check(ws))]),seg('2','Một câu khác.',[take('t2')]),
+  seg('3','Một câu khác.',[take('t3',check([['một',0],['câu',2000],['khác',2400]]))],2000),
+  seg('4','Một câu khác.',[take('t4',{model:'whisper-small',error:'CHECK_FAILED: no audio'})]),seg('5','Một câu khác.',[take('t5',check([['hoàn',0],['toàn',300],['lạ',600]]))])]};
  w.__TAURI_INTERNALS__={convertFileSrc:(p:string)=>p,transformCallback:()=>1,unregisterCallback:()=>{},metadata:{currentWindow:{label:'main'},currentWebview:{label:'main',windowLabel:'main'}},
   invoke:async(cmd:string,args:any)=>{switch(cmd){
    case 'list_projects':return [{id:project.id,name:project.name,updated_at:project.updated_at,revision:project.revision}];case 'load_project':return JSON.parse(JSON.stringify(project));
@@ -55,11 +59,46 @@ test('the line disappears when playback stops',async({page})=>{
  await expect(page.locator('.karaoke, .karaoke-none')).toHaveCount(0);
 });
 
-test('a take without word times shows a one-line hint while it plays, and nothing before or after',async({page})=>{
+test('a take that was never checked shows a one-line hint while it plays, and nothing before or after',async({page})=>{
  await open(page);await row(page,2).click();await expect(page.locator('.karaoke-none')).toHaveCount(0);
  await play(page).click();await expect(play(page)).toHaveAccessibleName('Dừng nghe thử');
  const hint=row(page,2).locator('.karaoke-none');await expect(hint).toHaveText(HINT);await expect(hint).toHaveAttribute('aria-hidden','true');await expect(page.locator('.karaoke')).toHaveCount(0);
  await page.getByRole('button',{name:'Dừng nghe thử'}).click();await expect(hint).toHaveCount(0);
+});
+
+// The hint would be wrong for a take that was checked: self-check was on. A failed check, or words that place nowhere in the script, show nothing.
+for(const [n,what] of [[4,'whose check failed'],[5,'whose heard words match none of the script']] as const)test(`a take ${what} shows neither the line nor the hint while it plays`,async({page})=>{
+ await open(page);await row(page,n).click();await play(page).click();
+ await expect(play(page)).toHaveAccessibleName('Dừng nghe thử');await expect.poll(()=>page.locator('.waveform i').count()).toBeGreaterThan(0); // playing, past the decode
+ await page.waitForTimeout(300);await expect(page.locator('.karaoke, .karaoke-none')).toHaveCount(0);
+});
+
+test('a trimmed take lights the word at its trim start first',async({page})=>{
+ await open(page);await row(page,3).click();await page.getByRole('heading',{level:1}).click();
+ await play(page).click();
+ expect(await page.waitForFunction(()=>document.querySelector('.karaoke mark')?.textContent??false,undefined,{polling:'raf'}).then(h=>h.jsonValue())).toBe('câu');
+});
+
+test('switching to another take mid-play keeps the place in the speech: the lit word holds',async({page})=>{
+ await open(page);await play(page).click();await whenLit(page,'bạn');
+ await page.keyboard.press('3');await expect(page.locator('.take-pick').nth(2)).toHaveAttribute('aria-pressed','true'); // take 3 has the same word times
+ await page.waitForTimeout(250);
+ await expect(lit(page)).toHaveText('bạn');
+});
+
+test('stopping clears every 100 ms timer the line and the dock started, also after a mid-play take switch',async({page})=>{
+ await page.addInitScript(()=>{const w=window as any;w.__live=new Set();const si=window.setInterval.bind(window),ci=window.clearInterval.bind(window);w.setInterval=(f:any,ms?:number,...a:any[])=>{const id=si(f,ms,...a);if(ms===100)w.__live.add(id);return id;};w.clearInterval=(id:any)=>{w.__live.delete(id);ci(id);};});
+ await open(page);const base=await page.evaluate(()=>(window as any).__live.size);
+ await play(page).click();await whenLit(page,'chào');
+ await page.keyboard.press('2');await expect(page.locator('.take-pick').nth(1)).toHaveAttribute('aria-pressed','true');await page.waitForTimeout(300);
+ await page.getByRole('button',{name:'Dừng nghe thử'}).click();await expect(page.locator('.karaoke')).toHaveCount(0);await page.waitForTimeout(250);
+ expect(await page.evaluate(()=>(window as any).__live.size)).toBe(base);
+});
+
+test('typing in the playing segment updates its karaoke line',async({page})=>{
+ await open(page);await play(page).click();await expect(lit(page)).toHaveCount(1);
+ await page.getByRole('textbox',{name:'Nội dung đoạn 1',exact:true}).click();await page.keyboard.press('End');await page.keyboard.type(' nhé');
+ await expect(page.locator('.karaoke')).toHaveText('Xin chào, bạn. nhé');
 });
 
 test('an auditioned take lights its own words',async({page})=>{
