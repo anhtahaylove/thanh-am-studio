@@ -650,6 +650,29 @@ try {
       if (!played) throw Error(`no played bars of ${bars}`);
       return `${played}/${bars} bars played after 1.5 s`;
     });
+    await step('karaoke highlights the checked take while it plays', async () => {
+      // The selected take is the checked one above, with at least 5 word times, so its script words must light up, and the lit word must move on.
+      // Whisper may mishear the first words, so watch until two different words were lit or playback ends (capped at the take's length + 2 s).
+      const [recent] = await invoke('list_projects'), project = await invoke('load_project', {id: recent.id}); // newest first: the project the steps above saved
+      const seg = project.segments[0], take = seg.takes.find((t) => t.id === seg.selected_take_id), cap = (take?.duration_ms ?? 30000) + 2000;
+      await page.getByRole('button', {name: 'Nghe thử đoạn'}).first().click();
+      const seen = await page.evaluate((capMs) => new Promise((done) => {
+        const lit = [], words = [], t0 = performance.now();
+        const tick = () => {
+          const m = document.querySelector('.karaoke mark'), ms = performance.now() - t0;
+          if (m) { const i = [...m.parentElement.children].indexOf(m); if (lit.at(-1) !== i) { lit.push(i); words.push(m.textContent); } }
+          const playing = document.querySelector('.play-button')?.getAttribute('aria-label') === 'Dừng nghe thử';
+          if (lit.length >= 2 || (!playing && ms > 500) || ms > capMs) done({lit, words, playing, ms: Math.round(ms), line: document.querySelector('.karaoke, .karaoke-none')?.textContent ?? 'no karaoke line'});
+          else setTimeout(tick, 30);
+        };
+        tick();
+      }), cap);
+      if (seen.lit.length) await shot('features-karaoke');
+      await page.getByRole('button', {name: 'Dừng nghe thử'}).click().catch(() => {}); // may already have ended
+      if (!seen.lit.length) throw Error(`no .karaoke mark while the take played (${seen.ms} ms, cap ${cap} ms): ${seen.line}`);
+      if (seen.lit.length < 2) throw Error(`the lit word never moved on from "${seen.words[0]}" (${seen.ms} ms, cap ${cap} ms): ${seen.line}`);
+      return `lit "${seen.words[0]}" then "${seen.words[1]}" (word ${seen.lit[0]} to ${seen.lit[1]}) within ${seen.ms} ms, in "${seen.line.slice(0, 120)}"`;
+    });
     await step('stt with speakers becomes a multi-voice script', async () => {
       const src = process.env.THANHAM_UX_AUDIO;
       if (!src || !existsSync(src)) throw Error(`THANHAM_UX_AUDIO missing: ${src}`);

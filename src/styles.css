@@ -68,6 +68,10 @@ progress::-webkit-progress-value{background:var(--green)}
 [data-theme=dark] .take-pick[aria-pressed=true]{box-shadow:inset 0 0 0 1px var(--ink)}
 [data-theme=dark] .take-using{color:var(--ink)}
 @media(max-width:800px){.audio-dock.compare .dock-main{gap:8px}.take-strip{flex:1 1 100%}}
+/* Karaoke (A2): the lit word gets a tint and an inset underline, never bold or padding, so no line ever re-wraps. */
+.karaoke,.karaoke-none{margin:4px 0 0;padding:0 10px;font-size:14px;line-height:1.5;color:var(--muted);overflow-wrap:anywhere}
+.karaoke .said{color:var(--ink)}
+.karaoke mark{color:var(--ink);background:var(--green-soft);box-shadow:inset 0 -2px 0 var(--green);border-radius:0;padding:0}
 button.take-check{display:block;border:0;font:inherit;font-size:12px;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
 button.take-check:hover{box-shadow:inset 0 0 0 1px currentColor}
 .diff-dialog{max-height:calc(100vh - 50px);overflow-y:auto}
