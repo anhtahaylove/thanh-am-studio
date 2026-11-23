@@ -982,7 +982,24 @@ An interface release: WCAG AA tokens and named controls (#158), the sticky expor
 | Job engines | 105 succeeded jobs in the r2, r3 and r4 databases, all `fallback: false`; Python only for checked `tts`, the separation pack and `separate`, and the `ab` Python half |
 | Not run | `-Gate 500`, `update-seeded`; the taskbar progress, the start-failure box and the dictionary CSV in a real Excel; no VirusTotal upload before publication |
 
-Evidence: `workelease-v1.0.21-sandbox` (`out1021r1` to `out1021r4`, `run1021.log`) and the published v1.0.21 release notes.
+Evidence: `work\release-v1.0.21-sandbox` (`out1021r1` to `out1021r4`, `run1021.log`) and the published v1.0.21 release notes.
+
+### v1.0.22 release (built by `.github/workflows/release.yml` from tag `v1.0.22` at `bd017dd`)
+
+An interface release with four UI big bets. Test infrastructure: the payload snapshot lock (#182) and UI primitives (#184). Onboarding: model cards with download size, RAM need and a per-machine recommendation (#187, #188; `Runtime::status()` now reports `total_memory_mb`), a first-run checklist (#189) and a demo project that opens without a model (#191). Transcript editor: `TranscriptRow` (#186), compact rows with a time editor and speaker colours (#190), search 2.0 (#192), Ctrl+click and Ctrl+Enter seek with follow-along (#193). Takes: A/B compare in the audio dock (#194) and a diff dialog with "add to dictionary" (#195). Script editor: `SegmentRow` (#196), a per-segment job ring and announcements (#197), a segment toolbar with scoped shortcuts and the skip link (#198), the contextual inspector (#199), and the paragraph layout with speaker colours, the transcript playing ring and a re-hued speaker palette (#200). The release PR (#201) also corrected the wording of the 1.0.21 entry in the in-app changelog. No worker code changed; the payload snapshot test shows TTS input and render payloads byte-identical to v1.0.21, so no listening pass was run.
+
+| Check | Result |
+|---|---|
+| Tests | CI green on the tagged commit; the release workflow's dry run (45023666621) passed on the release branch head `d57bb67`, which has the same tree as the tag, before the tag; the tag run 45025888035 built the draft |
+| Reviews | #182, #187 to #195 and #197 to #200 had an independent code review (fail-before checks, mutation testing, a typing performance A/B on 800-segment and 1,200-row scripts); every finding rated HIGH or MEDIUM was fixed before merge |
+| Release notes | checked claim by claim by an independent verifier before publication; 5 blocking fixes (overstated audio and payload claims, the PR range and review coverage, the wording of the 1.0.21 changelog correction, a Sandbox run counted before it ran) and 16 wording fixes |
+| Installer SHA-256 | `a2bed6c722e082dd0f633289f5406a5ee4e3690d8ade1e51c98e5abfc71600a3` (219,831,234 bytes). `sha256sum -c` OK on the draft assets and after an anonymous download from `/releases/latest/download/` |
+| Update feed | the anonymous `/releases/latest/download/latest.json` is identical to the draft asset, names 1.0.22 and carries a signature whose trusted comment says `version:1.0.22` |
+| Clean Sandbox, `-Only update -From` the published 1.0.21 (4 GB) | updated itself to 1.0.22 and reopened with the project kept; a package with a bad signature was refused. 4 PASS, 0 FAIL |
+| Clean Sandbox, `-Only full,features,scripts,dub,ux,dpi` (6 GB) | 57 PASS, 0 FAIL; 931 MiB installed; 3,792 shipped `.pyc` unchanged. The selectors ported by the big bets ran: the generate button in the segment toolbar (`scripts`), per-segment speed in the inspector (`features`, `dub`), transcript rows following playback (`ux`) and the six pages at 125, 150 and 200 % (`dpi`). The separation pack downloaded through the UI and re-checked (8,788 files equal `MANIFEST.sha256`). The host had about 3.8 GB available when this run started (the runner's threshold was lowered from 6.5 GB because other sessions held memory) |
+| Not run | the default runner, `longstt`, `clone`, `ab`, `-Gate 500` and `update-seeded` (no worker, export or backend job code changed); a real screen reader; Esc with an open native drop-down in the app's WebView2; VirusTotal (the owner dropped it from releases on 2026-11-23) |
+
+Evidence: `work\release-v1.0.22-sandbox` (`out1022r1`, `out1022r2`, `run1022.log`) and the published v1.0.22 release notes.
 
 ## Not verified / known gaps
 

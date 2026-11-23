@@ -56,8 +56,8 @@ differs.
   `pack-separation-v<N>`. The workflow creates a **prerelease** (never latest: the updater reads `releases/latest`)
   with the zip, the pin file, the manifest and the notices, and fails if `releases/latest/download/latest.json`
   changed. Then `python scripts/pin_pack.py <pin file>` writes the pin into `worker/models.json` (the entry's
-  `revision` must already be `separation-v<N>`), reviewed in a normal PR. Upload the zip to VirusTotal before the
-  release that pins it (the release gate below).
+  `revision` must already be `separation-v<N>`), reviewed in a normal PR. Releases no longer include a VirusTotal
+  upload (owner decision 2026-11-23).
 - **Install**: the worker downloads the zip (resumable), checks size and SHA-256, the manifest against its pin and
   the folder plus the longest path against 259 characters (`PACK_PATH_TOO_LONG`), extracts straight into
   `models/separation-runtime/` hashing every file, and writes `installed.json` (with `license_accepted_at`: the
