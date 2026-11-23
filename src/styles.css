@@ -72,6 +72,13 @@ progress::-webkit-progress-value{background:var(--green)}
 .karaoke,.karaoke-none{margin:4px 0 0;padding:0 10px;font-size:14px;line-height:1.5;color:var(--muted);overflow-wrap:anywhere}
 .karaoke .said{color:var(--ink)}
 .karaoke mark{color:var(--ink);background:var(--green-soft);box-shadow:inset 0 -2px 0 var(--green);border-radius:0;padding:0}
+/* Trim handles (A3): the bars fill the waveform between 12 px insets, so a bar's x is its time on any width and the end handles' 24 px hit areas stay inside. */
+.waveform.fit{position:relative;overflow:visible;padding:0 12px;gap:min(2px,.4%)}
+.waveform.fit i{min-width:0;max-width:none}
+.trim-handle{position:absolute;top:0;bottom:0;width:24px;margin-left:-12px;cursor:ew-resize;touch-action:none;user-select:none;border-radius:4px}
+.trim-handle::before{content:'';position:absolute;left:11px;top:1px;bottom:1px;width:2px;border-radius:1px;background:var(--ink)}
+.trim-handle:focus-visible{outline:2px solid var(--green);outline-offset:0}
+.trim-readout{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:1px;padding:0 6px;font-size:11px;line-height:16px;white-space:nowrap;color:var(--ink);background:var(--paper);border-radius:4px;pointer-events:none}
 button.take-check{display:block;border:0;font:inherit;font-size:12px;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
 button.take-check:hover{box-shadow:inset 0 0 0 1px currentColor}
 .diff-dialog{max-height:calc(100vh - 50px);overflow-y:auto}

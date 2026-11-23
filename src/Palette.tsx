@@ -54,6 +54,7 @@ const SHORTCUTS:{group:string;items:{combos:string[];what:string}[]}[]=[
   {combos:['Alt+↑','Alt+↓'],what:'Đưa đoạn lên hoặc xuống (trong ô nội dung đoạn hoặc thanh thao tác của đoạn)'},
   {combos:['Ctrl+Enter'],what:'Tạo giọng cho đoạn này (trong ô nội dung đoạn hoặc thanh thao tác; ở trang Chép lời, Ctrl+Enter nghe từ con trỏ)'},
   {combos:['Ctrl+Shift+Enter'],what:'Chia đoạn tại con trỏ (trong ô nội dung đoạn hoặc thanh thao tác)'},
+  {combos:['←','→'],what:'Trên điểm cắt của dạng sóng: dời 10 ms (Shift: 100 ms; Page Up/Page Down: 0,5 giây)'},
   {combos:['Esc'],what:'Trong chi tiết đoạn: quay về ô nội dung của đoạn (ô số đang có giá trị nhập dở thì Esc bỏ giá trị đó trước)'}]},
  {group:'Chép lời',items:[
   {combos:['Ctrl+F'],what:'Tìm trong bản chép lời'},
