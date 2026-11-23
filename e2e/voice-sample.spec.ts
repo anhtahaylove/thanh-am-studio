@@ -91,7 +91,8 @@ test('a blocked sample says why in its accessible description and plays nothing'
  for(const [name,why] of [['Cậu Hai','Chưa có take nào tạo bằng giọng này: tạo giọng một đoạn trước.'],['Cô giáo','Các đoạn của nhân vật này đang dùng nhiều giọng khác nhau.']]){
   const button=sampleButton(page,name);
   await expect(button).toHaveAttribute('aria-disabled','true');await expect(button).toHaveAccessibleDescription(why);
-  await button.click();await expect(button).toHaveAccessibleName(`Nghe mẫu giọng của ${name}`);
+  await button.click({force:true});await button.focus();await page.keyboard.press('Enter'); // force: Playwright waits for aria-disabled controls to enable
+  await expect(button).toHaveAccessibleName(`Nghe mẫu giọng của ${name}`);
  }
  expect((await voice(page)).played).toEqual([]);expect(await calls(page,'get_asset')).toEqual([]);
 });
