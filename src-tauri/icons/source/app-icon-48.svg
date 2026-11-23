@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <!-- app-icon.svg hand-hinted for 48 px: the six bars sit on whole pixels. -->
+  <rect width="48" height="48" rx="14.4" fill="#c6dab0"/>
+  <g fill="#183d31">
+    <rect x="10" y="21" width="3" height="6" rx="1.5"/>
+    <rect x="15" y="16" width="3" height="16" rx="1.5"/>
+    <rect x="20" y="11" width="3" height="26" rx="1.5"/>
+    <rect x="25" y="18" width="3" height="12" rx="1.5"/>
+    <rect x="30" y="14" width="3" height="20" rx="1.5"/>
+    <rect x="35" y="21" width="3" height="6" rx="1.5"/>
+  </g>
+</svg>
