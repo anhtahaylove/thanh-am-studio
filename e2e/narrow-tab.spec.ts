@@ -67,22 +67,22 @@ for(const width of [641,700,800])test(`at ${width}x800 the busy indicator stays 
  await page.keyboard.type('x');await page.keyboard.press('Control+s'); // an edit in segment 2's text, then a save that never answers
  const busy=page.locator('.busy-indicator');await expect(busy).toBeVisible();
  const b=await busy.evaluate(e=>e.getBoundingClientRect().toJSON()),d=await page.locator('.audio-dock').evaluate(e=>e.getBoundingClientRect().toJSON());
- console.log(`b3b-measure: ${width} busy ${Math.round(b.top)}-${Math.round(b.bottom)} dock ${Math.round(d.top)}-${Math.round(d.bottom)} (${Math.round(d.height)} px)`);
  expect(b.bottom<=d.top||b.top>=d.bottom,`busy indicator ${Math.round(b.top)}-${Math.round(b.bottom)}, dock ${Math.round(d.top)}-${Math.round(d.bottom)}`).toBe(true);
 });
 
 const PAGES=['Tạo giọng đọc','Chép lời','Thư viện giọng','Hàng đợi','Dự án','Model & cài đặt'];
 for(const [width,height,scale] of [[441,320,' (225 %)'],[668,481,' (150 %)'],[806,576,' (125 %)'],[800,720,''],[640,720,'']] as const)test(`at ${width}x${height}${scale} every rail control can be reached, no page scrolls sideways, and the dock covers no focused segment text`,async({page})=>{
  await open(page,width,height,COMPARE);
- // Tab through the script: each segment's text, once focused (the browser scrolls it into view after focusin), is clear of the dock.
+ // Tab through the script. Focus scrolls a text field only as far as its caret, which Tab leaves on the first line: that line, once focused
+ // (the browser scrolls after focusin), is inside the window and clear of the dock.
  await page.getByRole('textbox',{name:'Nhân vật đoạn 1',exact:true}).focus();
  const seen=new Set<string>();
  for(let i=0;i<120&&seen.size<12;i++){
   await page.keyboard.press('Tab');await settle(page);
-  const r=await page.evaluate(()=>{const a=document.activeElement as HTMLElement;if(!a.matches('.segment textarea'))return null;const t=a.getBoundingClientRect(),d=document.querySelector('.audio-dock')!.getBoundingClientRect();return {name:a.getAttribute('aria-label')!,t:[Math.round(t.top),Math.round(t.bottom)],d:[Math.round(d.top),Math.round(d.bottom)],h:innerHeight};});
+  const r=await page.evaluate(()=>{const a=document.activeElement as HTMLTextAreaElement;if(!a.matches('.segment textarea'))return null;const t=a.getBoundingClientRect(),d=document.querySelector('.audio-dock')!.getBoundingClientRect(),cs=getComputedStyle(a);return {name:a.getAttribute('aria-label')!,caret:a.selectionStart,top:Math.round(t.top),line:Math.round(t.top+parseFloat(cs.paddingTop)+parseFloat(cs.lineHeight)),dock:Math.round(d.top),h:innerHeight};});
   if(!r)continue;seen.add(r.name);
-  expect(r.t[1]<=r.d[0]+1||r.t[0]>=r.d[1]-1,`${r.name} at ${r.t.join('-')}, the dock at ${r.d.join('-')}`).toBe(true);
-  expect(r.t[0]>=-1&&r.t[1]<=r.h+1,`${r.name} at ${r.t.join('-')} in a ${r.h} px window`).toBe(true);
+  expect(r.caret,`${r.name}: the caret`).toBe(0);
+  expect(r.top>=-1&&r.line<=Math.min(r.h,r.dock)+1,`${r.name}: first line ${r.top}-${r.line}, the dock from ${r.dock} in a ${r.h} px window`).toBe(true);
  }
  expect(seen.size).toBe(12);
  const nav=page.getByRole('navigation',{name:'Điều hướng chính'});
