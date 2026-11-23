@@ -28,12 +28,19 @@ test('Ctrl+P opens "Mở nhanh dự án", labelled by its own heading; whole-wor
 });
 test('"lang" + Enter opens the demo on "Tạo giọng đọc" from another page, and the open project\'s unsaved edit survives',async({page})=>{
  await seeded(page);await page.getByRole('button',{name:'Chép lời',exact:true}).click();
+ // Focus lands on the opened project's first segment text, whether Ctrl+P was pressed on a nav button or in the old project's text.
  await pick(page,'ban tin');await expect(page.getByRole('heading',{level:1})).toContainText('Tạo giọng đọc');
- const text=page.getByRole('textbox',{name:'Nội dung đoạn 1'});await expect(text).toHaveValue('Tin đầu tiên.');
+ const text=page.getByRole('textbox',{name:'Nội dung đoạn 1'});await expect(text).toHaveValue('Tin đầu tiên.');await expect(text).toBeFocused();
  await text.fill('Tin đầu tiên, sửa chưa lưu.');await page.getByRole('button',{name:'Thư viện giọng',exact:true}).click();
- await pick(page,'lang');await expect(page.getByRole('heading',{level:1})).toContainText('Tạo giọng đọc');await expect(text).toHaveValue('Sáng sớm, làng chài thức dậy.');
+ await pick(page,'lang');await expect(page.getByRole('heading',{level:1})).toContainText('Tạo giọng đọc');await expect(text).toHaveValue('Sáng sớm, làng chài thức dậy.');await expect(text).toBeFocused();
  await expect.poll(()=>stored(page,'tin')).toBe('Tin đầu tiên, sửa chưa lưu.');
- await pick(page,'ban tin');await expect(text).toHaveValue('Tin đầu tiên, sửa chưa lưu.');
+ await pick(page,'ban tin');await expect(text).toHaveValue('Tin đầu tiên, sửa chưa lưu.');await expect(text).toBeFocused();
+});
+test('a picked project without segments puts focus on "Viết đoạn đầu tiên", not on the page body',async({page})=>{
+ await page.goto('/');await page.evaluate(([k,p])=>localStorage.setItem(k,JSON.stringify(p)),[KEY,[{...PROJECTS[2],segments:[]},PROJECTS[1]]] as const);await page.reload();await expect(page.getByRole('heading',{level:1})).toBeVisible();
+ await page.keyboard.press('Control+p');await box(page).fill('lang');await page.keyboard.press('Enter');await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toBeFocused();
+ await page.keyboard.press('Control+p');await box(page).fill('ban tin');await page.keyboard.press('Enter');await expect(dialog(page)).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'Viết đoạn đầu tiên'})).toBeFocused();
 });
 test('the open project shows "Đang mở", picking it does nothing, and Escape returns to the segment text',async({page})=>{
  await seeded(page);await pick(page,'ban tin');const text=page.getByRole('textbox',{name:'Nội dung đoạn 1'});await text.fill('Tin sửa.');

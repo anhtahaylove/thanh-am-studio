@@ -109,7 +109,7 @@ describe('transcript rows',()=>{
  });
  it('ranks quick-open names: 0 when every typed word is in the name, 1 when the typed letters appear in order, else null, ignoring case, tone marks and đ',()=>{
   expect(fuzzyRank('Làng chài · dự án mẫu','lang chai')).toBe(0);expect(fuzzyRank('Làng chài · dự án mẫu','CHAI  lang')).toBe(0);expect(fuzzyRank('Đường làng','duong')).toBe(0);expect(fuzzyRank('Làng chài','')).toBe(0);
-  expect(fuzzyRank('Làng chài · dự án mẫu','lgch')).toBe(1);expect(fuzzyRank('Làng chài · dự án mẫu','lg ch')).toBe(1);
+  expect(fuzzyRank('Làng chài · dự án mẫu','lgch')).toBe(1);expect(fuzzyRank('Làng chài · dự án mẫu','lg ch')).toBe(1);expect(fuzzyRank('Làngchài','lg ch')).toBe(1);
   expect(fuzzyRank('Làng chài · dự án mẫu','xyz')).toBeNull();expect(fuzzyRank('Làng chài','chl')).toBeNull();expect(fuzzyRank('Làng chài','lang chai x')).toBeNull();
   // Ordering: a name holding the typed word ranks above one that only holds its letters in order, whatever the list order.
   expect(['Lớp anh ngữ Giang','Làng chài','Bản tin sáng','Làng nghề'].map(n=>fuzzyRank(n,'lang'))).toEqual([1,0,null,0]);
