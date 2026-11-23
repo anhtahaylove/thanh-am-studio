@@ -1,5 +1,6 @@
 import type {CSSProperties} from 'react';
-import type {TranscriptSegment} from './types';
+import type {Project,TranscriptSegment} from './types';
+import {jsonEqual} from './domain';
 export interface SpeakerStat {speaker:number;rows:number;ms:number;sample:{start_ms:number;end_ms:number}}
 /** Row count, speaking time and a short sample (the start of the longest row, at most `sampleMs`) per diarized speaker, in speaker order. */
 export function speakerStats(rows:TranscriptSegment[],sampleMs=6000):SpeakerStat[]{
@@ -19,10 +20,27 @@ export function speakerPayload(on:boolean,choice:string):{num_speakers?:number|n
 export const speakerColor=(n:number)=>n%8;
 /** The `--spk`/`--spk-soft` pair of colour slot `slot`, as inline style for a speaker's rule and label. */
 export const speakerVars=(slot:number)=>({'--spk':`var(--spk-${slot})`,'--spk-soft':`var(--spk-${slot}-soft)`}) as CSSProperties;
-/** Slot per speaker name: "Người N" keeps N-1, any other name takes the lowest free slot in order of first appearance (a ninth wraps). */
-export function speakerColors(names:string[]):Map<string,number>{
- const out=new Map<string,number>(),used=new Set<number>();
- for(const name of names){const m=/^Người ([1-9]\d*)$/.exec(name);if(m&&!out.has(name)){const c=speakerColor(Number(m[1])-1);out.set(name,c);used.add(c);}}
- for(const name of names)if(!out.has(name)){const c=[0,1,2,3,4,5,6,7].find(i=>!used.has(i))??out.size%8;out.set(name,c);used.add(c);}
+/** Slot per speaker name, in order of first appearance: a name in `prev` (the slots before an edit) keeps its slot, a new name takes the
+ * slot of a name that vanished (a rename inherits), "Người N" takes N-1 when free, the rest the lowest free slot, a ninth the least-used one. */
+export function speakerColors(names:string[],prev?:Record<string,number>):Map<string,number>{
+ const seen=new Set(names),order=[...seen],out=new Map<string,number>(),uses=Array<number>(8).fill(0),take=(n:string,c:number)=>{out.set(n,c);uses[c]++;};
+ // Beyond eight names slots are shared by design, so a kept slot need not be free there.
+ if(prev)for(const n of order)if(Object.hasOwn(prev,n)&&(!uses[prev[n]]||order.length>8))take(n,prev[n]);
+ if(prev){const gone=[...new Set(Object.keys(prev).filter(n=>!seen.has(n)).map(n=>prev[n]))].sort((a,b)=>a-b);for(const n of order)if(!out.has(n)&&!Object.hasOwn(prev,n)){const c=gone.find(c=>!uses[c]);if(c!==undefined)take(n,c);}}
+ for(const n of order){const m=/^Người ([1-9]\d*)$/.exec(n),c=m&&speakerColor(Number(m[1])-1);if(c!==null&&!out.has(n)&&!uses[c])take(n,c);}
+ for(const n of order)if(!out.has(n))take(n,uses.indexOf(Math.min(...uses)));
  return out;
+}
+/** The integer slots 0-7 of a stored `speaker_slots`; the store does not validate the field. Undefined when none is left. */
+export function validSlots(x:unknown):Record<string,number>|undefined{
+ const kept=x&&typeof x==='object'&&!Array.isArray(x)?Object.entries(x).filter(([,v])=>Number.isInteger(v)&&v>=0&&v<8):[];
+ return kept.length?Object.fromEntries(kept):undefined;
+}
+const names=(p:Project)=>p.segments.map(s=>s.speaker);
+/** The slots the user sees for `p`, one per current name: its stored map completed for any name it lacks, or for a project saved before 1.0.23 the order-of-appearance mapping. */
+export const slotsOf=(p:Project|null|undefined)=>p?Object.fromEntries(speakerColors(names(p),validSlots(p.speaker_slots))):undefined;
+/** `p` with `speaker_slots` for its current names, computed from `prev` (the slots before the edit); `p` itself when nothing changed. */
+export function withSpeakerSlots(p:Project,prev?:Record<string,number>):Project{
+ const m=Object.fromEntries(speakerColors(names(p),prev));
+ return jsonEqual(m,p.speaker_slots??{})?p:{...p,speaker_slots:m};
 }

@@ -5,9 +5,9 @@ import {readFileSync} from 'node:fs';
 const FIXTURE:string=readFileSync('e2e/fixtures/script-12.json','utf8');
 // Two diarized speakers, so "Thành kịch bản" adds "Người 1" and "Người 2".
 const TRANSCRIPT=[0,1,0,1].map((speaker,i)=>({id:`t${i}`,start_ms:i*4000,end_ms:i*4000+3500,text:`Câu thứ ${i+1} của người nói.`,speaker}));
-const mock=(o:{project:string;transcript:unknown[]})=>{
+const mock=(o:{project:string;transcript:unknown[];slots?:Record<string,number>})=>{
  const w=window as any;w.isTauri=true;w.__TAURI_EVENT_PLUGIN_INTERNALS__={unregisterListener:()=>{}};
- const project:any={...JSON.parse(o.project),transcript:o.transcript,...o.transcript.length?{source_asset_id:'src'}:{}};
+ const project:any={...JSON.parse(o.project),transcript:o.transcript,...o.transcript.length?{source_asset_id:'src'}:{},...o.slots&&{speaker_slots:o.slots}};
  const ipc=(v:unknown)=>JSON.parse(JSON.stringify(v));
  w.__TAURI_INTERNALS__={convertFileSrc:(p:string)=>p,transformCallback:()=>1,unregisterCallback:()=>{},metadata:{currentWindow:{label:'main'},currentWebview:{label:'main',windowLabel:'main'}},
   invoke:async(cmd:string,args:any)=>{switch(cmd){
@@ -17,8 +17,8 @@ const mock=(o:{project:string;transcript:unknown[]})=>{
    case 'save_project':return {...ipc(args.project),revision:args.project.revision+1};case 'get_asset':return {id:'src',path:'goc.wav',name:'goc.wav',duration_ms:20000,sample_rate:48000};
    default:return null;}}};
 };
-const open=async(page:Page,o:{width?:number;height?:number;transcript?:unknown[]}={})=>{
- await page.setViewportSize({width:o.width??1440,height:o.height??1000});await page.addInitScript(mock,{project:FIXTURE,transcript:o.transcript??[]});await page.goto('/');
+const open=async(page:Page,o:{width?:number;height?:number;transcript?:unknown[];slots?:Record<string,number>}={})=>{
+ await page.setViewportSize({width:o.width??1440,height:o.height??1000});await page.addInitScript(mock,{project:FIXTURE,transcript:o.transcript??[],slots:o.slots});await page.goto('/');
  await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
  await expect(page.getByRole('textbox',{name:'Nội dung đoạn 12',exact:true})).toBeVisible();
 };
@@ -54,7 +54,8 @@ for(const theme of ['light','dark'])test(`speaker labels keep AA contrast on the
  expect(await page.evaluate(c=>{const i=document.createElement('i');i.style.color='var(--muted)';document.body.append(i);const v=getComputedStyle(i).color;i.remove();return v===c;},index.color)).toBe(true);
 });
 test('"Người 2" has the same colour in the transcript, in the script after "Thành kịch bản" and in "Phân vai"',async({page})=>{
- await open(page,{transcript:TRANSCRIPT});
+ // "Người N" takes the transcript's slot N-1 only while it is free, so here the script's four named speakers are stored on slots 4-7.
+ await open(page,{transcript:TRANSCRIPT,slots:{'Người dẫn':4,'Bà Tư':5,'Cậu Hai':6,'Cô giáo':7}});
  await page.getByRole('button',{name:'Chép lời',exact:true}).click();
  const row=page.locator('.transcript-row').nth(1);await expect(row.locator('select.speaker-chip')).toHaveValue('1');
  const heard=await paint(row,row.locator('select.speaker-chip'));

@@ -341,3 +341,16 @@ fn saves_claims_and_job_lists_from_several_threads_at_once_neither_deadlock_nor_
     assert_eq!((s.load_project(&pid).unwrap()["revision"].as_i64(), claimed), (Some(100), 40));
     assert!(s.list_jobs().unwrap().iter().all(|j| j["status"] == "running"));
 }
+
+#[test]
+// The client owns `speaker_slots` (UI colour slot per speaker name, docs/CONTRACT.md); the store keeps it as opaque project JSON, so no store code knows it.
+fn save_and_load_keep_the_client_speaker_slots() {
+    let tmp = tempfile::tempdir().unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    let mut p = s.create_project("Màu người nói").unwrap();
+    p["segments"] = json!([{"id":"a","text":"Chào","speaker":"Lan","takes":[],"selected_take_id":null},{"id":"b","text":"Ừ","speaker":"Minh","takes":[],"selected_take_id":null}]);
+    p["speaker_slots"] = json!({"Lan":0,"Minh":3});
+    let saved = s.save_project(p).unwrap();
+    assert_eq!(saved["speaker_slots"], json!({"Lan":0,"Minh":3}));
+    assert_eq!(s.load_project(saved["id"].as_str().unwrap()).unwrap(), saved);
+}
