@@ -51,6 +51,21 @@ test('a paste outside a field on the empty script opens the dialog prefilled; th
  await dialog(page).getByRole('button',{name:'Thêm 2 đoạn vào kịch bản'}).click();await expect(seg(page,2)).toHaveValue('Hùng - Ừ');
  expect(await paste(page.locator('body'),'Mai - Chào\nHùng - Ừ')).toBe(true);await expect(dialog(page)).toHaveCount(0);
 });
+test('the "Tên - lời" checkbox is absent when dash labels change nothing, and Add then follows the plain split',async({page})=>{
+ await page.goto('/');await expect(page.getByRole('button',{name:'Viết đoạn đầu tiên'})).toBeVisible();
+ expect(await paste(page.locator('body'),'Mai: Chào\nHùng: Ừ')).toBe(false);
+ await expect(dialog(page)).toBeVisible();await expect(dashBox(page)).toHaveCount(0);await expect(status(page)).toHaveText('Sẽ thêm 2 đoạn · 2 nhân vật');
+ await dialog(page).getByRole('button',{name:'Thêm 2 đoạn vào kịch bản'}).click();
+ await expect(who(page,1)).toHaveValue('Mai');await expect(seg(page,1)).toHaveValue('Chào');await expect(who(page,2)).toHaveValue('Hùng');await expect(seg(page,2)).toHaveValue('Ừ');
+});
+test('a "Tên: lời" line whose name is longer than 30 characters stays narration',async({page})=>{
+ await page.goto('/');await expect(page.getByRole('button',{name:'Viết đoạn đầu tiên'})).toBeVisible();
+ const long='Một người rất dài dòng không bao giờ ngừng nói';
+ expect(await paste(page.locator('body'),`${long}: Chào anh.\nMai: Ừ.`)).toBe(false);
+ await expect(status(page)).toHaveText('Sẽ thêm 3 đoạn · 3 nhân vật');await expect(dialog(page).getByRole('listitem')).toHaveText([`Người dẫn: ${long}: Chào anh.`,'Mai: Ừ.','Hùng: Vâng.']);
+ await dialog(page).getByRole('button',{name:'Thêm 3 đoạn vào kịch bản'}).click();
+ await expect(who(page,1)).toHaveValue('Người dẫn');await expect(seg(page,1)).toHaveValue(`${long}: Chào anh.`);await expect(who(page,2)).toHaveValue('Mai');
+});
 test('the preview lists at most 8 rows of 60 characters, counts the rest, and fits a 1024x720 window',async({page})=>{
  await page.setViewportSize({width:1024,height:720});await page.goto('/');await expect(page.getByRole('button',{name:'Viết đoạn đầu tiên'})).toBeVisible();
  const long='Một câu rất dài kể về làng chài ven biển lúc bình minh lên cao dần.';

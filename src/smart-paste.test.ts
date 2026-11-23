@@ -24,6 +24,12 @@ describe('smart paste: "Tên - lời" labels are opt-in',()=>{
   for(const t of ['Mai: Chào anh.\nAnh vẫn khỏe chứ?\n[Nam]: Khỏe, cảm ơn.\nLúc 8:30 gặp lại.','Lưu ý: đọc chậm.\nCâu thứ hai.','Người 2: Xin chào\nNgười 8:30 sáng','Lan: [P1] Mở đầu.\nNam: Hai.','Mai - Chào: anh\nHùng: Ừ'])expect(scriptChunks(t,{dash:true})).toEqual(scriptChunks(t));
   expect(scriptChunks('Mai - Chào: anh\nHùng: Ừ',{dash:true}).map(c=>c.speaker)).toEqual(['Mai - Chào','Hùng']);
  });
+ it('a colon label name longer than 30 characters is narration, with or without dash',()=>{
+  const long='Một người rất dài dòng không bao giờ ngừng nói';
+  for(const opts of [undefined,{dash:true}])expect(scriptChunks(`${long}: Chào anh.
+Mai: Ừ.
+Hùng: Vâng.`,opts)).toEqual([{speaker:'Người dẫn',text:`${long}: Chào anh.`},{speaker:'Mai',text:'Ừ.'},{speaker:'Hùng',text:'Vâng.'}]);
+ });
  it('castLines: two or more lines with a speaker other than the narrator',()=>{
   expect(castLines('Mai: Chào anh.\nHùng – Chào em.')).toBe(true);
   expect(castLines('Mai - Chào\nHùng - Ừ\n')).toBe(true);
