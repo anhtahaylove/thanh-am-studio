@@ -4,10 +4,10 @@ import {describe,it,expect} from 'vitest';
 // Vitest stubs CSS imports and src is type-checked without Node's types, so the stylesheet is read with an untyped fs import.
 const {readFileSync}=await import(/* @vite-ignore */ 'node:'+'fs') as {readFileSync:(path:URL,encoding:'utf8')=>string};
 const css=readFileSync(new URL('./styles.css',import.meta.url),'utf8');
-const block=(head:string)=>{const b=css.split('\n').find(l=>l.startsWith(head)&&l.includes('--spk-0:'))!,tok=(n:string)=>/#[0-9a-f]{6}/i.exec(b.split(`${n}:`)[1]??'')?.[0]??'';
- return {text:[0,1,2,3,4,5,6,7].map(n=>tok(`--spk-${n}`)),soft:[0,1,2,3,4,5,6,7].map(n=>tok(`--spk-${n}-soft`))};};
-const ink=[...css.matchAll(/--ink:(#[0-9a-f]{6})/gi)].map(m=>m[1]);
-const THEMES={light:{...block(':root{'),ink:ink[0]},dark:{...block('[data-theme=dark]{'),ink:ink[1]}};
+// A token's hex from the theme rule (`:root{` or `[data-theme=dark]{`) that defines it.
+const block=(head:string)=>{const tok=(n:string)=>/#[0-9a-f]{6}/i.exec(css.split('\n').find(l=>l.startsWith(head)&&l.includes(`${n}:`))?.split(`${n}:`)[1]??'')?.[0]??'';
+ return {text:[0,1,2,3,4,5,6,7].map(n=>tok(`--spk-${n}`)),soft:[0,1,2,3,4,5,6,7].map(n=>tok(`--spk-${n}-soft`)),ink:tok('--ink')};};
+const THEMES={light:block(':root{'),dark:block('[data-theme=dark]{')};
 const MACHADO={protan:[[0.152286,1.052583,-0.204868],[0.114503,0.786281,0.099216],[-0.003882,-0.048116,1.051998]],deutan:[[0.367322,0.860646,-0.227968],[0.280085,0.672501,0.047413],[-0.01182,0.04294,0.968881]],tritan:[[1.255528,-0.076749,-0.178779],[-0.078411,0.930809,0.147602],[0.004733,0.691367,0.3039]]};
 const linear=(hex:string)=>[1,3,5].map(i=>{const x=parseInt(hex.slice(i,i+2),16)/255;return x<=0.04045?x/12.92:((x+0.055)/1.055)**2.4;});
 const simulate=(rgb:number[],m:number[][])=>m.map(row=>Math.min(1,Math.max(0,row[0]*rgb[0]+row[1]*rgb[1]+row[2]*rgb[2])));

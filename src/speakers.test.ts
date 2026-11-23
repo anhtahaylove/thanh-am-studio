@@ -39,6 +39,16 @@ describe('speaker slots kept in the project',()=>{
  it('keeps a renamed speaker on its slot even when the order of first appearance changed',()=>{
   expect(Object.fromEntries(speakerColors(['Minh','Lan Anh'],{Lan:0,Minh:1}))).toEqual({Minh:1,'Lan Anh':0});
  });
+ it('gives a renamed speaker the slot of the name it replaced, not the lowest free one, and before the "Người N" rule',()=>{
+  // "Hùng" became "Hùng A": slot 1 is free and lower, but the rename keeps slot 2.
+  expect(Object.fromEntries(speakerColors(['Lan','Hùng A'],{Lan:0,'Hùng':2}))).toEqual({Lan:0,'Hùng A':2});
+  // "Minh" became "Người 3": the rename keeps Minh's slot 1 although "Người 3" would take its own free slot 2.
+  expect(Object.fromEntries(speakerColors(['Lan','Người 3'],{Lan:0,Minh:1}))).toEqual({Lan:0,'Người 3':1});
+ });
+ it('with eight names or fewer keeps an earlier slot only while it is free',()=>{
+  // B's last segment is gone; I shared slot 0 with A while there were nine names, so now it moves to the free slot 1.
+  expect(speakerColors([...'ACDEFGHI'],{A:0,B:1,C:2,D:3,E:4,F:5,G:6,H:7,I:0}).get('I')).toBe(1);
+ });
  it('does not move a named speaker when "Người 2" is added before it',()=>{
   expect(Object.fromEntries(speakerColors(['Người dẫn','Người 2','Bà Tư'],{'Người dẫn':0,'Bà Tư':1}))).toEqual({'Người dẫn':0,'Bà Tư':1,'Người 2':2});
   // "Người N" still takes N-1 when it is free.
@@ -79,8 +89,14 @@ describe('speaker slots kept in the project',()=>{
   for(const x of [{a:-1,b:8},{},null,undefined,[1],'x',7])expect(validSlots(x),JSON.stringify(x)).toBeUndefined();
   // A project with only invalid entries is shown with the order-of-appearance mapping.
   expect(slotsOf({...project('Lan','Minh'),speaker_slots:{Lan:9} as Record<string,number>})).toEqual({Lan:0,Minh:1});
-  expect(slotsOf({...project('Minh','Lan'),speaker_slots:{Lan:9,Minh:3} as Record<string,number>})).toEqual({Minh:3});
+  expect(slotsOf({...project('Minh','Lan'),speaker_slots:{Lan:9,Minh:3} as Record<string,number>})).toEqual({Minh:3,Lan:0});
   expect(Object.fromEntries(speakerColors(['Minh','Lan'],{Minh:3}))).toEqual({Minh:3,Lan:0});
+ });
+ it('seeds an edit from the colours shown when the stored map covers only some names',()=>{
+  // Shown: Lan 0 (its stored 9 is invalid), Minh 3. Putting "Người 1" first must not move Lan to give "Người 1" slot 0.
+  const p={...project('Lan','Minh'),speaker_slots:{Lan:9,Minh:3} as Record<string,number>};
+  expect(Object.fromEntries(speakerColors(p.segments.map(s=>s.speaker),slotsOf(p)))).toEqual({Lan:0,Minh:3});
+  expect(slots(edit(p,'Người 1','Lan','Minh'))).toEqual({Lan:0,Minh:3,'Người 1':1});
  });
  it('clearing a speaker and typing a new name keeps the slot; deleting its last segment frees it; a merge keeps the survivor',()=>{
   let p=withSpeakerSlots(project('Lan','Minh','Hùng'));expect(slots(p)).toEqual({Lan:0,Minh:1,'Hùng':2});

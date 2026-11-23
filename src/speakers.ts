@@ -37,8 +37,8 @@ export function validSlots(x:unknown):Record<string,number>|undefined{
  return kept.length?Object.fromEntries(kept):undefined;
 }
 const names=(p:Project)=>p.segments.map(s=>s.speaker);
-/** The slots the user sees for `p`: its stored map, or for a project saved before 1.0.23 the order-of-appearance mapping. */
-export const slotsOf=(p:Project|null|undefined)=>p?validSlots(p.speaker_slots)??Object.fromEntries(speakerColors(names(p))):undefined;
+/** The slots the user sees for `p`, one per current name: its stored map completed for any name it lacks, or for a project saved before 1.0.23 the order-of-appearance mapping. */
+export const slotsOf=(p:Project|null|undefined)=>p?Object.fromEntries(speakerColors(names(p),validSlots(p.speaker_slots))):undefined;
 /** `p` with `speaker_slots` for its current names, computed from `prev` (the slots before the edit); `p` itself when nothing changed. */
 export function withSpeakerSlots(p:Project,prev?:Record<string,number>):Project{
  const m=Object.fromEntries(speakerColors(names(p),prev));
