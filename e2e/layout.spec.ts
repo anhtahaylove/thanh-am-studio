@@ -21,7 +21,7 @@ const mock=()=>{
 const pages:[string,string][]=[['Tạo giọng đọc','.segment'],['Chép lời','.transcript-row'],['Thư viện giọng','.voice-card'],['Hàng đợi','.job-row'],['Dự án','.project-card'],['Model & cài đặt','.model-card']];
 const open=async(page:Page,width:number,height:number)=>{
  await page.setViewportSize({width,height});await page.addInitScript(mock);await page.goto('/');
- await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();
+ await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
  await expect(page.getByRole('textbox',{name:/^Nội dung đoạn/})).toHaveCount(12);
 };
 const nav=(page:Page,name:string)=>page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:new RegExp('^'+name)}).click();

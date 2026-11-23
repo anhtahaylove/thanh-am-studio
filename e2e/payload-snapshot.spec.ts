@@ -40,7 +40,7 @@ const canon=(sent:any[])=>{const ids=new Map<string,string>();
  return JSON.stringify(sorted(sent.map(s=>s.args.kind==='clone_preview'&&s.args.payload.version===version?{...s,args:{...s.args,payload:{...s.args.payload,version:'<version>'}}}:s)),null,1)
   .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g,m=>{if(!ids.has(m))ids.set(m,`<uuid ${ids.size+1}>`);return ids.get(m)!;});};
 const open=async(page:Page,patch:object={})=>{
- await page.addInitScript(mock,{...data,project:{...data.project,...patch}});await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();
+ await page.addInitScript(mock,{...data,project:{...data.project,...patch}});await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
  await expect(page.getByRole('textbox',{name:'Nội dung đoạn 7'})).toBeVisible();
 };
 const go=(page:Page,label:string)=>page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:label,exact:true}).click();

@@ -127,7 +127,7 @@ test('step 3 is disabled with its reason until a segment has text',async({page})
 });
 for(const [text,reason] of [['','Đoạn này chưa có nội dung'],['Xin chào làng chài.',null]] as const)test(`step 3 with ${text?'a text':'an empty'} segment`,async({page})=>{
  await open(page,{installed:true,projects:true,ttsDone:false,text});
- await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();
+ await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
  await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toBeVisible();
  const generate=guide(page).getByRole('button',{name:'Tạo giọng ngay'});
  await expect(guide(page)).toBeVisible();

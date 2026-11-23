@@ -19,7 +19,7 @@ const mock=({rows,source}:{rows:unknown[];source:boolean})=>{
 };
 const open=async(page:Page,opts:{rows?:unknown[];source?:boolean;width?:number}={})=>{
  await page.setViewportSize({width:opts.width??1440,height:1000});await page.addInitScript(mock,{rows:opts.rows??ROWS,source:opts.source??true});await page.goto('/');
- await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();await page.getByRole('button',{name:'Chép lời',exact:true}).click();
+ await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();await page.getByRole('button',{name:'Chép lời',exact:true}).click();
  await expect(page.locator('.transcript-row')).toHaveCount((opts.rows??ROWS).length);
 };
 const time=(page:Page,i:number)=>page.locator('.transcript-row').nth(i).locator('.tr-time');
@@ -80,7 +80,7 @@ test('hours show only when the last row ends at one hour or later',async({page})
  await open(page);await expect(time(page,5)).toHaveText(/^0:\d\d,\d{3} – 0:\d\d,\d{3}$/);
  const long=ROWS.map((r,i)=>i===ROWS.length-1?{...r,end_ms:3600000}:r);
  const p2=await page.context().newPage();await p2.setViewportSize({width:1440,height:1000});await p2.addInitScript(mock,{rows:long,source:true});await p2.goto('/');
- await p2.getByRole('button',{name:'Dự án',exact:true}).click();await p2.getByRole('button',{name:'Mở dự án'}).click();await p2.getByRole('button',{name:'Chép lời',exact:true}).click();
+ await p2.getByRole('button',{name:'Dự án',exact:true}).click();await p2.getByRole('button',{name:'Mở dự án',exact:true}).click();await p2.getByRole('button',{name:'Chép lời',exact:true}).click();
  await expect(p2.locator('.tr-time').nth(0)).toHaveText('0:00:00,000 – 0:00:03,200');await expect(p2.locator('.tr-time').nth(5)).toHaveText(/ – 1:00:00,000$/);
  await p2.locator('.tr-time').nth(5).click();await expect(p2.getByLabel('Kết thúc')).toHaveValue('1:00:00,000');
 });

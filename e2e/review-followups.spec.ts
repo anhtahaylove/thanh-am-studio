@@ -21,7 +21,7 @@ const mock=(fail:'none'|'second'|'always')=>{
  const scroll=Element.prototype.scrollIntoView;
  Element.prototype.scrollIntoView=function(this:Element,arg?:boolean|ScrollIntoViewOptions){w.__scrolls.push(typeof arg==='object'?arg.behavior:arg);return scroll.call(this,arg);};
 };
-const open=async(page:import('@playwright/test').Page)=>{await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();};
+const open=async(page:import('@playwright/test').Page)=>{await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();};
 const loads=(page:import('@playwright/test').Page)=>page.evaluate(()=>(window as any).__loads as number);
 
 test('a failed reload after a finished TTS job is retried until the new take arrives, then stops',async({page})=>{

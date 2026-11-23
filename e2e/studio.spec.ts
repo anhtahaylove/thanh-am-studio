@@ -7,7 +7,7 @@ test('browser preview edits and persists a real project without pretending infer
  await expect(page.getByRole('button',{name:'Tạo giọng tất cả'})).toBeDisabled();
  await expect(page.getByRole('button',{name:'Đã lưu'})).toBeVisible();
  await page.getByRole('button',{name:'Dự án',exact:true}).click();await expect(page.getByRole('heading',{name:'Dự án đầu tiên'})).toBeVisible();
- await page.reload();await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();
+ await page.reload();await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
  await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toHaveValue('Xin chào Việt Nam. Đây là câu chuyện của tôi.');
 });
 test('script import, dictionary and segment controls remain functional',async({page})=>{
@@ -78,7 +78,7 @@ test('speaker panel summarizes diarized rows and merges one speaker into another
  const row=(i:number,speaker:number,start_ms:number,end_ms:number)=>({id:`r${i}`,start_ms,end_ms,text:`Câu ${i}`,speaker});
  const project={id:'p1',name:'Phỏng vấn',updated_at:new Date().toISOString(),revision:1,segments:[],transcript:[row(1,0,0,4000),row(2,1,4000,6000),row(3,2,6000,9000),row(4,0,9000,10000),row(5,2,10000,11000)],dictionary:{},source_asset_id:null};
  await page.goto('/');await page.evaluate(p=>localStorage.setItem('thanh-am-preview-projects-v1',JSON.stringify([p])),project);await page.reload();
- await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();await page.getByRole('button',{name:'Chép lời',exact:true}).click();
+ await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();await page.getByRole('button',{name:'Chép lời',exact:true}).click();
  const panel=page.getByRole('group',{name:'Người nói'});await expect(panel).toContainText('Người 1');await expect(panel).toContainText('2 đoạn · 5 giây');await expect(panel).toContainText('Người 3');
  await expect(page.getByRole('button',{name:'Nghe mẫu Người 1 (cần audio gốc)'})).toBeDisabled();
  await page.getByRole('combobox',{name:'Gộp Người 3 vào'}).selectOption('Người 1');await page.getByRole('button',{name:'Gộp Người 3 vào Người 1'}).click();
@@ -99,7 +99,7 @@ test('overlap marker shows in the transcript',async({page})=>{
  const seg={id:'s1',text:'Xin chào',normalized_text:'Xin chào',voice_id:null,speaker:'Người dẫn',gap_ms:300,takes:[take],selected_take_id:'t1',trim_start_ms:0,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0,gain_db:0};
  const project={id:'p1',name:'Họp nhóm',updated_at:new Date().toISOString(),revision:1,segments:[seg],transcript:[{id:'r1',start_ms:0,end_ms:2000,text:'Một',speaker:0,overlap_speaker:1},{id:'r2',start_ms:2000,end_ms:4000,text:'Hai',speaker:1,overlap_speaker:null},{id:'r3',start_ms:4000,end_ms:6000,text:'Ba',speaker:1}],dictionary:{},source_asset_id:null};
  await page.goto('/');await page.evaluate(p=>localStorage.setItem('thanh-am-preview-projects-v1',JSON.stringify([p])),project);await page.reload();
- await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();
+ await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
  await page.getByRole('button',{name:'Chép lời',exact:true}).click();
  const chip=page.getByTitle('Có người nói chồng: Người 2');await expect(chip).toHaveCount(1);await expect(chip).toHaveText('+ Người 2');await expect(page.locator('.overlap-chip')).toHaveCount(1);
 });
@@ -139,7 +139,7 @@ test('an imported SRT keeps its cue times and audio export can follow them',asyn
     case 'plugin:dialog|open':return ['C:/phụ đề.srt'];case 'read_text_file':return '1\n00:00:05,000 --> 00:00:06,500\nBa.\n';
     case 'enqueue_job':return {id:'j1'};default:return null;}}};
  });
- await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();
+ await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
  const dub=page.getByRole('checkbox',{name:'Theo mốc phụ đề'});await dub.check();
  // 3 s in a 2 s cue is read 1.5x faster and ends at 2 s, so the second take starts 50 ms late.
  await expect(page.getByText('1 đoạn đọc nhanh hơn · 1 đoạn bị lùi (tối đa 0,05 s)')).toBeVisible();

@@ -9,7 +9,7 @@ const mock=()=>{
    case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,python_path:null,ffmpeg_path:null,message:''};
    case 'save_project':project={...args.project,revision:args.project.revision+1};return project;default:return null;}}};
 };
-const open=async(page:any)=>{await page.addInitScript(mock);await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();};
+const open=async(page:any)=>{await page.addInitScript(mock);await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();};
 test('emotion cue buttons insert at the cursor or over the selection and keep the normalized text in step',async({page})=>{
  await page.addInitScript(()=>{
   const w=window as any,calls:any[]=[];w.isTauri=true;w.__calls=calls;
@@ -21,7 +21,7 @@ test('emotion cue buttons insert at the cursor or over the selection and keep th
     case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,python_path:null,ffmpeg_path:null,message:''};
     case 'save_project':project={...args.project,revision:args.project.revision+1};return project;default:return null;}}};
  });
- await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();
+ await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
  const box=page.getByRole('textbox',{name:'Nội dung đoạn 1'});
  const saved=()=>page.evaluate(()=>{const saves=(window as any).__calls.filter((c:any)=>c.cmd==='save_project');const s=saves.at(-1)?.args.project.segments[0];return s&&[s.text,s.normalized_text];});
  await box.click();await expect(page.getByRole('button',{name:'Thở dài',exact:true})).toHaveAttribute('title','Chèn [thở dài] tại con trỏ (thử nghiệm)');await expect(page.getByRole('button',{name:/^(Cười|Hắng giọng)$/})).toHaveCount(0);await page.keyboard.press('Control+Home');for(let i=0;i<8;i++)await page.keyboard.press('ArrowRight');

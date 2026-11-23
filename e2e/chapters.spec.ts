@@ -18,7 +18,7 @@ const mock=(o:{chapters:(string|null)[];cues?:boolean;failEnqueueAt?:number})=>{
    default:return null;}}};
 };
 const open=async(page:any,opts:{chapters:(string|null)[];cues?:boolean;failEnqueueAt?:number})=>{
- await page.addInitScript(mock,opts);await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();
+ await page.addInitScript(mock,opts);await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
 };
 const calls=(page:any,cmd:string)=>page.evaluate((c:string)=>(window as any).__calls.filter((x:any)=>x.cmd===c).map((x:any)=>x.args),cmd);
 
@@ -93,6 +93,6 @@ test('a chapter label survives save and reload',async({page})=>{
  await page.getByRole('textbox',{name:'Chương',exact:true}).fill('Mở đầu');await expect(page.locator('.chapter-chip')).toHaveText(['Mở đầu','P2']);
  await page.keyboard.press('Control+s');
  await expect.poll(async()=>(await calls(page,'save_project')).at(-1)?.project.segments.map((s:any)=>s.chapter??null)).toEqual(['Mở đầu',null,'P2']);
- await page.reload();await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án'}).click();
+ await page.reload();await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
  await expect(page.locator('.chapter-chip')).toHaveText(['Mở đầu','P2']);
 });
