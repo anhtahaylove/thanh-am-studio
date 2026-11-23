@@ -118,3 +118,6 @@ main:focus{outline:none}
 .speaker-input:hover,.speaker-input:focus{box-shadow:inset 0 -2px 0 var(--spk,var(--input-border))}.speaker-input::placeholder{color:var(--spk,var(--muted));opacity:1;font-weight:400;font-style:italic}
 .speaker-tag{align-self:flex-start;max-width:100%;padding:2px 8px;border-left:4px solid var(--spk);border-radius:0 6px 6px 0;background:var(--spk-soft);color:var(--spk);font-weight:600;overflow-wrap:anywhere}
 @media(max-width:640px){.segment>*,.segment>.segment-label{grid-column:1;grid-row:auto}.segment-count{flex-basis:auto}}
+/* B1: the hint under a blocked segment's text after Ctrl+Enter, and the reason bubble of a focused blocked control (ReasonBubble): fixed and outside every panel, above the dock (5) and the busy indicator (20), below the toast (25) and dialogs (30). */
+.row-hint{font-size:12px;font-weight:600;color:var(--danger)}
+.reason-bubble{position:fixed;z-index:22;max-width:min(360px,calc(100vw - 12px));padding:6px 10px;border-radius:8px;background:var(--ink);color:var(--paper);font-size:13px;line-height:1.4;box-shadow:0 4px 16px #0003}
