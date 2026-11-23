@@ -40,11 +40,11 @@ test('the selected take shows its bars about 150 ms after selection without Play
  await expect(page.locator('.waveform i')).toHaveCount(100); // segment 1, never played
  const t=await page.evaluate(async()=>{
   const rows=document.querySelectorAll<HTMLElement>('article.segment'),t0=performance.now(),frame=()=>new Promise(r=>requestAnimationFrame(r));
-  let frames=0;rows[1].click();while(document.querySelector('.waveform i')){await frame();frames++;}const gone=performance.now()-t0;
-  while(!document.querySelector('.waveform i'))await frame();return {frames,gone,back:performance.now()-t0};
+  const w=window as any,atClick=w.__decodes;let frames=0;rows[1].click();while(document.querySelector('.waveform i')){await frame();frames++;}const atGone=w.__decodes;
+  while(!document.querySelector('.waveform i'))await frame();return {frames,atClick,atGone,back:performance.now()-t0};
  });
  // Wall time on a slow CI runner can exceed 100 ms for one render, so the test counts frames: cleared in the click's own commit or by the next frame.
- expect(t.frames,'segment 1 bars cleared at once').toBeLessThanOrEqual(1);expect(t.gone,'cleared before the decode brings bars back').toBeLessThan(t.back);expect(t.back,'decoded after the 150 ms pause').toBeGreaterThanOrEqual(140);expect(t.back).toBeLessThan(2000);
+ expect(t.frames,'segment 1 bars cleared at once').toBeLessThanOrEqual(1);expect(t.atGone,'cleared before segment 2 is decoded').toBe(t.atClick);expect(t.back,'decoded after the 150 ms pause').toBeGreaterThanOrEqual(140);expect(t.back).toBeLessThan(2000);
  await page.evaluate(()=>{(window as any).__decodes=0;});
  await page.evaluate(async()=>{const rows=document.querySelectorAll<HTMLElement>('article.segment');for(const i of [2,3,4,5]){rows[i].click();await new Promise(r=>setTimeout(r,40));}}); // rows 3-6, 40 ms apart
  await expect(page.locator('.waveform i')).toHaveCount(100);await page.waitForTimeout(600);
