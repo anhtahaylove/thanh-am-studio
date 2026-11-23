@@ -16,6 +16,8 @@ const friendly=(e:unknown)=>{const code=known(e);return code?Error(ERRORS[code])
 /** A failed transcription's `CODE: message` as the short Vietnamese message for its code, else as it is (the INVALID_MEDIA text
  * describes the STT decode; render and separate get the code from probe for other reasons). */
 export const jobError=(error:string)=>{const code=known(error);return code?ERRORS[code]:error;};
+/** A rejected `play()` as the Vietnamese message to show, or null for an AbortError: a pause or a new source interrupted it, nothing failed. */
+export const playError=(e:unknown):string|null=>{const name=(e as Error|null)?.name??String(e);return name==='AbortError'?null:name==='NotSupportedError'?'Không phát được audio này: tệp không còn hoặc định dạng không được hỗ trợ.':name==='NotAllowedError'?'Ứng dụng chưa được phép phát âm thanh. Bấm phát lại một lần nữa.':`Không phát được audio (${name}).`;};
 export async function call<T>(command:string,args:Record<string,unknown>={}):Promise<T>{
  if(desktop)return invoke<T>(command,args).catch(e=>{throw friendly(e);});
  const list=projects();let result:unknown;
