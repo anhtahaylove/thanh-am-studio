@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {voiceSample} from './voiceSample';
+import {takeIndex,voiceSample} from './voiceSample';
 import type {Job,Project,Voice} from './types';
 
 const voices:Voice[]=[{id:'v-ref',name:'Giọng thu',kind:'reference',reference_asset_id:'a-ref',consent:true,engine_voice_id:null},{id:'v-preset',name:'Bắc nữ',kind:'preset',reference_asset_id:null,consent:false,engine_voice_id:'north-f'}];
@@ -22,6 +22,9 @@ describe('voiceSample',()=>{
  it('plays a preset from the newest take made with it that is still in this project, from its speech start',()=>{
   expect(sample('v-preset',[tts('v-preset','a2'),tts('v-preset','a1')])).toEqual({kind:'take',path:'C:\\takes\\a2.wav',start_ms:480,title:'Phát 3 giây từ take 2 của đoạn 2'});
   expect(sample('v-preset',[tts('v-preset','a1')])).toEqual({kind:'take',path:'C:\\takes\\a1.wav',start_ms:0,title:'Phát 3 giây từ take 1 của đoạn 2'});
+  // The App builds the take lookup once for every speaker of a render and passes it in.
+  expect(voiceSample('v-preset',{voices,jobs:[tts('v-preset','a2')],project,projects,version:'1.0.23',takes:takeIndex(project)})).toEqual(sample('v-preset',[tts('v-preset','a2')]));
+  expect(voiceSample('v-preset',{voices,jobs:[tts('v-preset','a2')],project,projects,version:'1.0.23',takes:new Map()}).kind).toBe('blocked'); // the lookup passed in is the one used
  });
  it('falls back for a preset to takes of other projects, naming the newest one\'s project and date, with at most 3 to try',()=>{
   const jobs=[tts('v-preset','b3',{project:'p2',speech:200,at:'2026-11-21T12:00:00Z'}),tts('v-preset','b2',{project:'p2'}),tts('v-preset','gone',{project:'p-deleted'}),tts('v-preset','b1',{project:'p2'}),tts('v-preset','b0',{project:'p2'})];

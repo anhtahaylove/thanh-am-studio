@@ -110,6 +110,28 @@ test('Space on the dock pauses the sample, and the sample stops the dock',async(
  await expect(button).toHaveAccessibleName('Dừng mẫu giọng của Người dẫn');await expect.poll(async()=>(await voice(page)).played.length).toBe(2);
 });
 
+test('selecting another segment keeps the sample, switching page stops it',async({page})=>{
+ await open(page);
+ const button=sampleButton(page,'Người dẫn');
+ await button.click();await expect(button).toHaveAccessibleName('Dừng mẫu giọng của Người dẫn');
+ await page.locator('article.segment').nth(1).click();await expect(page.locator('article.segment').nth(1)).toHaveClass(/selected/);
+ await expect(button).toHaveAccessibleName('Dừng mẫu giọng của Người dẫn');expect((await voice(page)).paused).toEqual([]);
+ await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:'Thư viện giọng'}).click();
+ await expect.poll(async()=>(await voice(page)).paused.length).toBe(1);expect((await voice(page)).paused[0]-1.2,'stopped by the page switch, not after 3 s').toBeLessThan(2.5);
+ await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:'Tạo giọng đọc'}).click();
+ await expect(button).toHaveAccessibleName('Nghe mẫu giọng của Người dẫn');await expect(button).toHaveAttribute('aria-pressed','false');
+});
+
+test('when no asset of the sample can be found, the error says so in Vietnamese, not with the backend code',async({page})=>{
+ await open(page,{broken:['b-new','b-old']});
+ const button=sampleButton(page,'Bà Tư');
+ await button.click();
+ await expect(page.getByRole('alert')).toContainText('Không phát được audio này: tệp không còn hoặc định dạng không được hỗ trợ.');
+ await expect(page.getByRole('alert')).not.toContainText('ASSET_NOT_FOUND');
+ await expect(button).toHaveAccessibleName('Nghe mẫu giọng của Bà Tư');
+ expect(await calls(page,'get_asset')).toEqual([{id:'b-new'},{id:'b-old'}]);expect((await voice(page)).played).toEqual([]);
+});
+
 // B1's bubble on a blocked "Phân vai" button, in the browser preview (where samples need the desktop app). Helpers copied from blocked-feedback.spec.ts.
 const FIXTURE=JSON.parse(readFileSync('e2e/fixtures/script-12.json','utf8'));
 const settle=(page:Page)=>page.evaluate(()=>new Promise<void>(r=>requestAnimationFrame(()=>requestAnimationFrame(()=>r()))));
