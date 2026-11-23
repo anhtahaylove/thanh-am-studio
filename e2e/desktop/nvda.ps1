@@ -96,6 +96,8 @@ function Invoke-Focus {
     "foreground $h"
 }
 
+# Installing or starting a screen reader changes the machine: only in Windows Sandbox, whose user is WDAGUtilityAccount.
+if (($Install -or $Start) -and $env:USERNAME -ne 'WDAGUtilityAccount') { throw 'ABORT nvda-setup: Windows Sandbox only' }
 if ($Install) {
     $dl = 'C:\nvdadl'
     New-Item -ItemType Directory -Path $dl -Force | Out-Null

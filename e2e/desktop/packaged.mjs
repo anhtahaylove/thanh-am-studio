@@ -1262,24 +1262,30 @@ try {
     // a pinned NVDA, checks it and runs a portable copy with the silent synth, browse mode off on page load and an IO log that
     // records every sequence it would speak (nvdalog.mjs reads it). Page-level keys go over CDP; Ctrl+P and the native select
     // popup need OS input (nvda.ps1 -Keys), since CDP reaches neither WebView2's host accelerators nor the popup.
-    // nvdaStep() never rethrows, so every S-step runs. THANHAM_NVDA_BASELINE=1 runs it on a release without these fixes
-    // (1.0.22): a failing step marked baselineExpectFail logs `NOTE expected-fail-1.0.22`, a passing one logs FAIL, and S7b, the
-    // print detector's negative control, runs. Needs THANHAM_UX_AUDIO; S6 needs the first-run checklist done (run `full` first),
+    // nvdaStep() never rethrows, so every S-step runs. THANHAM_NVDA_BASELINE=1 runs it on 1.0.22, a release without these fixes
+    // (the phase ABORTs on any other version; never set it in a gate run): a failing step marked baselineExpectFail logs
+    // `NOTE expected-fail-1.0.22`, a passing one logs FAIL, and S7b, the print detector's negative control, runs. Needs THANHAM_UX_AUDIO; S6 needs the first-run checklist done (run `full` first),
     // since the checklist announces the first take instead of "Đã tạo xong".
     const {readNew, speechOf} = await import('./nvdalog.mjs');
     const baseline = process.env.THANHAM_NVDA_BASELINE === '1', nvdaLog = join(out, 'nvda.log'), jsonl = join(out, 'nvda-speech.jsonl');
-    const nvda = (...args) => execFileSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', join(here, 'nvda.ps1'), ...args], {encoding: 'utf8'}).trim();
+    // A failure keeps nvda.ps1's own message (stderr); the download gets 5 minutes, every other call 1 minute.
+    const nvda = (...args) => {
+      try { return execFileSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', join(here, 'nvda.ps1'), ...args], {encoding: 'utf8', timeout: args[0] === '-Install' ? 300000 : 60000}).trim(); }
+      catch (e) { throw Error(`nvda.ps1 ${args.join(' ')}: ${String(e.stderr ?? '').split(/\r?\n/).find((l) => l.trim()) || e.message}`); }
+    };
     const osKeys = (keys) => nvda('-Keys', keys, '-Pid', String(app.pid));
     const windows = () => JSON.parse(nvda('-Windows', '-Pid', String(app.pid)) || '[]');
-    let offset = 0, heard = [], said = [], rec = null, carried = {heard: [], said: []}, s7fresh = [], projectId;
-    const poll = () => { const r = readNew(nvdaLog, offset); offset = r.offset; for (const s of speechOf(r.entries)) { heard.push(s.strings.join(' ')); said.push(...s.strings); } };
+    let cursor = {offset: 0, id: null}, heard = [], said = [], rec = null, carried = {heard: [], said: []}, s7fresh = [], projectId;
+    const poll = () => { const r = readNew(nvdaLog, cursor); cursor = r.cursor; for (const s of speechOf(r.entries)) { heard.push(s.strings.join(' ')); said.push(...s.strings); } };
     const mark = () => { poll(); rec?.spoken.push(...heard); heard = []; said = []; }; // a new input: keep what was heard with the step
-    const has = (fragment) => heard.join(' | ').normalize('NFC').toLowerCase().includes(fragment.normalize('NFC').toLowerCase());
-    const hear = async (fragments, ms) => {
-      rec.expected.push(...fragments);
+    const norm = (s) => s.normalize('NFC').toLowerCase();
+    // A fragment may be anywhere in what was heard; an array of fragments must all be in one utterance.
+    const has = (want) => Array.isArray(want) ? heard.some((u) => want.every((f) => norm(u).includes(norm(f)))) : norm(heard.join(' | ')).includes(norm(want));
+    const hear = async (wants, ms) => {
+      rec.expected.push(...wants);
       const end = Date.now() + ms;
-      for (poll(); !fragments.every(has) && Date.now() < end; poll()) await page.waitForTimeout(200);
-      const missing = fragments.filter((f) => !has(f));
+      for (poll(); !wants.every(has) && Date.now() < end; poll()) await page.waitForTimeout(200);
+      const missing = wants.filter((f) => !has(f));
       if (missing.length) throw Error(`not heard ${JSON.stringify(missing)}; heard ${JSON.stringify(heard).slice(0, 400)}`);
     };
     const activeLabel = () => page.evaluate(() => { const a = document.activeElement; return !a || a === document.body ? 'BODY' : a.getAttribute('aria-label') ?? a.textContent.trim().slice(0, 60); });
@@ -1304,7 +1310,7 @@ try {
         else if (name !== 'S7a-print' || rec.detector === 'fired') { verdict = 'NOTE'; line = `NOTE expected-fail-1.0.22 ${name}${detector} ${error}`; }
       }
       Object.assign(rec, {verdict, error, ms: Date.now() - t});
-      results.push({name, ok: verdict !== 'FAIL', ms: rec.ms, detail: line, error: error ?? undefined});
+      results.push({name, ok: verdict !== 'FAIL', verdict, ms: rec.ms, detail: line, error: error ?? undefined});
       log(line);
       // S7a-print without a fired detector proves nothing on a baseline release: the section 7 fallback applies.
       if (baseline && name === 'S7a-print' && rec.detector === 'blind') log('NOTE detector-blind S7a-print');
@@ -1313,17 +1319,19 @@ try {
       rec = null;
     };
     // Ctrl+P's three detectors: beforeprint in the page, NVDA naming a print dialog, a new window of the app's process tree.
-    const printCount = () => Promise.race([page.evaluate(() => window.__printCount ?? {before: 0, after: 0}), new Promise((r) => setTimeout(() => r({before: -1, after: -1}), 2000))]);
+    // The page's counters, or null when it does not answer within 2 s (unknown, not zero).
+    const printCount = () => Promise.race([page.evaluate(() => window.__printCount ?? {before: 0, after: 0, keys: 0}), new Promise((r) => setTimeout(() => r(null), 2000))]);
     const printDetect = async (before) => {
       await page.waitForTimeout(3000);
       poll();
       const count = await printCount(), fresh = windows().filter((w) => !before.some((b) => b.handle === w.handle)), speech = said.filter((s) => /^(print|in)\b/i.test(s));
-      Object.assign(rec, {ctrlPKeydowns: count.keys, beforeprint: count.before, afterprint: count.after, windows: {before, new: fresh}});
+      Object.assign(rec, {ctrlPKeydowns: count?.keys ?? 'unknown', beforeprint: count?.before ?? 'unknown', afterprint: count?.after ?? 'unknown', windows: {before, new: fresh}});
       // `reached`: the page saw the Ctrl+P keydown; without it, "nothing printed" proves nothing.
-      return {fresh, reached: count.keys > 0, fired: [...(count.before > 0 ? [`beforeprint x${count.before}`] : []), ...(speech.length ? [`speech ${JSON.stringify(speech)}`] : []), ...fresh.map((w) => `window ${w.class} "${w.title}"`)]};
+      return {fresh, unknown: !count, reached: count?.keys > 0, fired: [...(count?.before > 0 ? [`beforeprint x${count.before}`] : []), ...(speech.length ? [`speech ${JSON.stringify(speech)}`] : []), ...fresh.map((w) => `window ${w.class} "${w.title}"`)]};
     };
-    const NOT_REACHED = 'Ctrl+P never reached the page (no keydown), so the missing print UI proves nothing';
-    const countPrint = () => page.evaluate(() => {
+    // Why "nothing printed" is not a pass: the page did not answer, or never saw the key.
+    const notProven = ({unknown, reached}) => unknown ? 'the page did not answer within 2 s (print counters unknown)' : reached ? null : 'Ctrl+P never reached the page (no keydown), so the missing print UI proves nothing';
+    const countPrint = () => Promise.race([page.evaluate(() => {
       if (!window.__printCount) {
         const c = window.__printCount = {before: 0, after: 0, keys: 0};
         addEventListener('beforeprint', () => c.before++);
@@ -1331,10 +1339,16 @@ try {
         addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') c.keys++; }, true);
       }
       Object.assign(window.__printCount, {before: 0, after: 0, keys: 0});
-    });
+    }), new Promise((_, no) => setTimeout(() => no(Error('the page did not answer within 5 s (print counters not set)')), 5000))]);
     const segmentText = (n) => page.getByRole('textbox', {name: `Nội dung đoạn ${n}`});
     try {
       await step('voice model ready', voiceModel);
+      // The baseline verdicts (expected failures) are only true for 1.0.22; a gate run must never set THANHAM_NVDA_BASELINE.
+      if (baseline) await step('nvda baseline runs on 1.0.22 only', async () => {
+        const version = execFileSync('powershell', ['-NoProfile', '-Command', '(Get-Item -LiteralPath $env:THANHAM_EXE).VersionInfo.ProductVersion'], {encoding: 'utf8', env: {...process.env, THANHAM_EXE: exe}}).trim();
+        if (version !== '1.0.22') throw Error(`THANHAM_NVDA_BASELINE=1 is for the 1.0.22 installer only; this app is ${version || 'of unknown version'}`);
+        return `app ${version}`;
+      });
       await step('nvda setup: download, verify, portable copy', async () => nvda('-Install', '-Out', out));
       await step('nvda start', async () => nvda('-Start', '-Out', out));
       await step('nvda seed project "NVDA kiểm tra"', async () => {
@@ -1342,7 +1356,9 @@ try {
         if (!src || !existsSync(src)) throw Error(`THANHAM_UX_AUDIO missing: ${src}`);
         const audio = join(saves, `nvda ${Date.now()}${src.slice(src.lastIndexOf('.'))}`);
         copyFileSync(src, audio);
-        const asset = await invoke('import_asset', {path: audio}), created = await invoke('create_project', {name: 'NVDA kiểm tra'}), d = asset.duration_ms ?? 12000;
+        // import_asset does not probe the duration (duration_ms is null), so a WAV's comes from its header; other formats get 12 s.
+        const asset = await invoke('import_asset', {path: audio}), created = await invoke('create_project', {name: 'NVDA kiểm tra'});
+        const wav = /\.wav$/i.test(audio) ? readWav(audio) : null, d = asset.duration_ms ?? (wav ? Math.round(1000 * wav.samples.length / wav.rate) : 12000);
         const seg = (speaker, text, chapter = null) => ({id: crypto.randomUUID(), text, normalized_text: text, voice_id: null, speaker, gap_ms: 300, takes: [], selected_take_id: null, trim_start_ms: 0, trim_end_ms: null, fade_in_ms: 0, fade_out_ms: 0, gain_db: 0, chapter});
         const rows = ['Dòng thứ nhất của bản chép lời', 'Dòng thứ hai nói tiếp câu chuyện', 'Dòng thứ ba kết thúc đoạn nghe'].map((text, i) => ({id: crypto.randomUUID(), start_ms: Math.round(d * i / 3), end_ms: Math.round(d * (i + 1) / 3), text, speaker: null, overlap_speaker: null}));
         await invoke('save_project', {project: {...created, segments: [seg('Lan', 'Xin chào, đây là bài kiểm tra trình đọc màn hình.', 'P1'), seg('Minh', 'Chúng tôi nghe NVDA đọc từng nút.'), seg('Lan', '')], transcript: rows, source_asset_id: asset.id}});
@@ -1370,7 +1386,7 @@ try {
         await page.waitForTimeout(500);
         mark();
         await page.keyboard.press('Tab');
-        await hear(['Bỏ qua đến Xuất audio', 'link'], 5000);
+        await hear([['Bỏ qua đến Xuất audio', 'link']], 5000);
         await focusIs('Bỏ qua đến Xuất audio');
         mark();
         await page.keyboard.press('Enter');
@@ -1382,11 +1398,11 @@ try {
         await focus(segmentText(1));
         mark();
         await page.keyboard.press('Shift+Tab');
-        await hear(['Thao tác đoạn 1', 'tool bar', 'Chia đoạn tại con trỏ'], 5000); // NVDA's role label is "tool bar"
+        await hear([['Thao tác đoạn 1', 'tool bar'], ['Chia đoạn tại con trỏ', 'button']], 5000); // NVDA's role label is "tool bar"
         await focusIs('Chia đoạn tại con trỏ');
         mark();
         for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowRight');
-        await hear(['Đưa đoạn lên', 'unavailable', 'Đây là đoạn đầu tiên'], 5000);
+        await hear([['Đưa đoạn lên', 'unavailable', 'Đây là đoạn đầu tiên']], 5000);
         await focusIs('Đưa đoạn lên');
       });
       await nvdaStep('S3 blocked Ctrl+Enter', async (r) => {
@@ -1401,37 +1417,38 @@ try {
         await focus(page.getByRole('toolbar', {name: 'Thao tác đoạn 1'}).locator('button[tabindex="0"]'));
         mark();
         await page.keyboard.press('End');
-        await hear(['Chi tiết đoạn 1', 'button'], 5000);
+        await hear([['Chi tiết đoạn 1', 'button']], 5000);
         await focusIs('Chi tiết đoạn 1');
         mark();
         await page.keyboard.press('Enter');
-        await hear(['Giọng đoạn 1', 'combo box'], 5000);
+        await hear([['Giọng đoạn 1', 'combo box']], 5000);
         await focusIs('Giọng đoạn 1');
         mark();
         await page.keyboard.press('Escape');
-        await hear(['Nội dung đoạn 1', 'edit'], 5000);
+        await hear([['Nội dung đoạn 1', 'edit']], 5000);
         await focusIs('Nội dung đoạn 1');
       });
       await nvdaStep('S5 native popup Esc', async (r) => {
         r.input = 'CDP: focus "Giọng đoạn 1"; OS %{DOWN}; OS {ESC}; then CDP Escape';
-        const select = page.getByRole('combobox', {name: 'Giọng đoạn 1'}), options = await select.locator('option').allInnerTexts();
+        const select = page.getByRole('combobox', {name: 'Giọng đoạn 1'});
         await focus(select);
         const before = windows();
         mark();
         osKeys('%{DOWN}');
-        // Open: NVDA names an option of this select, or the app's process tree shows a new popup window.
+        // Open: the app's process tree shows a new popup window, or NVDA says "expanded" or an "N of M" list position.
         let opened = null;
         for (const end = Date.now() + 2000; !opened;) {
           poll();
           const fresh = windows().filter((w) => !before.some((b) => b.handle === w.handle));
           if (fresh.length) opened = {by: 'window', windows: fresh};
-          else if (options.some(has)) opened = {by: 'speech', windows: []};
+          else if (has('expanded') || heard.some((u) => /\b\d+ of \d+\b/.test(u))) opened = {by: 'speech', windows: []};
           else if (Date.now() > end) break;
           else await page.waitForTimeout(200);
         }
         r.windows = {before, popup: opened?.windows ?? null};
         if (!opened) throw Error('popup not opened');
         r.popupProof = opened.by;
+        const expanded = has('expanded'); // "collapsed" proves a close only after NVDA said "expanded"
         mark();
         const t = Date.now();
         osKeys('{ESC}');
@@ -1440,7 +1457,7 @@ try {
         for (const end = Date.now() + 2000; !closed;) {
           poll();
           if (opened.windows.length && !windows().some((w) => opened.windows.some((o) => o.handle === w.handle))) closed = 'window';
-          else if (has('collapsed')) closed = 'speech';
+          else if (expanded && has('collapsed')) closed = 'speech';
           else if (Date.now() > end) break;
           else await page.waitForTimeout(200);
         }
@@ -1465,6 +1482,9 @@ try {
         r.input = 'CDP: STT page, Space (5 s of playback); focus "Theo lời khi phát", Space';
         await nav('Chép lời');
         const audio = page.locator('.source-player audio'), rows = (await invoke('load_project', {id: projectId})).transcript.map((x) => x.text);
+        const follow = page.getByRole('button', {name: 'Theo lời khi phát'});
+        // Follow-along must be on, so the rows really move during playback and the toggle below really turns it off.
+        if ((await follow.getAttribute('aria-pressed')) !== 'true') throw Error('"Theo lời khi phát" is already off (aria-pressed is not true)');
         await audio.waitFor({timeout: 10000});
         await audio.evaluate((a) => { a.muted = true; a.currentTime = 0; });
         await page.evaluate(() => document.activeElement?.blur());
@@ -1479,12 +1499,14 @@ try {
         if (played < 1) throw Error(`the source did not play (currentTime ${played} s)`);
         if (named.length) throw Error(`rows named during playback: ${JSON.stringify(named)}`);
         if (after !== before) throw Error(`focus moved during playback: "${before}" -> "${after}"`);
-        const follow = page.getByRole('button', {name: 'Theo lời khi phát'}), pressed = (await follow.getAttribute('aria-pressed')) === 'true';
         mark();
         await follow.focus();
-        await page.waitForTimeout(300);
+        await hear([['Theo lời khi phát', 'toggle button']], 5000);
+        mark(); // after the focus speech, which itself says "pressed"
         await page.keyboard.press('Space');
-        await hear(['Theo lời khi phát', 'toggle button', pressed ? 'not pressed' : 'pressed'], 5000);
+        await hear(['not pressed'], 5000);
+        const state = await follow.getAttribute('aria-pressed');
+        if (state !== 'false') throw Error(`aria-pressed is ${state} after Space, not false`);
       });
       // One Ctrl+P, two verdicts: S7a-print (no print UI: the gate criterion) and S7a-dialog (quick-open).
       await nvdaStep('S7a-print', async (r) => {
@@ -1495,11 +1517,11 @@ try {
         const before = windows();
         mark();
         osKeys('^p');
-        const {fired, fresh, reached} = await printDetect(before);
-        s7fresh = fresh;
+        const found = await printDetect(before), {fired} = found;
+        s7fresh = found.fresh;
         r.detector = fired.length ? 'fired' : 'blind';
         if (fired.length) throw Error(`print UI detected: ${fired.join('; ')}`);
-        if (!reached) throw Error(NOT_REACHED);
+        if (notProven(found)) throw Error(notProven(found));
       }, {baselineExpectFail: true});
       await nvdaStep('S7a-dialog', async (r) => {
         r.input = 'the Ctrl+P of S7a-print; then CDP Escape';
@@ -1513,7 +1535,8 @@ try {
       }, {baselineExpectFail: true, carry: true});
       if (baseline) await nvdaStep('S7b detector control', async (r) => {
         r.input = 'OS {ESC} until the print UI is gone (3 tries at most); CDP capture keydown preventDefault on Ctrl+P; OS ^p';
-        const open = async () => { const c = await printCount(), w = windows(); return c.after < c.before || s7fresh.some((x) => w.some((y) => y.handle === x.handle)); };
+        // Still open: the page does not answer, afterprint has not followed beforeprint, or a print window from S7a is still there.
+        const open = async () => { const c = await printCount(), w = windows(); return !c || c.after < c.before || s7fresh.some((x) => w.some((y) => y.handle === x.handle)); };
         for (let i = 0; i < 3 && (i === 0 || await open()); i++) { osKeys('{ESC}'); await page.waitForTimeout(1500); }
         if (await open()) throw Error('the print UI from S7a did not close');
         await countPrint();
@@ -1522,10 +1545,10 @@ try {
         const before = windows();
         mark();
         osKeys('^p');
-        const {fired, reached} = await printDetect(before);
+        const found = await printDetect(before), {fired} = found;
         r.printDetected = fired;
         if (fired.length) throw Error(`print UI detected despite a page-level preventDefault: ${fired.join('; ')} (PLAN section 11 Q8)`);
-        if (!reached) throw Error(NOT_REACHED);
+        if (notProven(found)) throw Error(notProven(found));
       });
     } finally {
       try { log(`nvda stop: ${nvda('-Stop')}`); } catch (e) { log(`nvda stop failed: ${String(e).split('\n')[0]}`); }

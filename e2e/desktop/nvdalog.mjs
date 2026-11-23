@@ -1,8 +1,8 @@
 // Reads what NVDA spoke from its log (started with --log-level=12, so speech.speak logs every sequence as
 // `IO - speech.speech.speak (hh:mm:ss.mmm) - MainThread (id):` followed by `Speaking [<Python repr of the sequence>]`).
 // usage: node nvdalog.mjs <nvda.log>     prints one JSON line per spoken sequence
-//        node nvdalog.mjs --self-test    checks the parser against fixtures/nvda-sample.log
-import {openSync, readSync, fstatSync, closeSync, readFileSync, writeFileSync, appendFileSync, mkdtempSync, rmSync} from 'node:fs';
+//        node nvdalog.mjs --self-test [folder]   checks the parser against fixtures/nvda-sample.log (file tests in folder, default %TEMP%)
+import {openSync, readSync, fstatSync, closeSync, readFileSync, writeFileSync, appendFileSync, mkdtempSync, rmSync, renameSync, statSync, mkdirSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join, dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -52,23 +52,27 @@ export function pyStrings(repr) {
 export const speechOf = (entries) => entries.filter((e) => e.level === 'IO' && e.message.startsWith('Speaking [')).map((e) => ({time: e.time, strings: pyStrings(e.message.slice('Speaking '.length))}));
 
 /** Entries written to `path` after byte `offset`. A trailing header whose message may still be on its way is left for the next read. */
-export function readNew(path, offset) {
+/** A cursor is {offset, id}; start with {offset: 0, id: null}. Returns {entries, cursor}. NVDA renames its old log to
+ * nvda-old.log when it starts, so a different file at `path` (another inode or creation time) is read from its start. */
+export function readNew(path, cursor) {
   let fd;
-  try { fd = openSync(path, 'r'); } catch { return {entries: [], offset}; }
+  try { fd = openSync(path, 'r'); } catch { return {entries: [], cursor}; }
   try {
-    const size = fstatSync(fd).size;
-    if (size < offset) offset = 0; // a new log replaced the old one
-    if (size === offset) return {entries: [], offset};
-    const buf = Buffer.alloc(size - offset);
+    const st = fstatSync(fd), id = `${st.ino}:${st.birthtimeMs}`;
+    let offset = cursor.id === null || cursor.id === id ? cursor.offset : 0;
+    if (st.size < offset) offset = 0;
+    if (st.size === offset) return {entries: [], cursor: {offset, id}};
+    const buf = Buffer.alloc(st.size - offset);
     readSync(fd, buf, 0, buf.length, offset);
     let end = buf.lastIndexOf(0x0a) + 1;
     const lines = buf.subarray(0, end).toString('utf8').split('\n').slice(0, -1);
     if (lines.length && HEAD.test(lines.at(-1).replace(/\r$/, ''))) end -= Buffer.byteLength(lines.at(-1)) + 1;
-    return {entries: end > 0 ? parseEntries(buf.subarray(0, end).toString('utf8')) : [], offset: offset + Math.max(end, 0)};
+    return {entries: end > 0 ? parseEntries(buf.subarray(0, end).toString('utf8')) : [], cursor: {offset: offset + Math.max(end, 0), id}};
   } finally { closeSync(fd); }
 }
 
-function selfTest() {
+function selfTest(scratch) {
+  mkdirSync(scratch, {recursive: true});
   const fixture = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'nvda-sample.log'), text = readFileSync(fixture, 'utf8');
   const entries = parseEntries(text), speech = speechOf(entries);
   assert.deepEqual(entries.map((e) => e.level), ['INFO', 'INFO', 'IO', 'IO', 'IO', 'IO', 'DEBUGWARNING', 'IO', 'WARNING', 'IO', 'IO']);
@@ -88,29 +92,38 @@ function selfTest() {
   assert.notEqual(nfd, nfd.normalize('NFC'), 'the fixture really holds an NFD line');
   assert.deepEqual(pyStrings("[LangChangeCommand ('vi'), 'a', BreakCommand(time=100), \"b'c\", CancellableSpeech (still valid)]"), ['a', "b'c"]);
   // Incremental reads (CRLF as NVDA writes on Windows): the same sequences however the file grows, and a header waits for its message.
-  const dir = mkdtempSync(join(tmpdir(), 'nvdalog-')), log = join(dir, 'nvda.log');
+  const dir = mkdtempSync(join(scratch, 'nvdalog-')), log = join(dir, 'nvda.log'), start = {offset: 0, id: null};
   try {
     const crlf = Buffer.from(text.replace(/\r?\n/g, '\r\n')), got = [];
     writeFileSync(log, '');
-    let offset = 0;
+    let cursor = start, ids = new Set();
     for (let at = 0; at < crlf.length; at += 37) {
       appendFileSync(log, crlf.subarray(at, Math.min(at + 37, crlf.length)));
-      const r = readNew(log, offset);
-      offset = r.offset;
+      const r = readNew(log, cursor);
+      cursor = r.cursor;
+      ids.add(cursor.id);
       got.push(...speechOf(r.entries));
     }
     assert.deepEqual(got.map((s) => s.strings), speech.map((s) => s.strings));
+    assert.equal(ids.size, 1, `the file's identity stays the same while it grows: ${[...ids].join(' ')}`);
+    // Rotation: NVDA renames the old log and starts a new one, which may already be longer than the old offset.
+    renameSync(log, join(dir, 'nvda-old.log'));
+    writeFileSync(log, `IO - speech.speech.speak (10:00:01.000) - MainThread (1):\r\nSpeaking ['after restart']\r\n${'INFO - core.main (10:00:02.000) - MainThread (1):\r\nNVDA initialized\r\n'.repeat(40)}`);
+    assert.ok(statSync(log).size > cursor.offset, 'the new log is longer than the old offset, so a size check alone would miss it');
+    assert.deepEqual(speechOf(readNew(log, cursor).entries).map((s) => s.strings), [['after restart']], 'a replaced log is read from its start');
+    rmSync(log);
     writeFileSync(log, 'IO - speech.speech.speak (10:00:00.000) - MainThread (1):\r\n');
-    assert.deepEqual(readNew(log, 0), {entries: [], offset: 0}, 'a header without its message is not consumed');
+    const waiting = readNew(log, start);
+    assert.deepEqual([waiting.entries, waiting.cursor.offset], [[], 0], 'a header without its message is not consumed');
     appendFileSync(log, "Speaking ['late']\r\n");
-    assert.deepEqual(speechOf(readNew(log, 0).entries).map((s) => s.strings), [['late']]);
+    assert.deepEqual(speechOf(readNew(log, waiting.cursor).entries).map((s) => s.strings), [['late']]);
   } finally { rmSync(dir, {recursive: true, force: true}); }
-  console.log(`nvdalog self-test passed: ${entries.length} entries, ${speech.length} spoken sequences`);
+  console.log(`nvdalog self-test passed: ${entries.length} entries, ${speech.length} spoken sequences, rotation detected (in ${scratch})`);
 }
 
-const arg = process.argv[2];
+const [arg, dirArg] = process.argv.slice(2);
 if (process.argv[1]?.endsWith('nvdalog.mjs')) { // run as a script, not imported by packaged.mjs
-  if (arg === '--self-test') selfTest();
+  if (arg === '--self-test') selfTest(dirArg ?? tmpdir()); // a folder argument runs the file tests there (for example a Sandbox mapped folder)
   else if (arg) for (const s of speechOf(parseEntries(readFileSync(arg, 'utf8')))) console.log(JSON.stringify(s));
-  else { console.error('usage: node nvdalog.mjs <nvda.log> | --self-test'); process.exit(2); }
+  else { console.error('usage: node nvdalog.mjs <nvda.log> | --self-test [folder]'); process.exit(2); }
 }

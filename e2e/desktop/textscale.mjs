@@ -5,21 +5,25 @@
 // screenshot at two window sizes: `request`, SetWindowPos to 600x500 (whether the app clamps it), and `minimum`, the client
 // sized to the app's 1024x720 logical minimum (the smallest window a user can drag to). At `minimum` it then runs the dpi
 // phase's no-sideways-scroll and clipping checks on every page.
-// It changes the signed-in user's text size: run it only in a throwaway Windows Sandbox (the factor is reset to 100 at the end).
-// usage: node textscale.mjs <app.exe> <outDir>
+// It changes the signed-in user's text size, so it runs only in Windows Sandbox (user WDAGUtilityAccount) unless given
+// --allow-host, and puts the previous value back at the end (or removes it if there was none).
+// usage: node textscale.mjs <app.exe> <outDir> [--allow-host]
 import {chromium} from 'playwright-core';
 import {spawn, execFileSync} from 'node:child_process';
 import {mkdirSync, writeFileSync, appendFileSync} from 'node:fs';
 import {join} from 'node:path';
 
-const [exe, out] = process.argv.slice(2);
-if (!exe || !out) { console.error('usage: node textscale.mjs <app.exe> <outDir>'); process.exit(2); }
+const args = process.argv.slice(2), allowHost = args.includes('--allow-host'), [exe, out] = args.filter((a) => a !== '--allow-host');
+if (!exe || !out) { console.error('usage: node textscale.mjs <app.exe> <outDir> [--allow-host]'); process.exit(2); }
+if (process.env.USERNAME !== 'WDAGUtilityAccount' && !allowHost) { console.error(`textscale.mjs changes the user's Windows text size and runs only in Windows Sandbox (this user is ${process.env.USERNAME}); pass --allow-host to run it anyway`); process.exit(2); }
 mkdirSync(out, {recursive: true});
 const log = (m) => { const line = `${new Date().toISOString()} ${m}`; console.log(line); appendFileSync(join(out, 'run.log'), line + '\n'); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const ps = (script) => execFileSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(`$ProgressPreference = 'SilentlyContinue'\n${script}`, 'utf16le').toString('base64')], {encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe']}).trim();
 const KEY = 'HKCU:\\Software\\Microsoft\\Accessibility';
 const setScale = (f) => ps(`if (-not (Test-Path '${KEY}')) { New-Item -Path '${KEY}' | Out-Null }; Set-ItemProperty -Path '${KEY}' -Name TextScaleFactor -Value ${f} -Type DWord`);
+const previousScale = () => ps(`(Get-ItemProperty -Path '${KEY}' -Name TextScaleFactor -ErrorAction SilentlyContinue).TextScaleFactor`);
+const restoreScale = (v) => v === '' ? ps(`Remove-ItemProperty -Path '${KEY}' -Name TextScaleFactor -ErrorAction SilentlyContinue`) : setScale(Number(v));
 const uiScale = () => Number(ps('$null = [Windows.UI.ViewManagement.UISettings, Windows.UI.ViewManagement, ContentType = WindowsRuntime]; (New-Object Windows.UI.ViewManagement.UISettings).TextScaleFactor'));
 // Resizes the app's main window: `request` asks for a 600x500 window, `minimum` for a 1024x720 logical client (frame kept).
 // Per-monitor-v2 DPI awareness, so the sizes are physical pixels and not DPI-virtualized ones.
@@ -119,8 +123,9 @@ async function openProject(first) {
 
 const FACTORS = [100, 125, 150, 225], rows = [];
 let status = 0;
+const previous = previousScale(); // '' when the value does not exist
 try {
-  log(`TEXTSCALE before: registry ${ps(`(Get-ItemProperty -Path '${KEY}' -Name TextScaleFactor -ErrorAction SilentlyContinue).TextScaleFactor`) || '(unset)'}, UISettings ${uiScale()}`);
+  log(`TEXTSCALE before: registry ${previous || '(unset)'}, UISettings ${uiScale()}`);
   for (const factor of FACTORS) {
     const row = {factor};
     rows.push(row);
@@ -146,7 +151,7 @@ try {
     log(`TEXTSCALE ${factor} % ${JSON.stringify(row)}`);
   }
 } finally {
-  try { setScale(100); } catch {}
+  try { restoreScale(previous); log(`TEXTSCALE restored: registry ${previousScale() || '(unset)'}`); } catch (e) { log(`TEXTSCALE restore failed: ${e}`); status = 1; }
 }
 // Outcomes (PLAN D2 step 0), on the `minimum` window: (b) some innerWidth <= 920 px; (c) UISettings did not take some factor
 // or a factor could not be measured (inconclusive); otherwise (a), unless a factor grew the text without narrowing the page
@@ -156,13 +161,15 @@ for (const r of rows) {
   r.confirmed = Math.abs((r.uiSettings ?? 0) - r.factor / 100) < 0.005;
   r.textGrew = !!base && !r.error && r.minimum.font16.height > base.font16.height + 0.5;
   r.narrowed = !!base && !r.error && r.minimum.innerWidth < base.innerWidth - 1;
+  // Without the seeded project the script page has no segments, so a clean page loop proves less.
+  r.overflowComplete = !r.error && !r.projectError && !r.overflow?.some((x) => x.startsWith('check stopped'));
 }
 const fixItems = rows.filter((r) => r.textGrew && !r.narrowed && r.overflow?.length).map((r) => `${r.factor} %: ${r.overflow.join(' | ')}`);
 const outcome = rows.some((r) => !r.error && r.minimum.innerWidth <= 920) ? 'b' : rows.some((r) => r.error || !r.confirmed) ? 'c' : fixItems.length ? 'a-with-fix-item' : 'a';
 const measured = rows.filter((r) => !r.error), smallest = measured.length ? Math.min(...measured.map((r) => r.minimum.innerWidth)) : null;
 const brief = (m) => m && {innerWidth: m.innerWidth, devicePixelRatio: m.devicePixelRatio, client: m.client, dpi: m.dpi, font16: m.font16, mediumPx: m.mediumPx};
 const summary = {outcome, b3b: outcome !== 'a', smallestMinimumInnerWidth: smallest, fixItems,
-  rows: rows.map((r) => ({factor: r.factor, uiSettings: r.uiSettings, confirmed: r.confirmed, minimum: brief(r.minimum), request: brief(r.request), textGrew: r.textGrew, narrowed: r.narrowed, overflow: r.overflow, error: r.error}))};
+  rows: rows.map((r) => ({factor: r.factor, uiSettings: r.uiSettings, confirmed: r.confirmed, minimum: brief(r.minimum), request: brief(r.request), textGrew: r.textGrew, narrowed: r.narrowed, overflow: r.overflow, overflowComplete: r.overflowComplete, projectError: r.projectError, error: r.error}))};
 writeFileSync(join(out, 'textscale.json'), JSON.stringify({summary, rows}, null, 1));
-log(`OUTCOME ${outcome} b3b=${summary.b3b ? 'yes' : 'no'} smallest=${smallest} ${rows.map((r) => `${r.factor}%: ui=${r.uiSettings} min innerWidth=${r.minimum?.innerWidth} dpr=${r.minimum?.devicePixelRatio} client=${r.minimum?.client?.join('x')} font16=${r.minimum?.font16?.height} overflow=${r.overflow?.length ?? '-'}; 600x500 request innerWidth=${r.request?.innerWidth} client=${r.request?.client?.join('x')}`).join(' | ')}`);
+log(`OUTCOME ${outcome} b3b=${summary.b3b ? 'yes' : 'no'} smallest=${smallest} ${rows.map((r) => `${r.factor}%: ui=${r.uiSettings} min innerWidth=${r.minimum?.innerWidth} dpr=${r.minimum?.devicePixelRatio} client=${r.minimum?.client?.join('x')} font16=${r.minimum?.font16?.height} overflow=${r.overflow?.length ?? '-'}${r.overflowComplete ? '' : ' (incomplete' + (r.projectError ? ': project not opened' : '') + ')'}; 600x500 request innerWidth=${r.request?.innerWidth} client=${r.request?.client?.join('x')}`).join(' | ')}`);
 process.exit(status);

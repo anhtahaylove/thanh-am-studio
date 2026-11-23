@@ -88,9 +88,10 @@ differs.
    blocked Ctrl+Enter, the details panel and Esc, the native drop-down closed with Esc, "Đã tạo xong", transcript
    follow-along and Ctrl+P (no print UI, the quick-open dialog). Page keys go over CDP, Ctrl+P and the drop-down keys
    are OS input. Each step logs PASS/FAIL without stopping the phase and writes `nvda-speech.jsonl`. With
-   `THANHAM_NVDA_BASELINE=1` it runs against a release without these fixes: an expected failure logs
-   `NOTE expected-fail-1.0.22`, an unexpected pass logs FAIL, and S7b checks that a page-level `preventDefault` leaves the
-   print detector silent), and
+   `THANHAM_NVDA_BASELINE=1` it runs against 1.0.22, a release without these fixes, and ABORTs on any other version (never
+   set it in a gate run): an expected failure logs `NOTE expected-fail-1.0.22`, an unexpected pass logs FAIL, and S7b
+   checks that a page-level `preventDefault` leaves the print detector silent. `nvda.ps1 -Install`/`-Start` and
+   `textscale.mjs` refuse to run outside Windows Sandbox), and
    `-Gate 500` runs the long-project gate inside the Sandbox.
    `update` serves the release's own `latest.json` and installer (both next to the installer) from a local
    feed: a cut-off package must be refused, the signed one must install itself and reopen the app with its
