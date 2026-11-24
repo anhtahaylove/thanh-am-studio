@@ -1,4 +1,13 @@
 [
+ {"version": "1.0.23", "date": "2026-11-24", "changes": [
+  "Thanh phát: thanh sóng hiện ngay khi chọn đoạn, không cần bấm phát; kéo tay nắm Cắt đầu và Cắt cuối trên thanh sóng (hoặc Tab tới rồi dùng phím mũi tên) để cắt take, Ctrl+Z hoàn tác. Chọn đoạn khác hoặc mở dự án khác thì take đang nghe thử tự dừng.",
+  "Chữ chạy theo giọng: khi phát take, các từ của đoạn sáng lên theo lời đọc. Chỉ có ở take tạo khi bật \"Tự kiểm bằng Whisper\" (cần Whisper Small).",
+  "Phân vai: nút Nghe mẫu giọng phát tối đa 3 giây âm thanh đã có của giọng mỗi nhân vật (take đã tạo hoặc bản ghi gốc), không tạo giọng mới. Màu nhân vật được lưu theo dự án nên không đổi khi thêm nhân vật hay sửa tên; tám màu mới dễ phân biệt hơn với người khó nhận màu.",
+  "Dán cả đoạn hội thoại \"Tên: lời\" vào một đoạn hoặc vào kịch bản trống: hộp Thêm nội dung mở ra, xem trước số đoạn và nhân vật rồi bấm nút thêm, một lần Ctrl+Z gỡ hết; dòng \"Tên - lời\" thì tick ô Tách dòng.",
+  "Ctrl+P mở nhanh dự án, gõ không dấu cũng tìm được (\"lang chai\" ra \"Làng chài\"). Kịch bản có từ hai chương thì có mục lục chương phía trên để nhảy tới chương.",
+  "Nút chưa dùng được thì nói lý do: Ctrl+Enter trên đoạn chưa tạo giọng được sẽ báo vì sao; Xuất audio, SRT vẫn Tab tới được và đọc lý do. Làm xong một việc thì focus quay về nút vừa bấm; lỗi phát âm thanh báo bằng tiếng Việt.",
+  "Cửa sổ hẹp (từ 920 px trở xuống, kể cả khi Windows phóng to chữ): Tab không còn đi qua khung chi tiết của từng đoạn, thanh bên cuộn được, chỉ báo đang chạy không che thanh phát. Vòng tiến độ nằm cùng dòng với đầu đoạn. App, bộ cài và trình gỡ cài đặt có icon mới."
+ ]},
  {"version": "1.0.22", "date": "2026-11-22", "changes": [
   "Bắt đầu dễ hơn: thẻ model ghi dung lượng tải, RAM cần và model nên dùng cho máy này; trang Tạo giọng đọc có danh sách ba bước cho lần đầu; dự án mẫu \"Làng chài\" mở được ngay, chưa cần tải model.",
   "Kịch bản dạng tài liệu: các đoạn gọn hơn, mỗi nhân vật một màu (cùng màu bên bản chép lời và Phân vai), mỗi đoạn tự hiện tiến độ tạo giọng và báo khi xong, khung chi tiết luôn theo đoạn đang chọn (màn hình hẹp thì nằm ngay trong đoạn).",
