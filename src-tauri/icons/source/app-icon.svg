@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- App icon: the sidebar brand mark (src/App.tsx .brand-mark: 40 px square, radius 12, #c6dab0) with lucide's
+       AudioLines glyph (ISC, listed in THIRD-PARTY-NOTICES) at 26 px, stroke 2, #183d31.
+       `python scripts/build_icons.py` renders each source at its own size and writes icon.png (this file at 1024 px)
+       and icon.ico: 16-48 px from app-icon-<size>.svg (hinted by hand; 32, 40 and 48 are twice 16, 20 and 24, which
+       Windows draws in the title bar) and 64, 96, 128 and 256 px from this file, all PNG, smallest first. -->
+  <rect width="1024" height="1024" rx="307.2" fill="#c6dab0"/>
+  <g transform="translate(179.2 179.2) scale(27.7333)" fill="none" stroke="#183d31" stroke-width="2" stroke-linecap="round">
+    <path d="M2 10v3M6 6v11M10 3v18M14 8v7M18 5v13M22 10v3"/>
+  </g>
+</svg>
