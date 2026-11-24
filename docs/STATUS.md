@@ -1025,6 +1025,24 @@ come out garbled in the job message. Paths reach it ASCII-escaped (JSON), so its
 Not verified: a non-Latin system locale (for example ACP 936), the "UTF-8 for worldwide language support" setting, and a profile
 created under a Vietnamese user name (the Sandbox redirects the Local AppData known folder instead).
 
+### v1.0.23 release (built by `.github/workflows/release.yml` from tag `v1.0.23` at `b0fa31b`)
+
+An interface release. Polish: the take preview stops when the selected segment or the project changes (#203), blocked actions say why, including Ctrl+Enter on a blocked segment (#204), focus returns after busy actions and play() errors are in Vietnamese (#208), speaker colours are stored per project with a palette re-hued for colour-vision deficiency (#209), the job ring stays inline in the segment head (#210), Tab, the side rail and the busy indicator at narrow widths and large Windows text sizes (#215), and the brand mark as the app, installer and uninstaller icon (#216). New: trim handles on the dock waveform (#211), karaoke words from the self-check word times (#207), a 3-second voice sample per speaker (#214), smart paste with a preview (#213), Ctrl+P quick-open (#212) and a sticky chapter map (#218). Test work: exact selectors and idle long-task diagnostics (#206), the NVDA Sandbox phase and the text-scale probe (#205), worker-rs tests under a non-ANSI path (#217). Nothing changed in `worker/`, `worker-rs/`, `src-tauri/src/` or `e2e/fixtures/`, and the payload snapshot is unchanged. The F1 RAM measurement (Whisper Large v3 Turbo, diarization, HTDemucs) moved to 1.0.24, so those model cards still show no measured RAM.
+
+| Check | Result |
+|---|---|
+| Tests | CI green on the tagged commit; the release workflow's dry run (45379434807) passed on the release branch head `62f4575`, which has the same tree as the tag, before the tag; the tag run 45387575031 built the draft |
+| Reviews | #203 to #216 and #218 had an independent code review (fail-before checks; mutation testing on #203, #204, #206, #207 and #209 to #215; a typing performance A/B on #207, #209, #210, #211, #213 and #215); #202, #217 and #219 change no app code |
+| Release notes | checked claim by claim by an independent verifier before publication: 1 blocking fix (a known limitation named the wrong case in which a blocked button's reason is only a tooltip), 6 minor and 8 wording fixes; then a delta check of the gate results (1 minor fix, the count of NVDA checks) |
+| Installer SHA-256 | `bbfba84d6938f7122bbff335645e46c7e4a7555dfc6f829ea6af328d3142fe50` (219,860,403 bytes). `sha256sum -c` OK on the draft assets and after an anonymous download from `/releases/latest/download/`. The dry-run installer (`5ec99a18...`, 219,855,038 bytes) differs, as builds are not byte-for-byte reproducible |
+| Update feed | the anonymous `/releases/latest/download/latest.json` is identical to the draft asset, names 1.0.23 and carries a signature whose trusted comment says `version:1.0.23` |
+| Rehearsal, clean Sandbox, dry-run installer, `full,features,scripts,dub,ux,dpi,nvda` | 74 PASS, 0 FAIL; the icon resources of the setup exe, the app exe and `uninstall.exe` equal `src-tauri/icons/icon.ico` in all 12 sizes |
+| Clean Sandbox, `-Only update -From` the published 1.0.22 (4 GB) | updated itself to 1.0.23 and reopened with the project kept; a package with a bad signature was refused. 4 PASS, 0 FAIL. The updated app exe and `uninstall.exe` carry the new icon in all 12 sizes |
+| Clean Sandbox, `-Only full,features,scripts,dub,ux,dpi,nvda` (6 GB) | 74 PASS, 0 FAIL; 931 MiB installed; 3,792 shipped `.pyc` unchanged; six pages clean at four display scales. NVDA 2026.3.1 (portable, in the Sandbox only): the 9 speech checks pass, including the native drop-down closed with Esc (its popup window shown to open and close) and Ctrl+P opening quick-open with no print UI |
+| Not run | the default runner, `longstt`, `clone`, `ab`, `-Gate 500` and `update-seeded` (no worker, export or backend job code changed); what Explorer and the taskbar show from Windows' icon cache after an update; the F1 RAM measurement |
+
+Evidence: `work\release-v1.0.23-sandbox` (`out1023rh`, `out1023r1`, `out1023r2`, `run1023.log`, `icons-rh`, `icons-r1`, `icons-r2`), the execution log in `work\round-1.0.23\PLAN.md` and the published v1.0.23 release notes.
+
 ## Not verified / known gaps
 
 - Self-update through GitHub was observed twice, in clean Sandboxes (1.0.11 to 1.0.12 and 1.0.13 to 1.0.15, above); the per-release gate
