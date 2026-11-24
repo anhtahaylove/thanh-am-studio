@@ -56,3 +56,5 @@ export function useMediaQuery(query:string,beforeChange?:()=>void){
  const subscribe=useCallback((notify:()=>void)=>{const f=()=>{before.current?.();notify();};m.addEventListener('change',f);return()=>m.removeEventListener('change',f);},[m]);
  return useSyncExternalStore(subscribe,()=>m.matches);
 }
+// The width at and below which the selected segment's panel sits inside its row; it must equal the query App passes to useMediaQuery for that panel.
+export const NARROW='(max-width:920px)';
