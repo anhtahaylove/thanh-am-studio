@@ -6,7 +6,7 @@ const seedWithTake=()=>{
  localStorage.setItem('thanh-am-preview-projects-v1',JSON.stringify([{id:'p1',name:'Có audio',updated_at:'2026-01-01T00:00:00Z',revision:0,segments:[seg('s1','Câu một.',[]),seg('s2','Câu hai.',[take])],transcript:[],dictionary:{},source_asset_id:null}]));
 };
 const addTwo=async(page:import('@playwright/test').Page)=>{
- await page.goto('/');await page.getByRole('button',{name:'Thêm nội dung',exact:true}).click();await page.getByRole('textbox',{name:'Nội dung cần thêm'}).fill('Câu một.\nCâu hai.');await page.getByRole('button',{name:'Thêm vào kịch bản'}).click();
+ await page.goto('/');await page.getByRole('button',{name:'Thêm nội dung',exact:true}).click();await page.getByRole('textbox',{name:'Nội dung cần thêm'}).fill('Câu một.\nCâu hai.');await page.getByRole('button',{name:/^Thêm \d+ đoạn vào kịch bản$/}).click();
  await expect(page.getByRole('textbox',{name:'Nội dung đoạn 2'})).toHaveValue('Câu hai.');
 };
 test('deleting a segment happens at once with no dialog, and the toast Undo brings it back',async({page})=>{

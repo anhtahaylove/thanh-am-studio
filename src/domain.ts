@@ -177,14 +177,17 @@ export function makeSegment(text=''):Segment{return {id:uid(),text,normalized_te
 // space after the colon, so "Người 8:30 sáng" stays text.
 const OWN_LABEL=/^\s*\[?Người \d{1,3}\]?\s*[:：]\s/u;
 const LABEL=/^\s*(?:\[([^\][:\n]+)\]|([^:[\]\n]+?))\s*[:：](?!\/\/)\s*(.*)$/u;
+// Only with `dash` (the paste preview's opt-in): "Tên - lời", also with – or —. The name starts with a capital and has at most 4 words and no digits, URL or @, so "8 - 10 người" stays text.
+const DASH_LABEL=/^\s*(\p{Lu}[^\-–—:\n]{0,29}?)\s+[-–—]\s+(.+)$/u;
+const dashLabelOf=(line:string)=>{const m=line.match(DASH_LABEL);return m&&m[1].split(/\s+/).length<=4&&!/\d|www\.|@/i.test(m[1])?{name:m[1],rest:m[2]}:null;};
 // A line starting with [P1] (any case, spaces allowed inside) starts a chapter; the rest of the line is ordinary script text.
 const CHAPTER=/^\s*\[\s*P(\d+)\s*\](.*)$/i;
 const labelOf=(line:string)=>{const m=line.match(LABEL),name=(m?.[1]??m?.[2])?.trim();if(!m||!name||name.length>30)return null;if(!/\d|www\.|@/i.test(name))return {name,rest:m[3]};return OWN_LABEL.test(line.normalize('NFC'))?{name:name.normalize('NFC'),rest:m[3]}:null;};
 /** Script chunks of pasted text. With at least two labelled lines each label starts a block (continuing until the next label) spoken by that name; otherwise one speaker reads everything, so a lone "Lưu ý:" stays text. */
-export function scriptChunks(text:string):{speaker:string;text:string;chapter?:string}[]{
+export function scriptChunks(text:string,{dash=false}:{dash?:boolean}={}):{speaker:string;text:string;chapter?:string}[]{
  const lines=text.split(/\r?\n/).filter(l=>!SCENE_BREAK.test(l)).map(raw=>{
   // "[P1] text" or "[P1]: text", or the marker right after a speaker label: "Lan: [P1] text"
-  const m=raw.match(CHAPTER);let line=m?m[2].replace(/^\s*[:：]/,'').trim():raw,label=labelOf(line),chapter=m?`P${m[1]}`:undefined;
+  const m=raw.match(CHAPTER);let line=m?m[2].replace(/^\s*[:：]/,'').trim():raw,label=labelOf(line)??(dash?dashLabelOf(line):null),chapter=m?`P${m[1]}`:undefined;
   const after=!chapter&&label?label.rest.match(CHAPTER):null;
   if(after&&label){chapter=`P${after[1]}`;label={...label,rest:after[2].trim()};line=raw.replace(/\[\s*P\d+\s*\]\s*/i,'');}
   return {line,label,chapter};
@@ -193,6 +196,8 @@ export function scriptChunks(text:string):{speaker:string;text:string;chapter?:s
  let pending:string|undefined;// a marker with no text yet waits for the next chunk
  return blocks.flatMap(b=>{pending=b.chapter??pending;const texts=splitText(b.lines.join('\n'));if(!texts.length)return [];const chapter=pending;pending=undefined;return texts.map((text,i)=>({speaker:b.speaker,text,...(i===0&&chapter&&{chapter})}));});
 }
+/** A pasted cast: two or more lines in which, with dash labels on, someone other than the narrator speaks. */
+export const castLines=(text:string)=>text.trim().includes('\n')&&scriptChunks(text,{dash:true}).some(c=>c.speaker!=='Người dẫn');
 /** Chapter label of a segment ('' when it starts none). */
 export const chapterOf=(s:Segment)=>s.chapter?.trim()||'';
 /** Chapters of a script: a segment belongs to the nearest chapter start at or before it; segments before the first start form `P0`. Empty when no segment starts a chapter. */

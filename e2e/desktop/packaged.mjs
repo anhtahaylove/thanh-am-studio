@@ -293,7 +293,7 @@ try {
       await page.getByRole('navigation', {name: 'Điều hướng chính'}).getByRole('button').first().click();
       await page.getByRole('button', {name: 'Thêm nội dung', exact: true}).click();
       await page.getByRole('textbox', {name: 'Nội dung cần thêm'}).fill(fixture);
-      await page.getByRole('button', {name: 'Thêm vào kịch bản'}).click();
+      await page.getByRole('button', {name: /^Thêm \d+ đoạn vào kịch bản$/}).click();
       await page.getByRole('textbox', {name: 'Nội dung đoạn 2'}).waitFor();
       await page.waitForTimeout(1500); // autosave
       const t = Date.now();
@@ -755,7 +755,7 @@ try {
       await newProject('Chương');
       await page.getByRole('button', {name: 'Thêm nội dung', exact: true}).click();
       await page.getByRole('textbox', {name: 'Nội dung cần thêm'}).fill('[P1]\nMột hai ba bốn năm.\nSáu bảy tám chín mười.\n[P2] Hết chương một, sang chương hai.');
-      await page.getByRole('button', {name: 'Thêm vào kịch bản'}).click();
+      await page.getByRole('button', {name: /^Thêm \d+ đoạn vào kịch bản$/}).click();
       await page.getByRole('textbox', {name: 'Nội dung đoạn 3'}).waitFor();
       await page.waitForTimeout(1500); // autosave
       const tts = await done('tts');
@@ -1084,7 +1084,7 @@ try {
       await page.getByRole('navigation', {name: 'Điều hướng chính'}).getByRole('button').first().click();
       await page.getByRole('button', {name: 'Thêm nội dung', exact: true}).click();
       await page.getByRole('textbox', {name: 'Nội dung cần thêm'}).fill(fixture);
-      await page.getByRole('button', {name: 'Thêm vào kịch bản'}).click();
+      await page.getByRole('button', {name: /^Thêm \d+ đoạn vào kịch bản$/}).click();
       await page.getByRole('textbox', {name: 'Nội dung đoạn 2'}).waitFor();
       await page.waitForTimeout(1500); // autosave
       const before = await done('tts');

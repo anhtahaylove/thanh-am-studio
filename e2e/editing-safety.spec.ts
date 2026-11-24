@@ -27,7 +27,7 @@ test('Ctrl+S in a number field saves what is typed there',async({page})=>{
  await expect.poll(()=>page.evaluate(k=>JSON.parse(localStorage.getItem(k)!)[0].segments[0].gap_ms,KEY),{timeout:2000}).toBe(777);await expect(gap).toHaveValue('777');
 });
 test('moving focus into a segment selects it, so the inspector follows the keyboard',async({page})=>{
- await page.goto('/');await page.getByRole('button',{name:'Thêm nội dung',exact:true}).click();await page.getByRole('textbox',{name:'Nội dung cần thêm'}).fill('Một.\nHai.\nBa.');await page.getByRole('button',{name:'Thêm vào kịch bản'}).click();
+ await page.goto('/');await page.getByRole('button',{name:'Thêm nội dung',exact:true}).click();await page.getByRole('textbox',{name:'Nội dung cần thêm'}).fill('Một.\nHai.\nBa.');await page.getByRole('button',{name:/^Thêm \d+ đoạn vào kịch bản$/}).click();
  const segments=page.locator('article.segment');await page.getByRole('textbox',{name:'Nội dung đoạn 2'}).click();await expect(segments.nth(1)).toHaveClass(/selected/);
  await page.getByRole('textbox',{name:'Nội dung đoạn 3'}).focus();await expect(segments.nth(2)).toHaveClass(/selected/);await expect(segments.nth(1)).not.toHaveClass(/selected/);
  // A mouse click on a button of another segment must still act: selecting on mouse focus would move the emotion bar under the pointer.

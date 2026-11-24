@@ -24,7 +24,7 @@ const calls=(page:any,cmd:string)=>page.evaluate((c:string)=>(window as any).__c
 
 test('a script with [P1] and [P2] lines shows one chip per chapter, never speaks the marker, and the Chương field edits it',async({page})=>{
  await page.goto('/');await page.getByRole('button',{name:'Thêm nội dung',exact:true}).click();
- await page.getByRole('textbox',{name:'Nội dung cần thêm'}).fill('[P1] Mở đầu.\nMột câu nữa.\n[ p2 ]\nChương hai.');await page.getByRole('button',{name:'Thêm vào kịch bản'}).click();
+ await page.getByRole('textbox',{name:'Nội dung cần thêm'}).fill('[P1] Mở đầu.\nMột câu nữa.\n[ p2 ]\nChương hai.');await page.getByRole('button',{name:/^Thêm \d+ đoạn vào kịch bản$/}).click();
  await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toHaveValue('Mở đầu.');await expect(page.getByRole('textbox',{name:'Nội dung đoạn 3'})).toHaveValue('Chương hai.');
  await expect(page.locator('.chapter-chip')).toHaveText(['P1','P2']);
  await expect(page.getByRole('textbox',{name:'Chương',exact:true})).toHaveValue('P1');
