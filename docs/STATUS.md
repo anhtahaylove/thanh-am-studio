@@ -1001,6 +1001,30 @@ An interface release with four UI big bets. Test infrastructure: the payload sna
 
 Evidence: `work\release-v1.0.22-sandbox` (`out1022r1`, `out1022r2`, `run1022.log`) and the published v1.0.22 release notes.
 
+### Unicode paths (round 1.0.23, E1; 2026-11-24)
+
+Question: can the install folder `%LOCALAPPDATA%\Thanh Âm Studio`, or a Windows profile named with Vietnamese letters (which puts the
+data folder, with its models, jobs and assets, under that name), break a component that opens files through a narrow (ANSI) API?
+"Â" is in cp1252 and cp1258, and every release gate already installs into that folder. Letters such as "ễ" or "ử", and CJK, are in
+neither code page. Answer: no component failed, and no fix was needed.
+
+| Check | Result |
+|---|---|
+| Static audit at `777b88d` | Every path that reaches C/C++ or a child process is wide or UTF-8-safe; none is ANSI-only. CTranslate2 4.8.5 (native worker and the Python wheel) opens model files through `src/filesystem.cc`, which converts UTF-8 to wide. FFmpeg (PyAV decode in both workers, the ffmpeg child) opens files through `libavutil/file_open.c` `win32_open` (UTF-8 to wide) and reads its command line with `GetCommandLineW`. libsndfile is opened with `sf_wchar_open` (native worker; soundfile on win32). cffi and every native DLL load use `LoadLibraryExW`. The ONNX Runtime C API takes `wchar_t` paths. sherpa-onnx 2.0.1 converts model paths with `ToWideString` (`SHERPA_ONNX_TO_ORT_PATH`, `GetFileAttributesW`). SQLite gets UTF-8 through rusqlite. The worker, Explorer and updater starts use wide Windows APIs. The NSIS script is `Unicode true` |
+| Worker level, host (ACP 1252), published 1.0.22 build | 12/12 jobs PASS with the app, models, inputs, outputs, TEMP and USERPROFILE in a folder named `Thử nghiệm ễ 中文`: native health, preset TTS, cloned TTS from a reference with a Vietnamese and CJK file name, clone preview, render (ffmpeg child), Whisper Small STT with diarization (8 rows, 2 speakers); Python Whisper Small STT with diarization (same 8 rows and 2 speakers), Python health, Python TTS with the Whisper self-check (WER 0.032); the separation pack's health and a separation to FLAC. Every `worker.log` was empty. Control: `GetFileAttributesW` finds the folder, `GetFileAttributesA` does not, with either the ACP or the UTF-8 bytes. With `THANHAM_TTS_SEED` and the same output name, native and Python TTS gave byte-identical WAVs in the non-ANSI folder and in an ASCII one (all four SHA-256 `44875e15…`). The probe's own summary has a wrong `ansi_found: true`: its ctypes call read `INVALID_FILE_ATTRIBUTES` as a signed -1. The corrected control was rerun separately (`seeded-check.json`) |
+| Packaged app, clean Sandbox (ACP 1252), published 1.0.22 installer | The Local AppData known folder was redirected to `C:\Users\Nguyễn Văn An 中文\AppData\Local` (a new process resolved it there), then `sandbox-run.ps1 -Only full` ran. The installer put the app in `C:\Users\Nguyễn Văn An 中文\AppData\Local\Thanh Âm Studio`, and the app kept its whole data folder under that name: SQLite, models, jobs, assets and EBWebView. The default profile got neither folder. `full`: 15 PASS, 0 FAIL: launch, bundled runtime health, model download via the UI, TTS, "takes visible and preview plays" (playback through the `asset:` protocol), regenerate, WAV render through the Save dialog, STT and apply, SRT, M4A/FLAC/Opus renders checked with ffprobe, STT of the M4A, shipped bytecode unchanged. All 11 jobs (TTS, STT, render, model download) succeeded on the native worker with no fallback. TEMP stayed the default. In the first attempt, TEMP was also redirected and only the harness failed: `e2e/desktop/file-dialog.ps1` compiles C# with Windows PowerShell's `Add-Type`, and its csc cannot write under a non-ANSI TEMP ("The directory name is invalid"; reproduced on the host). The app itself does not use PowerShell or `Add-Type` |
+| CI | The worker-rs job builds its ORT venv in a folder named outside cp1252 and cp1258, and runs `cargo test` with TEMP and TMP there. So `crates/ortffi/tests/errors.rs` `a_non_ascii_model_path_loads`, the sherpa-onnx DLL load and the diarization child test run through non-ANSI paths on every pull request (2 min 39 s, as before) |
+
+Evidence: `work\round-1.0.23\e1` with the round's work files (`probe\`: the scripts, `summary-20261124-104327.json`,
+`seeded-check.json`, each job's request, events and log; `sandbox\`: the runner, its in-Sandbox script and the run's logs) and pull
+request #217.
+
+Known, LOW: the Python diarization child runs with `-I`, so not in UTF-8 mode. If it fails, a Vietnamese path inside its error text can
+come out garbled in the job message. Paths reach it ASCII-escaped (JSON), so its data is not affected.
+
+Not verified: a non-Latin system locale (for example ACP 936), the "UTF-8 for worldwide language support" setting, and a profile
+created under a Vietnamese user name (the Sandbox redirects the Local AppData known folder instead).
+
 ## Not verified / known gaps
 
 - Self-update through GitHub was observed twice, in clean Sandboxes (1.0.11 to 1.0.12 and 1.0.13 to 1.0.15, above); the per-release gate
