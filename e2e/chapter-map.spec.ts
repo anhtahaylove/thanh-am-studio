@@ -77,6 +77,9 @@ test('typing in a segment does not re-render the map; moving the selection to an
  expect(await page.evaluate(()=>(window as any).__map),'map renders while typing').toBe(0);
  await page.getByRole('textbox',{name:'Nội dung đoạn 15',exact:true}).click();
  await expect(buttons(page).nth(2)).toHaveAttribute('aria-current','true');
+ // The tab stop follows the selection without the map being focused first.
+ await expect(buttons(page).nth(2)).toHaveAttribute('tabindex','0');
+ for(const i of [0,1,3])await expect(buttons(page).nth(i)).toHaveAttribute('tabindex','-1');
  expect(await page.evaluate(()=>(window as any).__map),'the counter works: a new selected chapter re-renders the map').toBeGreaterThan(0);
 });
 
@@ -104,8 +107,17 @@ test('at 800 px, where the selected segment carries its panel inside its row, a 
  await expect(page.locator('.segment-detail')).toHaveCount(1);
 });
 
-for(const [width,height] of [[1024,720],[1440,960]])test(`twelve chapters scroll inside the map, never the page, at ${width}x${height}`,async({page})=>{
+// At 920 px and below the studio grid is one column; the panel must not grow to the toolbar's width (min-width:0), so the toolbar scrolls inside itself and every button can be reached.
+for(const [width,height] of [[1440,960],[1024,720],[800,720],[441,320]])test(`twelve chapters scroll inside the map, never the page, at ${width}x${height}`,async({page})=>{
  await open(page,{width,height,chapters:[1,3,5,7,9,11,13,15,17,19,21,23]});
  await expect(buttons(page)).toHaveCount(12);
- expect(await page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+ const over=()=>page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth);
+ expect(await over(),'page scrolls sideways').toBeLessThanOrEqual(0);
+ const bar=page.getByRole('toolbar',{name:'Chương'});
+ if(width<=1024)expect(await bar.evaluate(e=>e.scrollWidth>e.clientWidth),'the toolbar scrolls inside itself').toBe(true);
+ await buttons(page).first().focus();await page.keyboard.press('End');
+ await expect(buttons(page).last()).toBeFocused();
+ const [b,t]=[await box(buttons(page).last()),await box(bar)];
+ expect(b.x+b.width,'the last button is inside the toolbar').toBeLessThanOrEqual(t.x+t.width+1);expect(b.x).toBeGreaterThanOrEqual(t.x-1);
+ expect(await over(),'page scrolls sideways after reaching the last button').toBeLessThanOrEqual(0);
 });
