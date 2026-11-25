@@ -43,8 +43,11 @@ const waitJobs = async (kind, count, timeoutMs) => {
 async function launch() {
   const started = Date.now();
   // The app is single-instance: a launch next to a running one exits at once, so the old one must be gone and its CDP port released first.
-  try { execFileSync('taskkill', ['/IM', 'thanh-am-studio.exe', '/F'], {stdio: 'ignore'}); } catch {}
-  for (let i = 0; i < 40; i++) { try { await fetch('http://127.0.0.1:9222/json/version'); await new Promise((r) => setTimeout(r, 500)); } catch { break; } }
+  // Only Windows Sandbox kills it, so a developer's running app is never killed; elsewhere a held port is an error.
+  const held = () => fetch('http://127.0.0.1:9222/json/version', {signal: AbortSignal.timeout(2000)}).then(() => true, () => false);
+  if (process.env.USERNAME === 'WDAGUtilityAccount') try { execFileSync('taskkill', ['/IM', 'thanh-am-studio.exe', '/T', '/F'], {stdio: 'ignore'}); } catch {}
+  for (let i = 0; i < 40 && await held(); i++) await new Promise((r) => setTimeout(r, 500));
+  if (await held()) throw Error('port 9222 still held; another Thanh Âm Studio instance is running');
   app = spawn(exe, [], {env: {...process.env, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: '--remote-debugging-port=9222', THANHAM_E2E_CDP_PORT: '9222'}, stdio: 'ignore'});
   let browser;
   for (let i = 0; i < 120 && !browser; i++) { try { browser = await chromium.connectOverCDP('http://127.0.0.1:9222'); } catch { await new Promise((r) => setTimeout(r, 500)); } }
