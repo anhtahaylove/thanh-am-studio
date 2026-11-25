@@ -1,5 +1,5 @@
 import {useCallback,useEffect,useId,useLayoutEffect,useMemo,useRef,useState,useSyncExternalStore} from 'react';
-import type {LucideIcon} from 'lucide-react';
+import {LoaderCircle,type LucideIcon} from 'lucide-react';
 import {desktop} from './bridge';
 import type {Segment} from './types';
 
@@ -58,3 +58,22 @@ export function useMediaQuery(query:string,beforeChange?:()=>void){
 }
 // The width at and below which the selected segment's panel sits inside its row; it must equal the query App passes to useMediaQuery for that panel.
 export const NARROW='(max-width:920px)';
+/** The "Đang thực hiện…" indicator, fixed at the bottom right. It sits 10 px above the audio dock whenever the dock is on screen (sticky in the window, or in the page flow in a short one), else 20 px from the bottom. `bottom` is written straight to the element, not through React state: one frame-batched pass runs on scroll, window resize and any size change of the page or of the dock, which is found again on every pass because it comes and goes with the page. */
+export function BusyIndicator(){
+ const ref=useRef<HTMLDivElement>(null);
+ useEffect(()=>{
+  const el=ref.current!;let frame=0,dock:Element|null=null;
+  const place=()=>{
+   frame=0;const d=document.getElementById('audio-dock');
+   if(d!==dock){if(dock)ro.unobserve(dock);if(d)ro.observe(d);dock=d;}
+   const r=d?.getBoundingClientRect();
+   el.style.bottom=`${r&&r.top<innerHeight&&r.bottom>0?Math.max(20,innerHeight-r.top+10):20}px`;
+  };
+  const queue=()=>{if(!frame)frame=requestAnimationFrame(place);};
+  const ro=new ResizeObserver(queue);
+  ro.observe(document.documentElement);place();
+  addEventListener('scroll',queue,{passive:true,capture:true});addEventListener('resize',queue);
+  return()=>{cancelAnimationFrame(frame);ro.disconnect();removeEventListener('scroll',queue,{capture:true});removeEventListener('resize',queue);};
+ },[]);
+ return <div ref={ref} className="busy-indicator" role="status"><LoaderCircle className="spin" size={16}/>Đang thực hiện…</div>;
+}
