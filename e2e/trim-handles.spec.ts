@@ -9,7 +9,7 @@ const mock=()=>{
  const w=window as any;w.isTauri=true;w.__calls=[];w.__ctx=0;w.__decodes=0;
  const Ctx=window.AudioContext;(window as any).AudioContext=class extends Ctx{constructor(o?:AudioContextOptions){super(o);w.__ctx++;}};
  const decode=BaseAudioContext.prototype.decodeAudioData;BaseAudioContext.prototype.decodeAudioData=function(this:BaseAudioContext,...a:any[]){w.__decodes++;return (decode as any).apply(this,a);};
- const take=(id:string)=>({id,asset_id:'a'+id,path:`/${w.__shared&&id==='s2'?'s1':id}.wav`,duration_ms:4000,sample_rate:8000,created_at:'2026-11-23T00:00:00Z'});
+ const take=(id:string)=>({id,asset_id:'a'+id,path:`/${w.__shared&&id==='s2'?'s1':id}.wav`,duration_ms:w.__duration??4000,sample_rate:8000,created_at:'2026-11-23T00:00:00Z'});
  const seg=(n:number,takes:any[],trim:[number,number|null])=>({id:'s'+n,text:`Câu số ${n}.`,normalized_text:`Câu số ${n}.`,voice_id:null,speaker:'Người dẫn',gap_ms:300,takes,selected_take_id:takes[0].id,trim_start_ms:trim[0],trim_end_ms:trim[1],fade_in_ms:0,fade_out_ms:0,gain_db:0});
  let project:any={id:'p1',name:'Cắt take',updated_at:'2026-11-23T00:00:00Z',revision:1,transcript:[],dictionary:{},source_asset_id:null,segments:[seg(1,[take('s1'),take('s1b')],[500,3500]),...[2,3,4,5,6].map(n=>seg(n,[take('s'+n)],[0,null]))]};
  const ipc=(v:unknown)=>JSON.parse(JSON.stringify(v));
@@ -202,6 +202,26 @@ test('a stored end past the take end keeps the handle inside the waveform and of
  expect(await page.evaluate(([x,y])=>document.elementFromPoint(x,y)?.closest('select')?.getAttribute('aria-label')??null,[s.x+s.width/2,s.y+s.height/2])).toBe('Định dạng audio');
  await select.click({trial:true,timeout:3000});
  await expect(f).toHaveValue('4600'); // stored as typed
+});
+
+test('arrow keys on a stored trim past the take step from the edge the handle shows, not from the stored value',async({page})=>{
+ await open(page);
+ const startField=field(page,'Cắt đầu (ms)'),start=slider(page,'Cắt đầu');await startField.fill('4600');await startField.press('Enter');
+ await expect(start).toHaveAttribute('aria-valuenow','3450'); // the end is 3500, so the start stops 50 ms before it
+ await start.focus();await page.keyboard.press('ArrowLeft');
+ await expect(start).toHaveAttribute('aria-valuenow','3440');await expect(startField).toHaveValue('3440');
+ const endField=field(page,'Cắt cuối (ms)'),end=slider(page,'Cắt cuối');await endField.fill('4600');await endField.press('Enter');
+ await expect(end).toHaveAttribute('aria-valuenow','4000');
+ await end.focus();await page.keyboard.press('ArrowLeft');
+ await expect(end).toHaveAttribute('aria-valuenow','3990');await expect(endField).toHaveValue('3990');
+});
+
+test('a take whose length is 0 shows the bars without handles',async({page})=>{
+ await page.addInitScript(()=>{(window as any).__duration=0;}); // runs before the mock, which reads it
+ await open(page);
+ await expect(page.locator('.waveform i').first()).toBeVisible();
+ await expect(page.getByRole('slider')).toHaveCount(0);await expect(page.getByRole('group',{name:'Cắt take trên dạng sóng'})).toHaveCount(0);
+ await expect(page.getByRole('img',{name:'Dạng sóng âm thanh'})).toBeVisible();
 });
 
 test('the digit keys do not audition a take while a handle has focus',async({page})=>{
