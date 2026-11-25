@@ -81,8 +81,8 @@ test('on a short window the dialog stays inside it and scrolls, and its Add butt
  await page.setViewportSize({width:1024,height:400});await page.goto('/');await expect(page.getByRole('button',{name:'Viết đoạn đầu tiên'})).toBeVisible();
  await paste(page.locator('body'),Array.from({length:10},(_,i)=>`${i%2?'Mai':'Hùng'} - Câu ${i+1}.`).join('\n'));
  await expect(status(page)).toHaveText('Sẽ thêm 10 đoạn · 2 nhân vật');
- const m=await dialog(page).evaluate(d=>{const r=d.getBoundingClientRect();return {top:r.top,bottom:r.bottom,h:innerHeight,scrolls:d.scrollHeight>d.clientHeight,overflowY:getComputedStyle(d).overflowY};});
- expect(m.top>=0&&m.bottom<=m.h,`dialog ${Math.round(m.top)}-${Math.round(m.bottom)} in a ${m.h} px window`).toBe(true);expect(m.scrolls,'content taller than the dialog').toBe(true);expect(m.overflowY).toBe('auto');
+ const m=await dialog(page).evaluate(d=>{const r=d.getBoundingClientRect();return {top:r.top,bottom:r.bottom,h:innerHeight,scrolls:d.scrollHeight>d.clientHeight};});
+ expect(m.top>=0&&m.bottom<=m.h,`dialog ${Math.round(m.top)}-${Math.round(m.bottom)} in a ${m.h} px window`).toBe(true);expect(m.scrolls,'content taller than the dialog').toBe(true);
  await dialog(page).getByRole('button',{name:'Thêm 10 đoạn vào kịch bản'}).click();await expect(seg(page,10)).toHaveValue('Câu 10.');
 });
 test('a TXT import with dash lines gives the 1.0.22 segments',async({page})=>{

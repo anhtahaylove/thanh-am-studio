@@ -4,7 +4,7 @@ import {test,expect,type Page} from '@playwright/test';
 type Setup={text?:string;sent?:string|null;heard?:string;mismatches?:{expected:string;heard:string;soft:boolean}[];dictionary?:Record<string,string>;appDictionary?:Record<string,string>;model?:boolean;twoSegments?:boolean;noCheck?:boolean};
 const wav=()=>{const rate=8000,n=rate,b=Buffer.alloc(44+n*2);b.write('RIFF',0);b.writeUInt32LE(36+n*2,4);b.write('WAVEfmt ',8);b.writeUInt32LE(16,16);b.writeUInt16LE(1,20);b.writeUInt16LE(1,22);b.writeUInt32LE(rate,24);b.writeUInt32LE(rate*2,28);b.writeUInt16LE(2,32);b.writeUInt16LE(16,34);b.write('data',36);b.writeUInt32LE(n*2,40);for(let i=0;i<n;i++)b.writeInt16LE(Math.round(Math.sin(i/rate*2*Math.PI*440)*3000),44+i*2);return b;};
 const mock=(o:Required<Setup>)=>{
- const w=window as any,calls:any[]=[];w.isTauri=true;w.__calls=calls;
+ const w=window as any,calls:any[]=[];w.isTauri=true;w.__calls=calls;w.__TAURI_EVENT_PLUGIN_INTERNALS__={unregisterListener:()=>{}};
  const words=o.heard.split(/\s+/).filter(Boolean).map((text,i)=>({text,start_ms:i*300}));
  const take={id:'t1',asset_id:'a1',path:'/t1.wav',duration_ms:1000,sample_rate:8000,created_at:'2026-11-22T00:00:00Z',...(o.noCheck?{}:{check:{model:'whisper-small',wer:.2,heard:o.heard,mismatches:o.mismatches,words}})};
  const seg=(id:string,text:string,takes:any[])=>({id,text,normalized_text:text,voice_id:null,speaker:'Người dẫn',gap_ms:300,takes,selected_take_id:takes[0]?.id??null,trim_start_ms:0,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0,gain_db:0});
@@ -188,16 +188,18 @@ test('an inherited object key such as "constructor" is not an existing entry: no
  await addBtn(page).click();await expect(dialog(page).getByRole('status')).toContainText('Đã thêm');
 });
 test('an entry only in the app dictionary is not a project entry: no replace hint, "Đã thêm", and the project dictionary gets the new reading',async({page})=>{
+ const errors:string[]=[];page.on('pageerror',e=>errors.push(String(e)));
  await open(page,{appDictionary:{'Ký':'Kê'}});await chip(page).click();await valueBox(page).fill('Kí');
  await expect(form(page)).not.toContainText('Thay mục hiện có');expect(await addBtn(page).getAttribute('aria-describedby')??'').not.toContain('diff-replace-0');
  await addBtn(page).click();await expect(dialog(page).getByRole('status')).toContainText('Đã thêm');
- await page.keyboard.press('Escape');expect(await projectDictionary(page)).toEqual(['Ký → Kí']);
+ await page.keyboard.press('Escape');expect(await projectDictionary(page)).toEqual(['Ký → Kí']);expect(errors).toEqual([]);
 });
 test('the key "__proto__" is a plain key: no replace hint, "Đã thêm", and the entry is kept in the project dictionary',async({page})=>{
+ const errors:string[]=[];page.on('pageerror',e=>errors.push(String(e)));
  await open(page,{text:'Ký __proto__ vào đây.',sent:'Ký __proto__ vào đây.',heard:'kí __proto__ vào đây'});await chip(page).click();await keyBox(page).fill('__proto__');await valueBox(page).fill('prô-tô');
  await expect(form(page)).not.toContainText('Thay mục hiện có');expect(await addBtn(page).getAttribute('aria-describedby')??'').not.toContain('diff-replace-0');
  await addBtn(page).click();await expect(dialog(page).getByRole('status')).toContainText('Đã thêm');
- await page.keyboard.press('Escape');expect(await projectDictionary(page)).toEqual(['__proto__ → prô-tô']);
+ await page.keyboard.press('Escape');expect(await projectDictionary(page)).toEqual(['__proto__ → prô-tô']);expect(errors).toEqual([]);
 });
 
 test('focus returns to the chip after an add, with Escape and with Đóng',async({page})=>{

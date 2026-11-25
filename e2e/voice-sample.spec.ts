@@ -139,7 +139,7 @@ test('when no asset of the sample can be found, the error says so in Vietnamese,
 const afterLookup=async(page:Page,id:string)=>{await expect.poll(()=>resolved(page)).toEqual([id]);await page.evaluate(()=>new Promise<void>(r=>requestAnimationFrame(()=>requestAnimationFrame(()=>r()))));};
 
 test('a sample stopped while its asset is still being looked up plays nothing when the lookup ends',async({page})=>{
- await open(page,{slow:600});
+ await open(page,{slow:1500});
  const button=sampleButton(page,'Bà Tư');
  await button.click();await expect(button).toHaveAccessibleName('Dừng mẫu giọng của Bà Tư');expect(await resolved(page)).toEqual([]);
  await button.click();await expect(button).toHaveAccessibleName('Nghe mẫu giọng của Bà Tư');
@@ -148,7 +148,7 @@ test('a sample stopped while its asset is still being looked up plays nothing wh
 });
 
 test('a sample still being looked up when the dock starts plays nothing, and the dock keeps playing',async({page})=>{
- await open(page,{slow:600});
+ await open(page,{slow:1500});
  const button=sampleButton(page,'Bà Tư'),dock=page.locator('.play-button');
  await button.click();await expect(button).toHaveAccessibleName('Dừng mẫu giọng của Bà Tư');expect(await resolved(page)).toEqual([]);
  await page.getByRole('heading',{level:1}).click();await page.keyboard.press('Space');
