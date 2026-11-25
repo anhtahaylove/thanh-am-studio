@@ -32,7 +32,7 @@ export async function takePeaks(path:string):Promise<number[]>{
 }
 /** A trim edge moved to `ms`: kept inside the take, with the fades plus 50 ms between the edges (the store and validateRecipe reject less); an end at the take's end is stored as null. A take without a usable length, or an `ms` that is NaN, changes nothing. */
 export function clampTrim(segment:Pick<Segment,'trim_start_ms'|'trim_end_ms'|'fade_in_ms'|'fade_out_ms'>,take:Pick<Take,'duration_ms'>,which:'start'|'end',ms:number):Pick<Partial<Segment>,'trim_start_ms'|'trim_end_ms'>{
- if(!(take.duration_ms>0)||Number.isNaN(ms))return {};
+ if(!(take.duration_ms>=0)||Number.isNaN(ms))return {};
  const min=segment.fade_in_ms+segment.fade_out_ms+50,end=segment.trim_end_ms??take.duration_ms;
  if(which==='start')return {trim_start_ms:Math.round(Math.max(0,Math.min(ms,end-min)))};
  const at=Math.round(Math.min(take.duration_ms,Math.max(ms,segment.trim_start_ms+min)));return {trim_end_ms:at>=take.duration_ms?null:at};
