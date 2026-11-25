@@ -74,6 +74,10 @@ impl Store {
   let n=db.execute("UPDATE projects SET name=?1,revision=?2,updated_at=?3,data=?4 WHERE id=?5 AND revision=?6",params![name,revision+1,p["updated_at"].as_str(),p.to_string(),id,revision]).map_err(err)?;
   if n!=1{return Err("REVISION_CONFLICT: Dự án đã thay đổi. Hãy tải lại trước khi lưu.".into())} Ok(p)
  }
+ // Placeholders: the first commit of this change carries only the tests, which fail against them.
+ pub fn list_versions(&self,_project_id:&str)->Result<Vec<Value>>{Err("NOT_IMPLEMENTED".into())}
+ pub fn restore_version(&self,_project_id:&str,_version_id:&str,_revision:i64)->Result<Value>{Err("NOT_IMPLEMENTED".into())}
+ pub fn diagnostics(&self)->Result<String>{Err("NOT_IMPLEMENTED".into())}
  /// Refused while the project has queued or running jobs. Its failed, cancelled and interrupted jobs (no output) go with it,
  /// and so do its succeeded tts jobs (each only fed a take of this project). Other succeeded ones stay: other projects find
  /// separation stems by asset id, renders are saved from the queue, and a transcript can be applied to another project.

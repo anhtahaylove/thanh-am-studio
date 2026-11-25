@@ -354,3 +354,381 @@ fn save_and_load_keep_the_client_speaker_slots() {
     assert_eq!(saved["speaker_slots"], json!({"Lan":0,"Minh":3}));
     assert_eq!(s.load_project(saved["id"].as_str().unwrap()).unwrap(), saved);
 }
+
+// ---- Project version history (schema v2). A second `rusqlite::Connection` reads and edits the file the store has open. ----
+
+const V1_BATCH: &str = "PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
+   CREATE TABLE IF NOT EXISTS projects(id TEXT PRIMARY KEY, name TEXT NOT NULL, revision INTEGER NOT NULL, updated_at TEXT NOT NULL, data TEXT NOT NULL);
+   CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY, kind TEXT NOT NULL, project_id TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL, data TEXT NOT NULL);
+   CREATE INDEX IF NOT EXISTS jobs_status ON jobs(status, created_at);
+   CREATE TABLE IF NOT EXISTS assets(id TEXT PRIMARY KEY, data TEXT NOT NULL);
+   CREATE TABLE IF NOT EXISTS voices(id TEXT PRIMARY KEY, data TEXT NOT NULL);
+   CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, data TEXT NOT NULL);
+   PRAGMA user_version=1;";
+
+fn db(dir: &std::path::Path) -> rusqlite::Connection { rusqlite::Connection::open(dir.join("studio.sqlite3")).unwrap() }
+fn count(dir: &std::path::Path, sql: &str) -> i64 { db(dir).query_row(sql, [], |r| r.get(0)).unwrap() }
+fn versions_of(dir: &std::path::Path) -> i64 { count(dir, "SELECT count(*) FROM project_versions") }
+/// Makes every stored version old, in write order, so the next save finds the ten-minute throttle over.
+fn age_versions(dir: &std::path::Path) {
+    db(dir).execute("UPDATE project_versions SET created_at=printf('2020-01-01T%02d:%02d:00.000000000+00:00',rowid/60,rowid%60)", []).unwrap();
+}
+fn pid(p: &serde_json::Value) -> String { p["id"].as_str().unwrap().to_owned() }
+fn seg(id: &str, text: &str) -> serde_json::Value { json!({"id":id,"text":text,"takes":[],"selected_take_id":null}) }
+/// A non-empty project at revision 1 (the stored state before this save was empty, so it has no version).
+fn project(s: &Store) -> serde_json::Value {
+    let mut p = s.create_project("Dự án").unwrap();
+    p["segments"] = json!([seg("one", "Xin chào"), seg("two", "Tạm biệt")]);
+    s.save_project(p).unwrap()
+}
+fn edit(s: &Store, mut p: serde_json::Value, text: &str) -> serde_json::Value {
+    p["segments"][0]["text"] = json!(text);
+    s.save_project(p).unwrap()
+}
+fn land_take(s: &Store, project_id: &str, segment: &str, asset: &str) {
+    s.enqueue("tts", Some(project_id), json!({"segment_id":segment,"text":"x"})).unwrap();
+    let job = s.claim_next().unwrap().unwrap();
+    s.finish(job["id"].as_str().unwrap(), json!({"asset_id":asset,"path":"x.wav","duration_ms":10,"sample_rate":48000})).unwrap();
+}
+fn take_ids(p: &serde_json::Value, segment: usize) -> Vec<String> {
+    let mut ids: Vec<String> = p["segments"][segment]["takes"].as_array().unwrap().iter().map(|t| t["id"].as_str().unwrap().to_owned()).collect();
+    ids.sort();
+    ids
+}
+
+#[test]
+fn a_1_0_23_database_gains_the_versions_table_and_user_version_2_with_its_project_untouched() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = r#"{"id":"p1","name":"Cũ","revision":4,"updated_at":"2026-11-20T00:00:00Z","segments":[{"id":"a","text":"Chào","takes":[],"selected_take_id":null}],"transcript":[],"dictionary":{},"source_asset_id":null}"#;
+    {
+        let old = db(tmp.path());
+        old.execute_batch(V1_BATCH).unwrap();
+        old.execute("INSERT INTO projects VALUES('p1','Cũ',4,'2026-11-20T00:00:00Z',?1)", [data]).unwrap();
+    }
+    let s = Store::open(tmp.path()).unwrap();
+    let d = db(tmp.path());
+    assert_eq!(d.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)).unwrap(), 2);
+    assert_eq!(count(tmp.path(), "SELECT count(*) FROM sqlite_master WHERE name IN ('project_versions','project_versions_by_project')"), 2);
+    assert_eq!(d.query_row("SELECT data FROM projects WHERE id='p1'", [], |r| r.get::<_, String>(0)).unwrap(), data);
+    assert_eq!(s.load_project("p1").unwrap()["revision"], 4);
+    assert_eq!(s.list_versions("p1").unwrap().len(), 0);
+}
+
+#[test]
+fn opening_twice_keeps_the_version_schema_and_its_rows() {
+    let tmp = tempfile::tempdir().unwrap();
+    {
+        let s = Store::open(tmp.path()).unwrap();
+        let p = project(&s);
+        edit(&s, p, "Đã sửa");
+    }
+    let s = Store::open(tmp.path()).unwrap();
+    assert_eq!(db(tmp.path()).query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)).unwrap(), 2);
+    assert_eq!(versions_of(tmp.path()), 1);
+    drop(s);
+    assert!(Store::open(tmp.path()).is_ok());
+}
+
+#[test]
+fn the_first_save_of_a_non_empty_project_keeps_the_stored_state_as_an_auto_version() {
+    let tmp = tempfile::tempdir().unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    let p1 = project(&s);
+    assert_eq!(versions_of(tmp.path()), 0, "the stored state of the first save was empty");
+    edit(&s, p1.clone(), "Đã sửa");
+    let v = s.list_versions(&pid(&p1)).unwrap();
+    assert_eq!(v.len(), 1);
+    let chars = "Xin chào".chars().count() + "Tạm biệt".chars().count();
+    assert_eq!(
+        (&v[0]["reason"], &v[0]["revision"], &v[0]["state_at"], &v[0]["segments"], &v[0]["transcript"], &v[0]["chars"]),
+        (&json!("auto"), &json!(1), &p1["updated_at"], &json!(2), &json!(0), &json!(chars))
+    );
+    let (data, bytes): (Vec<u8>, i64) = db(tmp.path()).query_row("SELECT data,bytes FROM project_versions", [], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
+    assert_eq!(bytes as usize, data.len());
+    assert_eq!(v[0]["bytes"], bytes);
+    let stored: serde_json::Value = serde_json::from_slice(&miniz_oxide::inflate::decompress_to_vec_with_limit(&data, 1 << 28).unwrap()).unwrap();
+    assert_eq!(stored, p1, "the version is the stored JSON as it was before the save");
+}
+
+#[test]
+fn an_empty_project_never_gets_a_version() {
+    let tmp = tempfile::tempdir().unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    let mut p = s.create_project("Trống").unwrap();
+    for i in 0..3 {
+        p["dictionary"] = json!({"k": i.to_string()});
+        p = s.save_project(p).unwrap();
+        age_versions(tmp.path());
+    }
+    assert_eq!(versions_of(tmp.path()), 0);
+}
+
+#[test]
+fn a_second_save_within_ten_minutes_adds_no_version_but_a_stale_or_future_newest_one_does() {
+    let tmp = tempfile::tempdir().unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    let set = |t: chrono::DateTime<chrono::Utc>| db(tmp.path()).execute("UPDATE project_versions SET created_at=?1", [t.to_rfc3339()]).unwrap();
+    let mut p = edit(&s, project(&s), "a");
+    assert_eq!(versions_of(tmp.path()), 1);
+    p = edit(&s, p, "b");
+    assert_eq!(versions_of(tmp.path()), 1, "within ten minutes");
+    set(chrono::Utc::now() - chrono::Duration::minutes(9));
+    p = edit(&s, p, "c");
+    assert_eq!(versions_of(tmp.path()), 1, "nine minutes old is still fresh");
+    set(chrono::Utc::now() - chrono::Duration::minutes(11));
+    p = edit(&s, p, "d");
+    assert_eq!(versions_of(tmp.path()), 2, "eleven minutes old is stale");
+    set(chrono::Utc::now() + chrono::Duration::hours(1));
+    p = edit(&s, p, "e");
+    assert_eq!(versions_of(tmp.path()), 3, "a version dated in the future counts as stale");
+    edit(&s, p, "f");
+    assert_eq!(versions_of(tmp.path()), 3, "the version just written throttles again");
+}
+
+#[test]
+fn a_revision_conflict_writes_no_version() {
+    let tmp = tempfile::tempdir().unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    let p1 = project(&s);
+    let p2 = edit(&s, p1.clone(), "a");
+    age_versions(tmp.path());
+    assert_eq!(versions_of(tmp.path()), 1);
+    let mut stale = p1;
+    stale["segments"][0]["text"] = json!("zzz");
+    assert!(s.save_project(stale).unwrap_err().starts_with("REVISION_CONFLICT"));
+    assert_eq!(versions_of(tmp.path()), 1);
+    assert_eq!(s.load_project(&pid(&p2)).unwrap(), p2);
+}
+
+#[test]
+fn list_versions_is_newest_first_with_the_documented_fields_and_empty_for_an_unknown_project() {
+    let tmp = tempfile::tempdir().unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    let mut p = project(&s);
+    for _ in 0..2 {
+        p = edit(&s, p, "x");
+        age_versions(tmp.path());
+    }
+    edit(&s, p.clone(), "y");
+    let v = s.list_versions(&pid(&p)).unwrap();
+    assert_eq!(v.iter().map(|x| x["revision"].as_i64().unwrap()).collect::<Vec<_>>(), [3, 2, 1]);
+    let mut keys: Vec<&String> = v[0].as_object().unwrap().keys().collect();
+    keys.sort();
+    assert_eq!(keys, ["bytes", "chars", "created_at", "id", "project_id", "reason", "revision", "segments", "state_at", "transcript"]);
+    assert_eq!(s.list_versions("no-such-project").unwrap(), Vec::<serde_json::Value>::new());
+}
+
+#[test]
+fn thirty_one_versions_keep_the_newest_thirty() {
+    let tmp = tempfile::tempdir().unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    let mut p = project(&s);
+    for i in 0..31 {
+        p = edit(&s, p, &format!("v{i}"));
+        age_versions(tmp.path());
+    }
+    assert_eq!(versions_of(tmp.path()), 30);
+    assert_eq!(count(tmp.path(), "SELECT min(revision) FROM project_versions"), 2, "the oldest went first");
+}
+
+#[test]
+fn the_byte_cap_drops_the_oldest_versions_but_always_keeps_the_newest() {
+    let tmp = tempfile::tempdir().unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    let mut p = project(&s);
+    for i in 0..3 {
+        p = edit(&s, p, &format!("v{i}"));
+        age_versions(tmp.path());
+    }
+    assert_eq!(versions_of(tmp.path()), 3);
+    db(tmp.path()).execute("UPDATE project_versions SET bytes=20*1024*1024", []).unwrap();
+    p = edit(&s, p, "next");
+    assert_eq!(versions_of(tmp.path()), 2, "the new small version and one 20 MiB one fit in 32 MiB");
+    assert_eq!(count(tmp.path(), "SELECT min(revision) FROM project_versions"), 3);
+    db(tmp.path()).execute("UPDATE project_versions SET bytes=40*1024*1024", []).unwrap();
+    age_versions(tmp.path());
+    edit(&s, p, "last");
+    assert_eq!(versions_of(tmp.path()), 1, "older versions are dropped, the newest stays");
+}
+
+#[test]
+fn ten_restores_keep_five_before_restore_versions_and_every_auto_one() {
+    let tmp = tempfile::tempdir().unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    let mut p = project(&s);
+    let id = pid(&p);
+    for i in 0..3 {
+        p = edit(&s, p, &format!("v{i}"));
+        age_versions(tmp.path());
+    }
+    let autos: Vec<String> = s.list_versions(&id).unwrap().iter().map(|v| v["id"].as_str().unwrap().to_owned()).collect();
+    assert_eq!(autos.len(), 3);
+    for i in 0..10 {
+        p = s.restore_version(&id, &autos[i % 3], p["revision"].as_i64().unwrap()).unwrap();
+    }
+    assert_eq!(count(tmp.path(), "SELECT count(*) FROM project_versions WHERE reason='before_restore'"), 5);
+    assert_eq!(count(tmp.path(), "SELECT count(*) FROM project_versions WHERE reason='auto'"), 3);
+    let kept: Vec<String> = s.list_versions(&id).unwrap().iter().filter(|v| v["reason"] == "auto").map(|v| v["id"].as_str().unwrap().to_owned()).collect();
+    assert_eq!(kept.len(), 3);
+    assert!(autos.iter().all(|a| kept.contains(a)));
+}
+
+#[test]
+fn restore_brings_back_the_content_keeps_the_name_and_unseen_takes_and_records_before_restore() {
+    let tmp = tempfile::tempdir().unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    let mut p = s.create_project("A").unwrap();
+    let id = pid(&p);
+    p["segments"] = json!([{"id":"one","text":"v1","takes":[{"id":"t0","asset_id":"a0"}],"selected_take_id":"t0"},seg("two","hai")]);
+    p = s.save_project(p).unwrap();
+    p["segments"][0]["text"] = json!("v2");
+    p["transcript"] = json!([{"id":"r1","start_ms":0,"end_ms":500,"text":"Chào"}]);
+    s.save_project(p).unwrap();
+    let version_one = s.list_versions(&id).unwrap().remove(0);
+    assert_eq!(version_one["revision"], 1);
+    age_versions(tmp.path());
+    land_take(&s, &id, "one", "a1");
+    p = s.load_project(&id).unwrap();
+    p["name"] = json!("B");
+    s.save_project(p).unwrap();
+    land_take(&s, &id, "one", "a2");
+    let current = s.load_project(&id).unwrap();
+    assert_eq!((current["revision"].as_i64(), current["name"].as_str()), (Some(3), Some("B")));
+    let before_updated_at = current["updated_at"].clone();
+    let restored = s.restore_version(&id, version_one["id"].as_str().unwrap(), 3).unwrap();
+    assert_eq!(restored["revision"], 4);
+    assert_eq!(restored["name"], "B", "the name stays");
+    assert_eq!(restored["segments"][0]["text"], "v1");
+    assert_eq!(restored["transcript"], json!([]));
+    assert_eq!(take_ids(&current, 0).len(), 3);
+    assert_eq!(take_ids(&restored, 0), take_ids(&current, 0), "takes the version lacks are kept");
+    assert_eq!(s.load_project(&id).unwrap(), restored);
+    assert_eq!(db(tmp.path()).query_row("SELECT name FROM projects WHERE id=?1", [&id], |r| r.get::<_, String>(0)).unwrap(), "B");
+    let before = s.list_versions(&id).unwrap().into_iter().find(|v| v["reason"] == "before_restore").unwrap();
+    assert_eq!((&before["state_at"], &before["revision"]), (&before_updated_at, &json!(3)));
+    assert_eq!(before["segments"], 2);
+}
+
+#[test]
+fn restore_refuses_a_stale_revision_a_busy_project_an_unknown_version_and_another_projects_version() {
+    let tmp = tempfile::tempdir().unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    let a = edit(&s, project(&s), "a2");
+    let other = edit(&s, project(&s), "b2");
+    let (aid, bid) = (pid(&a), pid(&other));
+    let a_version = s.list_versions(&aid).unwrap().remove(0)["id"].as_str().unwrap().to_owned();
+    let b_version = s.list_versions(&bid).unwrap().remove(0)["id"].as_str().unwrap().to_owned();
+    let rev = a["revision"].as_i64().unwrap();
+    let untouched = |s: &Store| (s.load_project(&aid).unwrap(), s.list_versions(&aid).unwrap().len());
+    let before = untouched(&s);
+    assert!(s.restore_version(&aid, &a_version, rev + 1).unwrap_err().starts_with("REVISION_CONFLICT: Dự án đã thay đổi. Hãy tải lại trước khi lưu."));
+    assert!(s.restore_version(&aid, "nope", rev).unwrap_err().starts_with("VERSION_NOT_FOUND: Phiên bản này không còn. Mở lại lịch sử phiên bản."));
+    assert!(s.restore_version(&aid, &b_version, rev).unwrap_err().starts_with("VERSION_NOT_FOUND"), "another project's version");
+    assert!(s.restore_version("no-such-project", &a_version, rev).unwrap_err().starts_with("PROJECT_NOT_FOUND"));
+    let job = s.enqueue("render", Some(&aid), json!({})).unwrap();
+    assert!(s.restore_version(&aid, &a_version, rev).unwrap_err().starts_with("PROJECT_BUSY: Dự án đang có công việc chạy hoặc chờ. Chờ xong hoặc hủy rồi khôi phục."));
+    assert_eq!(untouched(&s), before, "every refusal leaves the project and its versions alone");
+    s.cancel(job["id"].as_str().unwrap()).unwrap();
+    assert_eq!(s.restore_version(&aid, &a_version, rev).unwrap()["revision"], rev + 1);
+}
+
+#[test]
+fn deleting_a_project_deletes_its_versions() {
+    let tmp = tempfile::tempdir().unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    let a = edit(&s, project(&s), "a2");
+    let b = edit(&s, project(&s), "b2");
+    assert_eq!(versions_of(tmp.path()), 2);
+    s.delete_project(&pid(&a)).unwrap();
+    assert_eq!(count(tmp.path(), &format!("SELECT count(*) FROM project_versions WHERE project_id='{}'", pid(&a))), 0);
+    assert_eq!(count(tmp.path(), &format!("SELECT count(*) FROM project_versions WHERE project_id='{}'", pid(&b))), 1);
+}
+
+#[test]
+fn a_failing_version_insert_never_fails_the_save_and_is_logged_and_exported() {
+    let tmp = tempfile::tempdir().unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    let p1 = project(&s);
+    let other = db(tmp.path());
+    other.execute_batch("CREATE TRIGGER no_versions BEFORE INSERT ON project_versions BEGIN SELECT RAISE(ABORT,'boom'); END;").unwrap();
+    let p2 = edit(&s, p1.clone(), "vẫn lưu");
+    assert_eq!((p2["revision"].as_i64(), p2["segments"][0]["text"].as_str()), (Some(2), Some("vẫn lưu")));
+    assert_eq!(s.load_project(&pid(&p1)).unwrap(), p2);
+    assert_eq!(versions_of(tmp.path()), 0);
+    let log = std::fs::read_to_string(tmp.path().join("version-errors.jsonl")).unwrap();
+    assert_eq!(log.lines().count(), 1);
+    let line: serde_json::Value = serde_json::from_str(log.lines().next().unwrap()).unwrap();
+    assert_eq!(line["project_id"], pid(&p1));
+    assert!(line["error"].as_str().unwrap().contains("boom"), "{line}");
+    assert!(line["at"].as_str().is_some());
+    let text = s.diagnostics().unwrap();
+    assert!(text.contains("== version-errors.jsonl ==") && text.contains("boom") && text.contains(&pid(&p1)), "{text}");
+    other.execute_batch("DROP TRIGGER no_versions").unwrap();
+    edit(&s, p2, "lại");
+    assert_eq!(versions_of(tmp.path()), 1, "the next save writes the version again");
+    assert_eq!(std::fs::read_to_string(tmp.path().join("version-errors.jsonl")).unwrap().lines().count(), 1);
+}
+
+#[test]
+fn diagnostics_say_the_version_log_is_empty_when_nothing_failed() {
+    let tmp = tempfile::tempdir().unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    assert!(s.diagnostics().unwrap().ends_with("== version-errors.jsonl ==\n(empty)\n"));
+}
+
+#[test]
+fn a_corrupt_version_blob_fails_the_restore_and_leaves_the_project_untouched() {
+    let tmp = tempfile::tempdir().unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    let p = edit(&s, project(&s), "sau");
+    let id = pid(&p);
+    let version = s.list_versions(&id).unwrap().remove(0)["id"].as_str().unwrap().to_owned();
+    db(tmp.path()).execute("UPDATE project_versions SET data=?1", [vec![0xffu8; 16]]).unwrap();
+    assert!(s.restore_version(&id, &version, 2).unwrap_err().starts_with("VERSION_CORRUPT"));
+    assert_eq!(s.load_project(&id).unwrap(), p);
+    assert_eq!(versions_of(tmp.path()), 1, "no before_restore row is left behind");
+    assert_eq!(s.save_project(p).unwrap()["revision"], 3, "the project still saves");
+}
+
+#[test]
+fn a_2000_segment_save_costs_little_with_or_without_a_version_write() {
+    use std::io::Write;
+    let tmp = tempfile::tempdir().unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    let mut p = s.create_project("Lớn").unwrap();
+    p["segments"] = json!((0..2000).map(|i| seg(&format!("s{i}"), &format!("Đoạn số {i}: Xin chào các bạn, hôm nay trời đẹp lắm, chúng ta cùng đi dạo {}.", i * 7919))).collect::<Vec<_>>());
+    p = s.save_project(p).unwrap();
+    let time = |s: &Store, p: serde_json::Value| { let t = std::time::Instant::now(); let saved = s.save_project(p).unwrap(); (saved, t.elapsed().as_millis()) };
+    let (p, with_version) = time(&s, p);
+    let (_, without_version) = time(&s, p.clone());
+    let (raw, bytes) = (serde_json::to_vec(&p).unwrap().len() as i64, count(tmp.path(), "SELECT bytes FROM project_versions"));
+    // Written to the stderr handle directly so CI shows it for a passing test (U10).
+    let _ = writeln!(std::io::stderr(), "U10: 2000 segments json={raw} B deflated={bytes} B ratio={:.3}; save with version {with_version} ms, without {without_version} ms", bytes as f64 / raw as f64);
+    assert_eq!(versions_of(tmp.path()), 1);
+    assert!(bytes < raw / 2, "{bytes} of {raw}");
+    assert!(with_version < 5000 && without_version < 5000, "{with_version} / {without_version} ms");
+}
+
+#[test]
+fn a_1_0_23_open_batch_still_updates_and_deletes_a_project_and_cascades_its_versions() {
+    let tmp = tempfile::tempdir().unwrap();
+    let id;
+    {
+        let s = Store::open(tmp.path()).unwrap();
+        let p = edit(&s, project(&s), "sau");
+        id = pid(&p);
+        assert_eq!(versions_of(tmp.path()), 1);
+    }
+    // 1.0.23 opens the file with its own batch: it knows nothing of the table, resets user_version to 1 and keeps foreign keys on.
+    let old = db(tmp.path());
+    old.execute_batch(V1_BATCH).unwrap();
+    assert_eq!(old.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)).unwrap(), 1);
+    let n = old.execute("UPDATE projects SET name=?1,revision=?2,updated_at=?3,data=?4 WHERE id=?5 AND revision=?6", rusqlite::params!["Mới", 3, "2026-11-25T00:00:00Z", "{}", id, 2]).unwrap();
+    assert_eq!(n, 1);
+    assert_eq!(old.execute("DELETE FROM projects WHERE id=?1", [&id]).unwrap(), 1);
+    assert_eq!(old.query_row("SELECT count(*) FROM project_versions", [], |r| r.get::<_, i64>(0)).unwrap(), 0, "the delete cascaded");
+    drop(old);
+    let s = Store::open(tmp.path()).unwrap();
+    assert_eq!(db(tmp.path()).query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)).unwrap(), 2, "the next 1.0.24 start sets it back");
+    assert_eq!(s.list_projects().unwrap().len(), 0);
+}
