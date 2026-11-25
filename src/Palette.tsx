@@ -15,7 +15,7 @@ const matches=(label:string,query:string)=>query.split(/\s+/).filter(Boolean).ev
 export function CommandPalette({commands,onClose,title='Bảng lệnh',closeLabel='Đóng bảng lệnh',inputLabel='Gõ để tìm lệnh',placeholder='Gõ để tìm lệnh… (không cần gõ dấu)',listLabel='Lệnh',help='↑ ↓ để chọn, Enter để chạy, Esc để đóng.',empty='Không có lệnh nào khớp.',rank,toggleKey='k'}:{commands:Command[];onClose:()=>void;title?:string;closeLabel?:string;inputLabel?:string;placeholder?:string;listLabel?:string;help?:string;empty?:string;rank?:(label:string,query:string)=>0|1|null;toggleKey?:string}){
  useEscape(onClose);
  const [query,setQuery]=useState(''),[sel,setSel]=useState<string|null>(null),list=useId(),heading=useId();
- const shown=rank?[0,1].flatMap(r=>commands.filter(c=>rank(c.label,query)===r)):commands.filter(c=>matches(c.label,query)),cur=Math.max(0,shown.findIndex(c=>c.id===sel));
+ const shown=rank?[0,1].flatMap(r=>commands.filter(c=>rank(c.label,query)===r)):commands.filter(c=>matches(c.label,query)),cur=shown.findIndex(c=>c.id===sel);
  const pick=(c?:Command)=>{if(!c||c.disabled)return;onClose();c.run();};
  useEffect(()=>{document.getElementById(`${list}-${cur}`)?.scrollIntoView({block:'nearest'});},[list,cur]);
  const key=(e:React.KeyboardEvent)=>{
