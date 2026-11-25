@@ -2,7 +2,7 @@ import {test,expect,type Page} from '@playwright/test';
 // Karaoke: while a take with self-check word times plays, the words of the playing segment light up under its text; a take without them gets a one-line hint.
 // Tauri is mocked; the take is a real 8 s WAV (the tone of preview-switch.spec.ts). Segment 1 has take 1 (words at 0/400/800 ms), take 2 (only its last word,
 // at 0 ms) and take 3 (the times of take 1); segment 2 has a take that was never checked; segment 3 is trimmed to 2000 ms with words at 0/2000/2400 ms;
-// segment 4's check failed (`error`); segment 5's heard words match none of its script words; segments 6 and 8 have no take; segment 7's checked take plays a text of several lines.
+// segment 4's check failed (`error`); segment 5's heard words match none of its script words; segments 6 and 8 have no take; segment 7's checked take plays a text of several lines, with pause and cue marks that the line leaves out (so its raw text would wrap differently).
 const tone=()=>{const rate=8000,n=rate*8,b=Buffer.alloc(44+n*2);b.write('RIFF',0);b.writeUInt32LE(36+n*2,4);b.write('WAVEfmt ',8);b.writeUInt32LE(16,16);b.writeUInt16LE(1,20);b.writeUInt16LE(1,22);b.writeUInt32LE(rate,24);b.writeUInt32LE(rate*2,28);b.writeUInt16LE(2,32);b.writeUInt16LE(16,34);b.write('data',36);b.writeUInt32LE(n*2,40);for(let i=0;i<n;i++)b.writeInt16LE(Math.round(Math.sin(2*Math.PI*440*i/rate)*6000),44+i*2);return b;};
 const ratio=(a:string,b:string)=>{const lum=(c:string)=>{const [r,g,b]=c.match(/[\d.]+/g)!.slice(0,3).map(v=>{const x=Number(v)/255;return x<=0.03928?x/12.92:((x+0.055)/1.055)**2.4;});return 0.2126*r+0.7152*g+0.0722*b;};const [x,y]=[lum(a),lum(b)].sort((p,q)=>q-p);return (x+0.05)/(y+0.05);};
 const HINT='Chữ chạy theo giọng chỉ có ở take tạo khi bật “Tự kiểm bằng Whisper”.';
@@ -15,7 +15,7 @@ const mock=()=>{
  const project={id:'p1',name:'Chữ chạy',updated_at:new Date().toISOString(),revision:1,transcript:[],dictionary:{},source_asset_id:null,segments:[
   seg('1','Xin chào, bạn.',[take('t1',check(ws)),take('t1b',check([['bạn',0]])),take('t1c',check(ws))]),seg('2','Một câu khác.',[take('t2')]),
   seg('3','Một câu khác.',[take('t3',check([['một',0],['câu',2000],['khác',2400]]))],2000),
-  seg('4','Một câu khác.',[take('t4',{model:'whisper-small',error:'CHECK_FAILED: no audio'})]),seg('5','Một câu khác.',[take('t5',check([['hoàn',0],['toàn',300],['lạ',600]]))]),seg('6','Chưa có take.',[]),seg('7','Xin chào bạn. '+'Đây là một câu khá dài để dòng chữ chạy xuống nhiều dòng. '.repeat(8),[take('t7',check(ws))]),seg('8','Chưa có take.',[])]};
+  seg('4','Một câu khác.',[take('t4',{model:'whisper-small',error:'CHECK_FAILED: no audio'})]),seg('5','Một câu khác.',[take('t5',check([['hoàn',0],['toàn',300],['lạ',600]]))]),seg('6','Chưa có take.',[]),seg('7','Xin chào bạn. '+'Đây là một câu khá dài [nghỉ 1] [cười] để dòng chữ chạy xuống nhiều dòng. '.repeat(8),[take('t7',check(ws))]),seg('8','Chưa có take.',[])]};
  w.__TAURI_INTERNALS__={convertFileSrc:(p:string)=>p,transformCallback:()=>1,unregisterCallback:()=>{},metadata:{currentWindow:{label:'main'},currentWebview:{label:'main',windowLabel:'main'}},
   invoke:async(cmd:string,args:any)=>{switch(cmd){
    case 'list_projects':return [{id:project.id,name:project.name,updated_at:project.updated_at,revision:project.revision}];case 'load_project':return JSON.parse(JSON.stringify(project));
@@ -151,12 +151,17 @@ for(const width of [1440,800])test(`at ${width} px the next row does not move wh
  }
 });
 
-// The space is the line's own, kept only where a line can show: a row with a take keeps it under the emotion bar, a row without a take (nothing to play) keeps none.
-test('a row without a take reserves no space for the line, a row with a take does',async({page})=>{
+// The space is the line's own, kept only where a line can show: a row with a take keeps it under the emotion bar, invisible and hidden from assistive tech; a row
+// without a take (nothing to play) or whose check failed (it never shows a line) keeps none.
+test('a row without a take or with a failed check reserves no space for the line, a row with a take does, invisibly',async({page})=>{
  await open(page);
  const below=(n:number)=>page.evaluate(i=>{const a=document.querySelectorAll('article.segment')[i-1];return a.getBoundingClientRect().bottom-a.querySelector('.emotion-bar')!.getBoundingClientRect().bottom;},n);
  await row(page,6).click();expect(await below(6),'px under the emotion bar of a row with no take').toBeLessThan(12);
- await row(page,1).click();expect(await below(1),'px under the emotion bar of a row with a take').toBeGreaterThan(24);
+ await row(page,4).click();expect(await below(4),'px under the emotion bar of a row whose check failed').toBeLessThan(12);
+ for(const n of [1,2]){
+  await row(page,n).click();expect(await below(n),`px under the emotion bar of row ${n}, which has a take`).toBeGreaterThan(24);
+  const slot=row(page,n).locator('.karaoke-slot');await expect(slot).toHaveCount(1);await expect(slot).toHaveCSS('visibility','hidden');await expect(slot).toHaveAttribute('aria-hidden','true');
+ }
 });
 
 // An 800-segment script (perf-budget.spec.ts's) whose segment 1 plays a take of 30 timed words matching its text. The commit hook of contextual-inspector.spec.ts
