@@ -67,6 +67,31 @@ differs.
 - **Installer**: its hook deletes `torch`, `demucs`, `julius`, `einops`, `safetensors` and their `*.dist-info` from an
   older installation when it updates over it.
 
+## Guarded paths and approvals
+
+The required `guard` check (`.github/guard.sh`, run by `.github/workflows/ci.yml` on the `pull_request` merge ref) fails a pull request that changes a guarded path unless the coordinator has recorded that exact content after review. It is a tripwire against unreviewed audio-path edits, not a security boundary: every agent pushes as the same admin identity. The workflow runs the base branch's `guard.sh` (the merge ref's copy only for the very first PR that introduced it), so a pull request cannot weaken the script that judges it. A pull request that edits `ci.yml` itself can still change the step, which is why the coordinator reads every `.github` diff.
+
+- **Guarded**: `worker/**`, `worker-rs/**`, `src-tauri/src/{engine,store,pack,docx,update,lib}.rs` and `.github/**`. The payload fixture `e2e/fixtures/payloads-1.0.21.json` (and any case variant of its path) may not be touched at all; no approval unlocks it. Under `.github/guard-approvals/` only the pull request's own `<PR>.txt` may change. A guarded path that is a symlink or a submodule, or a changed path containing a newline, always fails.
+- **Approval file** `.github/guard-approvals/<PR>.txt` (the coordinator writes it, never an executor): first line `reviewed <sha>` with the full 40-hex SHA of the head that was reviewed, then one line per changed guarded path, `<path> <blob>` (`git rev-parse HEAD:<path>`) or `<path> deleted`.
+- **Commit rule**: the approval is the last commit of the pull request, has exactly one parent, and changes only that file (added or modified). `reviewed` must equal that parent, so every re-approval rewrites the first line. Any later commit, merge commit or "Update branch" fails the guard again; rebase instead and approve again. Blobs are read from the merge ref, so approve right after rebasing onto the current `origin/main`.
+- **Writing an approval** (in the rebased, reviewed worktree; it stops if `origin/main` is not an ancestor of the head):
+
+```bash
+PR=<N>; f=.github/guard-approvals/$PR.txt
+git fetch origin && git merge-base --is-ancestor origin/main HEAD || { echo "rebase onto origin/main first"; exit 1; }
+mkdir -p .github/guard-approvals
+{ echo "reviewed $(git rev-parse HEAD)"
+  git -c core.quotepath=false diff -z --name-only --no-renames origin/main...HEAD |
+    grep -zEi '^(worker/|worker-rs/|src-tauri/src/(engine|store|pack|docx|update|lib)\.rs$|\.github/)' | grep -zEv '^\.github/guard-approvals/' |
+    while IFS= read -r -d '' p; do echo "$p $(git rev-parse --verify -q "HEAD:$p" || echo deleted)"; done; } > "$f"
+git add "$f" && git commit -m "Approve the reviewed guarded blobs of #$PR."
+```
+
+- **Before merging EVERY pull request** (guarded or not, even when the guard log says "No guarded paths changed"): `git diff --name-only origin/main...<head> -- .github` is empty or only that PR's own approval file, and any other change is read in full.
+- **Merging a guarded pull request**, one at a time: rebase onto `origin/main` (no merge commits), review the delta, approval commit, CI green on that exact head, `git merge-base --is-ancestor origin/main <head>`, the `.github` check above, then `gh pr merge <N> --merge --match-head-commit <head>`. If `main` moves, start again. Other merges wait during a guarded pull request's final CI (about 15 minutes).
+- **Merging a non-guarded pull request**: CI green on the exact head, `git merge-tree --write-tree` clean against the current `main`, the `.github` check above, `gh pr merge <N> --merge --match-head-commit <head>`, then watch the post-merge CI on `main`.
+- **Audit** (the coordinator, at fixed times and before a release tag): `git log --first-parent --format='%h %s' <base>..origin/main` shows only `Merge pull request #...` commits, each had a green `guard` on its exact head, and `git diff --name-only <merge>^1 <merge> -- .github` of each merge was read (this catches an admin push or an `--admin` merge).
+
 ## Acceptance gates (on the installer built from the tagged revision)
 
 1. Unit/integration: `npm test`, `npm run test:e2e`, `cargo test --manifest-path src-tauri/Cargo.toml --tests`,
