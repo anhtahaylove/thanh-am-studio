@@ -254,7 +254,7 @@ useEffect(()=>{if(page!=='tts')return;const handler=(e:KeyboardEvent)=>{if((e.ct
   const cur=projectRef.current;if(!cur)return;
   if(savingRef.current)await savingRef.current;
   if(dirtyRef.current)await saveProject();
-  const restore=call<Project>('restore_project_version',{projectId:cur.id,versionId:v.id,revision:projectRef.current!.revision});savingRef.current=restore;
+  const restore=call<Project>('restore_project_version',{projectId:cur.id,versionId:v.id,revision:projectRef.current!.revision});
   try{
    const p=await restore;
    const keep=p.segments.some(x=>x.id===selected)?selected:p.segments[0]?.id??null;
