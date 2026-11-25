@@ -71,7 +71,7 @@ test('Ctrl+Shift+F does nothing in a dialog or on another page',async({page})=>{
  await page.keyboard.press('Escape');await expect(toggle(page)).toHaveAttribute('aria-pressed','false');
 });
 
-test('the choice is stored in thanh-am-focus and survives a reload; a storage that throws does not break the toggle',async({page})=>{
+test('the choice is stored in thanh-am-focus and survives a reload',async({page})=>{
  await open(page);
  await toggle(page).click();expect(await stored(page)).toBe('1');
  await page.reload();await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
