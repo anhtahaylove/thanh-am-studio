@@ -72,7 +72,7 @@ export function BusyIndicator(){
    el.style.bottom=`${shown?[20,innerHeight-r.top+10,innerHeight-r.bottom-10-h].find(fits)??20:20}px`;
   };
   const queue=()=>{if(!frame)frame=requestAnimationFrame(place);};
-  const ro=new ResizeObserver(queue);
+  const ro=new ResizeObserver(()=>{});
   ro.observe(document.documentElement);place();
   addEventListener('scroll',queue,{passive:true,capture:true});addEventListener('resize',queue);
   return()=>{cancelAnimationFrame(frame);ro.disconnect();removeEventListener('scroll',queue,{capture:true});removeEventListener('resize',queue);};
