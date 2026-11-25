@@ -1,4 +1,15 @@
 [
+ {"version": "1.0.24", "date": "2026-11-25", "changes": [
+  "Chế độ tập trung trên trang Tạo giọng đọc (nút Chế độ tập trung ở đầu trang, Ctrl+Shift+F hoặc bảng lệnh Ctrl+K): ẩn khung chi tiết để kịch bản chiếm cả chiều rộng, chữ kịch bản to hơn, kiểu chữ có chân, chỉ đoạn đang chọn hiện thanh thao tác. App nhớ lựa chọn này cho lần mở sau.",
+  "Lịch sử phiên bản (nút Lịch sử phiên bản trên thanh trên cùng hoặc bảng lệnh, khi đang mở dự án): trong lúc bạn sửa, app tự giữ các phiên bản cũ của dự án, cách nhau ít nhất 10 phút, tối đa 30 phiên bản. Bấm Khôi phục để quay về; trạng thái ngay trước đó được giữ thành phiên bản \"Trước khi khôi phục\" nên quay lại được. Khôi phục dùng được khi dự án không còn việc chờ hay đang chạy trong Hàng đợi.",
+  "Giao diện tương phản cao (nền đen, chữ trắng, viền rõ, màu nhân vật dễ phân biệt hơn): chọn bằng nút Chuyển giao diện tương phản cao trong nhóm nút Giao diện, cạnh các nút theo hệ thống, sáng và tối. App cũng hiển thị đúng hơn khi bật chủ đề tương phản của Windows.",
+  "Báo khi xong việc dài: chép lời, xuất audio hoặc tách nhạc nền mất từ 30 giây trở lên (tính cả thời gian chờ) mà xong hoặc lỗi lúc bạn đang ở cửa sổ khác thì nút Thanh Âm Studio trên thanh tác vụ nhấp nháy và Windows hiện thông báo (theo cài đặt thông báo của Windows); bấm vào thông báo để đưa app lên trước.",
+  "Mở Thanh Âm Studio lần nữa khi ứng dụng đang chạy sẽ đưa cửa sổ đang mở lên trước thay vì mở bản thứ hai.",
+  "Chỉ báo Đang thực hiện… tự tránh thanh phát và luôn nằm trong cửa sổ, kể cả khi cuộn tới cuối trang (bản 1.0.23 có thể che thanh phát tới 41 px khi cửa sổ rộng 641–1440 px). Khi chữ chạy theo giọng hiện ra hay tắt đi, các đoạn bên dưới không còn bị đẩy lên xuống.",
+  "Sửa lỗi khi soạn: bấm Xóa đoạn không còn làm vùng chọn nhảy về đoạn 1; dán một chữ, hoặc dán khi bộ gõ đang ghép dấu, vào kịch bản trống không còn mở hộp Thêm nội dung; trong hộp mở nhanh (Ctrl+P), bấm Ctrl+P lần nữa để đóng và dự án đang được tô sáng không nhảy đi khi danh sách tự cập nhật; phím mũi tên trên tay nắm cắt không còn kẹt khi điểm cắt nằm quá cuối take.",
+  "Dễ dùng hơn với bàn phím và trình đọc màn hình: nút Tạo giọng tất cả và nút Tạo take mới trong hộp so sánh take khi chưa dùng được vẫn Tab tới được và nói lý do; bóng lý do không còn bị thông báo Hoàn tác che; một lỗi hiện lại được đọc lại; tệp audio của take bị hỏng được báo bằng tiếng Việt.",
+  "Thẻ model ghi RAM cùng đơn vị với tổng RAM của máy và Trình quản lý tác vụ (VieNeu v3 Turbo: khoảng 2,1 GB, trước ghi 2,2 GB)."
+ ]},
  {"version": "1.0.23", "date": "2026-11-24", "changes": [
   "Thanh phát: thanh sóng hiện ngay khi chọn đoạn, không cần bấm phát; kéo tay nắm Cắt đầu và Cắt cuối trên thanh sóng (hoặc Tab tới rồi dùng phím mũi tên) để cắt take, Ctrl+Z hoàn tác. Chọn đoạn khác hoặc mở dự án khác thì take đang nghe thử tự dừng.",
   "Chữ chạy theo giọng: khi phát take, các từ của đoạn sáng lên theo lời đọc. Chỉ có ở take tạo khi bật \"Tự kiểm bằng Whisper\" (cần Whisper Small).",
