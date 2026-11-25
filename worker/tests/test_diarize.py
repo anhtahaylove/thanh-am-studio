@@ -279,7 +279,7 @@ class IsolatedTests(unittest.TestCase):
             for text in (None, 'not json', '[{"start": 0}]', '{"a": 1}'):
                 def fake_run(argv, **kwargs):
                     if text is not None:
-                        Path(argv[4]).write_text(text, encoding='utf-8')
+                        Path(argv[-2]).write_text(text, encoding='utf-8')
                     return mock.Mock(returncode=0, stderr=b'')
                 with self.subTest(text=text), mock.patch.object(diarize.subprocess, 'run', fake_run), \
                         self.assertRaisesRegex(RuntimeError, 'no usable turns'):
