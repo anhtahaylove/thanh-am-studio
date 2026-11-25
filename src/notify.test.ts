@@ -100,6 +100,13 @@ describe('noticeText',()=>{
   expect(body(30000)).toBe('a · 30 giây');
   expect(body(90*60000)).toBe('a · 1 giờ 30 phút');
   expect(body(120*60000)).toBe('a · 2 giờ');
+ })
+ it('rounds seconds and minutes to the nearest, and switches to minutes at 59.5 s',()=>{
+  const body=(ms:number)=>noticeText([{kind:'stt',status:'succeeded',name:'a',ms}]).body;
+  expect(body(59500)).toBe('a · 1 phút');
+  expect(body(60000)).toBe('a · 1 phút');
+  expect(body(89000)).toBe('a · 1 phút');
+  expect(body(90000)).toBe('a · 2 phút');
  });
  it('leaves the name out when none is known',()=>{
   expect(noticeText([done('stt','succeeded','',2)]).body).toBe('2 phút');
