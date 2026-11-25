@@ -193,8 +193,11 @@ for(const [name,scheme,stored] of [['light, system theme','light',undefined],['d
   const busy=await page.evaluate(()=>{const el=document.createElement('div');el.className='busy-indicator';el.textContent='Đang tạo giọng…';document.body.append(el);const c=getComputedStyle(el);return `${c.borderTopStyle} ${c.borderTopWidth}`;});expect(busy,'busy indicator edge').toBe('solid 1px');
   expect(marks.marks,'marks').toEqual(Array(4).fill([rgb(highlight),rgb(highlightText)]));expect(marks.said,'heard word').toBe('underline');
   // Icons and the progress bar: an icon is drawn in the text colour, never an author colour under 3:1 on Canvas; a progress bar shows its fill and its track.
-  const prog=await page.evaluate(()=>{const p=document.createElement('progress');p.value=0.4;p.max=1;document.querySelector('main')!.append(p);return [getComputedStyle(p,'::-webkit-progress-value').backgroundColor,getComputedStyle(p,'::-webkit-progress-bar').backgroundColor];});
-  expect(prog,'progress fill and track').toEqual([rgb(highlight),rgb(await colourOf(page,'Canvas'))]);
+  // A 40 % bar must show its fill in Highlight and its track in Canvas (both used to turn Canvas, so the bar was blank): the pixels of its screenshot are read back.
+  await page.evaluate(()=>{const p=document.createElement('progress');p.id='hc-half';p.value=0.4;p.max=1;p.style.width='200px';document.querySelector('main')!.append(p);});
+  const shot=(await page.locator('#hc-half').screenshot()).toString('base64');
+  const px=await page.evaluate(async b=>{const img=new Image();img.src='data:image/png;base64,'+b;await img.decode();const c=document.createElement('canvas');c.width=img.width;c.height=img.height;const x=c.getContext('2d')!;x.drawImage(img,0,0);const at=(f:number)=>[...x.getImageData(Math.floor(img.width*f),Math.floor(img.height/2),1,1).data.slice(0,3)];return {fill:at(0.1),track:at(0.9)};},shot);
+  expect(px,'progress fill and track').toEqual({fill:highlight,track:await colourOf(page,'Canvas')});
   await page.getByRole('button',{name:'Lịch sử phiên bản',exact:true}).click();await expect(page.getByRole('dialog',{name:'Lịch sử phiên bản'})).toBeVisible();
   const icons=await page.evaluate(()=>[...document.querySelectorAll('svg')].filter(el=>el.checkVisibility()&&el.getBoundingClientRect().width>0).map(el=>({el:(el.closest('[class]')?.className||'svg')+'',color:getComputedStyle(el).color})));
   const canvas=await colourOf(page,'Canvas'),parse=(c:string)=>c.match(/[\d.]+/g)!.slice(0,3).map(Number) as RGB;
