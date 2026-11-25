@@ -10,14 +10,14 @@ const tts=(status:string,project='p1')=>({id:'j-'+status,kind:'tts',project_id:p
 const install=(page:Page,list:V[],jobs:object[]=[])=>page.addInitScript(([list,jobs])=>{
  const w=window as any;w.isTauri=true;
  const seg=(id:string,text:string)=>({id,text,normalized_text:text,voice_id:null,speaker:'Người dẫn',gap_ms:300,takes:[],selected_take_id:null,trim_start_ms:0,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0,gain_db:0});
- const st=w.__st={project:{id:'p1',name:'Lịch sử',updated_at:new Date().toISOString(),revision:5,segments:[seg('a','Bản hiện tại.'),seg('b','Đoạn hai.')],transcript:[],dictionary:{},source_asset_id:null},versions:list,jobs,calls:[] as string[],saveGate:null as Promise<void>|null,loadGate:null as Promise<void>|null,loaded:0,restoreError:null as string|null};
+ const st=w.__st={project:{id:'p1',name:'Lịch sử',updated_at:new Date().toISOString(),revision:5,segments:[seg('a','Bản hiện tại.'),seg('b','Đoạn hai.')],transcript:[],dictionary:{},source_asset_id:null},versions:list,jobs,calls:[] as string[],saveGate:null as Promise<void>|null,loadGate:null as Promise<void>|null,restoreGate:null as Promise<void>|null,loaded:0,restoreError:null as string|null};
  w.__TAURI_INTERNALS__={convertFileSrc:(p:string)=>p,transformCallback:()=>1,unregisterCallback:()=>{},metadata:{currentWindow:{label:'main'},currentWebview:{label:'main',windowLabel:'main'}},
   invoke:async(cmd:string,args:any)=>{switch(cmd){
    case 'list_projects':return [{id:st.project.id,name:st.project.name,updated_at:st.project.updated_at,revision:st.project.revision}];
    case 'load_project':{const snapshot=structuredClone(st.project);st.calls.push('load');if(st.loadGate)await st.loadGate;st.loaded++;return snapshot;}
    case 'save_project':{st.calls.push('save');if(st.saveGate)await st.saveGate;if(args.project.revision!==st.project.revision)throw 'REVISION_CONFLICT: Dự án đã thay đổi. Hãy tải lại trước khi lưu.';st.project={...args.project,revision:args.project.revision+1,updated_at:new Date().toISOString()};st.calls.push('saved');return st.project;}
    case 'list_project_versions':return st.versions;
-   case 'restore_project_version':{st.calls.push('restore:'+args.revision);if(st.restoreError)throw st.restoreError;if(args.revision!==st.project.revision)throw 'REVISION_CONFLICT: Dự án đã thay đổi. Hãy tải lại trước khi lưu.';const v=st.versions.find((x:any)=>x.id===args.versionId);if(!v)throw 'VERSION_NOT_FOUND: Phiên bản này không còn. Mở lại lịch sử phiên bản.';st.project={...st.project,segments:v.content.map(([id,text]:[string,string])=>seg(id,text)),revision:st.project.revision+1,updated_at:new Date().toISOString()};return st.project;}
+   case 'restore_project_version':{st.calls.push('restore:'+args.revision);if(st.restoreGate)await st.restoreGate;if(st.restoreError)throw st.restoreError;if(args.revision!==st.project.revision)throw 'REVISION_CONFLICT: Dự án đã thay đổi. Hãy tải lại trước khi lưu.';const v=st.versions.find((x:any)=>x.id===args.versionId);if(!v)throw 'VERSION_NOT_FOUND: Phiên bản này không còn. Mở lại lịch sử phiên bản.';st.project={...st.project,segments:v.content.map(([id,text]:[string,string])=>seg(id,text)),revision:st.project.revision+1,updated_at:new Date().toISOString()};return st.project;}
    case 'list_jobs':return st.jobs;
    case 'list_voices':case 'list_models':return [];
    case 'get_settings':return {dictionary:{}};
@@ -30,6 +30,9 @@ const openProject=async(page:Page)=>{await page.goto('/');await page.getByRole('
 const topbar=(page:Page)=>page.getByRole('button',{name:'Lịch sử phiên bản',exact:true}),dialog=(page:Page)=>page.getByRole('dialog',{name:'Lịch sử phiên bản'});
 const restoreButtons=(page:Page)=>dialog(page).getByRole('button',{name:/^Khôi phục trạng thái lúc/});
 const commands=(page:Page)=>page.getByRole('dialog',{name:'Bảng lệnh'}).getByRole('option');
+// A gate holds one mock command open until `release` is called.
+const hold=(page:Page,gate:'restoreGate'|'loadGate')=>page.evaluate(g=>{const st=(window as any).__st;st[g]=new Promise<void>(r=>{st['release_'+g]=r;});},gate);
+const release=(page:Page,gate:'restoreGate'|'loadGate')=>page.evaluate(g=>(window as any).__st['release_'+g](),gate);
 const first=(page:Page)=>page.getByRole('textbox',{name:'Nội dung đoạn 1'});
 const edit=async(page:Page)=>{await first(page).focus();await page.keyboard.press('End');await page.keyboard.type('!');await expect(page.getByRole('button',{name:'Chưa lưu'})).toBeVisible();};
 const PROJECT_BUSY='PROJECT_BUSY: Dự án đang có công việc chạy hoặc chờ. Chờ xong hoặc hủy rồi khôi phục.',CONFLICT='REVISION_CONFLICT: Dự án đã thay đổi. Hãy tải lại trước khi lưu.';
@@ -137,4 +140,27 @@ test('the browser preview has no version history button or palette command',asyn
  await expect(topbar(page)).toHaveCount(0);
  await page.keyboard.press('Control+k');await expect(page.getByRole('dialog',{name:'Bảng lệnh'})).toBeVisible();await page.getByRole('combobox',{name:'Gõ để tìm lệnh'}).fill('lich su');
  await expect(commands(page)).toHaveCount(0);
+});
+test('a pending restore holds the autosave: an edit made meanwhile is not saved before it, and the restored state wins',async({page})=>{
+ await install(page,versions());await openProject(page);await hold(page,'restoreGate');
+ await topbar(page).click();await restoreButtons(page).first().click();
+ await expect.poll(()=>calls(page)).toEqual(['restore:5']);
+ await page.keyboard.press('Escape');await expect(dialog(page)).toHaveCount(0);
+ await edit(page);await page.waitForTimeout(2000);expect(await calls(page)).toEqual(['restore:5']);
+ await release(page,'restoreGate');
+ await expect(first(page)).toHaveValue('Bản cũ một.');await expect(page.getByRole('button',{name:'Đã lưu'})).toBeVisible();
+ await page.waitForTimeout(1500);expect(await calls(page)).toEqual(['restore:5']);
+});
+test('a pending restore holds the TTS reload, and a job that finished before it is not loaded again after it',async({page})=>{
+ await install(page,versions());await openProject(page);await hold(page,'loadGate');
+ await setSt(page,{jobs:[tts('succeeded')]});await expect.poll(()=>calls(page),{timeout:8000}).toEqual(['load']);
+ await hold(page,'restoreGate');await topbar(page).click();await restoreButtons(page).first().click();
+ await expect.poll(()=>calls(page)).toEqual(['load','restore:5']);
+ // a job list that changes while the restore is pending must not start a reload
+ await setSt(page,{jobs:[tts('succeeded'),{...tts('succeeded'),id:'j-stt',kind:'stt'}]});await page.waitForTimeout(3500);expect(await calls(page)).toEqual(['load','restore:5']);
+ await release(page,'restoreGate');await expect(first(page)).toHaveValue('Bản cũ một.');
+ await release(page,'loadGate');await expect.poll(()=>page.evaluate(()=>(window as any).__st.loaded)).toBe(1);
+ // the restore marked that job as seen: a later job change reloads nothing
+ await setSt(page,{jobs:[tts('succeeded'),{...tts('succeeded'),id:'j-stt',kind:'stt'},{...tts('succeeded'),id:'j-stt2',kind:'stt'}]});await page.waitForTimeout(3500);
+ expect(await calls(page)).toEqual(['load','restore:5']);await expect(first(page)).toHaveValue('Bản cũ một.');
 });
