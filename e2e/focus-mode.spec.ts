@@ -210,7 +210,7 @@ for(const width of [1440,800]){
 test('a held Ctrl+Shift+F toggles once: auto-repeat keydowns are ignored',async({page})=>{
  await open(page);
  await page.keyboard.down('Control');await page.keyboard.down('Shift');await page.keyboard.down('F');
- await page.keyboard.down('F');await page.keyboard.down('F'); // a key that is already down sends keydown with repeat:true
+ await page.keyboard.down('F'); // a key that is already down sends keydown with repeat:true: without the guard this second one toggles back
  await page.keyboard.up('F');await page.keyboard.up('Shift');await page.keyboard.up('Control');
  await expect(toggle(page)).toHaveAttribute('aria-pressed','true');
 });
