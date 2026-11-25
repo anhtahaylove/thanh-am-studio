@@ -1,5 +1,5 @@
 // Acceptance run against the packaged desktop app (UI -> Rust -> worker -> files).
-// usage: node packaged.mjs <app.exe> <outDir> <phase: full|reopen|turbo|offline|export|clone|dpi|longstt|ux|features|dub|scripts|update|update-seeded|ab|nvda>
+// usage: node packaged.mjs <app.exe> <outDir> <phase: full|reopen|turbo|offline|export|clone|dpi|longstt|ux|features|dub|scripts|update|update-seeded|ab|nvda|hc>
 // Drives the real WebView2 over CDP; native file dialogs are filled by file-dialog.ps1.
 import {chromium} from 'playwright-core';
 import {spawn, execFileSync} from 'node:child_process';
@@ -20,13 +20,33 @@ const results = [];
 const step = async (name, fn) => {
   const t = Date.now();
   try { const detail = await fn(); results.push({name, ok: true, ms: Date.now() - t, detail}); log(`PASS ${name} ${detail ?? ''}`); }
-  catch (e) { results.push({name, ok: false, ms: Date.now() - t, error: String(e).slice(0, 800)}); log(`FAIL ${name} ${e}`); await shot(`fail-${name}`); throw e; }
+  catch (e) { results.push({name, ok: false, ms: Date.now() - t, error: String(e).slice(0, 800)}); log(`FAIL ${name} ${e}`); log(`DOM ${await domSnippet()}`); await shot(`fail-${name}`); throw e; }
 };
 let page, app;
 const shot = async (name) => { try { await page?.screenshot({path: join(out, `${name.replace(/[^\w-]+/g, '_')}.png`)}); } catch {} };
+// What the page shows when a step fails: the open dialog, else <main>, as one line of HTML (the page may not answer: the answer is capped at 3 s).
+const domSnippet = () => !page ? Promise.resolve('(no page yet)') : Promise.race([page.evaluate(() => (document.querySelector('[role=dialog]') ?? document.querySelector('main') ?? document.body).outerHTML.replace(/\s+/g, ' ').slice(0, 900)), new Promise((r) => setTimeout(() => r('(the page did not answer within 3 s)'), 3000))]).catch((e) => `(no snippet: ${String(e).split('\n')[0].slice(0, 120)})`);
 const invoke = (cmd, args = {}) => page.evaluate(([c, a]) => window.__TAURI_INTERNALS__.invoke(c, a), [cmd, args]);
 const dialog = (path) => log('dialog ' + execFileSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', join(here, 'file-dialog.ps1'), '-Path', path], {encoding: 'utf8'}).trim());
 const nav = (name) => page.getByRole('navigation', {name: 'Điều hướng chính'}).getByRole('button', {name: new RegExp(`^${name}`)}).click(); // the queue button also carries a count badge
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Calls `get` every 500 ms until `ok(its value)` holds and returns that value; for steps that must not touch the page's DOM (a minimised window).
+const until = async (get, ok, ms, what) => {
+  let last;
+  for (const end = Date.now() + ms; Date.now() < end; await sleep(500)) { last = await get(); if (ok(last)) return last; }
+  throw Error(`timeout after ${ms} ms waiting for ${what}; last: ${JSON.stringify(last)?.slice(0, 300)}`);
+};
+const ENDED = ['succeeded', 'failed', 'cancelled', 'interrupted'];
+// A failure keeps nvda.ps1's own message (stderr); the download gets 5 minutes, every other call 1 minute.
+const nvda = (...args) => {
+  try { return execFileSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', join(here, 'nvda.ps1'), ...args], {encoding: 'utf8', timeout: args[0] === '-Install' ? 300000 : 60000}).trim(); }
+  catch (e) { throw Error(`nvda.ps1 ${args.join(' ')}: ${String(e.stderr ?? '').split(/\r?\n/).find((l) => l.trim()) || e.message}`); }
+};
+// Windows PowerShell 5.1 (WinRT, shell COM, theme settings) with UTF-8 output; -EncodedCommand keeps quotes and Vietnamese text intact.
+const winps = (script) => execFileSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(`$ProgressPreference = 'SilentlyContinue'; [Console]::OutputEncoding = [Text.Encoding]::UTF8\n${script}`, 'utf16le').toString('base64')], {encoding: 'utf8', timeout: 60000}).trim();
+const AUMID = 'studio.thanham.desktop';
+// How many toasts Windows keeps in the notification history of this app (what the 1.0.24 smoke proved; the popup itself is not visible to UI Automation).
+const toasts = () => Number(winps(`$null = [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime]\n@([Windows.UI.Notifications.ToastNotificationManager]::History.GetHistory('${AUMID}')).Count`));
 const waitJobs = async (kind, count, timeoutMs) => {
   const end = Date.now() + timeoutMs;
   while (Date.now() < end) {
@@ -175,6 +195,45 @@ async function newProject(prefix) {
   await page.getByRole('button', {name: 'Tạo dự án'}).click();
   return name;
 }
+// A project in the shape the app saves, for the update, features and hc phases: three Vietnamese segments (two speakers, a chapter on two of them, different gaps), two transcript rows,
+// a dictionary entry and speaker slots; segment 1 carries one selected take made of `audio`, a WAV imported through the app. Returns the project as the store holds it.
+async function seedProject(name, audio) {
+  const asset = await invoke('import_asset', {path: audio}), wav = readWav(audio), created = await invoke('create_project', {name});
+  const take = {id: 'seed-take', asset_id: asset.id, path: asset.path, duration_ms: Math.round(1000 * wav.samples.length / wav.rate), sample_rate: wav.rate, created_at: new Date().toISOString()};
+  const seg = (id, speaker, text, gap_ms, chapter, takes = []) => ({id, text, normalized_text: text, voice_id: null, speaker, gap_ms, takes, selected_take_id: takes[0]?.id ?? null, trim_start_ms: 0, trim_end_ms: null, fade_in_ms: 0, fade_out_ms: 0, gain_db: 0, chapter});
+  const row = (id, start_ms, end_ms, text, speaker) => ({id, start_ms, end_ms, text, speaker, overlap_speaker: null});
+  await invoke('save_project', {project: {...created,
+    segments: [seg('seed-s1', 'Lan', 'Xin chào, đây là bản giữ qua cập nhật.', 300, 'P1', [take]), seg('seed-s2', 'Minh', 'Hôm nay trời Hà Nội trong xanh.', 750, null), seg('seed-s3', 'Lan', 'Hẹn gặp lại các bạn nhé.', 0, 'P2')],
+    transcript: [row('seed-r1', 0, 2000, 'Dòng chép lời thứ nhất.', 0), row('seed-r2', 2000, 4500, 'Dòng chép lời thứ hai.', 1)],
+    dictionary: {AI: 'ây ai'}, speaker_slots: {Lan: 0, Minh: 1}}});
+  return invoke('load_project', {id: created.id});
+}
+// What a restore must give back and an update must keep: segments (ids, order, text, speaker, chapter, gap), transcript, dictionary, speaker slots; takes may only be added.
+const gist = (p) => JSON.stringify({segments: p.segments.map((s) => [s.id, s.text, s.speaker, s.chapter ?? null, s.gap_ms]), transcript: p.transcript, dictionary: p.dictionary, speaker_slots: p.speaker_slots ?? {}});
+const sameState = (got, want, what) => {
+  if (gist(got) !== gist(want)) throw Error(`${what}: the project differs from the saved state: ${gist(got).slice(0, 400)} vs ${gist(want).slice(0, 400)}`);
+  for (const [i, s] of want.segments.entries()) for (const t of s.takes) if (!got.segments[i].takes.some((x) => x.id === t.id)) throw Error(`${what}: take ${t.id} of segment ${i + 1} is gone`);
+};
+// A copy of the harness's dialogue audio in the local Unicode folder (mapped Sandbox folders are not reliable); `suffix` picks the longer file next to it (dialogue-x2.wav).
+const dialogueCopy = (suffix = '') => {
+  const src = process.env.THANHAM_UX_AUDIO?.replace(/\.wav$/i, `${suffix}.wav`);
+  if (!src || !existsSync(src)) throw Error(`${suffix ? 'dialogue-x2.wav' : 'THANHAM_UX_AUDIO (dialogue.wav)'} missing: ${src}`);
+  const audio = join(saves, `đoạn thoại${suffix} ${Date.now()}.wav`);
+  copyFileSync(src, audio);
+  return audio;
+};
+// Whether this build has the notification command (1.0.24 with E3): called without its arguments, it is refused as not found when absent and fails on its arguments when present, so no toast is raised.
+const hasNotify = () => page.evaluate(() => window.__TAURI_INTERNALS__.invoke('plugin:notification|notify', {}).then(() => true, (e) => !/not found/i.test(String(e))));
+// Logs the window attention and notification commands the app sends, with the time (CDP-side wrapper of the IPC; the app calls it as `window.__TAURI_INTERNALS__.invoke`).
+const watchInvokes = () => page.evaluate(() => {
+  const i = window.__TAURI_INTERNALS__;
+  if (i.__watched) return;
+  const orig = i.invoke;
+  window.__calls = [];
+  i.invoke = function (cmd, ...rest) { if (/^plugin:(window\|request_user_attention|notification\|notify)$/.test(cmd)) window.__calls.push({cmd, at: Date.now()}); return orig.call(i, cmd, ...rest); };
+  if (i.invoke === orig) throw Error('the IPC invoke could not be wrapped');
+  i.__watched = true;
+});
 async function exportSteps() {
   const wav = join(saves, `xuất thử ổn định ${Date.now()}.wav`);
   let wavMs = 0;
@@ -523,30 +582,59 @@ try {
     await nav('Dự án');
     await page.getByRole('button', {name: 'Mở dự án', exact: true}).first().click();
     await page.getByRole('textbox', {name: 'Nội dung đoạn 1'}).waitFor();
+    const overflow = () => page.evaluate(() => {
+      const w = document.documentElement.clientWidth, out = [];
+      if (document.documentElement.scrollWidth > w + 1) out.push(`page scrolls horizontally (${document.documentElement.scrollWidth}>${w})`);
+      for (const el of document.querySelectorAll('button, a, label, h1, h2, h3, input, select, textarea, .badge, .status')) {
+        const r = el.getBoundingClientRect(), cs = getComputedStyle(el);
+        if (!r.width || cs.visibility === 'hidden') continue;
+        if (r.right > w + 1) out.push(`${el.tagName.toLowerCase()} "${(el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 30)}" overflows the window by ${Math.round(r.right - w)} px`);
+        else if (el.scrollWidth > el.clientWidth + 1 && cs.overflow !== 'visible' && el.tagName !== 'TEXTAREA' && el.tagName !== 'SELECT') out.push(`${el.tagName.toLowerCase()}${el.type ? `[${el.type}]` : ''} "${(el.textContent || el.getAttribute('aria-label') || el.closest('label')?.textContent || '').trim().slice(0, 30)}" text is clipped (${el.scrollWidth}>${el.clientWidth})`);
+      }
+      return [...new Set(out)].slice(0, 8);
+    });
+    const sweepPages = async (label) => {
+      const issues = [];
+      for (const [i, p] of pages.entries()) {
+        await nav(p);
+        await page.waitForTimeout(400);
+        const bad = await overflow();
+        await page.screenshot({path: join(out, `dpi-${label}-${i + 1}.png`)});
+        if (bad.length) issues.push(`${p}: ${bad.join('; ')}`);
+      }
+      if (issues.length) throw Error(issues.join(' | '));
+      return `${pages.length} pages clean`;
+    };
     for (const [name, width, height, deviceScaleFactor] of views) {
       await step(`layout at ${name} (${width}x${height} css px, x${deviceScaleFactor})`, async () => {
         await cdp.send('Emulation.setDeviceMetricsOverride', {width, height, deviceScaleFactor, mobile: false});
-        const issues = [];
-        for (const [i, p] of pages.entries()) {
-          await nav(p);
-          await page.waitForTimeout(400);
-          const bad = await page.evaluate(() => {
-            const w = document.documentElement.clientWidth, out = [];
-            if (document.documentElement.scrollWidth > w + 1) out.push(`page scrolls horizontally (${document.documentElement.scrollWidth}>${w})`);
-            for (const el of document.querySelectorAll('button, a, label, h1, h2, h3, input, select, textarea, .badge, .status')) {
-              const r = el.getBoundingClientRect(), cs = getComputedStyle(el);
-              if (!r.width || cs.visibility === 'hidden') continue;
-              if (r.right > w + 1) out.push(`${el.tagName.toLowerCase()} "${(el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 30)}" overflows the window by ${Math.round(r.right - w)} px`);
-              else if (el.scrollWidth > el.clientWidth + 1 && cs.overflow !== 'visible' && el.tagName !== 'TEXTAREA' && el.tagName !== 'SELECT') out.push(`${el.tagName.toLowerCase()}${el.type ? `[${el.type}]` : ''} "${(el.textContent || el.getAttribute('aria-label') || el.closest('label')?.textContent || '').trim().slice(0, 30)}" text is clipped (${el.scrollWidth}>${el.clientWidth})`);
-            }
-            return [...new Set(out)].slice(0, 8);
-          });
-          await page.screenshot({path: join(out, `dpi-${name}-${i + 1}.png`)});
-          if (bad.length) issues.push(`${p}: ${bad.join('; ')}`);
-        }
-        if (issues.length) throw Error(issues.join(' | '));
-        return `${pages.length} pages clean`;
+        return sweepPages(name);
       }).catch(() => {}); // recorded as FAIL; keep checking the other sizes
+    }
+    // 1.0.24, at the smallest window (1024x720 css px, x1.25): the editor in focus mode, then every page in the high-contrast theme. Both settings persist in the app's storage, so they are put back.
+    const focusButton = () => page.getByRole('button', {name: 'Chế độ tập trung', exact: true}), themeButton = (label) => page.getByRole('button', {name: label, exact: true});
+    const focusOff = async () => { await nav('Tạo giọng đọc'); if (await focusButton().getAttribute('aria-pressed', {timeout: 5000}) === 'true') await focusButton().click(); };
+    try {
+      await cdp.send('Emulation.setDeviceMetricsOverride', {width: 1024, height: 720, deviceScaleFactor: 1.25, mobile: false});
+      await step('layout in focus mode (1024x720 css px, x1.25): the editor does not overflow', async () => {
+        await nav('Tạo giọng đọc');
+        if (await focusButton().getAttribute('aria-pressed', {timeout: 5000}) !== 'true') await focusButton().click();
+        await page.locator('.studio-grid.focus-mode').waitFor({timeout: 5000});
+        await page.waitForTimeout(400);
+        const bad = await overflow();
+        await page.screenshot({path: join(out, 'dpi-focus-mode.png')});
+        if (bad.length) throw Error(`Tạo giọng đọc: ${bad.join('; ')}`);
+        return 'editor clean';
+      }).catch(() => {});
+      await focusOff();
+      await step('layout in the high-contrast theme (1024x720 css px, x1.25): 6 pages do not overflow', async () => {
+        await themeButton('Chuyển giao diện tương phản cao').click();
+        await page.waitForFunction(() => document.documentElement.dataset.contrast === 'more', null, {timeout: 5000});
+        return sweepPages('high-contrast');
+      }).catch(() => {});
+    } finally {
+      await focusOff().catch((e) => log(`dpi cleanup: focus mode not turned off: ${String(e).split('\n')[0]}`));
+      await themeButton('Chuyển giao diện theo hệ thống').click().catch((e) => log(`dpi cleanup: theme not set to system: ${String(e).split('\n')[0]}`));
     }
     await cdp.send('Emulation.clearDeviceMetricsOverride');
   }
@@ -715,6 +803,83 @@ try {
       const segs = await page.getByRole('textbox', {name: /^Nội dung đoạn/}).count();
       return `${speakers.length} rows, ${new Set(speakers).size} speakers [${speakers.join('')}], ${chips} chips; script now ${segs} segments`;
     });
+    // 1.0.24, in this order: V1 the version history in the UI, V3 the job-done notice with the window minimised, V2 the second launch. Each is recorded on its own, the next one still runs.
+    await step('V1 version history restores an earlier state through the dialog', async () => {
+      const s1 = await seedProject(`Lịch sử phiên bản ${Date.now()}`, dialogueCopy());
+      // Only the save of S2 keeps S1 as a version (a save of an empty project does not): so S1 and S2 are saved first, and the project is opened in the UI afterwards.
+      await invoke('save_project', {project: {...s1, segments: s1.segments.slice(0, 2).map((s, i) => (i ? s : {...s, text: 'Đoạn một đã được sửa sau bản đầu.'}))}});
+      const s2 = await invoke('load_project', {id: s1.id}), list = await invoke('list_project_versions', {projectId: s1.id});
+      if (list.length !== 1 || list[0].reason !== 'auto' || list[0].state_at !== s1.updated_at) throw Error(`versions ${JSON.stringify(list)}; wanted one auto with state_at ${s1.updated_at}`);
+      await nav('Dự án');
+      await page.locator('article.project-card', {has: page.getByRole('heading', {name: s1.name, exact: true})}).getByRole('button', {name: 'Mở dự án', exact: true}).first().click();
+      const box = page.getByRole('textbox', {name: 'Nội dung đoạn 1'});
+      await box.waitFor({timeout: 15000});
+      if (await box.inputValue() !== s2.segments[0].text) throw Error(`segment 1 shows "${await box.inputValue()}", not the S2 text`);
+      await page.getByRole('button', {name: 'Lịch sử phiên bản', exact: true}).click();
+      const dialog = page.getByRole('dialog', {name: 'Lịch sử phiên bản'});
+      await dialog.waitFor({timeout: 15000});
+      const d = new Date(list[0].state_at), two = (n) => String(n).padStart(2, '0');
+      await dialog.getByRole('button', {name: `Khôi phục trạng thái lúc ${two(d.getHours())}:${two(d.getMinutes())} ngày ${two(d.getDate())}/${two(d.getMonth() + 1)}`, exact: true}).click();
+      await dialog.waitFor({state: 'detached', timeout: 15000});
+      await page.waitForFunction((text) => document.querySelector('textarea[aria-label="Nội dung đoạn 1"]')?.value === text, s1.segments[0].text, {timeout: 15000});
+      const now = await invoke('load_project', {id: s1.id});
+      sameState(now, s1, 'restore through the dialog');
+      if (now.name !== s2.name || now.revision !== s2.revision + 1) throw Error(`name "${now.name}", revision ${now.revision} (expected ${s2.revision + 1})`);
+      return `restored S1 from the dialog: revision ${s2.revision} -> ${now.revision}, segment 1 "${now.segments[0].text}"`;
+    }).catch(() => {});
+    await step('V3 a long job that ends while the window is minimised raises the notice', async () => {
+      const audio = dialogueCopy('-x2'), notify = await hasNotify(), asset = await invoke('import_asset', {path: audio}), toastsBefore = notify ? toasts() : null;
+      await watchInvokes();
+      const queued = await invoke('enqueue_job', {kind: 'stt', projectId: null, payload: {asset_id: asset.id, model_id: 'whisper-small', language: 'vi', diarize: true, num_speakers: 2}});
+      const get = async () => (await invoke('list_jobs')).find((j) => j.id === queued.id);
+      let job = await until(get, (j) => j?.status === 'running' || ENDED.includes(j?.status), 180000, 'the job to start running');
+      if (job.status !== 'running') throw Error(`harness: the job was ${job.status} (${job.error}) before it could be watched while running`);
+      const runningAt = Date.now();
+      await sleep(3000); // the app polls the queue every 2.5 s: it has seen the job running before its window goes away
+      nvda('-Minimize', '-Pid', String(app.pid));
+      let failure = null, detail;
+      try {
+        // Invoke only while minimised: no locator, click or screenshot.
+        job = await until(get, (j) => ENDED.includes(j?.status), 20 * 60000, 'the job to end');
+        const endedAt = Date.parse(job.updated_at), ran = endedAt - runningAt;
+        if (job.status !== 'succeeded') throw Error(`the job ended ${job.status}: ${job.error}`);
+        if (ran < 30000) throw Error(`harness: the job ran ${ran} ms, under the 30 s a notice needs; use a longer dialogue-x2.wav`);
+        const call = (cmd) => until(async () => (await page.evaluate(() => window.__calls)).find((c) => c.cmd === cmd && c.at >= runningAt), Boolean, 90000, `${cmd} while minimised`);
+        const flash = await call('plugin:window|request_user_attention');
+        detail = `job ran ${Math.round(ran / 1000)} s; request_user_attention ${flash.at - endedAt} ms after the job ended (U4)`;
+        if (notify) {
+          const sent = await call('plugin:notification|notify');
+          const count = await until(async () => toasts(), (n) => n > toastsBefore, 30000, `a new toast in the notification history (was ${toastsBefore})`);
+          detail += `; notify ${sent.at - endedAt} ms after it, toast history ${toastsBefore} -> ${count}`;
+        } else detail += '; no notification command in this build: taskbar flash only';
+      } catch (e) { failure = e; }
+      // Back to normal whatever happened: the window is restored and activated past the foreground lock, and the page must say it has focus.
+      try { nvda('-Focus', '-Pid', String(app.pid)); await until(() => page.evaluate(() => document.hasFocus()), Boolean, 15000, 'document.hasFocus() after the refocus'); } catch (e) { failure ??= e; }
+      if (failure) throw failure;
+      return detail;
+    }).catch(() => {});
+    await step('V2 a second launch hands over to the running app', async () => {
+      const asset = await invoke('import_asset', {path: dialogueCopy()});
+      const queued = await invoke('enqueue_job', {kind: 'stt', projectId: null, payload: {asset_id: asset.id, model_id: 'whisper-small', language: 'vi', diarize: true, num_speakers: 2}});
+      const get = async () => (await invoke('list_jobs')).find((j) => j.id === queued.id);
+      let job = await until(get, (j) => j?.status === 'running' || ENDED.includes(j?.status), 180000, 'the job to start running');
+      log(`V2 job at spawn: ${job.status} ${Math.round(100 * (job.progress ?? 0))} %`);
+      if (job.status !== 'running') throw Error(`harness: the job was ${job.status} (${job.error}) before the second launch`);
+      // Not launch(): no CDP environment, so the process is a plain user launch.
+      const env = {...process.env};
+      delete env.WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS; delete env.THANHAM_E2E_CDP_PORT;
+      const t0 = Date.now(), second = spawn(exe, [], {env, stdio: 'ignore'});
+      const code = await Promise.race([new Promise((ok) => second.once('exit', ok)), sleep(15000).then(() => 'still running')]);
+      if (code !== 0) { try { execFileSync('taskkill', ['/PID', String(second.pid), '/T', '/F'], {stdio: 'ignore'}); } catch {} throw Error(`the second launch ${code === 'still running' ? 'was still running after 15 s' : `exited with ${code}`}`); }
+      const exitedAfter = Date.now() - t0;
+      if (!await Promise.race([invoke('list_jobs').then(() => true), sleep(5000).then(() => false)])) throw Error('the first instance no longer answers list_jobs after the second launch');
+      await sleep(Math.max(0, 15000 - (Date.now() - t0)));
+      const count = execFileSync('tasklist', ['/FI', 'IMAGENAME eq thanh-am-studio.exe', '/NH'], {encoding: 'utf8'}).split(/\r?\n/).filter((l) => l.startsWith('thanh-am-studio.exe')).length;
+      if (count !== 1) throw Error(`${count} thanh-am-studio.exe processes 15 s after the second launch, expected 1`);
+      job = await until(get, (j) => ENDED.includes(j?.status), 20 * 60000, 'the job to end');
+      if (job.status !== 'succeeded') throw Error(`the job ended ${job.status}: ${job.error}`);
+      return `the second launch exited 0 after ${exitedAfter} ms; one process after 15 s; the job succeeded`;
+    }).catch(() => {});
   }
   if (phase === 'scripts') {
     // 1.0.7 script features in the installed app: a Word file made by Word imported through the open dialog, a take whose
@@ -1011,6 +1176,9 @@ try {
     await step('after separations the pack passes its re-check and equals its manifest', packRecheck);
   }
   if (phase === 'update') {
+    // The project 1.0.23 saves (S0) must come back from the update unchanged (N1-N6 below); seeding is no check of its own, so a failure here is an ABORT.
+    const S0 = await seedProject('Giữ qua bản cập nhật', dialogueCopy());
+    log(`seeded S0: revision ${S0.revision}, updated_at ${S0.updated_at}, ${S0.segments.length} segments, ${S0.transcript.length} transcript rows`);
     await step('update refuses a package that does not match its signature', async () => {
       for (let i = 0; i < 30 && !served.length; i++) await page.waitForTimeout(500); // the automatic check runs 3 s after start
       await page.waitForTimeout(3000);
@@ -1066,6 +1234,65 @@ try {
       if (after !== projects) throw Error(`projects ${projects} -> ${after}`);
       if (leftovers().length) throw Error(`left behind by the update: ${leftovers().join(' | ')}`);
       return `${from} -> ${now}, reopened; ${after} projects kept; installer copy ${left.join(' | ')} removed; ${before} of 2 files the new version no longer ships were present, none left; requests ${served.join(' ')}`;
+    });
+    // Right after the relaunch, by invoke, before any navigation: what the 1.0.24 store made of the 1.0.23 database (PLAN 4 D4, N1-N7).
+    const stored = () => invoke('load_project', {id: S0.id}), versions = () => invoke('list_project_versions', {projectId: S0.id});
+    let edited;
+    await step('N1 the migrated database returns the seeded project exactly', async () => {
+      const now = await stored(), differs = Object.keys({...S0, ...now}).filter((k) => JSON.stringify(now[k]) !== JSON.stringify(S0[k]));
+      if (differs.length) throw Error(`load_project differs from what 1.0.23 saved in: ${differs.join(', ')}`);
+      return `revision ${now.revision}, updated_at ${now.updated_at}`;
+    });
+    await step('N2 no version exists yet', async () => {
+      const list = await versions();
+      if (list.length) throw Error(`list_project_versions: ${JSON.stringify(list)}`);
+      return 'list_project_versions = []';
+    });
+    await step('N3 opening the project in the UI writes nothing', async () => {
+      // The first start after an update shows "Có gì mới" over the page, which makes the page inert: read it away first.
+      const news = page.getByRole('dialog', {name: 'Có gì mới'});
+      if (await news.waitFor({timeout: 5000}).then(() => true, () => false)) await news.getByRole('button', {name: 'Đóng Có gì mới'}).click();
+      await nav('Dự án');
+      await page.locator('article.project-card', {has: page.getByRole('heading', {name: S0.name, exact: true})}).getByRole('button', {name: 'Mở dự án', exact: true}).first().click();
+      const box = page.getByRole('textbox', {name: 'Nội dung đoạn 1'});
+      await box.waitFor({timeout: 15000});
+      if (await box.inputValue() !== S0.segments[0].text) throw Error(`segment 1 shows "${await box.inputValue()}", not the saved text`);
+      await page.waitForTimeout(5000); // an autosave or a version write would have happened by now
+      const now = await stored(), list = await versions();
+      if (now.revision !== S0.revision || list.length) throw Error(`revision ${now.revision} (was ${S0.revision}), versions ${JSON.stringify(list)}`);
+      return `revision ${now.revision}, no version after 5 s`;
+    });
+    await step('N4 the first edit keeps the old state as an automatic version', async () => {
+      await page.getByRole('textbox', {name: 'Nội dung đoạn 1'}).click();
+      await page.keyboard.press('Control+End');
+      await page.keyboard.type(' x');
+      edited = await until(stored, (p) => p.revision > S0.revision, 30000, 'the autosave of the edit');
+      await page.getByRole('button', {name: 'Đã lưu'}).waitFor({timeout: 15000});
+      const list = await versions();
+      if (edited.revision !== S0.revision + 1 || edited.segments[0].text !== `${S0.segments[0].text} x`) throw Error(`stored revision ${edited.revision}, segment 1 "${edited.segments[0].text}"`);
+      if (list.length !== 1 || list[0].reason !== 'auto' || list[0].revision !== S0.revision || list[0].state_at !== S0.updated_at) throw Error(`versions ${JSON.stringify(list)}; wanted one auto at revision ${S0.revision} with state_at ${S0.updated_at}`);
+      return `1 auto version: revision ${list[0].revision}, state_at ${list[0].state_at}`;
+    });
+    await step('N5 restoring it brings the 1.0.23 state back', async () => {
+      const [version] = await versions(), restored = await invoke('restore_project_version', {projectId: S0.id, versionId: version.id, revision: edited.revision});
+      sameState(restored, S0, 'restore');
+      if (restored.name !== edited.name || restored.revision !== edited.revision + 1) throw Error(`name "${restored.name}" (current "${edited.name}"), revision ${restored.revision} (expected ${edited.revision + 1})`);
+      if (!(await invoke('get_asset', {id: S0.segments[0].takes[0].asset_id}))?.path) throw Error('the seeded take no longer resolves to an asset');
+      if (JSON.stringify(await stored()) !== JSON.stringify(restored)) throw Error('load_project differs from what restore_project_version returned');
+      return `segments, transcript, dictionary, speaker slots and the take equal S0; revision ${restored.revision}`;
+    });
+    await step('N6 the restore kept the edited state as "before restore"', async () => {
+      const list = await versions();
+      if (list.length !== 2 || list[0].reason !== 'before_restore' || list[0].state_at !== edited.updated_at || list[1].reason !== 'auto') throw Error(`versions ${JSON.stringify(list.map((v) => [v.reason, v.revision, v.state_at]))}; wanted before_restore with state_at ${edited.updated_at}, then auto`);
+      return `2 versions, newest before_restore with state_at ${list[0].state_at}`;
+    });
+    // The popup's identity: an update never rewrites shortcuts, so the app id 1.0.23's installer set must still be the one the toast uses.
+    if (await hasNotify()) await step('N7 the Start-menu shortcut carries the app id of the toast', async () => {
+      const links = JSON.parse(winps(`$sh = New-Object -ComObject Shell.Application
+$items = @(Get-ChildItem -LiteralPath ([Environment]::GetFolderPath('Programs')) -Recurse -Filter '*.lnk' -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'Thanh*' } | ForEach-Object { [pscustomobject]@{ path = $_.FullName; aumid = $sh.NameSpace($_.DirectoryName).ParseName($_.Name).ExtendedProperty('System.AppUserModel.ID') } })
+ConvertTo-Json -Compress -InputObject $items`));
+      if (!links.length || links.some((l) => l.aumid !== AUMID)) throw Error(`Start-menu shortcuts: ${JSON.stringify(links)}; wanted every System.AppUserModel.ID = ${AUMID}`);
+      return links.map((l) => `${l.path} = ${l.aumid}`).join('; ');
     });
   }
   if (phase === 'update-seeded') {
@@ -1298,11 +1525,6 @@ try {
     // since the checklist announces the first take instead of "Đã tạo xong".
     const {readNew, speechOf} = await import('./nvdalog.mjs');
     const baseline = process.env.THANHAM_NVDA_BASELINE === '1', nvdaLog = join(out, 'nvda.log'), jsonl = join(out, 'nvda-speech.jsonl');
-    // A failure keeps nvda.ps1's own message (stderr); the download gets 5 minutes, every other call 1 minute.
-    const nvda = (...args) => {
-      try { return execFileSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', join(here, 'nvda.ps1'), ...args], {encoding: 'utf8', timeout: args[0] === '-Install' ? 300000 : 60000}).trim(); }
-      catch (e) { throw Error(`nvda.ps1 ${args.join(' ')}: ${String(e.stderr ?? '').split(/\r?\n/).find((l) => l.trim()) || e.message}`); }
-    };
     const osKeys = (keys) => nvda('-Keys', keys, '-Pid', String(app.pid));
     const windows = () => JSON.parse(nvda('-Windows', '-Pid', String(app.pid)) || '[]');
     let cursor = {offset: 0, id: null}, heard = [], said = [], rec = null, carried = {heard: [], said: []}, s7fresh = [], projectId;
@@ -1329,6 +1551,7 @@ try {
       rec = {step: name, input: '', expected: [], spoken: []};
       let error = null;
       try { await fn(rec); } catch (e) { error = String(e?.message ?? e).split('\n')[0].slice(0, 600); }
+      if (error) log(`DOM ${await domSnippet()}`);
       poll();
       rec.spoken.push(...heard);
       carried = {heard, said};
@@ -1580,9 +1803,89 @@ try {
         if (fired.length) throw Error(`print UI detected despite a page-level preventDefault: ${fired.join('; ')} (PLAN section 11 Q8)`);
         if (notProven(found)) throw Error(notProven(found));
       });
+      await nvdaStep('S9 focus mode', async (r) => {
+        r.input = 'CDP: focus segment 1 textarea; OS ^+f (Ctrl+Shift+F, U8)';
+        const toggle = page.getByRole('button', {name: 'Chế độ tập trung', exact: true});
+        await nav('Tạo giọng đọc');
+        try {
+          if (await toggle.getAttribute('aria-pressed', {timeout: 5000}) !== 'false') throw Error('focus mode is already on (aria-pressed is not false)');
+          await focus(segmentText(1));
+          mark();
+          osKeys('^+f');
+          await hear(['Đã bật chế độ tập trung'], 5000);
+          if (await toggle.getAttribute('aria-pressed', {timeout: 5000}) !== 'true') throw Error('the announcement was heard but aria-pressed is not true');
+        } finally {
+          if (await toggle.getAttribute('aria-pressed', {timeout: 5000}).catch(() => 'false') === 'true') await toggle.click(); // the preference persists: back to off
+        }
+      }, {baselineExpectFail: true});
+      await nvdaStep('S10 version history dialog', async (r) => {
+        r.input = 'CDP: focus "Lịch sử phiên bản", Enter; Escape';
+        const dialog = page.getByRole('dialog', {name: 'Lịch sử phiên bản'});
+        await nav('Tạo giọng đọc');
+        try {
+          await focus(page.getByRole('button', {name: 'Lịch sử phiên bản', exact: true}));
+          mark();
+          await page.keyboard.press('Enter');
+          await hear([['Lịch sử phiên bản', 'dialog']], 5000);
+          const at = await activeLabel();
+          if (!/^(Khôi phục trạng thái lúc |Đóng lịch sử phiên bản$)/.test(at)) throw Error(`focus is on "${at}" in the dialog, not on its first control`);
+          mark();
+          await page.keyboard.press('Escape');
+          await hear([['Lịch sử phiên bản', 'button']], 5000);
+          await focusIs('Lịch sử phiên bản');
+        } finally {
+          if (await dialog.count()) await page.keyboard.press('Escape'); // a failed step must not leave the dialog open
+        }
+      }, {baselineExpectFail: true});
     } finally {
       try { log(`nvda stop: ${nvda('-Stop')}`); } catch (e) { log(`nvda stop failed: ${String(e).split('\n')[0]}`); }
     }
+  }
+  if (phase === 'hc') {
+    // Windows' own contrast theme must reach the page as forced colours, with the waveform bars still drawn and Tab still showing an outline: the Playwright emulation of high-contrast.spec.ts cannot prove that the OS
+    // theme reaches WebView2. It changes the machine's theme and puts it back, so only in Windows Sandbox; it runs last so that a theme that will not go back cannot spoil another check. One check,
+    // or `NOTE hc-theme-unavailable` when this Sandbox has no usable contrast theme (PLAN 9.2 allows that note only).
+    if (process.env.USERNAME !== 'WDAGUtilityAccount') throw Error('the hc phase changes the Windows theme: Windows Sandbox only');
+    const name = 'a Windows contrast theme reaches the app: bars drawn, Tab outline', t0 = Date.now(), themes = join(process.env.SystemRoot ?? 'C:/Windows', 'Resources', 'Ease of Access Themes');
+    const waitForced = (on) => until(() => page.evaluate((v) => matchMedia(`(forced-colors: ${v ? 'active' : 'none'})`).matches, on), Boolean, 60000, `(forced-colors: ${on ? 'active' : 'none'})`);
+    let saved = null, applied = false, note = null, failure = null, detail = null;
+    try {
+      const project = await seedProject(`Tương phản cao ${Date.now()}`, dialogueCopy());
+      await nav('Dự án');
+      await page.locator('article.project-card', {has: page.getByRole('heading', {name: project.name, exact: true})}).getByRole('button', {name: 'Mở dự án', exact: true}).first().click();
+      await page.getByRole('textbox', {name: 'Nội dung đoạn 1'}).waitFor({timeout: 15000});
+      await page.locator('article.segment').first().click();
+      await page.locator('.waveform i').first().waitFor({state: 'attached', timeout: 15000});
+      const files = existsSync(themes) ? readdirSync(themes).filter((f) => /\.theme$/i.test(f)) : [], file = files.find((f) => f.toLowerCase() === 'hcblack.theme') ?? files[0];
+      saved = winps(`(Get-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes' -Name CurrentTheme).CurrentTheme`);
+      if (!file) note = `no .theme file in ${themes}`;
+      else if (!saved) note = 'the current theme is unknown, so it could not be put back';
+      else {
+        applied = true;
+        winps(`Start-Process -FilePath '${join(themes, file)}'`);
+        await waitForced(true).catch(() => { note = `(forced-colors: active) did not follow ${file} within 60 s`; });
+        if (!note) {
+          const bar = await page.evaluate(() => {
+            const colour = (c) => { const x = document.createElement('canvas').getContext('2d'); x.fillStyle = c; x.fillRect(0, 0, 1, 1); return `rgb(${[...x.getImageData(0, 0, 1, 1).data.slice(0, 3)].join(', ')})`; };
+            const b = document.querySelector('.waveform i'), r = b.getBoundingClientRect();
+            return {w: r.width, h: r.height, bg: getComputedStyle(b).backgroundColor, text: colour('CanvasText'), canvas: colour('Canvas')};
+          });
+          if (!bar.w || !bar.h || bar.bg !== bar.text || bar.bg === bar.canvas) throw Error(`waveform bar under ${file}: ${JSON.stringify(bar)}; wanted a drawn bar in CanvasText, not the canvas colour`);
+          await page.evaluate(() => document.activeElement?.blur());
+          await page.keyboard.press('Tab');
+          const ring = await page.evaluate(() => { const e = document.activeElement, s = getComputedStyle(e); return {el: e === document.body ? 'BODY' : e.getAttribute('aria-label') ?? e.textContent.trim().slice(0, 40), style: s.outlineStyle, width: s.outlineWidth}; });
+          if (ring.el === 'BODY' || ring.style === 'none' || !(parseFloat(ring.width) >= 1)) throw Error(`Tab outline under ${file}: ${JSON.stringify(ring)}`);
+          detail = `${file}: forced colours active, bar ${bar.bg} on ${bar.canvas}, Tab outline ${ring.style} ${ring.width} on "${ring.el}"`;
+        }
+      }
+    } catch (e) { failure = e; }
+    // Put everything back whatever happened: the saved theme, no Settings window, the app activated again.
+    if (applied) try { winps(`Start-Process -FilePath '${saved}'`); await waitForced(false); } catch (e) { failure ??= Error(`the saved theme ${saved} could not be put back: ${e.message}`); }
+    try { winps('Get-Process SystemSettings -ErrorAction SilentlyContinue | Stop-Process -Force'); nvda('-Focus', '-Pid', String(app.pid)); } catch (e) { log(`hc cleanup: ${String(e).split('\n')[0]}`); }
+    const ms = Date.now() - t0;
+    if (failure) { results.push({name, ok: false, ms, error: String(failure).slice(0, 800)}); log(`FAIL ${name} ${failure}`); log(`DOM ${await domSnippet()}`); await shot(`fail-${name}`); throw failure; }
+    if (note) { results.push({name, ok: true, verdict: 'NOTE', ms, detail: `NOTE hc-theme-unavailable ${note}`}); log(`NOTE hc-theme-unavailable ${note}`); }
+    else { results.push({name, ok: true, ms, detail}); log(`PASS ${name} ${detail}`); }
   }
   await shot(`end-${phase}`);
 } catch (e) {
