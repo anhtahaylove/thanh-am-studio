@@ -66,6 +66,17 @@ test('a stored speaker_slots with an invalid entry keeps the valid ones and give
  expect(await slots(page)).toEqual([['Minh',3],['Lan',0]]);
  expect(errors).toEqual([]);
 });
+test('undo and redo of a rename give back the stored colours of the snapshot, not the order-of-appearance guess',async({page})=>{
+ await open(page,three(['Minh','Lan'],{speaker_slots:{Minh:3,Lan:5}}));
+ expect(await slots(page)).toEqual([['Minh',3],['Lan',5]]);
+ const name=page.getByRole('textbox',{name:'Nhân vật đoạn 2',exact:true});await name.fill('Hùng');
+ expect(await slots(page),'a rename inherits the slot').toEqual([['Minh',3],['Hùng',5]]);
+ await page.getByRole('heading',{level:1}).click(); // Ctrl+Z in a name field is the browser's own text undo
+ await page.keyboard.press('Control+z');await expect(name).toHaveValue('Lan');
+ expect(await slots(page),'after undo').toEqual([['Minh',3],['Lan',5]]);
+ await page.keyboard.press('Control+y');await expect(name).toHaveValue('Hùng');
+ expect(await slots(page),'after redo').toEqual([['Minh',3],['Hùng',5]]);
+});
 test('opening a project without speaker_slots does not mark it unsaved or save it',async({page})=>{
  await open(page);
  await page.waitForTimeout(1500); // longer than the 900 ms autosave delay

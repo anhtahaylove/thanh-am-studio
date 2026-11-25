@@ -76,6 +76,15 @@ test('the preview lists at most 8 rows of 60 characters, counts the rest, and fi
  expect(await dialog(page).evaluate(d=>[d.scrollHeight<=d.clientHeight,d.scrollWidth<=d.clientWidth])).toEqual([true,true]);
  await expect(dialog(page).getByRole('button',{name:'Thêm 10 đoạn vào kịch bản'})).toBeInViewport({ratio:1});
 });
+// The dialog is capped to the window (max-height) and scrolls inside (overflow-y), so "Thêm … vào kịch bản" stays reachable in a short window.
+test('on a short window the dialog stays inside it and scrolls, and its Add button can still be pressed',async({page})=>{
+ await page.setViewportSize({width:1024,height:400});await page.goto('/');await expect(page.getByRole('button',{name:'Viết đoạn đầu tiên'})).toBeVisible();
+ await paste(page.locator('body'),Array.from({length:10},(_,i)=>`${i%2?'Mai':'Hùng'} - Câu ${i+1}.`).join('\n'));
+ await expect(status(page)).toHaveText('Sẽ thêm 10 đoạn · 2 nhân vật');
+ const m=await dialog(page).evaluate(d=>{const r=d.getBoundingClientRect();return {top:r.top,bottom:r.bottom,h:innerHeight,scrolls:d.scrollHeight>d.clientHeight,overflowY:getComputedStyle(d).overflowY};});
+ expect(m.top>=0&&m.bottom<=m.h,`dialog ${Math.round(m.top)}-${Math.round(m.bottom)} in a ${m.h} px window`).toBe(true);expect(m.scrolls,'content taller than the dialog').toBe(true);expect(m.overflowY).toBe('auto');
+ await dialog(page).getByRole('button',{name:'Thêm 10 đoạn vào kịch bản'}).click();await expect(seg(page,10)).toHaveValue('Câu 10.');
+});
 test('a TXT import with dash lines gives the 1.0.22 segments',async({page})=>{
  await page.addInitScript(()=>{
   const w=window as any,calls:any[]=[];w.isTauri=true;w.__calls=calls;let project:any=null;

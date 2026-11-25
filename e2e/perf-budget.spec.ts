@@ -6,7 +6,7 @@ import {readFileSync} from 'node:fs';
 // ~900 ms long task on the machine that set them; after, ~110 ms and none.
 const IDLE_MS=100,KEY_MS=400;
 const mock=({n,live}:{n:number;live:boolean})=>{
- const w=window as any;w.isTauri=true;w.__loads=0;w.__lt=[];w.__keys=[];
+ const w=window as any;w.isTauri=true;w.__loads=0;w.__lt=[];w.__ltd=[];w.__keys=[];
  const take=(id:string)=>({id,asset_id:'a'+id,path:id+'.wav',duration_ms:9000,sample_rate:48000,created_at:'2026-11-20T00:00:00Z',check:{model:'whisper-small',wer:0.02,heard:'x',mismatches:[],words:Array.from({length:30},(_,k)=>({text:'từ'+k,start_ms:k*200}))}});
  const text='Đây là một câu thử nghiệm khá dài để mô phỏng kịch bản tiếng Việt thật, có dấu và có nhiều từ trong một đoạn văn bình thường.';
  let project:any={id:'p1',name:'Sách nói',updated_at:'2026-11-20T00:00:00Z',revision:1,transcript:[],dictionary:{},source_asset_id:null,segments:Array.from({length:n},(_,i)=>({id:'s'+i,text:text+' '+i,normalized_text:text+' '+i,voice_id:'v'+(i%25),speaker:'Người dẫn',gap_ms:300,takes:[take('t'+i+'a'),take('t'+i+'b')],selected_take_id:'t'+i+'a',trim_start_ms:0,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0,gain_db:0,chapter:i%100===0?'Chương '+(i/100+1):null}))};
@@ -21,7 +21,7 @@ const mock=({n,live}:{n:number;live:boolean})=>{
    case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,native_worker_ready:true,python_path:null,ffmpeg_path:null,native_worker_path:null,fallback_count:0,message:''};
    case 'save_project':project={...ipc(args.project),revision:args.project.revision+1};return ipc(project);
    default:return null;}}};
- new PerformanceObserver(l=>{for(const e of l.getEntries())w.__lt.push(Math.round(e.duration));}).observe({type:'longtask'});
+ new PerformanceObserver(l=>{for(const e of l.getEntries() as any[]){w.__lt.push(Math.round(e.duration));w.__ltd.push(`${Math.round(e.duration)} ms at ${Math.round(e.startTime)} (${(e.attribution||[]).map((x:any)=>x.containerType+':'+x.name).join('|')||'no attribution'})`);}}).observe({type:'longtask'});
  // Event Timing reports interactions of 16 ms or more; a keystroke's keydown, keypress and keyup share one interactionId.
  new PerformanceObserver(l=>{for(const e of l.getEntries() as any[])if(e.interactionId)w.__keys.push({id:e.interactionId,ms:e.duration});}).observe({type:'event',durationThreshold:16} as PerformanceObserverInit);
 };
@@ -39,10 +39,10 @@ const script800=async(page:import('@playwright/test').Page,live:boolean,narrow=f
  if(live)await expect(page.locator('.segment .job-ring')).toHaveCount(32);
  if(narrow)await page.locator('textarea[aria-label="Nội dung đoạn 400"]').click(); // the selected row, with the panel inside it, is not the job row: a poll must leave it alone too
  const label=live?await page.locator('.segment .job-ring').first().textContent():null;
- await page.evaluate(()=>{(window as any).__lt=[];});await page.waitForTimeout(6000); // two or three polls
+ await page.evaluate(()=>{const w=window as any;w.__lt=[];w.__ltd=[];});await page.waitForTimeout(6000); // two or three polls
  if(live)expect(await page.locator('.segment .job-ring').first().textContent(),'the running job advanced, so its label changed').not.toBe(label);
- const idle:number[]=await page.evaluate(()=>(window as any).__lt);
- expect.soft(Math.max(0,...idle),`long tasks (ms) during 6 s of polling: ${idle.join(', ')||'none'}`).toBeLessThan(IDLE_MS);
+ const idle:number[]=await page.evaluate(()=>(window as any).__lt),detail:string[]=await page.evaluate(()=>(window as any).__ltd);
+ expect.soft(Math.max(0,...idle),`long tasks (ms) during 6 s of polling: ${idle.join(', ')||'none'}. Long tasks with start time (ms since navigation start) and attribution: ${detail.join('; ')||'none'}`).toBeLessThan(IDLE_MS);
  const box=page.locator('textarea[aria-label="Nội dung đoạn 400"]');await box.click();await page.keyboard.press('End');await page.waitForTimeout(500);
  await page.evaluate(()=>{(window as any).__keys=[];});
  await page.keyboard.type('abcdefghij',{delay:80});await expect(box).toHaveValue(/abcdefghij$/);
@@ -124,7 +124,7 @@ test('a 1,200-row transcript stays responsive: no long task while polls bring no
  const big=await measure(context,ROWS,'r600'),small=await measure(context,ROWS.slice(0,100),'r50',false);
  // Evidence only, not a gate: App still does O(n) work per keystroke (speakerStats, suspiciousRows, the hits filter), and an unreported keystroke counts as 16 ms.
  console.log(`perf: transcript 1200 rows: idle long tasks (ms) ${big.idle.join(', ')||'none'}; keystrokes (ms) ${big.ms.map(Math.round).join(', ')}; 100 rows: keystrokes (ms) ${small.ms.map(Math.round).join(', ')}; median ratio 1200/100 ${(big.ms[4]/small.ms[4]).toFixed(2)}`);
- expect.soft(Math.max(0,...big.idle),`long tasks (ms) during 6 s of polling: ${big.idle.join(', ')||'none'}. Long tasks with start time (ms since load) and attribution: ${big.detail}`).toBeLessThan(IDLE_MS);
+ expect.soft(Math.max(0,...big.idle),`long tasks (ms) during 6 s of polling: ${big.idle.join(', ')||'none'}. Long tasks with start time (ms since navigation start) and attribution: ${big.detail}`).toBeLessThan(IDLE_MS);
  expect(big.ms[4],`median keystroke latency; all (ms): ${big.ms.join(', ')}`).toBeLessThan(KEY_MS);
 });
 // Search 2.0: with a query that marks nearly every row (the letter "a": 1,194 of the 1,200 rows), a keystroke still re-renders only its own row, and

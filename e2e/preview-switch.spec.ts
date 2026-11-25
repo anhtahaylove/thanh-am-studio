@@ -1,7 +1,7 @@
 import {test,expect,type Page} from '@playwright/test';
 // A take preview stops when the selected segment or the open project changes (the audition and the waveform reset with it).
 // Tauri is mocked; the take is a real 8 s WAV. A spy on AudioBufferSourceNode records every start() and stop(). The dock draws the shown take's bars
-// without Play (A3); segment 2's take and the second project's are a quiet WAV that arrives 1 s late, so bars seen sooner after a switch would be stale.
+// without Play (A3); segment 2's take and the second project's are a quiet WAV that arrives 1 s late, or when the test releases a hold, so bars seen sooner after a switch would be stale.
 const tone=(amp=6000)=>{const rate=8000,n=rate*8,b=Buffer.alloc(44+n*2);b.write('RIFF',0);b.writeUInt32LE(36+n*2,4);b.write('WAVEfmt ',8);b.writeUInt32LE(16,16);b.writeUInt16LE(1,20);b.writeUInt16LE(1,22);b.writeUInt32LE(rate,24);b.writeUInt32LE(rate*2,28);b.writeUInt16LE(2,32);b.writeUInt16LE(16,34);b.write('data',36);b.writeUInt32LE(n*2,40);for(let i=0;i<n;i++)b.writeInt16LE(Math.round(Math.sin(2*Math.PI*440*i/rate)*amp),44+i*2);return b;};
 const mock=()=>{
  const w=window as any;w.isTauri=true;w.__ev=[];w.__loads=0;w.__jobs=[];
@@ -21,9 +21,11 @@ const mock=()=>{
    case 'add_take':projects[0].segments[0].takes.push(take('t9'));w.__jobs.push({id:'j1',kind:'tts',project_id:'p1',payload:{segment_id:'1'},status:'succeeded',progress:1,error:null,result:{asset_id:'r1'},created_at:new Date().toISOString(),updated_at:new Date().toISOString()});return null;
    case 'save_project':{const p={...args.project,revision:args.project.revision+1};projects[projects.findIndex(x=>x.id===p.id)]=p;return p;}default:return null;}}};
 };
-const open=async(page:Page,delay:{ms:number}={ms:0})=>{
+// `hold`: the quiet WAV waits for release() instead of 1 s, so a test can look at the page while it is still missing.
+const holdQuiet=()=>{let release=()=>{};const gate=new Promise<void>(r=>{release=r;});return {gate,release};};
+const open=async(page:Page,delay:{ms:number}={ms:0},hold?:{gate:Promise<void>}) =>{
  await page.route('**/tone.wav',async r=>{if(delay.ms)await new Promise(z=>setTimeout(z,delay.ms));await r.fulfill({body:tone(),contentType:'audio/wav'});});
- await page.route('**/quiet.wav',async r=>{await new Promise(z=>setTimeout(z,1000));await r.fulfill({body:tone(600),contentType:'audio/wav'});});
+ await page.route('**/quiet.wav',async r=>{await (hold?hold.gate:new Promise(z=>setTimeout(z,1000)));await r.fulfill({body:tone(600),contentType:'audio/wav'});});
  await page.addInitScript(mock);await page.goto('/');
  await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).first().click();
  await page.getByRole('heading',{level:1}).click();
@@ -33,7 +35,8 @@ const events=(page:Page)=>page.evaluate(()=>(window as any).__ev as string[]);
 const bars=(page:Page)=>page.locator('.waveform i').count();
 
 test('selecting another segment stops the playing preview and clears the waveform',async({page})=>{
- await open(page);
+ const hold=holdQuiet();
+ await open(page,{ms:0},hold);
  await page.keyboard.press('Space');await expect(play(page)).toHaveAccessibleName('Dừng nghe thử');
  await expect.poll(()=>bars(page)).toBeGreaterThan(0);
  await expect.poll(()=>events(page)).toEqual(['start']);
@@ -43,6 +46,8 @@ test('selecting another segment stops the playing preview and clears the wavefor
  expect(await bars(page)).toBe(0);
  await page.waitForTimeout(600);
  expect(await events(page)).toEqual(['start','stop']); // nothing started again
+ expect(await bars(page),'still none while segment 2\'s take is missing').toBe(0);
+ hold.release();await expect.poll(()=>bars(page)).toBe(100);
 });
 
 test('a preview still loading when another segment is selected never starts',async({page})=>{
@@ -56,7 +61,8 @@ test('a preview still loading when another segment is selected never starts',asy
 });
 
 test('opening another project stops the playing preview',async({page})=>{
- await open(page);
+ const hold=holdQuiet();
+ await open(page,{ms:0},hold);
  await page.keyboard.press('Space');await expect(play(page)).toHaveAccessibleName('Dừng nghe thử');
  await expect.poll(()=>events(page)).toEqual(['start']);
  await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).nth(1).click();
@@ -64,17 +70,19 @@ test('opening another project stops the playing preview',async({page})=>{
  await expect(play(page)).toHaveAccessibleName('Nghe thử đoạn');
  expect(await events(page)).toEqual(['start','stop']);
  expect(await bars(page)).toBe(0);
+ hold.release();await expect.poll(()=>bars(page)).toBe(100); // the second project's own take, once it arrives
 });
 
 test('a segment shows only its own take bars: the old ones go at once on a switch and the new take brings its own',async({page})=>{
- await open(page);
+ const hold=holdQuiet();
+ await open(page,{ms:0},hold);
  await expect.poll(()=>bars(page)).toBe(100); // segment 1's take, drawn without Play
  await page.keyboard.press('Space');await expect(play(page)).toHaveAccessibleName('Dừng nghe thử');
  await page.getByRole('button',{name:'Dừng nghe thử'}).click();
  await page.locator('article.segment').nth(1).click();
  await expect(page.locator('.waveform span')).toBeVisible();
  expect(await bars(page)).toBe(0);
- await expect.poll(()=>bars(page)).toBe(100);
+ hold.release();await expect.poll(()=>bars(page)).toBe(100);
  expect(await page.locator('.waveform i').evaluateAll(l=>Math.max(...l.map(i=>parseFloat((i as HTMLElement).style.height))))).toBe(3); // the quiet take's bars, not the loud one's
 });
 
