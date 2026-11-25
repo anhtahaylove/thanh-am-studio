@@ -54,7 +54,7 @@ fn blank(p:&Value)->bool{["segments","transcript"].iter().all(|k|p[k].as_array()
 fn version_due(c:&Connection,pid:&str)->Result<bool>{
  let t:Option<String>=c.query_row("SELECT created_at FROM project_versions WHERE project_id=?1 AND reason='auto' ORDER BY rowid DESC LIMIT 1",[pid],|r|r.get(0)).optional().map_err(err)?;
  let age=t.and_then(|t|chrono::DateTime::parse_from_rfc3339(&t).ok()).map(|t|(Utc::now()-t.with_timezone(&Utc)).num_seconds());
- Ok(age.is_none_or(|a|a>VERSION_GAP_SECS||a<0))
+ Ok(age.is_none_or(|a|!(0..=VERSION_GAP_SECS).contains(&a)))
 }
 /// Stores `p` deflated as a version of the project (`state_at` is when `p` was last edited), then applies the retention rules.
 fn insert_version(c:&Connection,pid:&str,revision:i64,state_at:&str,reason:&str,p:&Value)->Result<()>{
