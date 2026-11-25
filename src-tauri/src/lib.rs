@@ -69,7 +69,9 @@ pub fn run() {
  // Until RunEvent::Ready; the default hook runs first so a debug build still prints the panic.
  let (default,hook)=(std::panic::take_hook(),startup_hook(std::env::var_os("LOCALAPPDATA").filter(|v|!v.is_empty()).map_or_else(std::env::temp_dir,PathBuf::from).join(&ctx.config().identifier),message_box));
  std::panic::set_hook(Box::new(move|i|{default(i);hook(i)}));
- let app=tauri::Builder::default().plugin(tauri_plugin_dialog::init()).plugin(tauri_plugin_updater::Builder::new().build()).manage(update::Updates::default()).setup(|app|{
+ // First, so a second launch exits in plugin init, before `.setup` opens the store (which would mark the first instance's running jobs interrupted).
+ // No `unwrap`: a forwarded launch can arrive before `.setup` has built the window.
+ let app=tauri::Builder::default().plugin(tauri_plugin_single_instance::init(|app,_,_|{if let Some(w)=app.get_webview_window("main"){let _=w.unminimize();let _=w.show();let _=w.set_focus();}})).plugin(tauri_plugin_dialog::init()).plugin(tauri_plugin_updater::Builder::new().build()).manage(update::Updates::default()).setup(|app|{
   let root=app.path().app_local_data_dir()?;
   let resource=app.path().resource_dir()?;
   let source=PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().to_owned();

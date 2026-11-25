@@ -42,10 +42,17 @@ const waitJobs = async (kind, count, timeoutMs) => {
 
 async function launch() {
   const started = Date.now();
+  // The app is single-instance: a launch next to a running one exits at once, so the old one must be gone and its CDP port released first.
+  // Only Windows Sandbox kills it, so a developer's running app is never killed; elsewhere a held port is an error.
+  const held = () => fetch('http://127.0.0.1:9222/json/version', {signal: AbortSignal.timeout(2000)}).then(() => true, () => false);
+  if (process.env.USERNAME === 'WDAGUtilityAccount') try { execFileSync('taskkill', ['/IM', 'thanh-am-studio.exe', '/T', '/F'], {stdio: 'ignore'}); } catch {}
+  for (let i = 0; i < 40 && await held(); i++) await new Promise((r) => setTimeout(r, 500));
+  if (await held()) throw Error('port 9222 still held; another Thanh Âm Studio instance is running');
   app = spawn(exe, [], {env: {...process.env, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: '--remote-debugging-port=9222', THANHAM_E2E_CDP_PORT: '9222'}, stdio: 'ignore'});
   let browser;
   for (let i = 0; i < 120 && !browser; i++) { try { browser = await chromium.connectOverCDP('http://127.0.0.1:9222'); } catch { await new Promise((r) => setTimeout(r, 500)); } }
   if (!browser) throw Error('app did not expose WebView2 CDP');
+  if (app.exitCode !== null) throw Error(`the launched process exited with ${app.exitCode}: CDP is served by another instance`);
   page = browser.contexts()[0].pages()[0];
   await page.getByRole('navigation', {name: 'Điều hướng chính'}).waitFor({timeout: 60000});
   return Date.now() - started;
