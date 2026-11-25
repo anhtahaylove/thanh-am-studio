@@ -99,6 +99,8 @@ test('the highlighted project stays highlighted when a poll reorders the list, a
  const store=(ids:string[])=>page.evaluate(([k,ids,all])=>localStorage.setItem(k,JSON.stringify(ids.map(i=>(all as {id:string}[]).find(p=>p.id===i)))),[KEY,ids,PROJECTS] as const);
  await page.keyboard.press('Control+p');await expect(options(page)).toHaveCount(3);
  await page.keyboard.press('ArrowDown');await expect(selected()).toHaveText(/Làng chài/);
+ // Typing starts the list over: the first match is highlighted even though the old one still matches ("ng" is in all three names).
+ await box(page).fill('ng');await expect(selected()).toHaveText(/Lớp anh ngữ Giang/);await box(page).fill('');await expect(options(page)).toHaveCount(3);await page.keyboard.press('ArrowDown');await expect(selected()).toHaveText(/Làng chài/);
  await store(['tin','lop','demo']);await expect(options(page)).toHaveText(['Bản tin sáng','Lớp anh ngữ Giang','Làng chài · dự án mẫu'],{timeout:10000});
  await expect(selected()).toHaveText(/Làng chài/);
  await store(['tin','lop']);await expect(options(page)).toHaveText(['Bản tin sáng','Lớp anh ngữ Giang'],{timeout:10000});
