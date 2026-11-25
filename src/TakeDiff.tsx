@@ -2,6 +2,7 @@ import {useMemo,useRef,useState} from 'react';
 import {Headphones,WandSparkles} from 'lucide-react';
 import {checkSummary,normalizeText,normalizedParts,readingOrigin,sourceSpelling,takeDiff} from './domain';
 import {Modal,useEscape} from './Updates';
+import {ReasonButton} from './ui';
 import type {Segment,Take} from './types';
 
 // What the dialog needs from the app. `onAdd` writes one entry into the project dictionary and resolves with the project version right after it
@@ -61,7 +62,7 @@ export function TakeDiff({segment,take,source,dictionary,projectDictionary,codeS
   {problem&&<p role="alert" className="alert error">{problem}</p>}
   <div className="modal-actions">
    <button type="button" className="quiet" onClick={()=>guarded(onPlay)}><Headphones size={14}/>Nghe take này</button>
-   <button type="button" className="quiet accent" disabled={busy||!!blocked} title={blocked??undefined} onClick={()=>guarded(async()=>{await onGenerate();onClose();})}><WandSparkles size={14}/>Tạo take mới</button>
+   <ReasonButton className="quiet accent" blocked={blocked} disabled={busy} onClick={()=>guarded(async()=>{await onGenerate();onClose();})}><WandSparkles size={14}/>Tạo take mới</ReasonButton>
    <button type="button" className="primary" autoFocus={forms.length===0} onClick={onClose}>Đóng</button>
   </div>
  </section></Modal>;
