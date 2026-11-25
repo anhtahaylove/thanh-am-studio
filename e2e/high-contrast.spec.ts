@@ -158,6 +158,11 @@ test('the pressed focus-mode button and the pressed theme button are drawn with 
  await focus.click();await page.mouse.move(0,0);await expect(focus).toHaveAttribute('aria-pressed','false');
  expect(await focus.evaluate(el=>getComputedStyle(el).outlineStyle),'not pressed: no outline').toBe('none');
 });
+test('the heard words of the lit line are underlined in the contrast theme, where heard and unheard text differ by 1.25:1',async({page})=>{
+ await start(page,{stored:'contrast',project:false});
+ const said=await page.evaluate(()=>{const host=document.createElement('div');host.innerHTML='<div class="karaoke"><span class="said">đã đọc</span> chưa đọc</div>';document.querySelector('main')!.append(host);return getComputedStyle(host.querySelector('.said')!).textDecorationLine;});
+ expect(said).toBe('underline');
+});
 test.describe('forced colors',()=>{
  test.use({forcedColors:'active'});
  test('the emulation applies the forced palette (U5)',async({page})=>{
