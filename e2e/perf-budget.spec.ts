@@ -27,13 +27,15 @@ const mock=({n,live}:{n:number;live:boolean})=>{
 };
 
 // `live`: 1 running job and 31 batch jobs; 32 rows show a ring. The running job's progress moves on every poll (42 %, 43 %, ...), as a real job does, so its label changes each time and the jobs map is new on every poll. Only that one row may re-render.
-const script800=async(page:import('@playwright/test').Page,live:boolean,narrow=false)=>{
+const script800=async(page:import('@playwright/test').Page,live:boolean,narrow=false,focus=false)=>{
  test.setTimeout(180000);
  if(narrow)await page.setViewportSize({width:800,height:900}); // at 920 px and below the selected segment's panel is inside its row
+ if(focus)await page.addInitScript(()=>localStorage.setItem('thanh-am-focus','1')); // focus mode: the inspector is gone and the text is set in 19 px serif
  await page.addInitScript(mock,{n:800,live});await page.goto('/');
  await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
  // CSS selectors from here on: computing accessible names over ~70k nodes takes seconds.
  await expect(page.locator('textarea[aria-label="Nội dung đoạn 800"]')).toBeAttached({timeout:90000});
+ if(focus)await expect(page.locator('.studio-grid.focus-mode')).toBeAttached();
  // Finished TTS jobs make the app load the project once more; let that render land before measuring.
  await expect.poll(()=>page.evaluate(()=>(window as any).__loads),{timeout:30000}).toBe(2);await page.waitForTimeout(2000);
  if(live)await expect(page.locator('.segment .job-ring')).toHaveCount(32);
@@ -49,7 +51,7 @@ const script800=async(page:import('@playwright/test').Page,live:boolean,narrow=f
  const keys:{id:number;ms:number}[]=await page.evaluate(()=>(window as any).__keys),slowest=new Map<number,number>();
  for(const k of keys)slowest.set(k.id,Math.max(slowest.get(k.id)??0,k.ms));
  const ms=[...slowest.values(),...Array(Math.max(0,10-slowest.size)).fill(16)].sort((a,b)=>a-b); // an unreported keystroke took under 16 ms
- console.log(`perf: ${narrow?'800 segments at 800 px wide: ':''}${live?'800 segments with 1 running and 31 batch jobs: ':''}idle long tasks (ms) ${idle.join(', ')||'none'}; keystrokes (ms) ${ms.map(Math.round).join(', ')}`); // the list reporter prints this, so CI shows the margin on a pass
+ console.log(`perf: ${narrow?'800 segments at 800 px wide: ':''}${focus?'800 segments with focus mode on: ':''}${live?'800 segments with 1 running and 31 batch jobs: ':''}idle long tasks (ms) ${idle.join(', ')||'none'}; keystrokes (ms) ${ms.map(Math.round).join(', ')}`); // the list reporter prints this, so CI shows the margin on a pass
  expect(ms[4],`median keystroke latency; all (ms): ${ms.join(', ')}`).toBeLessThan(KEY_MS);
 };
 test('an 800-segment script stays responsive: no long task while polls bring nothing new, and keystrokes stay fast',async({page})=>{await script800(page,false);});
@@ -136,3 +138,5 @@ test('a 1,200-row transcript with an active search stays responsive: no long tas
  expect.soft(Math.max(0,...found.idle),`long tasks (ms) during 6 s of polling: ${found.idle.join(', ')||'none'}`).toBeLessThan(IDLE_MS);
  expect(found.ms[4],`median keystroke latency; all (ms): ${found.ms.join(', ')}`).toBeLessThan(KEY_MS);
 });
+// Focus mode changes the typing row's font and line height and hides the inspector; a keystroke must still cost what it does without it (the plain 800-segment test above is the in-run baseline).
+test('an 800-segment script with focus mode on stays responsive: no long task while polls bring nothing new, and keystrokes stay fast',async({page})=>{await script800(page,false,false,true);});
