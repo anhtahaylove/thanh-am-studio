@@ -34,7 +34,7 @@ async function jobName(j:Job):Promise<string>{
  if(typeof j.payload?.name==='string'&&j.payload.name)return j.payload.name;
  try{
   if(typeof j.payload.asset_id==='string')return (await call<Asset|null>('get_asset',{id:j.payload.asset_id}))?.name??'';
-  if(j.project_id)return (await call<ProjectSummary[]|null>('list_projects'))?.find(p=>p.id===j.project_id)?.name??'';
+  if(j.project_id&&false)return (await call<ProjectSummary[]|null>('list_projects'))?.find(p=>p.id===j.project_id)?.name??'';
  }catch{/* the notification still says what finished */}
  return '';
 }
