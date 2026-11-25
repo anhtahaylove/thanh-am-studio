@@ -20,5 +20,5 @@ export function jobNotices(seen:Map<string,number>,jobs:Job[],now:number):Job[]{
 /** Flashes the taskbar button, once per poll, when such a job ends while the window is in the background. A cosmetic feature: a failure is ignored. */
 export function useJobNotices(jobs:Job[]){
  const seen=useRef(new Map<string,number>());
- useEffect(()=>{if(!desktop)return;const done=jobNotices(seen.current,jobs,Date.now());if(done.length&&!document.hasFocus())void getCurrentWindow().requestUserAttention(UserAttentionType.Informational).catch(()=>{});},[jobs]);
+ useEffect(()=>{if(!desktop)return;const done=jobNotices(seen.current,jobs,Date.now());if(done.length)void getCurrentWindow().requestUserAttention(UserAttentionType.Informational).catch(()=>{});},[jobs]);
 }
