@@ -69,7 +69,9 @@ test('busy indicator started on the queue page stays clear of the dock once the 
 test('busy indicator follows a dock that grows while busy, with no resize or scroll',async({page})=>{
  await page.addInitScript(mock,true);await page.goto('/');await page.setViewportSize({width:800,height:720});await openProject(page);await exportAndHold(page);await frames(page);
  const before=await snap(page);expect(verdict(before).ok,'clear before the dock grows').toBe(true);
- await page.getByRole('checkbox',{name:'Theo mốc phụ đề'}).check();await expect(page.getByRole('checkbox',{name:'Giữ nhạc nền'})).toBeVisible();await frames(page);
+ // A script click: a real click focuses the checkbox, which scrolls the page (scroll padding) and would wake the scroll listener, hiding a dead observer.
+ const y=await page.evaluate(()=>scrollY);await page.getByRole('checkbox',{name:'Theo mốc phụ đề'}).evaluate((e:HTMLInputElement)=>e.click());await expect(page.getByRole('checkbox',{name:'Giữ nhạc nền'})).toBeVisible();await frames(page);
+ expect(await page.evaluate(()=>scrollY),'the page did not scroll').toBe(y);
  const after=await snap(page);expect(after.dock.b-after.dock.t,'the dock grew').toBeGreaterThan(before.dock.b-before.dock.t+3);
  expect(verdict(after),'indicator after the dock grew').toMatchObject({spot:true,ok:true});
 });
