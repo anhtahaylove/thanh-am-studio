@@ -2,7 +2,7 @@ import {test,expect,type Page} from '@playwright/test';
 // Karaoke: while a take with self-check word times plays, the words of the playing segment light up under its text; a take without them gets a one-line hint.
 // Tauri is mocked; the take is a real 8 s WAV (the tone of preview-switch.spec.ts). Segment 1 has take 1 (words at 0/400/800 ms), take 2 (only its last word,
 // at 0 ms) and take 3 (the times of take 1); segment 2 has a take that was never checked; segment 3 is trimmed to 2000 ms with words at 0/2000/2400 ms;
-// segment 4's check failed (`error`); segment 5's heard words match none of its script words; segments 6 and 7 have no take.
+// segment 4's check failed (`error`); segment 5's heard words match none of its script words; segments 6 and 8 have no take; segment 7's checked take plays a text of several lines.
 const tone=()=>{const rate=8000,n=rate*8,b=Buffer.alloc(44+n*2);b.write('RIFF',0);b.writeUInt32LE(36+n*2,4);b.write('WAVEfmt ',8);b.writeUInt32LE(16,16);b.writeUInt16LE(1,20);b.writeUInt16LE(1,22);b.writeUInt32LE(rate,24);b.writeUInt32LE(rate*2,28);b.writeUInt16LE(2,32);b.writeUInt16LE(16,34);b.write('data',36);b.writeUInt32LE(n*2,40);for(let i=0;i<n;i++)b.writeInt16LE(Math.round(Math.sin(2*Math.PI*440*i/rate)*6000),44+i*2);return b;};
 const ratio=(a:string,b:string)=>{const lum=(c:string)=>{const [r,g,b]=c.match(/[\d.]+/g)!.slice(0,3).map(v=>{const x=Number(v)/255;return x<=0.03928?x/12.92:((x+0.055)/1.055)**2.4;});return 0.2126*r+0.7152*g+0.0722*b;};const [x,y]=[lum(a),lum(b)].sort((p,q)=>q-p);return (x+0.05)/(y+0.05);};
 const HINT='Chữ chạy theo giọng chỉ có ở take tạo khi bật “Tự kiểm bằng Whisper”.';
@@ -15,7 +15,7 @@ const mock=()=>{
  const project={id:'p1',name:'Chữ chạy',updated_at:new Date().toISOString(),revision:1,transcript:[],dictionary:{},source_asset_id:null,segments:[
   seg('1','Xin chào, bạn.',[take('t1',check(ws)),take('t1b',check([['bạn',0]])),take('t1c',check(ws))]),seg('2','Một câu khác.',[take('t2')]),
   seg('3','Một câu khác.',[take('t3',check([['một',0],['câu',2000],['khác',2400]]))],2000),
-  seg('4','Một câu khác.',[take('t4',{model:'whisper-small',error:'CHECK_FAILED: no audio'})]),seg('5','Một câu khác.',[take('t5',check([['hoàn',0],['toàn',300],['lạ',600]]))]),seg('6','Chưa có take.',[]),seg('7','Chưa có take.',[])]};
+  seg('4','Một câu khác.',[take('t4',{model:'whisper-small',error:'CHECK_FAILED: no audio'})]),seg('5','Một câu khác.',[take('t5',check([['hoàn',0],['toàn',300],['lạ',600]]))]),seg('6','Chưa có take.',[]),seg('7','Xin chào bạn. '+'Đây là một câu khá dài để dòng chữ chạy xuống nhiều dòng. '.repeat(8),[take('t7',check(ws))]),seg('8','Chưa có take.',[])]};
  w.__TAURI_INTERNALS__={convertFileSrc:(p:string)=>p,transformCallback:()=>1,unregisterCallback:()=>{},metadata:{currentWindow:{label:'main'},currentWebview:{label:'main',windowLabel:'main'}},
   invoke:async(cmd:string,args:any)=>{switch(cmd){
    case 'list_projects':return [{id:project.id,name:project.name,updated_at:project.updated_at,revision:project.revision}];case 'load_project':return JSON.parse(JSON.stringify(project));
@@ -139,12 +139,12 @@ for(const theme of ['light','dark'] as const)test(`in the ${theme} theme the lit
 // The active row reserves the line, so the rows below it never move when the line appears or goes: row n's top (document coordinates) before Play, while the line
 // shows (or, for a take with nothing to show, while it plays), and after the stop.
 const top=(page:Page,n:number)=>page.evaluate(i=>document.querySelectorAll('article.segment')[i-1].getBoundingClientRect().top+scrollY,n);
-for(const width of [1440,800])test(`at ${width} px the next row does not move while the line of the active row starts and stops, for a checked take, an unchecked one, a failed check and words that place nowhere`,async({page})=>{
+for(const width of [1440,800])test(`at ${width} px the next row does not move while the line of the active row starts and stops, for a checked take (one line and several), an unchecked one, a failed check and words that place nowhere`,async({page})=>{
  await open(page,width,900);
- for(const n of [1,2,4,5]){
+ for(const n of [1,2,4,5,7]){
   await row(page,n).click();const before=await top(page,n+1);
   await play(page).click();await expect(play(page)).toHaveAccessibleName('Dừng nghe thử');
-  if(n===1)await expect(lit(page)).toHaveCount(1);else if(n===2)await expect(page.locator('.karaoke-none')).toHaveCount(1);else await expect.poll(()=>page.locator('.waveform i.played').count()).toBeGreaterThan(0);
+  if(n===1||n===7)await expect(lit(page)).toHaveCount(1);else if(n===2)await expect(page.locator('.karaoke-none')).toHaveCount(1);else await expect.poll(()=>page.locator('.waveform i.played').count()).toBeGreaterThan(0);
   expect(await top(page,n+1),`row ${n+1} while row ${n} plays`).toBe(before);
   await page.getByRole('button',{name:'Dừng nghe thử'}).click();await expect(page.locator('.karaoke, .karaoke-none')).toHaveCount(0);
   expect(await top(page,n+1),`row ${n+1} after row ${n} stops`).toBe(before);
