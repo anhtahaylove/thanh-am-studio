@@ -117,6 +117,11 @@ button.take-check:hover{box-shadow:inset 0 0 0 1px currentColor}
 .diff-added p{margin:0;font-size:13px;color:var(--ink)}
 .diff-dialog .modal-actions{flex-wrap:wrap}
 @media(max-width:640px){.diff-form{grid-template-columns:minmax(0,1fr)}.diff-dialog .modal-actions{justify-content:stretch}}
+.versions{max-height:calc(100vh - 50px);overflow:auto}
+.versions ol{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:8px}
+.versions li{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 12px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;font-size:13px}
+.version-when{display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-width:0}
+.version-label{overflow-wrap:anywhere}
 /* The ring takes the room left beside the chips, never less than its icon and gap, so it pushes the toolbar down only when under 27 px (with the head gap) are left there; a label that does not fit ends in an ellipsis, and the ring's title holds it whole. */
 .segment-head>.job-ring{flex:1 1 0;min-width:21px}
 .job-ring-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

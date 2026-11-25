@@ -26,9 +26,10 @@ const install=(page:Page,list:V[],jobs:object[]=[])=>page.addInitScript(([list,j
 },[list,jobs] as const);
 const calls=(page:Page)=>page.evaluate(()=>(window as any).__st.calls as string[]);
 const setSt=(page:Page,patch:Record<string,unknown>)=>page.evaluate(p=>Object.assign((window as any).__st,p),patch);
-const openProject=async(page:Page)=>{await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toHaveValue('Bản hiện tại.');};
+const openProject=async(page:Page)=>{await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toHaveValue('Bản hiện tại.');await page.evaluate(()=>{const st=(window as any).__st;st.calls.length=0;st.loaded=0;});};
 const topbar=(page:Page)=>page.getByRole('button',{name:'Lịch sử phiên bản',exact:true}),dialog=(page:Page)=>page.getByRole('dialog',{name:'Lịch sử phiên bản'});
 const restoreButtons=(page:Page)=>dialog(page).getByRole('button',{name:/^Khôi phục trạng thái lúc/});
+const commands=(page:Page)=>page.getByRole('dialog',{name:'Bảng lệnh'}).getByRole('option');
 const first=(page:Page)=>page.getByRole('textbox',{name:'Nội dung đoạn 1'});
 const edit=async(page:Page)=>{await first(page).focus();await page.keyboard.press('End');await page.keyboard.type('!');await expect(page.getByRole('button',{name:'Chưa lưu'})).toBeVisible();};
 const PROJECT_BUSY='PROJECT_BUSY: Dự án đang có công việc chạy hoặc chờ. Chờ xong hoặc hủy rồi khôi phục.',CONFLICT='REVISION_CONFLICT: Dự án đã thay đổi. Hãy tải lại trước khi lưu.';
@@ -42,7 +43,7 @@ test('opens from the topbar button and from the palette, names itself, lists new
  await page.keyboard.press('Escape');await expect(dialog(page)).toHaveCount(0);await expect(topbar(page)).toBeFocused();
  await topbar(page).click();await dialog(page).getByRole('button',{name:'Đóng lịch sử phiên bản'}).click();await expect(dialog(page)).toHaveCount(0);await expect(topbar(page)).toBeFocused();
  await page.keyboard.press('Control+k');await page.getByRole('combobox',{name:'Gõ để tìm lệnh'}).fill('lich su');
- await expect(page.getByRole('option')).toHaveText(['Lịch sử phiên bản…']);await page.keyboard.press('Enter');
+ await expect(commands(page)).toHaveText(['Lịch sử phiên bản…']);await page.keyboard.press('Enter');
  await expect(dialog(page)).toBeVisible();await expect(page.getByRole('dialog',{name:'Bảng lệnh'})).toHaveCount(0);await page.keyboard.press('Escape');await expect(dialog(page)).toHaveCount(0);
 });
 test('an empty history says so and has nothing to restore',async({page})=>{
@@ -112,7 +113,7 @@ test('with a queued or running job of the project every Khôi phục says why it
  await install(page,versions(),[tts('running')]);await openProject(page);await topbar(page).click();
  const reason='Dự án đang có công việc chạy hoặc chờ. Chờ xong hoặc hủy rồi khôi phục.';
  for(let i=0;i<4;i++){const b=restoreButtons(page).nth(i);await expect(b).toHaveAttribute('aria-disabled','true');await expect(b).toHaveAccessibleDescription(reason);await expect(b).toHaveAttribute('title',reason);}
- await restoreButtons(page).first().click();await page.waitForTimeout(300);expect(await calls(page)).toEqual([]);await expect(dialog(page)).toBeVisible();
+ await restoreButtons(page).first().click({force:true});await page.waitForTimeout(300);expect(await calls(page)).toEqual([]);await expect(dialog(page)).toBeVisible();
  await page.keyboard.press('Escape');await setSt(page,{jobs:[tts('running','other')]});await topbar(page).click();await expect(restoreButtons(page).first()).not.toHaveAttribute('aria-disabled','true');
  await page.keyboard.press('Escape');await setSt(page,{jobs:[tts('queued')]});await topbar(page).click();await expect(restoreButtons(page).first()).toHaveAttribute('aria-disabled','true');
 });
@@ -135,5 +136,5 @@ test('the browser preview has no version history button or palette command',asyn
  await page.goto('/');await page.getByRole('button',{name:'Viết đoạn đầu tiên'}).click();await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toBeVisible();
  await expect(topbar(page)).toHaveCount(0);
  await page.keyboard.press('Control+k');await expect(page.getByRole('dialog',{name:'Bảng lệnh'})).toBeVisible();await page.getByRole('combobox',{name:'Gõ để tìm lệnh'}).fill('lich su');
- await expect(page.getByRole('option')).toHaveCount(0);
+ await expect(commands(page)).toHaveCount(0);
 });
