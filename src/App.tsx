@@ -35,6 +35,7 @@ import {clampTrim,takePeaks} from './audio';
 import {takeIndex,voiceSample} from './voiceSample';
 import type {VoiceSample} from './voiceSample';
 import {ChapterMap} from './ChapterMap';
+import {useJobNotices} from './notify';
 import type {TranscriptApi} from './TranscriptRow';
 import {Empty,IconButton,NumberField,rovingKeyDown,useMediaQuery,whyBlocked} from './ui';
 import type {AppSettings,Asset,WorkerEngine,Job,ModelInfo,Project,ProjectSummary,RuntimeStatus,Segment,Take,TranscriptSegment,Voice} from './types';
@@ -212,6 +213,7 @@ export default function App(){
  // Windows taskbar progress while jobs run; keyed on the value so a poll that changes nothing sends nothing. A cosmetic feature: a failure is ignored.
  const taskbar=JSON.stringify(taskbarProgress(jobs));
  useEffect(()=>{if(!desktop)return;const t=JSON.parse(taskbar) as ReturnType<typeof taskbarProgress>,status={none:ProgressBarStatus.None,normal:ProgressBarStatus.Normal,indeterminate:ProgressBarStatus.Indeterminate}[t.status];void getCurrentWindow().setProgressBar({status,progress:t.progress}).catch(()=>{});},[taskbar]);
+ useJobNotices(jobs);
  useEffect(()=>{const handler=(e:BeforeUnloadEvent)=>{if(dirtyRef.current){e.preventDefault();e.returnValue='';}};window.addEventListener('beforeunload',handler);return()=>window.removeEventListener('beforeunload',handler);},[]);
  useEffect(()=>{const signature=jobs.filter(j=>j.project_id===project?.id&&j.kind==='tts'&&j.status==='succeeded').map(j=>j.id).sort().join(',');if(!signature||signature===completedTtsRef.current||dirtyRef.current||savingRef.current||!project?.id)return;const id=project.id;let live=true,retry=0;void call<Project>('load_project',{id}).then(p=>{if(projectRef.current?.id===id&&!dirtyRef.current&&!savingRef.current){completedTtsRef.current=signature;projectRef.current=p;setProject(p);}}).catch(()=>{if(live)retry=window.setTimeout(()=>setReloadTry(n=>n+1),2500);});/* A re-run (every poll while a job runs) replaces the pending retry instead of adding one. */return ()=>{live=false;clearTimeout(retry);};},[jobs,project?.id,dirty,reloadTry]);
  // A cleaned sample plays once its job ends, only if the form still shows that sample.
