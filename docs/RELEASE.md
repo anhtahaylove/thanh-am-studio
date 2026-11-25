@@ -82,7 +82,7 @@ git fetch origin && git merge-base --is-ancestor origin/main HEAD || { echo "reb
 mkdir -p .github/guard-approvals
 { echo "reviewed $(git rev-parse HEAD)"
   git -c core.quotepath=false diff -z --name-only --no-renames origin/main...HEAD |
-    grep -zEi '^(worker/|worker-rs/|src-tauri/src/(engine|store|pack|docx|update|lib)\.rs$|\.github/)' | grep -zEv '^\.github/guard-approvals/' |
+    grep -zEi '^((worker|worker-rs|\.github)(/|$)|src-tauri/src/(engine|store|pack|docx|update|lib)\.rs$)' | grep -zEv '^\.github/guard-approvals/' |
     while IFS= read -r -d '' p; do echo "$p $(git rev-parse --verify -q "HEAD:$p" || echo deleted)"; done; } > "$f"
 git add "$f" && git commit -m "Approve the reviewed guarded blobs of #$PR."
 ```

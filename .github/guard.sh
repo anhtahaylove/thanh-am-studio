@@ -16,7 +16,7 @@ fail() { echo "::error::$*"; exit 1; }
 dir=.github/guard-approvals
 own=$dir/$PR.txt
 fixture=e2e/fixtures/payloads-1.0.21.json
-guarded='^(worker/|worker-rs/|src-tauri/src/(engine|store|pack|docx|update|lib)\.rs$|\.github/)'
+guarded='^((worker|worker-rs|\.github)(/|$)|src-tauri/src/(engine|store|pack|docx|update|lib)\.rs$)'
 
 # The payload fixture is owner-locked: any change to it or to a case variant of its path (they collide on Windows) fails, approved or not.
 locked=$(git diff --name-only --no-renames "$BASE...$HEAD" -- ":(icase)$fixture")
