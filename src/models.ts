@@ -8,10 +8,10 @@ export const formatBytes=(bytes:number)=>{const mb=Math.round(bytes/1e6);return 
 /** Peak memory a model needs while it runs, in MiB; null until measured (shown as "Chưa đo"). */
 export const MODEL_RAM_MB:Record<string,number|null>={
  'vieneu-v3':2200, // STATUS.md: TTS worker peak 2,179 MB, clean 8 GB Sandbox 2,221 MB; README: about 2.2 GB
- 'whisper-small':1300, // STATUS.md: windowed STT peak 1,231 MB; the Rust worker runs at 0.932-0.993x of that
- 'whisper-turbo':null, // not measured yet (follow-up F1), so it is never recommended
- 'diarization':null, // not measured yet
- 'htdemucs':null, // not measured yet
+ 'whisper-small':1400, // F1 2026-11-25: native STT worker tree peak working set 1,331.3 MiB on a dense 74.5-min talk show (919.6 on the 70.5-min TTS render); STATUS.md "Model RAM measurement (F1)"
+ 'whisper-turbo':1900, // F1 2026-11-26: native STT worker tree peak working set, max 1,832.7 MiB over 5 valid runs (3 short, 2 long); STATUS.md "Model RAM measurement (F1)"
+ 'diarization':600, // F1 2026-11-26: thanham-diarize.exe peak working set 523.7 MiB on the 70.5-min file; the tree peak stays at the STT model's; STATUS.md "Model RAM measurement (F1)"
+ 'htdemucs':1400, // F1 2026-11-26: separation job tree (pack Python + FFmpeg) peak working set, max 1,381.4 MiB over 5 valid runs; STATUS.md "Model RAM measurement (F1)"
  'separation-runtime':null, // the htdemucs figure covers the job this pack runs
 };
 /** Memory the OS, the app and WebView2 keep. A chosen policy margin, not derived from a measurement. */

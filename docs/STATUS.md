@@ -1043,6 +1043,52 @@ An interface release. Polish: the take preview stops when the selected segment o
 
 Evidence: `work\release-v1.0.23-sandbox` (`out1023rh`, `out1023r1`, `out1023r2`, `run1023.log`, `icons-rh`, `icons-r1`, `icons-r2`), the execution log in `work\round-1.0.23\PLAN.md` and the published v1.0.23 release notes.
 
+### Model RAM measurement (F1, 2026-11-23 to 2026-11-26)
+
+The model cards' "RAM khi chạy" figures (`MODEL_RAM_MB` in `src/models.ts`) are now measured: the **peak working set of the worker process tree** during a real job, in MiB, rounded up to the next 100 MiB, with no extra margin (`HEADROOM_MB` is the policy margin). The card shows the need in binary GB (MiB / 1,024), like the machine total next to it and Task Manager. Before this change the need was shown as decimal GB of a MiB figure, about 5 % low, so VieNeu's text changes from 2,2 to 2,1 GB.
+
+Method (`scripts/measure-model-ram.ps1`, Windows PowerShell 5.1), on the development machine (Windows 11, Core i5-13400F, 32 GB):
+
+- The 1.0.22 installer extracted with 7-Zip; the four model folders carry the revisions `worker/models.json` pins; the separation pack `separation-v1` installed by the extracted Python worker's own `download` operation. A `health` request runs first.
+- The worker starts as `runtime.rs` `attempt()` starts it: the native exe with no arguments, or `python -I -X utf8 main.py` (`-B` first, on the pack's Python, for `separate`); no window, piped stdio, stderr to `worker.log`, a kill-on-close job object; `THANHAM_FFMPEG`, `THANHAM_FFPROBE` and `HF_HUB_DISABLE_TELEMETRY` (plus `PYTHONUTF8` and `PYTHONIOENCODING` for Python). The request is the protocol-1 request `prepare_request` builds. STT runs on the native engine, as every `stt` does by default.
+- Normal priority with EcoQoS explicitly off for the worker and every child it starts; no core pinning.
+- Every 250 ms: the tree (the worker and its descendants by parent PID) with each process's working set, private bytes and threads, and the machine's available memory and commit headroom. A run's peak is the larger of the sampled tree sum and the largest process's own `PeakWorkingSetSize` (the samples can miss a short spike). CPU seconds and the job's peak commit come from the job object.
+- A run counts only if it started with at least 8,192 MB available and 8 GiB of commit headroom, available memory never fell below 4,096 MiB, no Windows Sandbox ran, no perf lock was held, and the worker exited 0 after a `result` event. Long runs ran only between 22:00 and 07:00. Run 1 of each short series started at least 10 minutes after anything last read its model; a truly cold file cache cannot be forced without admin tools.
+
+Inputs: STT short `installer1022\dialogue.wav` (102 s, 2 speakers); STT long `installer1021\long.mp3` (70.5 min, the 64 kb/s MP3 of the 70.6-minute TTS render); separation short `music0-70s.wav` (70 s); separation long `music_full.wav` four times (906 s).
+
+| Configuration | Valid runs | Peak tree working set, MiB | Notes |
+|---|---|---|---|
+| Native Whisper Small, short | 3 | 647.3, 647.3, 647.3 | 37 s, 21 rows |
+| Native Whisper Small, long (method control) | 2 | 919.6, 918.5 | 1,829-1,839 s, 1,136 rows |
+| Native Whisper Small, the 74.5-min talk show of the T4 rounds (`uj-rbEf_0RU.webm`) | 1 | 1,331.3 (worker 1,327.3) | 2,506 s, 919 rows |
+| Native Whisper Large v3 Turbo, short | 3 | 1,832.5, 1,832.5, 1,832.5 | 44 s, 27 rows |
+| Native Whisper Large v3 Turbo, long | 2 (+1 invalid) | 1,832.7, 1,832.6 | 1,788-1,941 s, 1,539 rows; run 1 invalid: available memory fell to 3,689 MiB |
+| Native Small + diarization, short (2 speakers) | 3 | 647.2-647.3; `thanham-diarize.exe` 165.6-166.3 | 2 speakers found |
+| Native Turbo + diarization, short (2 speakers) | 3 | 1,832.4-1,832.5; `thanham-diarize.exe` 165.8-166.1 | 2 speakers found |
+| Native Turbo + diarization, long (automatic count) | 2 | 1,832.6, 1,832.6; `thanham-diarize.exe` 523.6-523.7 | 2,245-2,264 s, 1,504 rows, 1 speaker found |
+| Separation (HTDemucs, pack Python and FFmpeg), short | 3 | 1,225.7, 1,237.8, 1,197.1 | 37 s |
+| Separation, long | 2 | 1,298.0, 1,381.4 | 433-437 s; the two runs differ by 6.4 % |
+| Python Whisper Large v3 Turbo, short (information only) | 1 | 1,879.5 | 2.6 % above native |
+
+Values (ceil₁₀₀ of the maxima above):
+
+- `whisper-turbo` 1,900: every valid native Turbo run without diarization peaks at 1,832.5-1,832.7 MiB, the model load; the long run stays below it. A 16 GB machine (about 15,760 MiB) now gets Turbo as the STT recommendation (1,900 + 3,072 ≤ 15,760); 8 GB keeps Small.
+- `diarization` 600: the diarization child's own peak (523.7 MiB on the long file). The tree's peak with diarization equals the STT model's alone (the child runs while the worker is below its peak), so the card adds it as a separate need.
+- `htdemucs` 1,400 (max 1,381.4). The separation pack's card points to it.
+- `whisper-small` 1,300 → 1,400: the native worker peaks at 1,331.3 MiB on the dense 74.5-minute talk show, above the old figure (PLAN 1.0.23 §11 Q12: keep 1,300 unless a measured value is higher). On the long TTS render it peaks at 919.6 MiB: the peak grows with the amount of speech in each window, not with the length alone.
+
+Method control. The plan's band, 930-1,406 MiB for native Small on `long.mp3`, was **missed** (919.6 MiB). The band came from Python's 1,231 MB on the source WAV with an older Python worker, times the native/Python ratio of 0.932-0.993. On 2026-11-25 at 22:35, before the second control run and before any diagnostic result, the coordinator fixed two other checks that both had to pass for the method to count:
+
+- (a) The median of the valid control runs (919.05 MiB) within ±10 % of the 1.0.21 Sandbox figure on the same file, 888 MiB (the largest single-worker `WorkingSet64` sampled every 5 s, divided by 2^20 although its log says "MB"; `out1021r4\run.log`): 799-977 MiB. **Passed.**
+- (b) Native Small on the T4 rounds' 74.5-minute file within ±10 % of T4's 1,326 (`work\rm\a3\t4\small\74min\ram.csv`; the column is named `peak_ws_mb` but holds the worker's `PeakWorkingSetSize` / 2^20, so MiB, about 1,390 decimal MB): 1,193-1,459 MiB. The worker's own peak was 1,327.3 MiB (+0.1 %). **Passed.**
+
+The method also reproduces T4's short figures exactly (Small 647, Turbo 1,833).
+
+Not covered: the Python engine beyond the one short Turbo run; a cold file cache; other machines. Two nights (2026-11-23 and 2026-11-24) gave no room: available memory peaked at 8,031 and 7,661 MB against the 8,192 MB gate; F1 ran on the night of 2026-11-25 with Docker Desktop stopped.
+
+Evidence: `work\round-1.0.23\f1` (`runs\<configuration>\run-<n>.json` and `.csv`, `runner.log`, `values.json`, the extracted `app`).
+
 ## Not verified / known gaps
 
 - Self-update through GitHub was observed twice, in clean Sandboxes (1.0.11 to 1.0.12 and 1.0.13 to 1.0.15, above); the per-release gate

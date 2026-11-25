@@ -23,32 +23,34 @@ const card=(page:Page,id:string)=>page.locator('.model-card').filter({has:page.g
 const fact=(page:Page,id:string,label:string)=>card(page,id).locator('dt',{hasText:label}).locator('xpath=following-sibling::dd[1]');
 const sideways=(page:Page)=>page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth);
 
-test('each card shows its download size and RAM in binary GB, and "Chưa đo" where no peak was measured',async({page})=>{
+test('each card shows its download size and its measured RAM in binary GB, like the machine total',async({page})=>{
  await open(page,7910);
  // 636,939,541 B; 486,212,372 B; 1,621,665,983 B; 34,275,138 B; 84,025,440 B; the pack, 173,988,339 B.
  for(const [id,size] of Object.entries({'vieneu-v3':'637 MB','whisper-small':'486 MB','whisper-turbo':'1,6 GB',diarization:'34 MB',htdemucs:'84 MB','separation-runtime':'174 MB'}))await expect(fact(page,id,'Dung lượng tải'),id).toHaveText(size);
- await expect(fact(page,'vieneu-v3','RAM khi chạy')).toContainText('khoảng 2,1 GB'); // 2,200 MiB / 1,024, like the machine total
- await expect(fact(page,'vieneu-v3','RAM khi chạy')).toContainText('Chưa tính Whisper Small khi bật Tự kiểm bằng Whisper');
- await expect(fact(page,'whisper-small','RAM khi chạy')).toHaveText('khoảng 1,3 GB');
- for(const id of ['whisper-turbo','htdemucs'])await expect(fact(page,id,'RAM khi chạy'),id).toHaveText('Chưa đo');
- await expect(fact(page,'diarization','RAM khi chạy')).toHaveText('Chưa đoCộng thêm vào RAM của model chép lời khi bật tách người nói');
+ // MODEL_RAM_MB / 1,024: 2,200; 1,400; 1,900; 600; 1,400 MiB. The pack's job is the HTDemucs card's figure.
+ await expect(fact(page,'vieneu-v3','RAM khi chạy')).toHaveText('khoảng 2,1 GBChưa tính Whisper Small khi bật Tự kiểm bằng Whisper');
+ for(const [id,ram] of Object.entries({'whisper-small':'khoảng 1,4 GB','whisper-turbo':'khoảng 1,9 GB',htdemucs:'khoảng 1,4 GB'}))await expect(fact(page,id,'RAM khi chạy'),id).toHaveText(ram);
+ await expect(fact(page,'diarization','RAM khi chạy')).toHaveText('khoảng 0,6 GBCộng thêm vào RAM của model chép lời khi bật tách người nói');
  await expect(fact(page,'separation-runtime','RAM khi chạy')).toHaveText('Đã tính trong thẻ Tách giọng và nhạc nền');
+ await expect(page.locator('.model-card .mc-facts')).not.toContainText(['Chưa đo']);
 });
 // What modelAdvice says per machine (src/models.test.ts has the rules; the Playwright loader cannot import models.json through src/models.ts).
 const DEFAULT='Chưa đọc được RAM của máy; đây là lựa chọn mặc định.';
-const ADVICE:[number|null,string,string,string,string][]=[ // total, VieNeu badge, VieNeu reason, Small badge, Small reason
- [7910,'recommended','Máy có 7,7 GB RAM, đủ cho model này.','recommended','Cần khoảng 1,3 GB RAM, máy có 7,7 GB.'],
- [15760,'recommended','Máy có 15,4 GB RAM, đủ cho model này.','recommended','Cần khoảng 1,3 GB RAM, máy có 15,4 GB.'],
- [null,'recommended',DEFAULT,'recommended',DEFAULT],
- [3900,'heavy','Cần khoảng 2,1 GB RAM, máy chỉ có 3,8 GB. Đóng bớt ứng dụng khác trước khi đọc.','recommended','Cần khoảng 1,3 GB RAM, máy có 3,8 GB.'],
+type Pick=[keyof typeof BADGE|null,string|null]; // badge, reason
+const ADVICE:[number|null,Pick,Pick,Pick][]=[ // total, VieNeu, Whisper Small, Whisper Turbo
+ [7910,['recommended','Máy có 7,7 GB RAM, đủ cho model này.'],['recommended','Cần khoảng 1,4 GB RAM, máy có 7,7 GB.'],[null,null]],
+ [15760,['recommended','Máy có 15,4 GB RAM, đủ cho model này.'],[null,'Cần cho Tự kiểm bằng Whisper'],['recommended','Máy có 15,4 GB RAM, đủ cho model lớn này.']],
+ [null,['recommended',DEFAULT],['recommended',DEFAULT],[null,null]],
+ [3900,['heavy','Cần khoảng 2,1 GB RAM, máy chỉ có 3,8 GB. Đóng bớt ứng dụng khác trước khi đọc.'],['recommended','Cần khoảng 1,4 GB RAM, máy có 3,8 GB.'],[null,null]],
 ];
-for(const [total,tts,ttsReason,stt,sttReason] of ADVICE)test(`the badges and their reasons follow the machine memory (${total??'unknown'} MB)`,async({page})=>{
+for(const [total,...picks] of ADVICE)test(`the badges and their reasons follow the machine memory (${total??'unknown'} MB)`,async({page})=>{
  await open(page,total);
- for(const [id,badge,reason] of [['vieneu-v3',tts,ttsReason],['whisper-small',stt,sttReason]] as const){
-  await expect(card(page,id).locator('.mc-badge'),id).toHaveText(BADGE[badge as keyof typeof BADGE]);await expect(card(page,id).locator('.mc-reason'),id).toHaveText(reason);
+ for(const [id,[badge,reason]] of [['vieneu-v3',picks[0]],['whisper-small',picks[1]],['whisper-turbo',picks[2]]] as const){
+  if(badge)await expect(card(page,id).locator('.mc-badge'),id).toHaveText(BADGE[badge]);else await expect(card(page,id).locator('.mc-badge'),id).toHaveCount(0);
+  if(reason)await expect(card(page,id).locator('.mc-reason'),id).toHaveText(reason);else await expect(card(page,id).locator('.mc-reason'),id).toHaveCount(0);
  }
- // Turbo is not measured, so Small is the only STT pick and Turbo has no badge; there are never two STT badges.
- for(const id of ['whisper-turbo','diarization','htdemucs','separation-runtime']){await expect(card(page,id).locator('.mc-badge'),id).toHaveCount(0);await expect(card(page,id).locator('.mc-reason'),id).toHaveCount(0);}
+ for(const id of ['diarization','htdemucs','separation-runtime']){await expect(card(page,id).locator('.mc-badge'),id).toHaveCount(0);await expect(card(page,id).locator('.mc-reason'),id).toHaveCount(0);}
+ // One STT pick per machine: Small below 16 GB, the measured Turbo from 16 GB; never two STT badges.
  await expect(page.locator('.model-card').filter({has:page.locator('.eyebrow',{hasText:'stt'})}).locator('.mc-badge')).toHaveCount(1);
 });
 test('the cards come before the runtime panel, and the processor selects are reachable only after "Nâng cao"',async({page})=>{
