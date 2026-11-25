@@ -343,10 +343,12 @@ export function takeDiff(source:string,check:TakeCheck):{script:{word:string;mar
  const skipped=pieces.length*heard.flatMap(w=>wordTokens(w.text)).length>4e6,{match}=matchWords(pieces.map(w=>w.toLowerCase()),heard);
  return {script:pieces.map((word,i)=>({word,mark:skipped||match[i]>=0?null:hard.get(word.toLowerCase())??null})),mismatches};
 }
+/** The script as the karaoke line shows it: spoken text, NFC. */
+export const karaokeText=(text:string)=>checkText(text).normalize('NFC');
 /** A playing take's script for karaoke: the words checkWords compares, each with the start (ms in the take) of the heard word matchWords aligns it to, or null,
  *  and the text between them as plain parts (no start_ms). Above matchWords' 4e6 cells every word is null. */
 export function karaokeParts(text:string,words:{text:string;start_ms:number}[]):{text:string;start_ms?:number|null}[]{
- const src=checkText(text).normalize('NFC'),pieces=[...src.matchAll(WORD_RE)],{match,starts}=matchWords(pieces.map(m=>m[0].toLowerCase()),words),parts:{text:string;start_ms?:number|null}[]=[];
+ const src=karaokeText(text),pieces=[...src.matchAll(WORD_RE)],{match,starts}=matchWords(pieces.map(m=>m[0].toLowerCase()),words),parts:{text:string;start_ms?:number|null}[]=[];
  let at=0;pieces.forEach((m,i)=>{if(m.index>at)parts.push({text:src.slice(at,m.index)});parts.push({text:m[0],start_ms:match[i]>=0?starts[match[i]]:null});at=m.index+m[0].length;});
  if(at<src.length)parts.push({text:src.slice(at)});return parts;
 }
