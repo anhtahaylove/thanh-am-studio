@@ -12,27 +12,28 @@ const matches=(label:string,query:string)=>query.split(/\s+/).filter(Boolean).ev
 
 /** The command palette, or with other texts and `rank` another pick-one dialog (quick-open). With `rank`, items ranked 0 come before
  * items ranked 1, each keeping the given order, and null hides an item. */
-export function CommandPalette({commands,onClose,title='Bảng lệnh',closeLabel='Đóng bảng lệnh',inputLabel='Gõ để tìm lệnh',placeholder='Gõ để tìm lệnh… (không cần gõ dấu)',listLabel='Lệnh',help='↑ ↓ để chọn, Enter để chạy, Esc để đóng.',empty='Không có lệnh nào khớp.',rank}:{commands:Command[];onClose:()=>void;title?:string;closeLabel?:string;inputLabel?:string;placeholder?:string;listLabel?:string;help?:string;empty?:string;rank?:(label:string,query:string)=>0|1|null}){
+export function CommandPalette({commands,onClose,title='Bảng lệnh',closeLabel='Đóng bảng lệnh',inputLabel='Gõ để tìm lệnh',placeholder='Gõ để tìm lệnh… (không cần gõ dấu)',listLabel='Lệnh',help='↑ ↓ để chọn, Enter để chạy, Esc để đóng.',empty='Không có lệnh nào khớp.',rank,toggleKey='k'}:{commands:Command[];onClose:()=>void;title?:string;closeLabel?:string;inputLabel?:string;placeholder?:string;listLabel?:string;help?:string;empty?:string;rank?:(label:string,query:string)=>0|1|null;toggleKey?:string}){
  useEscape(onClose);
- const [query,setQuery]=useState(''),[at,setAt]=useState(0),list=useId(),heading=useId();
- const shown=rank?[0,1].flatMap(r=>commands.filter(c=>rank(c.label,query)===r)):commands.filter(c=>matches(c.label,query)),cur=Math.min(at,shown.length-1);
+ const [query,setQuery]=useState(''),[sel,setSel]=useState<string|null>(null),list=useId(),heading=useId();
+ const shown=rank?[0,1].flatMap(r=>commands.filter(c=>rank(c.label,query)===r)):commands.filter(c=>matches(c.label,query)),cur=Math.max(0,shown.findIndex(c=>c.id===sel));
  const pick=(c?:Command)=>{if(!c||c.disabled)return;onClose();c.run();};
  useEffect(()=>{document.getElementById(`${list}-${cur}`)?.scrollIntoView({block:'nearest'});},[list,cur]);
  const key=(e:React.KeyboardEvent)=>{
   if(e.nativeEvent.isComposing)return;
   const n=shown.length;
-  if(e.key==='ArrowDown'&&n){e.preventDefault();setAt((cur+1)%n);}
-  else if(e.key==='ArrowUp'&&n){e.preventDefault();setAt((cur-1+n)%n);}
-  else if(e.key==='Home'&&n){e.preventDefault();setAt(0);}
-  else if(e.key==='End'&&n){e.preventDefault();setAt(n-1);}
+  if(e.key==='ArrowDown'&&n){e.preventDefault();setSel(shown[(cur+1)%n].id);}
+  else if(e.key==='ArrowUp'&&n){e.preventDefault();setSel(shown[(cur-1+n)%n].id);}
+  else if(e.key==='Home'&&n){e.preventDefault();setSel(shown[0].id);}
+  else if(e.key==='End'&&n){e.preventDefault();setSel(shown[n-1].id);}
   else if(e.key==='Enter'){e.preventDefault();pick(shown[cur]);}
  };
- // Ctrl+K closes the palette wherever focus is inside it (the filter or the close button); like opening, not with Alt (AltGr+K).
- const toggle=(e:React.KeyboardEvent)=>{if(!e.nativeEvent.isComposing&&(e.ctrlKey||e.metaKey)&&!e.altKey&&e.key.toLowerCase()==='k'){e.preventDefault();e.stopPropagation();onClose();}};
+ // Its own key (Ctrl+K, or Ctrl+P for quick-open) closes the dialog wherever focus is inside it (the filter or the close button); like opening, not with Alt (AltGr+K).
+ // Ctrl+K inside quick-open is only prevented, so neither the browser's nor a second dialog's shortcut fires.
+ const toggle=(e:React.KeyboardEvent)=>{const k=e.key.toLowerCase();if(e.nativeEvent.isComposing||!(e.ctrlKey||e.metaKey)||e.altKey||(k!==toggleKey&&k!=='k'))return;e.preventDefault();if(k===toggleKey){e.stopPropagation();onClose();}};
  return <Modal><section className="modal panel palette" role="dialog" aria-modal="true" aria-labelledby={heading} onKeyDown={toggle}>
   <div className="panel-toolbar"><h3 id={heading}>{title}</h3><button type="button" className="icon-button" aria-label={closeLabel} title={closeLabel} onClick={onClose}><X size={17}/></button></div>
-  <input autoFocus role="combobox" aria-expanded="true" aria-controls={list} aria-activedescendant={shown.length?`${list}-${cur}`:undefined} aria-label={inputLabel} placeholder={placeholder} value={query} onChange={e=>{setQuery(e.target.value);setAt(0);}} onKeyDown={key}/>
-  <ul id={list} role="listbox" aria-label={listLabel}>{shown.map((c,i)=><li key={c.id} id={`${list}-${i}`} role="option" aria-selected={i===cur} aria-disabled={c.disabled?true:undefined} onMouseMove={()=>{if(i!==cur)setAt(i);}} onClick={()=>pick(c)}><c.icon size={16}/><span>{c.label}</span>{c.disabled&&<small>{c.disabled}</small>}</li>)}</ul>
+  <input autoFocus role="combobox" aria-expanded="true" aria-controls={list} aria-activedescendant={shown.length?`${list}-${cur}`:undefined} aria-label={inputLabel} placeholder={placeholder} value={query} onChange={e=>{setQuery(e.target.value);setSel(null);}} onKeyDown={key}/>
+  <ul id={list} role="listbox" aria-label={listLabel}>{shown.map((c,i)=><li key={c.id} id={`${list}-${i}`} role="option" aria-selected={i===cur} aria-disabled={c.disabled?true:undefined} onMouseMove={()=>{if(i!==cur)setSel(c.id);}} onClick={()=>pick(c)}><c.icon size={16}/><span>{c.label}</span>{c.disabled&&<small>{c.disabled}</small>}</li>)}</ul>
   {!shown.length&&<p className="hint" role="status">{empty}</p>}
   <p className="hint">{help}</p>
  </section></Modal>;

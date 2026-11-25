@@ -78,3 +78,48 @@ test('with no project yet, quick-open says where to make one',async({page})=>{
  await page.keyboard.press('Control+p');await expect(dialog(page)).toBeVisible();await expect(options(page)).toHaveCount(0);
  await expect(dialog(page)).toContainText('Chưa có dự án nào. Tạo dự án ở trang Dự án.');
 });
+test('Ctrl+K inside quick-open is prevented and neither closes it nor opens the palette',async({page})=>{
+ await seeded(page);
+ await page.evaluate(()=>{const w=window as any;w.__prevented=[];window.addEventListener('keydown',e=>{if(e.ctrlKey&&e.key.toLowerCase()==='k')w.__prevented.push(e.defaultPrevented);});});
+ await page.keyboard.press('Control+p');await expect(box(page)).toBeFocused();
+ await page.keyboard.press('Control+k');await expect(dialog(page)).toBeVisible();await expect(page.getByRole('dialog')).toHaveCount(1);
+ await dialog(page).getByRole('button',{name:'Đóng mở nhanh dự án',exact:true}).focus();
+ await page.keyboard.press('Control+k');await expect(dialog(page)).toBeVisible();await expect(page.getByRole('dialog')).toHaveCount(1);
+ expect(await page.evaluate(()=>(window as any).__prevented)).toEqual([true,true]);
+});
+test('Ctrl+P inside quick-open closes it, from the filter and from the close button, and focus returns',async({page})=>{
+ await seeded(page);const opener=page.getByRole('button',{name:'Thư viện giọng',exact:true});await opener.focus();
+ await page.keyboard.press('Control+p');await expect(box(page)).toBeFocused();
+ await page.keyboard.press('Control+p');await expect(dialog(page)).toHaveCount(0);await expect(opener).toBeFocused();
+ await page.keyboard.press('Control+p');await dialog(page).getByRole('button',{name:'Đóng mở nhanh dự án',exact:true}).focus();
+ await page.keyboard.press('Control+p');await expect(dialog(page)).toHaveCount(0);await expect(opener).toBeFocused();
+});
+test('the highlighted project stays highlighted when a poll reorders the list, and the first one is highlighted when it disappears',async({page})=>{
+ await seeded(page);const selected=()=>dialog(page).getByRole('option',{selected:true});
+ const store=(ids:string[])=>page.evaluate(([k,ids,all])=>localStorage.setItem(k,JSON.stringify(ids.map(i=>(all as {id:string}[]).find(p=>p.id===i)))),[KEY,ids,PROJECTS] as const);
+ await page.keyboard.press('Control+p');await expect(options(page)).toHaveCount(3);
+ await page.keyboard.press('ArrowDown');await expect(selected()).toHaveText(/Làng chài/);
+ // Typing starts the list over: the first match is highlighted even though the old one still matches ("ng" is in all three names).
+ await box(page).fill('ng');await expect(selected()).toHaveText(/Lớp anh ngữ Giang/);await box(page).fill('');await expect(options(page)).toHaveCount(3);await page.keyboard.press('ArrowDown');await expect(selected()).toHaveText(/Làng chài/);
+ await store(['tin','lop','demo']);await expect(options(page)).toHaveText(['Bản tin sáng','Lớp anh ngữ Giang','Làng chài · dự án mẫu'],{timeout:10000});
+ await expect(selected()).toHaveText(/Làng chài/);
+ await store(['tin','lop']);await expect(options(page)).toHaveText(['Bản tin sáng','Lớp anh ngữ Giang'],{timeout:10000});
+ await expect(selected()).toHaveText(/Bản tin sáng/);
+ await page.keyboard.press('Enter');await expect(dialog(page)).toHaveCount(0);await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toHaveValue('Tin đầu tiên.');
+});
+test('a failed quick-open pick does not move focus when that project is opened later from the project list',async({page})=>{
+ await seeded(page);await page.keyboard.press('Control+p');await expect(options(page)).toHaveCount(3);await box(page).fill('lang');
+ // One synchronous step: the project is gone from the store when Enter reaches the dialog, so a poll cannot hide it first.
+ await page.evaluate(([k,ids,all])=>{localStorage.setItem(k,JSON.stringify(ids.map(i=>(all as {id:string}[]).find(p=>p.id===i))));document.querySelector('input[role=combobox]')!.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));},[KEY,['lop','tin'],PROJECTS] as const);
+ await expect(page.getByRole('alert')).toContainText('Dự án không còn tồn tại');
+ await page.evaluate(([k,p])=>localStorage.setItem(k,JSON.stringify(p)),[KEY,PROJECTS] as const);
+ await page.getByRole('button',{name:'Dự án',exact:true}).click();
+ await page.locator('.project-card',{hasText:'Làng chài'}).getByRole('button',{name:/Mở dự án/}).click();
+ const text=page.getByRole('textbox',{name:'Nội dung đoạn 1'});await expect(text).toHaveValue('Sáng sớm, làng chài thức dậy.');
+ await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));await expect(text).not.toBeFocused();
+});
+test('hovering an option highlights that project and Enter opens it',async({page})=>{
+ await seeded(page);await page.keyboard.press('Control+p');await expect(options(page)).toHaveCount(3);
+ await options(page).nth(2).hover();await expect(dialog(page).getByRole('option',{selected:true})).toHaveText(/Bản tin sáng/);
+ await page.keyboard.press('Enter');await expect(dialog(page)).toHaveCount(0);await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toHaveValue('Tin đầu tiên.');
+});
