@@ -49,18 +49,35 @@ const mock=()=>{
    case 'save_project':{const p={...args.project,revision:args.project.revision+1};projects[0]=p;return p;}default:return null;}}};
 };
 
-test('deleting an unselected segment keeps the selection and a playing preview',async({page})=>{
+// Opens the mocked project, selects segment `sel` and starts its preview.
+const playing=async(page:Page,sel:number)=>{
  await page.route('**/tone.wav',r=>r.fulfill({body:tone(),contentType:'audio/wav'}));
  await page.addInitScript(mock);await page.goto('/');
  await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).first().click();
- // Segment 2 is the selected one and plays (segment 1 would hide the bug: the missing-selection fallback is segment 1).
- await page.locator('article.segment').nth(1).click();await page.getByRole('heading',{level:1}).click();
- await expect(selectedText(page)).toHaveValue('Xin chào 2.');
+ await page.locator('article.segment').nth(sel-1).click();await page.getByRole('heading',{level:1}).click();
+ await expect(selectedText(page)).toHaveValue(`Xin chào ${sel}.`);
  await page.keyboard.press('Space');
  const play=page.locator('.play-button');await expect(play).toHaveAccessibleName('Dừng nghe thử');
- await del(page,3);
+ return play;
+};
+const kept=async(page:Page,play:import('@playwright/test').Locator,sel:number)=>{
  await expect(page.locator('article.segment')).toHaveCount(2);
- await expect(selectedText(page)).toHaveValue('Xin chào 2.');
+ await expect(selectedText(page)).toHaveValue(`Xin chào ${sel}.`);
  await expect(play).toHaveAccessibleName('Dừng nghe thử');
  expect(await page.evaluate(()=>(window as any).__ev as string[])).toEqual(['start']);
+};
+
+// Segment 2 plays (segment 1 would hide the bug: the missing-selection fallback is segment 1).
+test('deleting an unselected segment keeps the selection and a playing preview',async({page})=>{
+ const play=await playing(page,2);
+ await del(page,3);
+ await kept(page,play,2);
+});
+
+// The deleted row's neighbour (segment 3) is not the selected one, so only the "was selected" guard keeps the selection and focus away from it.
+test('deleting an unselected segment does not move the selection or focus to its neighbour',async({page})=>{
+ const play=await playing(page,1);
+ await del(page,2);
+ await kept(page,play,1);
+ expect(await page.evaluate(()=>document.activeElement?.matches('textarea')??false)).toBe(false);
 });
