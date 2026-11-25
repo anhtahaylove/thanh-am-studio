@@ -258,6 +258,15 @@ class IsolatedTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, r'exit code 3221225477 \(0xC0000005\)'):
                 diarize.diarize_isolated(np.zeros(16000, np.float32), Path(tmp))
 
+    def test_a_child_error_message_keeps_a_non_ascii_folder_name(self):
+        folder = 'Thử nghiệm ễ Â'  # the child's stderr pipe is cp1252 on Windows unless it runs with -X utf8
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, {'THANHAM_DIARIZE_CRASH': '3221225477'}):
+            models = Path(tmp) / folder
+            self.fake_models(models)
+            with self.assertRaises(RuntimeError) as caught:
+                diarize.diarize_isolated(np.zeros(16000, np.float32), models)
+            self.assertIn(folder, str(caught.exception))
+
     def test_a_child_that_fails_in_python_raises_with_its_error(self):
         with tempfile.TemporaryDirectory() as tmp:
             self.fake_models(tmp)  # empty files are no ONNX models
@@ -270,7 +279,7 @@ class IsolatedTests(unittest.TestCase):
             for text in (None, 'not json', '[{"start": 0}]', '{"a": 1}'):
                 def fake_run(argv, **kwargs):
                     if text is not None:
-                        Path(argv[4]).write_text(text, encoding='utf-8')
+                        Path(argv[-2]).write_text(text, encoding='utf-8')
                     return mock.Mock(returncode=0, stderr=b'')
                 with self.subTest(text=text), mock.patch.object(diarize.subprocess, 'run', fake_run), \
                         self.assertRaisesRegex(RuntimeError, 'no usable turns'):
