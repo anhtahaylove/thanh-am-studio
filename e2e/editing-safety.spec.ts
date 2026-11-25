@@ -55,7 +55,7 @@ test('desktop generation waits for the VieNeu model and says where to get it',as
  });
  await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
  const all=page.getByRole('button',{name:'Tạo giọng tất cả'}),one=page.getByRole('button',{name:'Tạo giọng',exact:true}).first(),reason='Tải VieNeu v3 Turbo trong Model & cài đặt để bật';
- await expect(all).toBeDisabled();await expect(all).toHaveAttribute('title',reason);await expect(all).toHaveAccessibleDescription(/tải VieNeu v3 Turbo trong Model & cài đặt/);
+ await expect(all).toBeDisabled();await expect(all).toHaveAttribute('title',reason);await expect(all).toHaveAccessibleDescription(reason);
  await expect(one).toBeDisabled();await expect(one).toHaveAttribute('title',reason);await expect(page.getByText('Chưa có model giọng đọc',{exact:false})).toBeVisible();
  await page.evaluate(()=>{(window as any).__voice=true;});
  await expect(all).toBeEnabled({timeout:6000});await expect(all).not.toHaveAttribute('title');await expect(one).toBeEnabled();await expect(page.getByText('Chưa có model giọng đọc',{exact:false})).toHaveCount(0);
