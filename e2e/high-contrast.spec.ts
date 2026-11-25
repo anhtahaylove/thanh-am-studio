@@ -171,8 +171,10 @@ test.describe('forced colors',()=>{
   const bars=page.locator('.waveform i:not(.trimmed)');await expect(bars.first()).toBeAttached();
   expect(await bars.first().evaluate(el=>getComputedStyle(el).backgroundColor),'a bar').toBe(rgb(canvasText));
   expect(await bars.first().evaluate(el=>{el.classList.add('played');return getComputedStyle(el).backgroundColor;}),'a played bar').toBe(rgb(highlight));
-  const mark=await page.evaluate(()=>{const m=document.createElement('mark');m.textContent='tìm thấy';document.querySelector('main')!.append(m);const s=getComputedStyle(m);return [s.backgroundColor,s.color];});
-  expect(mark,'mark').toEqual([rgb(highlight),rgb(highlightText)]);
+  // The lit word, the diff preview and a search hit have rules of their own with colours; each still becomes Highlight, and the heard words stay underlined.
+  const marks=await page.evaluate(()=>{const host=document.createElement('div');host.innerHTML='<mark>a</mark><div class="karaoke"><span class="said">b</span> <mark>c</mark></div><p class="diff-preview"><mark>d</mark></p><p class="match-preview"><mark class="exact">e</mark></p>';document.querySelector('main')!.append(host);
+   return {marks:[...host.querySelectorAll('mark')].map(m=>[getComputedStyle(m).backgroundColor,getComputedStyle(m).color]),said:getComputedStyle(host.querySelector('.said')!).textDecorationLine};});
+  expect(marks.marks,'marks').toEqual(Array(4).fill([rgb(highlight),rgb(highlightText)]));expect(marks.said,'heard word').toBe('underline');
   const stripe=await page.locator('article.segment').nth(1).evaluate(el=>getComputedStyle(el).borderLeftColor);expect(stripe,'speaker stripe').toBe(rgb(canvasText));
   const outline=(l:ReturnType<Page['locator']>)=>l.evaluate(el=>{const s=getComputedStyle(el);return `${s.outlineStyle} ${s.outlineWidth}`;});
   const focus=page.getByRole('button',{name:'Chế độ tập trung',exact:true});
