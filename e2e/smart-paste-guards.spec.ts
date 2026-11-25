@@ -54,3 +54,8 @@ test('on the empty script, a "Tên - lời" cast pasted outside a field still op
  expect(await paste(page.locator('body'),'Mai - Chào\nHùng - Ừ')).toBe(false);
  await expect(dialog(page)).toBeVisible();await expect(dialog(page).getByRole('textbox',{name:'Nội dung cần thêm'})).toHaveValue('Mai - Chào\nHùng - Ừ');
 });
+test('on the empty script, losing window focus mid-composition does not leave pastes blocked',async({page})=>{
+ await emptyScript(page);
+ await compose(page,'compositionstart');await page.evaluate(()=>{window.dispatchEvent(new Event('blur'));});
+ expect(await paste(page.locator('body'),CAST)).toBe(false);await expect(dialog(page)).toBeVisible();
+});
