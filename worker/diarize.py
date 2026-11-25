@@ -87,7 +87,7 @@ def diarize_isolated(audio_16k: np.ndarray, model_dir: Path, num_speakers: int |
     with tempfile.TemporaryDirectory(prefix='thanham-diarize-') as tmp:
         audio_path, turns_path = Path(tmp) / 'audio.npy', Path(tmp) / 'turns.json'
         np.save(audio_path, audio)
-        run = subprocess.run([sys.executable, '-I', str(Path(__file__).resolve()), str(audio_path), str(turns_path),
+        run = subprocess.run([sys.executable, '-I', '-X', 'utf8', str(Path(__file__).resolve()), str(audio_path), str(turns_path),
                               json.dumps([str(model_dir), num_speakers, min_speakers, max_speakers])],
                              capture_output=True, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         code = run.returncode & 0xFFFFFFFF
