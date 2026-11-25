@@ -88,6 +88,17 @@ test('when get_asset fails for the newest take of another project, the next one 
  await expect(page.getByRole('alert')).toHaveCount(0);
 });
 
+test('after a fallback the tooltip names the take that played, not the one that could not be found',async({page})=>{
+ await open(page,{broken:['b-new']});
+ const button=sampleButton(page,'Bà Tư');
+ await expect(button).toHaveAttribute('title','Phát 3 giây từ một take của dự án Làng chài (21/11/2026)');
+ await button.click();
+ await expect.poll(async()=>(await voice(page)).played).toEqual([expect.stringMatching(/\/assets\/b-old\.wav$/)]);
+ await button.click(); // stopped: the tooltip is back
+ await expect(button).toHaveAccessibleName('Nghe mẫu giọng của Bà Tư');
+ await expect(button).toHaveAttribute('title','Phát 3 giây từ một take của dự án Làng chài (20/11/2026)');
+});
+
 test('a blocked sample says why in its accessible description and plays nothing',async({page})=>{
  await open(page);
  for(const [name,why] of [['Cậu Hai','Chưa có take nào tạo bằng giọng này: tạo giọng một đoạn trước.'],['Cô giáo','Các đoạn của nhân vật này đang dùng nhiều giọng khác nhau.']]){
