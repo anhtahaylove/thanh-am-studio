@@ -12,7 +12,7 @@ export function jobNotices(seen:Map<string,number>,jobs:Job[],now:number):Job[]{
  for(const j of jobs){
   if(!KINDS.includes(j.kind))continue;
   if(j.status==='queued'||j.status==='running'){if(!seen.has(j.id)){const t=Date.parse(j.updated_at);seen.set(j.id,j.status==='running'&&Number.isFinite(t)?t:now);}continue;}
-  const start=seen.get(j.id);seen.delete(j.id);
+  const start=seen.get(j.id);
   if((j.status==='succeeded'||j.status==='failed')&&start!==undefined&&now-start>=LONG_MS)done.push(j);
  }
  return done;
