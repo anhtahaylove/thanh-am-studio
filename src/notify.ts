@@ -31,7 +31,7 @@ export function noticeText(ended:Ended[]):{title:string;body:string}{
 }
 /** What the job is about: its own name, else the file it works on, else its project. A lookup that fails leaves the name out. */
 async function jobName(j:Job):Promise<string>{
- if(typeof j.payload.name==='string'&&j.payload.name)return j.payload.name;
+ if(typeof j.payload?.name==='string'&&j.payload.name)return j.payload.name;
  try{
   if(typeof j.payload.asset_id==='string')return (await call<Asset|null>('get_asset',{id:j.payload.asset_id}))?.name??'';
   if(j.project_id)return (await call<ProjectSummary[]|null>('list_projects'))?.find(p=>p.id===j.project_id)?.name??'';
