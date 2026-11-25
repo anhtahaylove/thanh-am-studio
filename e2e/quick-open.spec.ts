@@ -118,3 +118,8 @@ test('a failed quick-open pick does not move focus when that project is opened l
  const text=page.getByRole('textbox',{name:'Nội dung đoạn 1'});await expect(text).toHaveValue('Sáng sớm, làng chài thức dậy.');
  await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));await expect(text).not.toBeFocused();
 });
+test('hovering an option highlights that project and Enter opens it',async({page})=>{
+ await seeded(page);await page.keyboard.press('Control+p');await expect(options(page)).toHaveCount(3);
+ await options(page).nth(2).hover();await expect(dialog(page).getByRole('option',{selected:true})).toHaveText(/Bản tin sáng/);
+ await page.keyboard.press('Enter');await expect(dialog(page)).toHaveCount(0);await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toHaveValue('Tin đầu tiên.');
+});
