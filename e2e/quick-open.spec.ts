@@ -123,3 +123,10 @@ test('hovering an option highlights that project and Enter opens it',async({page
  await options(page).nth(2).hover();await expect(dialog(page).getByRole('option',{selected:true})).toHaveText(/Bản tin sáng/);
  await page.keyboard.press('Enter');await expect(dialog(page)).toHaveCount(0);await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toHaveValue('Tin đầu tiên.');
 });
+test('End highlights the last project and Home the first, and aria-activedescendant follows',async({page})=>{
+ await seeded(page);await page.keyboard.press('Control+p');await expect(options(page)).toHaveCount(3);
+ const selected=dialog(page).getByRole('option',{selected:true});
+ await page.keyboard.press('End');await expect(selected).toHaveText(/Bản tin sáng/);await expect(box(page)).toHaveAttribute('aria-activedescendant',(await options(page).last().getAttribute('id'))!);
+ await page.keyboard.press('Home');await expect(selected).toHaveText(/Lớp anh ngữ Giang/);await expect(box(page)).toHaveAttribute('aria-activedescendant',(await options(page).first().getAttribute('id'))!);
+ await page.keyboard.press('End');await page.keyboard.press('Enter');await expect(dialog(page)).toHaveCount(0);await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toHaveValue('Tin đầu tiên.');
+});
