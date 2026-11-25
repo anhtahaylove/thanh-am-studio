@@ -84,7 +84,7 @@ export default function App(){
  useEscape(()=>setPackConsent(false),packConsent&&!askInstall);useEscape(()=>setShowImport(false),showImport&&!askInstall); // what was typed stays for the next open, as with the close button; the install question on top takes Escape first
  const projectRef=useRef(project),dirtyRef=useRef(false),savingRef=useRef<Promise<Project>|null>(null),versionRef=useRef(0),sourcePlayer=useRef<HTMLAudioElement>(null),mounted=useRef(true),completedTtsRef=useRef(''),undoRef=useRef<Project[]>([]),redoRef=useRef<Project[]>([]),lastMutRef=useRef<{key?:string;at:number}>({at:0}),cursorRef=useRef({id:'',pos:0,end:0}),caretRef=useRef<{id:string;pos:number}|null>(null);
  projectRef.current=project;dirtyRef.current=dirty;
- const setError=useCallback((m:string|((e:string)=>string))=>{setErrorText(m);if(typeof m==='string'&&m)setErrorSeq(n=>n+1);},[]); // a repeated message is a new alert element, so a screen reader reads it again; the updater form only clears
+ const setError=useCallback((m:string|((e:string)=>string))=>{setErrorText(m);setErrorSeq(n=>n+1);},[]); // a repeated message is a new alert element, so a screen reader reads it again; the updater form only clears
  const dictionary=useMemo(()=>({...appDictionary,...project?.dictionary}),[appDictionary,project?.dictionary]); // one object per dictionary, so its compiled regex is reused
  const active=project?.segments.find(s=>s.id===selected)??project?.segments[0];
  // The highlights cost an LCS over the segment's words, so they are worked out only while "Văn bản sau chuẩn hóa" is open and the text changes.
