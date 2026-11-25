@@ -173,7 +173,7 @@ test.describe('forced colors',()=>{
  });
 });
 // Under a Windows contrast theme the app can be on any of its themes; the dark and contrast rules carry more specificity than the forced block, so each is exercised.
-for(const [name,scheme,stored] of [['light, system theme','light',undefined],['dark scheme, stored dark','dark','dark'],['dark scheme, stored contrast','dark','contrast']] as const)test.describe(`forced colors, ${name}`,()=>{
+for(const [name,scheme,stored] of [['light, system theme','light',undefined],['dark scheme, stored dark','dark','dark'],['dark scheme, stored contrast','dark','contrast'],['light scheme, stored dark','light','dark'],['light scheme, stored contrast','light','contrast']] as const)test.describe(`forced colors, ${name}`,()=>{
  test.use({forcedColors:'active',colorScheme:scheme});
   test(`bars, marks, the lit word, stripes, icons, progress and every pressed or selected state use system colours and outlines, ${name}`,async({page})=>{
   await start(page,{project:false,stored});
