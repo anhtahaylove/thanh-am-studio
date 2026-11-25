@@ -5,8 +5,8 @@ import {readFileSync} from 'node:fs';
 // .wav is a real 8 s tone served with range support. Spies record what the sample's detached <audio> plays, seeks to and pauses at, and the dock's
 // AudioBufferSourceNode start() and stop().
 const tone=()=>{const rate=8000,n=rate*8,b=Buffer.alloc(44+n*2);b.write('RIFF',0);b.writeUInt32LE(36+n*2,4);b.write('WAVEfmt ',8);b.writeUInt32LE(16,16);b.writeUInt16LE(1,20);b.writeUInt16LE(1,22);b.writeUInt32LE(rate,24);b.writeUInt32LE(rate*2,28);b.writeUInt16LE(2,32);b.writeUInt16LE(16,34);b.write('data',36);b.writeUInt32LE(n*2,40);for(let i=0;i<n;i++)b.writeInt16LE(Math.round(Math.sin(2*Math.PI*440*i/rate)*3000),44+i*2);return b;};
-const mock=(o:{broken:string[]})=>{
- const w=window as any;w.isTauri=true;w.__calls=[];w.__dock=[];w.__voice={played:[],seeks:[],paused:[]};
+const mock=(o:{broken:string[];slow:number})=>{
+ const w=window as any;w.isTauri=true;w.__calls=[];w.__resolved=[];w.__dock=[];w.__voice={played:[],seeks:[],paused:[]};
  const P=HTMLMediaElement.prototype,play=P.play,pause=P.pause,time=Object.getOwnPropertyDescriptor(P,'currentTime')!;
  P.play=function(this:HTMLMediaElement){if(!this.isConnected)w.__voice.played.push(this.src);return play.call(this);};
  P.pause=function(this:HTMLMediaElement){if(!this.isConnected&&!this.paused)w.__voice.paused.push(this.currentTime);return pause.call(this);};
@@ -24,24 +24,26 @@ const mock=(o:{broken:string[]})=>{
  const voices=[{id:'v-north',name:'Bắc nữ',kind:'preset',reference_asset_id:null,consent:false,engine_voice_id:'north'},{id:'v-south',name:'Nam trầm',kind:'preset',reference_asset_id:null,consent:false,engine_voice_id:'south'}];
  const tts=(id:string,p:string,voice:string|null,asset:string,speech:number,at:string)=>({id,kind:'tts',project_id:p,payload:{segment_id:'x',text:'x',voice_id:voice,reference_asset_id:null},status:'succeeded',progress:1,error:null,result:{asset_id:asset,path:`/takes/${asset}.wav`,speech_start_ms:speech},created_at:at,updated_at:at});
  const jobs=[tts('j3','p2','v-north','b-new',300,'2026-11-21T12:00:00Z'),tts('j2','p2','v-north','b-old',500,'2026-11-20T12:00:00Z'),tts('j1','p1',null,'a1',1200,'2026-11-19T12:00:00Z')]; // newest first, as list_jobs answers
+ w.__jobs=jobs;
  w.__TAURI_INTERNALS__={convertFileSrc:(p:string)=>p,transformCallback:()=>1,unregisterCallback:()=>{},metadata:{currentWindow:{label:'main'},currentWebview:{label:'main',windowLabel:'main'}},
   invoke:async(cmd:string,args:any)=>{w.__calls.push({cmd,args});const ipc=(v:unknown)=>JSON.parse(JSON.stringify(v));switch(cmd){
-   case 'list_projects':return ipc(projects);case 'load_project':return ipc(project);case 'list_voices':return ipc(voices);case 'list_jobs':return ipc(jobs);
+   case 'list_projects':return ipc(projects);case 'load_project':return ipc(project);case 'list_voices':return ipc(voices);case 'list_jobs':return ipc(w.__jobs);
    case 'list_models':return [];case 'get_settings':return {dictionary:{}};
    case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,python_path:null,ffmpeg_path:null,message:''};
-   case 'get_asset':if(o.broken.includes(args.id))throw 'ASSET_NOT_FOUND: asset missing';return {id:args.id,path:`/assets/${args.id}.wav`,name:args.id,duration_ms:8000,sample_rate:8000};
+   case 'get_asset':if(o.slow)await new Promise(r=>setTimeout(r,o.slow));w.__resolved.push(args.id);if(o.broken.includes(args.id))throw 'ASSET_NOT_FOUND: asset missing';return {id:args.id,path:`/assets/${args.id}.wav`,name:args.id,duration_ms:8000,sample_rate:8000};
    case 'save_project':return {...ipc(args.project),revision:args.project.revision+1};
    default:return null;}}};
 };
-const open=async(page:Page,o:{broken?:string[]}={})=>{
+const open=async(page:Page,o:{broken?:string[];slow?:number}={})=>{
  const wav=tone();
  await page.route('**/*.wav',r=>{const m=/bytes=(\d+)-(\d*)/.exec(r.request().headers().range??'');if(!m)return r.fulfill({body:wav,headers:{'content-type':'audio/wav','accept-ranges':'bytes'}});const a=Number(m[1]),z=m[2]?Number(m[2]):wav.length-1;return r.fulfill({status:206,body:wav.subarray(a,z+1),headers:{'content-type':'audio/wav','accept-ranges':'bytes','content-range':`bytes ${a}-${z}/${wav.length}`}});});
- await page.addInitScript(mock,{broken:o.broken??[]});await page.goto('/');
+ await page.addInitScript(mock,{broken:o.broken??[],slow:o.slow??0});await page.goto('/');
  await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).first().click();
  await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1',exact:true})).toBeVisible();
 };
 const voice=(page:Page)=>page.evaluate(()=>(window as any).__voice as {played:string[];seeks:number[];paused:number[]});
 const calls=(page:Page,cmd:string)=>page.evaluate(c=>((window as any).__calls as {cmd:string;args:any}[]).filter(x=>x.cmd===c).map(x=>x.args),cmd);
+const resolved=(page:Page)=>page.evaluate(()=>(window as any).__resolved as string[]);
 const sampleButton=(page:Page,name:string)=>page.getByRole('button',{name:new RegExp(`^(Nghe|Dừng) mẫu giọng của ${name}$`)});
 
 test('the default voice plays its take here from the speech start, pauses after 3 s and enqueues nothing',async({page})=>{
@@ -130,6 +132,41 @@ test('when no asset of the sample can be found, the error says so in Vietnamese,
  await expect(page.getByRole('alert')).not.toContainText('ASSET_NOT_FOUND');
  await expect(button).toHaveAccessibleName('Nghe mẫu giọng của Bà Tư');
  expect(await calls(page,'get_asset')).toEqual([{id:'b-new'},{id:'b-old'}]);expect((await voice(page)).played).toEqual([]);
+});
+
+// Probe P1 (1.0.23 review, mutant E1): get_asset answers late, and the sample was stopped (or the dock started) in the meantime. The late answer must play nothing.
+// The mock records each get_asset answer in `__resolved`, so the test waits for that event, then two frames, instead of a fixed time.
+const afterLookup=async(page:Page,id:string)=>{await expect.poll(()=>resolved(page)).toEqual([id]);await page.evaluate(()=>new Promise<void>(r=>requestAnimationFrame(()=>requestAnimationFrame(()=>r()))));};
+
+test('a sample stopped while its asset is still being looked up plays nothing when the lookup ends',async({page})=>{
+ await open(page,{slow:1500});
+ const button=sampleButton(page,'Bà Tư');
+ await button.click();await expect(button).toHaveAccessibleName('Dừng mẫu giọng của Bà Tư');expect(await resolved(page)).toEqual([]);
+ await button.click();await expect(button).toHaveAccessibleName('Nghe mẫu giọng của Bà Tư');
+ await afterLookup(page,'b-new');
+ expect((await voice(page)).played).toEqual([]);await expect(button).toHaveAccessibleName('Nghe mẫu giọng của Bà Tư');
+});
+
+test('a sample still being looked up when the dock starts plays nothing, and the dock keeps playing',async({page})=>{
+ await open(page,{slow:1500});
+ const button=sampleButton(page,'Bà Tư'),dock=page.locator('.play-button');
+ await button.click();await expect(button).toHaveAccessibleName('Dừng mẫu giọng của Bà Tư');expect(await resolved(page)).toEqual([]);
+ await page.getByRole('heading',{level:1}).click();await page.keyboard.press('Space');
+ await expect(dock).toHaveAccessibleName('Dừng nghe thử');await expect(button).toHaveAccessibleName('Nghe mẫu giọng của Bà Tư');
+ await afterLookup(page,'b-new');
+ expect((await voice(page)).played).toEqual([]);await expect(dock).toHaveAccessibleName('Dừng nghe thử');expect(await page.evaluate(()=>(window as any).__dock)).toEqual(['start']);
+});
+
+// Mutant E19: the sample list is memoized on [voices,jobs,project,projects]. A job that finishes in another project changes only `jobs`.
+test('a blocked sample becomes playable when a poll brings the first job made with its voice in another project',async({page})=>{
+ await open(page);
+ const button=sampleButton(page,'Cậu Hai');
+ await expect(button).toHaveAttribute('aria-disabled','true');
+ await page.evaluate(()=>{const w=window as any,at='2026-11-23T12:00:00Z';w.__jobs.unshift({id:'j4',kind:'tts',project_id:'p2',payload:{segment_id:'x',text:'x',voice_id:'v-south',reference_asset_id:null},status:'succeeded',progress:1,error:null,result:{asset_id:'c-new',path:'/takes/c-new.wav',speech_start_ms:400},created_at:at,updated_at:at});});
+ await expect(button).not.toHaveAttribute('aria-disabled','true',{timeout:8000}); // the poll runs every 2.5 s
+ await expect(button).toHaveAttribute('title','Phát 3 giây từ một take của dự án Làng chài (23/11/2026)');
+ await button.click();
+ await expect.poll(async()=>(await voice(page)).played).toEqual([expect.stringMatching(/\/assets\/c-new\.wav$/)]);expect((await voice(page)).seeks).toEqual([0.4]);
 });
 
 // B1's bubble on a blocked "Phân vai" button, in the browser preview (where samples need the desktop app). Helpers copied from blocked-feedback.spec.ts.

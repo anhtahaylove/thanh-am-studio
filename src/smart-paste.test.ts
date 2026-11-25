@@ -20,6 +20,11 @@ describe('smart paste: "Tên - lời" labels are opt-in',()=>{
   expect(speakers('Mai - Chào\nMai2 - x\nWWW.A.VN - y\nA@B - z\nHùng - Ừ')).toEqual(['Mai','Hùng']);
   expect(speakers('Mai -Chào\nHùng-Ừ')).toEqual(['Người dẫn']);
  });
+ it('a dash label name of 30 characters is a speaker, one of 31 is narration',()=>{
+  const name=(n:number)=>'M'+'a'.repeat(n-1),speakers=(t:string)=>scriptChunks(t,{dash:true}).map(c=>c.speaker);
+  expect(speakers(`${name(30)} - Chào\nHùng - Ừ\nMai - Vâng`)).toEqual([name(30),'Hùng','Mai']);
+  expect(speakers(`${name(31)} - Chào\nHùng - Ừ\nMai - Vâng`)).toEqual(['Người dẫn','Hùng','Mai']);
+ });
  it('keeps colon labels exactly as without dash',()=>{
   for(const t of ['Mai: Chào anh.\nAnh vẫn khỏe chứ?\n[Nam]: Khỏe, cảm ơn.\nLúc 8:30 gặp lại.','Lưu ý: đọc chậm.\nCâu thứ hai.','Người 2: Xin chào\nNgười 8:30 sáng','Lan: [P1] Mở đầu.\nNam: Hai.','Mai - Chào: anh\nHùng: Ừ'])expect(scriptChunks(t,{dash:true})).toEqual(scriptChunks(t));
   expect(scriptChunks('Mai - Chào: anh\nHùng: Ừ',{dash:true}).map(c=>c.speaker)).toEqual(['Mai - Chào','Hùng']);

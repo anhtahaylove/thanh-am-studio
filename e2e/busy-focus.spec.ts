@@ -33,6 +33,15 @@ const exporting=async(page:Page)=>{await start(page,1500);await openProject(page
 const failed=async(page:Page)=>{await expect(page.getByRole('alert')).toContainText('WORKER_ERROR: disk full');await idle(page);await page.waitForTimeout(200);};
 const NOT_AUDIO='Không phát được audio này: tệp không còn hoặc định dạng không được hỗ trợ.';
 
+// Mutation: `el.focus()` without `{preventScroll:true}` scrolls a button the user has scrolled away from back into view.
+test('focus given back to "Xuất audio" does not scroll the page to it',async({page})=>{
+ const button=await exporting(page);
+ await page.evaluate(()=>{document.body.style.minHeight='4000px';window.scrollTo(0,2000);});
+ const y=await page.evaluate(()=>window.scrollY);expect(y,'the page was scrolled away').toBeGreaterThan(500);
+ expect(await button.evaluate(e=>{const r=e.getBoundingClientRect();return r.bottom<0||r.top>innerHeight;}),'the button is out of view').toBe(true);
+ await failed(page);await expect(button).toBeFocused();
+ expect(await page.evaluate(()=>window.scrollY)).toBe(y);
+});
 test('a processor select changed with the keyboard gets focus back once its save ends',async({page})=>{
  await start(page);await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:'Model & cài đặt',exact:true}).click();
  await page.getByText('Nâng cao: bộ xử lý').click();

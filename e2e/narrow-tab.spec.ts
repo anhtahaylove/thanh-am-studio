@@ -68,6 +68,19 @@ test('at 800 px, text that arrives without a key (insertText, as paste, drop and
  await expect(seg(page,3)).toHaveClass(/selected/);await expect(area).toBeFocused();expect((await area.inputValue()).length).toBe(before.length+1);
 });
 
+// A key that makes no text still selects the row it is pressed in at 800 px, and a lone modifier or lock key does not (NO_SELECT in SegmentRow.tsx).
+for(const key of ['ArrowDown','F2'])test(`at 800 px, ${key} pressed in segment 3 selects it`,async({page})=>{
+ await open(page,800,720);
+ await page.getByRole('textbox',{name:'Nội dung đoạn 3',exact:true}).focus();await settle(page);await expect(seg(page,3)).not.toHaveClass(/selected/);
+ await page.keyboard.press(key);
+ await expect(seg(page,3)).toHaveClass(/selected/);
+});
+for(const key of ['CapsLock','NumLock','ScrollLock','Meta','ContextMenu','Shift','Control','Alt'])test(`at 800 px, ${key} pressed in segment 3 does not select it`,async({page})=>{
+ await open(page,800,720);
+ await page.getByRole('textbox',{name:'Nội dung đoạn 3',exact:true}).focus();await page.keyboard.press(key);await settle(page);
+ await expect(seg(page,3)).not.toHaveClass(/selected/);await expect(seg(page,2)).toHaveClass(/selected/);
+});
+
 // 920 px is the last narrow width and 921 px the first wide one (NARROW in ui.tsx): focus alone selects a row only at 921 px.
 for(const [width,selects] of [[920,false],[921,true]] as const)test(`at ${width} px, focus alone ${selects?'selects':'does not select'} segment 3`,async({page})=>{
  await open(page,width,720);

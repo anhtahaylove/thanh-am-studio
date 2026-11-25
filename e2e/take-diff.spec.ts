@@ -1,10 +1,10 @@
 import {test,expect,type Page} from '@playwright/test';
 // The take-check chip opens a diff dialog: the sent script aligned against what Whisper heard, the hard mismatches, and a form that writes one
 // entry into the project dictionary (never a job, never a take). Tauri is mocked; jobs and enqueued calls are recorded.
-type Setup={text?:string;sent?:string|null;heard?:string;mismatches?:{expected:string;heard:string;soft:boolean}[];dictionary?:Record<string,string>;model?:boolean;twoSegments?:boolean;noCheck?:boolean};
+type Setup={text?:string;sent?:string|null;heard?:string;mismatches?:{expected:string;heard:string;soft:boolean}[];dictionary?:Record<string,string>;appDictionary?:Record<string,string>;model?:boolean;twoSegments?:boolean;noCheck?:boolean};
 const wav=()=>{const rate=8000,n=rate,b=Buffer.alloc(44+n*2);b.write('RIFF',0);b.writeUInt32LE(36+n*2,4);b.write('WAVEfmt ',8);b.writeUInt32LE(16,16);b.writeUInt16LE(1,20);b.writeUInt16LE(1,22);b.writeUInt32LE(rate,24);b.writeUInt32LE(rate*2,28);b.writeUInt16LE(2,32);b.writeUInt16LE(16,34);b.write('data',36);b.writeUInt32LE(n*2,40);for(let i=0;i<n;i++)b.writeInt16LE(Math.round(Math.sin(i/rate*2*Math.PI*440)*3000),44+i*2);return b;};
 const mock=(o:Required<Setup>)=>{
- const w=window as any,calls:any[]=[];w.isTauri=true;w.__calls=calls;
+ const w=window as any,calls:any[]=[];w.isTauri=true;w.__calls=calls;w.__TAURI_EVENT_PLUGIN_INTERNALS__={unregisterListener:()=>{}};
  const words=o.heard.split(/\s+/).filter(Boolean).map((text,i)=>({text,start_ms:i*300}));
  const take={id:'t1',asset_id:'a1',path:'/t1.wav',duration_ms:1000,sample_rate:8000,created_at:'2026-11-22T00:00:00Z',...(o.noCheck?{}:{check:{model:'whisper-small',wer:.2,heard:o.heard,mismatches:o.mismatches,words}})};
  const seg=(id:string,text:string,takes:any[])=>({id,text,normalized_text:text,voice_id:null,speaker:'Người dẫn',gap_ms:300,takes,selected_take_id:takes[0]?.id??null,trim_start_ms:0,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0,gain_db:0});
@@ -12,7 +12,7 @@ const mock=(o:Required<Setup>)=>{
  const jobs=o.sent===null?[]:[{id:'j1',kind:'tts',project_id:'p1',payload:{segment_id:'1',text:o.sent,voice_id:null,speed:1},status:'succeeded',progress:1,error:null,result:{asset_id:'a1',duration_ms:1000,check:take.check},created_at:'2026-11-22T00:00:00Z',updated_at:'2026-11-22T00:00:01Z'}];
  w.__TAURI_INTERNALS__={convertFileSrc:(p:string)=>p,transformCallback:()=>1,unregisterCallback:()=>{},metadata:{currentWindow:{label:'main'},currentWebview:{label:'main',windowLabel:'main'}},
   invoke:async(cmd:string,args:any)=>{calls.push({cmd,args});switch(cmd){
-   case 'list_projects':return [project];case 'load_project':return JSON.parse(JSON.stringify(project));case 'list_voices':return [];case 'get_settings':return {dictionary:{}};
+   case 'list_projects':return [project];case 'load_project':return JSON.parse(JSON.stringify(project));case 'list_voices':return [];case 'get_settings':return {dictionary:o.appDictionary};
    case 'list_models':return o.model?[{id:'vieneu-v3',name:'VieNeu v3 Turbo',engine:'tts',installed:true,revision:'r',license:'Apache-2.0',description:''}]:[];
    case 'list_jobs':return JSON.parse(JSON.stringify(jobs));
    case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,python_path:null,ffmpeg_path:null,message:''};
@@ -20,7 +20,7 @@ const mock=(o:Required<Setup>)=>{
    case 'enqueue_job':return {id:'j2',kind:args.kind,project_id:args.projectId,payload:args.payload,status:'queued',progress:0,error:null,result:null,created_at:'2026-11-22T00:00:02Z',updated_at:'2026-11-22T00:00:02Z'};
    default:return null;}}};
 };
-const SETUP:Required<Setup>={text:'Ký tên vào đây.',sent:'Ký tên vào đây.',heard:'kí tên vào đây',mismatches:[{expected:'ký',heard:'kí',soft:false}],dictionary:{},model:true,twoSegments:false,noCheck:false};
+const SETUP:Required<Setup>={text:'Ký tên vào đây.',sent:'Ký tên vào đây.',heard:'kí tên vào đây',mismatches:[{expected:'ký',heard:'kí',soft:false}],dictionary:{},appDictionary:{},model:true,twoSegments:false,noCheck:false};
 const open=async(page:Page,o:Setup={},width=1440)=>{
  await page.setViewportSize({width,height:900});await page.route('**/t1.wav',r=>r.fulfill({body:wav(),contentType:'audio/wav'}));
  await page.addInitScript(mock,{...SETUP,...o});await page.goto('/');
@@ -193,6 +193,20 @@ test('an inherited object key such as "constructor" is not an existing entry: no
  await open(page,{text:'Ký constructor vào đây.',sent:'Ký constructor vào đây.',heard:'kí constructor vào đây'});await chip(page).click();await keyBox(page).fill('constructor');await valueBox(page).fill('kơn');
  await expect(form(page)).not.toContainText('Thay mục hiện có');expect(await addBtn(page).getAttribute('aria-describedby')??'').not.toContain('diff-replace-0');
  await addBtn(page).click();await expect(dialog(page).getByRole('status')).toContainText('Đã thêm');
+});
+test('an entry only in the app dictionary is not a project entry: no replace hint, "Đã thêm", and the project dictionary gets the new reading',async({page})=>{
+ const errors:string[]=[];page.on('pageerror',e=>errors.push(String(e)));
+ await open(page,{appDictionary:{'Ký':'Kê'}});await chip(page).click();await valueBox(page).fill('Kí');
+ await expect(form(page)).not.toContainText('Thay mục hiện có');expect(await addBtn(page).getAttribute('aria-describedby')??'').not.toContain('diff-replace-0');
+ await addBtn(page).click();await expect(dialog(page).getByRole('status')).toContainText('Đã thêm');
+ await page.keyboard.press('Escape');expect(await projectDictionary(page)).toEqual(['Ký → Kí']);expect(errors).toEqual([]);
+});
+test('the key "__proto__" is a plain key: no replace hint, "Đã thêm", and the entry is kept in the project dictionary',async({page})=>{
+ const errors:string[]=[];page.on('pageerror',e=>errors.push(String(e)));
+ await open(page,{text:'Ký __proto__ vào đây.',sent:'Ký __proto__ vào đây.',heard:'kí __proto__ vào đây'});await chip(page).click();await keyBox(page).fill('__proto__');await valueBox(page).fill('prô-tô');
+ await expect(form(page)).not.toContainText('Thay mục hiện có');expect(await addBtn(page).getAttribute('aria-describedby')??'').not.toContain('diff-replace-0');
+ await addBtn(page).click();await expect(dialog(page).getByRole('status')).toContainText('Đã thêm');
+ await page.keyboard.press('Escape');expect(await projectDictionary(page)).toEqual(['__proto__ → prô-tô']);expect(errors).toEqual([]);
 });
 
 test('focus returns to the chip after an add, with Escape and with Đóng',async({page})=>{
