@@ -29,7 +29,7 @@ export function CommandPalette({commands,onClose,title='Bảng lệnh',closeLabe
  };
  // Its own key (Ctrl+K, or Ctrl+P for quick-open) closes the dialog wherever focus is inside it (the filter or the close button); like opening, not with Alt (AltGr+K).
  // Ctrl+K inside quick-open is only prevented, so neither the browser's nor a second dialog's shortcut fires.
- const toggle=(e:React.KeyboardEvent)=>{const k=e.key.toLowerCase();if(e.nativeEvent.isComposing||!(e.ctrlKey||e.metaKey)||e.altKey||(k!==toggleKey&&k!=='k'))return;e.preventDefault();if(k===toggleKey){e.stopPropagation();onClose();}};
+ const toggle=(e:React.KeyboardEvent)=>{const k=e.key.toLowerCase();if(e.nativeEvent.isComposing||!(e.ctrlKey||e.metaKey)||e.altKey||k!==toggleKey)return;e.preventDefault();if(k===toggleKey){e.stopPropagation();onClose();}};
  return <Modal><section className="modal panel palette" role="dialog" aria-modal="true" aria-labelledby={heading} onKeyDown={toggle}>
   <div className="panel-toolbar"><h3 id={heading}>{title}</h3><button type="button" className="icon-button" aria-label={closeLabel} title={closeLabel} onClick={onClose}><X size={17}/></button></div>
   <input autoFocus role="combobox" aria-expanded="true" aria-controls={list} aria-activedescendant={shown.length?`${list}-${cur}`:undefined} aria-label={inputLabel} placeholder={placeholder} value={query} onChange={e=>{setQuery(e.target.value);setSel(null);}} onKeyDown={key}/>
