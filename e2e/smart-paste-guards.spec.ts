@@ -59,3 +59,8 @@ test('on the empty script, losing window focus mid-composition does not leave pa
  await compose(page,'compositionstart');await page.evaluate(()=>{window.dispatchEvent(new Event('blur'));});
  expect(await paste(page.locator('body'),CAST)).toBe(false);await expect(dialog(page)).toBeVisible();
 });
+test('on the empty script, a single word with surrounding whitespace opens no dialog',async({page})=>{
+ await emptyScript(page);
+ for(const text of ['â\n',' Chào '])expect(await paste(page.locator('body'),text)).toBe(true);
+ await expect(dialog(page)).toHaveCount(0);
+});
