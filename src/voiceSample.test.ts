@@ -43,4 +43,11 @@ describe('voiceSample',()=>{
   expect(sample('v-preset',jobs)).toEqual({kind:'job',assets:[{assetId:'b1',start_ms:0}],title:'Phát 3 giây từ một take của dự án Làng chài (21/11/2026)'});
   expect(sample('v-preset',jobs.slice(0,4)).kind).toBe('blocked');
  });
+ it('names the take that played after a fallback, keeping the order to try',()=>{
+  const jobs=[tts('v-preset','b-new',{project:'p2',at:'2026-11-21T12:00:00Z'}),tts('v-preset','b-old',{project:'p2',at:'2026-11-20T12:00:00Z'})],played=(asset?:string)=>voiceSample('v-preset',{voices,jobs,project,projects,version:'1.0.23',played:asset});
+  expect(played()).toMatchObject({assets:[{assetId:'b-new'},{assetId:'b-old'}],title:'Phát 3 giây từ một take của dự án Làng chài (21/11/2026)'});
+  expect(played('b-new')).toMatchObject({title:'Phát 3 giây từ một take của dự án Làng chài (21/11/2026)'});
+  expect(played('b-old')).toMatchObject({assets:[{assetId:'b-new'},{assetId:'b-old'}],title:'Phát 3 giây từ một take của dự án Làng chài (20/11/2026)'});
+  expect(played('gone')).toMatchObject({title:'Phát 3 giây từ một take của dự án Làng chài (21/11/2026)'});
+ });
 });
