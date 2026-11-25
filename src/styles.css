@@ -79,6 +79,14 @@ progress::-webkit-progress-value{background:var(--green)}
 .trim-handle::before{content:'';position:absolute;left:11px;top:1px;bottom:1px;width:2px;border-radius:1px;background:var(--ink)}
 .trim-handle:focus-visible{outline:2px solid var(--green);outline-offset:0}
 @media(forced-colors:active){.trim-handle::before{forced-color-adjust:none;background:CanvasText}}
+/* Focus mode (B1): the script takes the inspector's column; only the active row keeps its toolbar and take button (hidden, not removed, so no row changes height when it becomes active); the text is set in a reading face. */
+.studio-grid.focus-mode{grid-template-columns:minmax(0,1fr)}
+.focus-mode .inspector,.focus-mode .segment-detail{display:none}
+.focus-mode .segment:not(.selected) .segment-toolbar,.focus-mode .segment:not(.selected) button.take-check{visibility:hidden}
+.focus-mode .segment textarea{font-family:'Palatino Linotype','Iowan Old Style',Georgia,serif;font-size:19px;line-height:1.7}
+@media(max-width:640px){.focus-mode .segment textarea{font-size:17px}}
+.hero-actions{flex-wrap:wrap;justify-content:flex-end} /* the focus button widens the row: at 641 px it wraps instead of pushing the page sideways */
+.hero-actions .quiet[aria-pressed=true]{background:var(--paper);color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
 .trim-readout{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:1px;padding:0 6px;font-size:11px;line-height:16px;white-space:nowrap;color:var(--ink);background:var(--paper);border-radius:4px;pointer-events:none}
 /* Voice sample (A4): the "Phân vai" sample button sits beside its voice select, centred on it. */
 .cast-row{display:flex;align-items:flex-end;gap:6px;margin-bottom:14px}

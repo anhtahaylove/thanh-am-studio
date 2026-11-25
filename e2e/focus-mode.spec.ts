@@ -135,7 +135,7 @@ test('the active row keeps its toolbar and take controls and the other rows show
  await expect(row(2)).toHaveClass(/selected/);
  await expect(row(2).getByRole('toolbar',{name:'Thao tác đoạn 2'})).toBeVisible();await expect(row(2).locator('button.take-check')).toBeVisible();
  await expect(page.getByRole('toolbar',{name:/^Thao tác đoạn/})).toHaveCount(1);
- await expect(page.locator('.segment:not(.selected) button.take-check')).toHaveCount(0);
+ await expect(page.locator('.segment:not(.selected) button.take-check:visible')).toHaveCount(0);
  await area(page,6).click();
  await expect(page.getByRole('toolbar',{name:'Thao tác đoạn 6'})).toBeVisible();await expect(page.getByRole('toolbar',{name:/^Thao tác đoạn/})).toHaveCount(1);
 });
