@@ -195,3 +195,30 @@ test('with reduced motion focus mode animates nothing',async({page})=>{
  const motion=await page.evaluate(()=>['.studio-grid','.script-panel','.segment','.segment textarea','.segment-toolbar'].map(q=>{const c=getComputedStyle(document.querySelector(q)!);return [q,c.transitionDuration,c.animationName] as const;}));
  for(const [q,t,a] of motion){expect(t.split(',').every(d=>parseFloat(d)===0),`${q} transition ${t}`).toBe(true);expect(a,`${q} animation`).toBe('none');}
 });
+
+for(const width of [1440,800]){
+ test(`"Chi tiết đoạn N" leaves focus mode and focuses the voice select at ${width} px`,async({page})=>{
+  await open(page,{width,height:720,stored:'1'});
+  await expect(toggle(page)).toHaveAttribute('aria-pressed','true');
+  await page.getByRole('toolbar',{name:'Thao tác đoạn 1'}).getByRole('button',{name:'Chi tiết đoạn 1',exact:true}).click();
+  await expect(toggle(page)).toHaveAttribute('aria-pressed','false');await expect(grid(page)).not.toHaveClass(/focus-mode/);
+  await expect(page.getByRole('combobox',{name:'Giọng đoạn 1',exact:true})).toBeFocused();
+  await said(page,'Đã tắt chế độ tập trung.');expect(await stored(page)).toBe('0');
+ });
+}
+
+test('a held Ctrl+Shift+F toggles once: auto-repeat keydowns are ignored',async({page})=>{
+ await open(page);
+ await page.keyboard.down('Control');await page.keyboard.down('Shift');await page.keyboard.down('F');
+ await page.keyboard.down('F');await page.keyboard.down('F'); // a key that is already down sends keydown with repeat:true
+ await page.keyboard.up('F');await page.keyboard.up('Shift');await page.keyboard.up('Control');
+ await expect(toggle(page)).toHaveAttribute('aria-pressed','true');
+});
+
+test('the palette command opens the TTS page, where focus mode shows, from any other page',async({page})=>{
+ await open(page);
+ await page.getByRole('button',{name:'Chép lời',exact:true}).click();await expect(page.getByRole('heading',{level:1})).toContainText('Chép lời');
+ await page.keyboard.press('Control+k');await page.getByRole('option',{name:'Bật chế độ tập trung'}).click();
+ await expect(page.getByRole('heading',{level:1})).toContainText('Tạo giọng đọc');
+ await expect(toggle(page)).toHaveAttribute('aria-pressed','true');await expect(grid(page)).toHaveClass(/focus-mode/);
+});
