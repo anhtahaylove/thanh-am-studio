@@ -161,9 +161,10 @@ test('with no segment the dock\'s SRT and "Xuất audio" keep their names, are f
 
 test('with no segment "Tạo giọng tất cả" is reached by Tab, says why and does nothing',async({page})=>{
  await desktop(page,[]);
- const all=page.getByRole('button',{name:'Tạo giọng tất cả',exact:true}),why='Thêm ít nhất một đoạn';
+ const all=page.getByRole('button',{name:'Tạo giọng tất cả',exact:true}),why='Thêm ít nhất một đoạn',busy=()=>page.evaluate(()=>(window as any).__busy as number);
+ await settle(page);await page.waitForTimeout(500);const before=await busy();
  await page.getByRole('checkbox',{name:'Đọc từ tiếng Anh'}).focus();await page.keyboard.press('Tab');await expect(all).toBeFocused();
  await expect(all).toHaveAccessibleDescription(why);await expect(all).toHaveAttribute('title',why);await readable(page,why,'Tạo giọng tất cả');
  await all.click({force:true});await page.keyboard.press('Enter');await page.keyboard.press('Space');
- await settle(page);expect(await calls(page,'enqueue_job')).toBe(0);
+ await settle(page);expect(await busy()).toBe(before);expect(await calls(page,'enqueue_job')).toBe(0);
 });
