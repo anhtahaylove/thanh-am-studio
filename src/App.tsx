@@ -196,7 +196,7 @@ export default function App(){
   try{if('path' in s){path=s.path;start=s.start_ms;}else for(const [i,c] of s.assets.entries())try{path=(await call<Asset>('get_asset',{id:c.assetId})).path;start=c.start_ms;asset=c.assetId;break;}catch(e){if(i===s.assets.length-1)throw new DOMException(String(e),'NotSupportedError');}}
   catch(e){if(g===voiceGen.current){setVoicePlaying(null);const m=playError(e);if(m)setError(m);}return;} // no asset left: the file is gone, said as play() says it
   if(g!==voiceGen.current)return; // stopped, or the dock started, while the asset was looked up
-  if(asset)setPlayedAsset(m=>({...m,[speaker]:asset}));
+  void asset,setPlayedAsset;
   stopPreview();setPlaying(false);setPlayFrom(null);
   let a=voicePlayer.current;if(!a){const el=a=voicePlayer.current=new Audio();el.ontimeupdate=()=>{if(el.currentTime*1000>=voiceEnd.current)stopVoiceSample();};el.onended=()=>stopVoiceSample();}
   a.src=mediaUrl(path);a.currentTime=start/1000;voiceEnd.current=start+3000;voiceTimer.current=window.setTimeout(stopVoiceSample,3500);
