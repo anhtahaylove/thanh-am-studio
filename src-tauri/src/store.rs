@@ -1,4 +1,5 @@
 use chrono::Utc;
+use miniz_oxide::{deflate::compress_to_vec,inflate::decompress_to_vec_with_limit};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -13,6 +14,66 @@ fn now() -> String { Utc::now().to_rfc3339() }
 fn err(e: impl std::fmt::Display) -> String { e.to_string() }
 fn parse(s: String) -> Result<Value> { serde_json::from_str(&s).map_err(err) }
 fn ident(v: &Value, key: &str) -> Result<String> { v[key].as_str().filter(|s| !s.is_empty()).map(str::to_owned).ok_or_else(|| format!("INVALID_FIELD: {key}")) }
+const CONFLICT:&str="REVISION_CONFLICT: Dự án đã thay đổi. Hãy tải lại trước khi lưu.";
+const CORRUPT:&str="VERSION_CORRUPT: Phiên bản này không đọc được.";
+const VERSION_ERRORS:&str="version-errors.jsonl";
+const VERSION_GAP_SECS:i64=600;
+const KEEP_VERSIONS:i64=30;
+const KEEP_BEFORE_RESTORE:i64=5;
+const MAX_VERSION_BYTES:i64=32*1024*1024;
+const MAX_INFLATED:usize=256*1024*1024;
+/// The rules a project must meet to be stored: what a client save and a restored version both pass.
+fn check(p:&Value)->Result<()>{
+ ident(p,"id")?; let name=ident(p,"name")?;
+ p["revision"].as_i64().ok_or("INVALID_REVISION")?;
+ if name.len()>512 {return Err("INVALID_NAME".into())}
+ let segments=p["segments"].as_array().ok_or("INVALID_SEGMENTS")?;
+ let mut ids=std::collections::HashSet::new();
+ for s in segments {
+  if !ids.insert(ident(s,"id")?) {return Err("INVALID_SEGMENT: duplicate id".into())}
+  for k in ["gap_ms","trim_start_ms","fade_in_ms","fade_out_ms"] { if !s[k].is_null() && s[k].as_f64().filter(|x| x.is_finite() && *x>=0.0 && *x<=3_600_000.0).is_none(){return Err(format!("INVALID_SEGMENT: {k}"))} }
+  if let Some(g)=s["gain_db"].as_f64(){if !(-60.0..=24.0).contains(&g){return Err("INVALID_SEGMENT: gain_db".into())}}
+  if let Some(end)=s["trim_end_ms"].as_f64(){if end<=s["trim_start_ms"].as_f64().unwrap_or(0.0){return Err("INVALID_SEGMENT: trim range".into())}}
+ }
+ for t in p["transcript"].as_array().ok_or("INVALID_TRANSCRIPT")? {let a=t["start_ms"].as_f64().ok_or("INVALID_TIMESTAMP")?;let b=t["end_ms"].as_f64().ok_or("INVALID_TIMESTAMP")?;if a<0.0||b<=a{return Err("INVALID_TIMESTAMP".into())}}
+ Ok(())
+}
+/// Takes are append-only and written by finished TTS jobs; keep any the client (or a restored version) has not seen yet.
+fn keep_takes(p:&mut Value,stored:&Value){
+ let olds:std::collections::HashMap<&str,&Value>=stored["segments"].as_array().into_iter().flatten().filter_map(|s|Some((s["id"].as_str()?,s))).collect();
+ for seg in p["segments"].as_array_mut().into_iter().flatten() {
+  let Some(old)=seg["id"].as_str().and_then(|id|olds.get(id).copied()) else {continue};
+  if !seg["takes"].is_array(){seg["takes"]=json!([])}
+  for t in old["takes"].as_array().into_iter().flatten() { let takes=seg["takes"].as_array_mut().unwrap(); if !takes.iter().any(|x|x["id"]==t["id"]){takes.push(t.clone())} }
+  // A take the server selected comes with the trim it set from the take's speech edges.
+  if seg["selected_take_id"].is_null()&&!old["selected_take_id"].is_null(){for k in ["selected_take_id","trim_start_ms","trim_end_ms"]{seg[k]=old[k].clone()}}
+ }
+}
+fn blank(p:&Value)->bool{["segments","transcript"].iter().all(|k|p[k].as_array().is_none_or(|a|a.is_empty()))}
+/// True when the newest automatic version (by write order) is older than ten minutes, absent or dated in the future.
+fn version_due(c:&Connection,pid:&str)->Result<bool>{
+ let t:Option<String>=c.query_row("SELECT created_at FROM project_versions WHERE project_id=?1 AND reason='auto' ORDER BY rowid DESC LIMIT 1",[pid],|r|r.get(0)).optional().map_err(err)?;
+ let age=t.and_then(|t|chrono::DateTime::parse_from_rfc3339(&t).ok()).map(|t|(Utc::now()-t.with_timezone(&Utc)).num_seconds());
+ Ok(age.is_none_or(|a|a>VERSION_GAP_SECS||a<0))
+}
+/// Stores `p` deflated as a version of the project (`state_at` is when `p` was last edited), then applies the retention rules.
+fn insert_version(c:&Connection,pid:&str,revision:i64,state_at:&str,reason:&str,p:&Value)->Result<()>{
+ let count=|k:&str|p[k].as_array().map_or(0,|a|a.len() as i64);
+ let chars:i64=p["segments"].as_array().into_iter().flatten().map(|s|s["text"].as_str().map_or(0,|t|t.chars().count() as i64)).sum();
+ let data=compress_to_vec(p.to_string().as_bytes(),6);
+ c.execute("INSERT INTO project_versions(id,project_id,revision,state_at,created_at,reason,segments,transcript,chars,bytes,data) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
+  params![Uuid::new_v4().to_string(),pid,revision,state_at,now(),reason,count("segments"),count("transcript"),chars,data.len() as i64,data]).map_err(err)?;
+ prune(c,pid)
+}
+/// At most 5 `before_restore` rows (so restores cannot push out the automatic history), then 30 rows, then 32 MiB, always keeping the newest.
+fn prune(c:&Connection,pid:&str)->Result<()>{
+ c.execute("DELETE FROM project_versions WHERE project_id=?1 AND reason='before_restore' AND id NOT IN (SELECT id FROM project_versions WHERE project_id=?1 AND reason='before_restore' ORDER BY created_at DESC,rowid DESC LIMIT ?2)",params![pid,KEEP_BEFORE_RESTORE]).map_err(err)?;
+ c.execute("DELETE FROM project_versions WHERE project_id=?1 AND id NOT IN (SELECT id FROM project_versions WHERE project_id=?1 ORDER BY created_at DESC,rowid DESC LIMIT ?2)",params![pid,KEEP_VERSIONS]).map_err(err)?;
+ let sizes:Vec<(String,i64)>={let mut q=c.prepare("SELECT id,bytes FROM project_versions WHERE project_id=?1 ORDER BY created_at DESC,rowid DESC").map_err(err)?;let r=q.query_map([pid],|r|Ok((r.get::<_,String>(0)?,r.get::<_,i64>(1)?))).map_err(err)?;r.collect::<std::result::Result<_,_>>().map_err(err)?};
+ let mut sum=0;
+ for (i,(id,bytes)) in sizes.iter().enumerate(){sum+=*bytes;if i>0&&sum>MAX_VERSION_BYTES{c.execute("DELETE FROM project_versions WHERE id=?1",[id]).map_err(err)?;}}
+ Ok(())
+}
 
 impl Store {
  pub fn open(root: &Path) -> Result<Self> {
@@ -28,7 +89,12 @@ impl Store {
    CREATE TABLE IF NOT EXISTS assets(id TEXT PRIMARY KEY, data TEXT NOT NULL);
    CREATE TABLE IF NOT EXISTS voices(id TEXT PRIMARY KEY, data TEXT NOT NULL);
    CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, data TEXT NOT NULL);
-   PRAGMA user_version=1;").map_err(err)?;
+   CREATE TABLE IF NOT EXISTS project_versions(
+    id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    revision INTEGER NOT NULL, state_at TEXT NOT NULL, created_at TEXT NOT NULL, reason TEXT NOT NULL,
+    segments INTEGER NOT NULL, transcript INTEGER NOT NULL, chars INTEGER NOT NULL, bytes INTEGER NOT NULL, data BLOB NOT NULL);
+   CREATE INDEX IF NOT EXISTS project_versions_by_project ON project_versions(project_id, created_at);
+   PRAGMA user_version=2;").map_err(err)?;
   let s = Self{db:Mutex::new(db),root:root.to_owned()};
   let running:Vec<String>={let db=s.db.lock().map_err(err)?;let mut q=db.prepare("SELECT data FROM jobs WHERE status='running'").map_err(err)?;let r=q.query_map([],|r|r.get(0)).map_err(err)?;r.collect::<std::result::Result<_,_>>().map_err(err)?};
   for d in running { let mut j=parse(d)?; j["status"]=json!("interrupted"); j["error"]=json!("Phiên trước dừng giữa chừng. Chọn thử lại."); s.write_job(&j)?;
@@ -45,39 +111,52 @@ impl Store {
  pub fn load_project(&self,id:&str)->Result<Value>{ let db=self.db.lock().map_err(err)?; let data:String=db.query_row("SELECT data FROM projects WHERE id=?1",[id],|r|r.get(0)).map_err(|_|"PROJECT_NOT_FOUND".to_string())?; parse(data) }
  pub fn list_projects(&self)->Result<Vec<Value>>{ let db=self.db.lock().map_err(err)?; let mut q=db.prepare("SELECT id,name,revision,updated_at FROM projects ORDER BY updated_at DESC").map_err(err)?; let r=q.query_map([],|r|Ok(json!({"id":r.get::<_,String>(0)?,"name":r.get::<_,String>(1)?,"revision":r.get::<_,i64>(2)?,"updated_at":r.get::<_,String>(3)?}))).map_err(err)?; r.collect::<std::result::Result<Vec<_>,_>>().map_err(err) }
  pub fn save_project(&self,mut p:Value)->Result<Value>{
+  check(&p)?;
   let id=ident(&p,"id")?; let name=ident(&p,"name")?;
   let revision=p["revision"].as_i64().ok_or("INVALID_REVISION")?;
-  if name.len()>512 {return Err("INVALID_NAME".into())}
-  let segments=p["segments"].as_array().ok_or("INVALID_SEGMENTS")?;
-  let mut ids=std::collections::HashSet::new();
-  for s in segments {
-   if !ids.insert(ident(s,"id")?) {return Err("INVALID_SEGMENT: duplicate id".into())}
-   for k in ["gap_ms","trim_start_ms","fade_in_ms","fade_out_ms"] { if !s[k].is_null() && s[k].as_f64().filter(|x| x.is_finite() && *x>=0.0 && *x<=3_600_000.0).is_none(){return Err(format!("INVALID_SEGMENT: {k}"))} }
-   if let Some(g)=s["gain_db"].as_f64(){if !(-60.0..=24.0).contains(&g){return Err("INVALID_SEGMENT: gain_db".into())}}
-   if let Some(end)=s["trim_end_ms"].as_f64(){if end<=s["trim_start_ms"].as_f64().unwrap_or(0.0){return Err("INVALID_SEGMENT: trim range".into())}}
-  }
-  for t in p["transcript"].as_array().ok_or("INVALID_TRANSCRIPT")? {let a=t["start_ms"].as_f64().ok_or("INVALID_TIMESTAMP")?;let b=t["end_ms"].as_f64().ok_or("INVALID_TIMESTAMP")?;if a<0.0||b<=a{return Err("INVALID_TIMESTAMP".into())}}
   p["revision"]=json!(revision+1);p["updated_at"]=json!(now());
-  let db=self.db.lock().map_err(err)?;
-  // Takes are append-only and written by finished TTS jobs; keep any the client has not seen yet.
-  if let Some(d)=db.query_row("SELECT data FROM projects WHERE id=?1",[&id],|r|r.get::<_,String>(0)).optional().map_err(err)? {
-   let stored=parse(d)?;
-   let olds:std::collections::HashMap<&str,&Value>=stored["segments"].as_array().into_iter().flatten().filter_map(|s|Some((s["id"].as_str()?,s))).collect();
-   for seg in p["segments"].as_array_mut().into_iter().flatten() {
-    let Some(old)=seg["id"].as_str().and_then(|id|olds.get(id).copied()) else {continue};
-    if !seg["takes"].is_array(){seg["takes"]=json!([])}
-    for t in old["takes"].as_array().into_iter().flatten() { let takes=seg["takes"].as_array_mut().unwrap(); if !takes.iter().any(|x|x["id"]==t["id"]){takes.push(t.clone())} }
-    // A take the server selected comes with the trim it set from the take's speech edges.
-    if seg["selected_take_id"].is_null()&&!old["selected_take_id"].is_null(){for k in ["selected_take_id","trim_start_ms","trim_end_ms"]{seg[k]=old[k].clone()}}
-   }
+  let mut db=self.db.lock().map_err(err)?;
+  let mut tx=db.transaction().map_err(err)?;
+  let row:Option<(i64,String,String)>=tx.query_row("SELECT revision,updated_at,data FROM projects WHERE id=?1",[&id],|r|Ok((r.get::<_,i64>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?))).optional().map_err(err)?;
+  let Some((stored_rev,stored_at,d))=row.filter(|r|r.0==revision) else {return Err(CONFLICT.into())};
+  let stored=parse(d)?;
+  keep_takes(&mut p,&stored);
+  // The version is a bonus: its failure rolls back to the savepoint, is logged, and never fails the save.
+  if !blank(&stored) {
+   let r=tx.savepoint().map_err(err).and_then(|sp|{if version_due(&sp,&id)?{insert_version(&sp,&id,stored_rev,&stored_at,"auto",&stored)?}sp.commit().map_err(err)});
+   if let Err(e)=r {self.log_version_error(&id,&e)}
   }
-  let n=db.execute("UPDATE projects SET name=?1,revision=?2,updated_at=?3,data=?4 WHERE id=?5 AND revision=?6",params![name,revision+1,p["updated_at"].as_str(),p.to_string(),id,revision]).map_err(err)?;
-  if n!=1{return Err("REVISION_CONFLICT: Dự án đã thay đổi. Hãy tải lại trước khi lưu.".into())} Ok(p)
+  let n=tx.execute("UPDATE projects SET name=?1,revision=?2,updated_at=?3,data=?4 WHERE id=?5 AND revision=?6",params![name,revision+1,p["updated_at"].as_str(),p.to_string(),id,revision]).map_err(err)?;
+  if n!=1{return Err(CONFLICT.into())}
+  tx.commit().map_err(err)?;Ok(p)
  }
- // Placeholders: the first commit of this change carries only the tests, which fail against them.
- pub fn list_versions(&self,_project_id:&str)->Result<Vec<Value>>{Err("NOT_IMPLEMENTED".into())}
- pub fn restore_version(&self,_project_id:&str,_version_id:&str,_revision:i64)->Result<Value>{Err("NOT_IMPLEMENTED".into())}
- pub fn diagnostics(&self)->Result<String>{Err("NOT_IMPLEMENTED".into())}
+ pub fn list_versions(&self,project_id:&str)->Result<Vec<Value>>{let db=self.db.lock().map_err(err)?;let mut q=db.prepare("SELECT id,project_id,revision,state_at,created_at,reason,segments,transcript,chars,bytes FROM project_versions WHERE project_id=?1 ORDER BY created_at DESC,rowid DESC").map_err(err)?;let r=q.query_map([project_id],|r|Ok(json!({"id":r.get::<_,String>(0)?,"project_id":r.get::<_,String>(1)?,"revision":r.get::<_,i64>(2)?,"state_at":r.get::<_,String>(3)?,"created_at":r.get::<_,String>(4)?,"reason":r.get::<_,String>(5)?,"segments":r.get::<_,i64>(6)?,"transcript":r.get::<_,i64>(7)?,"chars":r.get::<_,i64>(8)?,"bytes":r.get::<_,i64>(9)?}))).map_err(err)?;r.collect::<std::result::Result<Vec<_>,_>>().map_err(err)}
+ /// Makes a stored version the current state in one transaction. The state it replaces is kept as a `before_restore` version, the current
+ /// name stays, and takes the version lacks are kept. Refused on a stale revision or while the project has queued or running jobs.
+ pub fn restore_version(&self,project_id:&str,version_id:&str,revision:i64)->Result<Value>{
+  let mut db=self.db.lock().map_err(err)?;let tx=db.transaction().map_err(err)?;
+  let (rev,name,at,d)=tx.query_row("SELECT revision,name,updated_at,data FROM projects WHERE id=?1",[project_id],|r|Ok((r.get::<_,i64>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,String>(3)?))).optional().map_err(err)?.ok_or("PROJECT_NOT_FOUND")?;
+  if rev!=revision {return Err(CONFLICT.into())}
+  let busy:i64=tx.query_row("SELECT count(*) FROM jobs WHERE project_id=?1 AND status IN ('queued','running')",[project_id],|r|r.get(0)).map_err(err)?;
+  if busy>0 {return Err("PROJECT_BUSY: Dự án đang có công việc chạy hoặc chờ. Chờ xong hoặc hủy rồi khôi phục.".into())}
+  let blob:Vec<u8>=tx.query_row("SELECT data FROM project_versions WHERE id=?1 AND project_id=?2",[version_id,project_id],|r|r.get(0)).optional().map_err(err)?.ok_or("VERSION_NOT_FOUND: Phiên bản này không còn. Mở lại lịch sử phiên bản.")?;
+  let current=parse(d)?;
+  insert_version(&tx,project_id,rev,&at,"before_restore",&current)?;
+  let mut p:Value=serde_json::from_slice(&decompress_to_vec_with_limit(&blob,MAX_INFLATED).map_err(|_|CORRUPT.to_string())?).map_err(|_|CORRUPT.to_string())?;
+  p["id"]=json!(project_id);p["name"]=json!(name);
+  keep_takes(&mut p,&current);
+  p["revision"]=json!(rev+1);p["updated_at"]=json!(now());
+  check(&p)?;
+  let n=tx.execute("UPDATE projects SET name=?1,revision=?2,updated_at=?3,data=?4 WHERE id=?5 AND revision=?6",params![name,rev+1,p["updated_at"].as_str(),p.to_string(),project_id,rev]).map_err(err)?;
+  if n!=1 {return Err(CONFLICT.into())}
+  tx.commit().map_err(err)?;Ok(p)
+ }
+ fn log_version_error(&self,pid:&str,e:&str){if let Ok(mut f)=fs::OpenOptions::new().create(true).append(true).open(self.root.join(VERSION_ERRORS)){let _=writeln!(f,"{}",json!({"at":now(),"project_id":pid,"error":e}));}}
+ /// The text of `export_diagnostics`: the worker diagnostics plus the log of failed version writes.
+ pub fn diagnostics(&self)->Result<String>{
+  let log=fs::read_to_string(self.root.join(VERSION_ERRORS)).ok().filter(|t|!t.trim().is_empty()).unwrap_or_else(||"(empty)\n".into());
+  Ok(format!("{}\n== {VERSION_ERRORS} ==\n{log}",crate::engine::diagnostics(&self.root,&self.settings()?)))
+ }
  /// Refused while the project has queued or running jobs. Its failed, cancelled and interrupted jobs (no output) go with it,
  /// and so do its succeeded tts jobs (each only fed a take of this project). Other succeeded ones stay: other projects find
  /// separation stems by asset id, renders are saved from the queue, and a transcript can be applied to another project.

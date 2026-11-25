@@ -17,6 +17,8 @@ pub struct AppState {store:Arc<Store>,runtime:Arc<Runtime>}
 #[tauri::command(async)] fn load_project(id:String,s:State<AppState>)->Result<Value>{s.store.load_project(&id)}
 #[tauri::command(async)] fn save_project(project:Value,s:State<AppState>)->Result<Value>{s.store.save_project(project)}
 #[tauri::command(async)] fn delete_project(id:String,s:State<AppState>)->Result<()>{s.store.delete_project(&id)}
+#[tauri::command(async)] fn list_project_versions(project_id:String,s:State<AppState>)->Result<Vec<Value>>{s.store.list_versions(&project_id)}
+#[tauri::command(async)] fn restore_project_version(project_id:String,version_id:String,revision:i64,s:State<AppState>)->Result<Value>{s.store.restore_version(&project_id,&version_id,revision)}
 #[tauri::command(async)] fn get_settings(s:State<AppState>)->Result<Value>{s.store.settings()}
 #[tauri::command(async)] fn save_settings(settings:Value,s:State<AppState>)->Result<Value>{s.store.save_settings(settings)}
 #[tauri::command(async)] fn list_jobs(s:State<AppState>)->Result<Vec<Value>>{s.store.list_jobs()}
@@ -27,8 +29,8 @@ pub struct AppState {store:Arc<Store>,runtime:Arc<Runtime>}
 #[tauri::command(async)] fn cancel_job(id:String,s:State<AppState>)->Result<Value>{s.store.cancel(&id)}
 #[tauri::command(async)] fn retry_job(id:String,s:State<AppState>)->Result<Value>{s.store.retry(&id)}
 #[tauri::command(async)] fn runtime_status(s:State<AppState>)->Value{let mut v=s.runtime.status();v["fallback_count"]=json!(engine::fallback_count(&s.store.root));v}
-/// One UTF-8 text file with the settings, both worker logs and the startup error log, for a bug report.
-#[tauri::command(async)] fn export_diagnostics(path:String,s:State<AppState>)->Result<()>{let p=Path::new(&path);if !p.is_absolute()||p.extension().and_then(|e|e.to_str()).unwrap_or("").to_lowercase()!="txt"{return Err("UNSUPPORTED_TEXT".into())}std::fs::write(p,engine::diagnostics(&s.store.root,&s.store.settings()?).as_bytes()).map_err(|e|e.to_string())}
+/// One UTF-8 text file with the settings, both worker logs, the startup error log and the version-write error log, for a bug report.
+#[tauri::command(async)] fn export_diagnostics(path:String,s:State<AppState>)->Result<()>{let p=Path::new(&path);if !p.is_absolute()||p.extension().and_then(|e|e.to_str()).unwrap_or("").to_lowercase()!="txt"{return Err("UNSUPPORTED_TEXT".into())}std::fs::write(p,s.store.diagnostics()?.as_bytes()).map_err(|e|e.to_string())}
 #[tauri::command(async)] fn get_asset(id:String,s:State<AppState>)->Result<Value>{s.store.asset(&id)}
 #[tauri::command] async fn import_asset(path:String,s:State<'_,AppState>)->Result<Value>{let store=s.store.clone();tauri::async_runtime::spawn_blocking(move||store.import_asset(Path::new(&path))).await.map_err(|e|e.to_string())?}
 #[tauri::command] async fn read_text_file(path:String)->Result<String>{tauri::async_runtime::spawn_blocking(move||read_text(path)).await.map_err(|e|e.to_string())?}
@@ -81,6 +83,6 @@ pub fn run() {
   tauri::WebviewWindowBuilder::from_config(app.handle(),&app.config().app.windows[0])?.additional_browser_args(&args).build()?;
   // Jobs start once the window is up, so none runs unseen behind a failed start's error box.
   runtime.start(store);Ok(())
- }).invoke_handler(tauri::generate_handler![list_projects,create_project,load_project,save_project,delete_project,get_settings,save_settings,list_jobs,enqueue_job,cancel_job,retry_job,runtime_status,export_diagnostics,read_text_file,import_asset,get_asset,list_models,download_model,export_text,export_asset,export_asset_new,list_voices,save_voice,reveal_path,update::update_check,update::update_download,update::update_install,update::update_last_install]).build(ctx).expect("Khởi tạo Thanh Âm Studio");
+ }).invoke_handler(tauri::generate_handler![list_projects,create_project,load_project,save_project,delete_project,list_project_versions,restore_project_version,get_settings,save_settings,list_jobs,enqueue_job,cancel_job,retry_job,runtime_status,export_diagnostics,read_text_file,import_asset,get_asset,list_models,download_model,export_text,export_asset,export_asset_new,list_voices,save_voice,reveal_path,update::update_check,update::update_download,update::update_install,update::update_last_install]).build(ctx).expect("Khởi tạo Thanh Âm Studio");
  app.run(|handle,event|match event{tauri::RunEvent::Ready=>drop(std::panic::take_hook()),tauri::RunEvent::Exit=>{handle.state::<AppState>().runtime.shutdown.store(true,Ordering::Relaxed);std::thread::sleep(std::time::Duration::from_millis(250));},_=>{}});
 }
