@@ -69,7 +69,7 @@ export function BusyIndicator(){
    const r=d?.getBoundingClientRect(),h=el.getBoundingClientRect().height;
    const fits=(bottom:number)=>{const top=innerHeight-bottom-h;return top>=8&&bottom>=8&&(!r||top+h<=r.top-10||top>=r.bottom+10);};
    const shown=r&&r.top<innerHeight&&r.bottom>0;
-   el.style.bottom=`${shown?[20,innerHeight-r.top+10,innerHeight-r.bottom-10-h].find(fits)??20:20}px`;
+   el.style.bottom=`${shown?Math.max(20,innerHeight-r.top+10):20}px`;
   };
   const queue=()=>{if(!frame)frame=requestAnimationFrame(place);};
   const ro=new ResizeObserver(queue);
