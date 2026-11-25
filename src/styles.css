@@ -156,7 +156,7 @@ main:focus{outline:none}
 @media(max-height:440px){.audio-dock{position:static}html:has(.audio-dock){scroll-padding-bottom:0}}
 /* B1: the hint under a blocked segment's text after Ctrl+Enter, and the reason bubble of a focused blocked control (ReasonBubble): fixed and outside every panel, click-through so it never takes a click meant for what is under it, above the dock (5) and the busy indicator (20), below the toast (25) and dialogs (30). */
 .row-hint{font-size:12px;font-weight:600;color:var(--danger)}
-.reason-bubble{position:fixed;z-index:22;pointer-events:none;max-width:min(360px,calc(100vw - 12px));padding:6px 10px;border-radius:8px;background:var(--ink);color:var(--paper);font-size:13px;line-height:1.4;box-shadow:0 4px 16px #0003}
+.reason-bubble{position:fixed;z-index:26;pointer-events:none;max-width:min(360px,calc(100vw - 12px));padding:6px 10px;border-radius:8px;background:var(--ink);color:var(--paper);font-size:13px;line-height:1.4;box-shadow:0 4px 16px #0003}
 /* B5: the "Thêm nội dung" preview. The dialog scrolls when the window is too short for it; the shorter box leaves room for 8 preview rows at 1024x720. */
 .import-dialog{max-height:calc(100vh - 50px);overflow-y:auto}
 .import-dialog textarea{height:160px;margin-bottom:12px}
