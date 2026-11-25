@@ -732,3 +732,163 @@ fn a_1_0_23_open_batch_still_updates_and_deletes_a_project_and_cascades_its_vers
     assert_eq!(db(tmp.path()).query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)).unwrap(), 2, "the next 1.0.24 start sets it back");
     assert_eq!(s.list_projects().unwrap().len(), 0);
 }
+
+// ---- Review round: restore never prunes its own source, lost transactions, corrupt blobs, selection, log bound. ----
+
+fn ids_of(s: &Store, project_id: &str, reason: &str) -> Vec<String> {
+    s.list_versions(project_id).unwrap().iter().filter(|v| v["reason"] == reason).map(|v| v["id"].as_str().unwrap().to_owned()).collect()
+}
+
+#[test]
+fn restoring_the_oldest_of_thirty_versions_keeps_that_version() {
+    let tmp = tempfile::tempdir().unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    let mut p = project(&s);
+    let id = pid(&p);
+    for i in 0..30 {
+        p = edit(&s, p, &format!("v{i}"));
+        age_versions(tmp.path());
+    }
+    assert_eq!(versions_of(tmp.path()), 30);
+    let oldest = ids_of(&s, &id, "auto").last().unwrap().clone();
+    let restored = s.restore_version(&id, &oldest, p["revision"].as_i64().unwrap()).unwrap();
+    assert_eq!(restored["segments"][0]["text"], "Xin chào");
+    assert!(ids_of(&s, &id, "auto").contains(&oldest), "the restored version was pruned by its own restore");
+    assert_eq!(versions_of(tmp.path()), 30);
+}
+
+#[test]
+fn restoring_the_oldest_of_five_before_restore_versions_keeps_it() {
+    let tmp = tempfile::tempdir().unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    let mut p = edit(&s, project(&s), "v0");
+    let id = pid(&p);
+    let auto = ids_of(&s, &id, "auto")[0].clone();
+    for _ in 0..5 {
+        p = s.restore_version(&id, &auto, p["revision"].as_i64().unwrap()).unwrap();
+    }
+    let before = ids_of(&s, &id, "before_restore");
+    assert_eq!(before.len(), 5);
+    let oldest = before.last().unwrap().clone();
+    s.restore_version(&id, &oldest, p["revision"].as_i64().unwrap()).unwrap();
+    let after = ids_of(&s, &id, "before_restore");
+    assert!(after.contains(&oldest), "the before_restore version was pruned by its own restore");
+    assert_eq!(after.len(), 5);
+}
+
+#[test]
+fn restoring_a_version_that_falls_outside_the_byte_cap_keeps_it() {
+    let tmp = tempfile::tempdir().unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    let mut p = project(&s);
+    let id = pid(&p);
+    for i in 0..3 {
+        p = edit(&s, p, &format!("v{i}"));
+        age_versions(tmp.path());
+    }
+    db(tmp.path()).execute("UPDATE project_versions SET bytes=20*1024*1024", []).unwrap();
+    let oldest = ids_of(&s, &id, "auto").last().unwrap().clone();
+    s.restore_version(&id, &oldest, p["revision"].as_i64().unwrap()).unwrap();
+    assert!(ids_of(&s, &id, "auto").contains(&oldest), "the restored version was dropped by the byte cap");
+}
+
+#[test]
+fn a_failing_retention_after_a_good_insert_rolls_the_insert_back_too() {
+    let tmp = tempfile::tempdir().unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    let mut p = project(&s);
+    for i in 0..30 {
+        p = edit(&s, p, &format!("v{i}"));
+        age_versions(tmp.path());
+    }
+    db(tmp.path()).execute_batch("CREATE TRIGGER no_delete BEFORE DELETE ON project_versions BEGIN SELECT RAISE(ABORT,'nodel'); END;").unwrap();
+    let saved = edit(&s, p, "x");
+    assert_eq!(saved["segments"][0]["text"], "x");
+    assert_eq!(versions_of(tmp.path()), 30, "the insert stayed although its retention failed");
+    assert!(std::fs::read_to_string(tmp.path().join("version-errors.jsonl")).unwrap().contains("nodel"));
+}
+
+#[test]
+fn the_newest_version_stays_even_when_it_alone_exceeds_the_byte_cap() {
+    let tmp = tempfile::tempdir().unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    let p = project(&s);
+    db(tmp.path()).execute_batch("CREATE TRIGGER big AFTER INSERT ON project_versions BEGIN UPDATE project_versions SET bytes=40*1024*1024 WHERE id=NEW.id; END;").unwrap();
+    edit(&s, p, "x");
+    assert_eq!(versions_of(tmp.path()), 1);
+}
+
+#[test]
+fn a_version_error_that_ends_the_transaction_fails_the_save_and_writes_nothing() {
+    let tmp = tempfile::tempdir().unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    let p1 = project(&s);
+    let other = db(tmp.path());
+    other.execute_batch("CREATE TRIGGER rb BEFORE INSERT ON project_versions BEGIN SELECT RAISE(ROLLBACK,'rb'); END;").unwrap();
+    let mut p = p1.clone();
+    p["segments"][0]["text"] = json!("mới");
+    assert!(s.save_project(p.clone()).is_err());
+    assert_eq!(s.load_project(&pid(&p1)).unwrap(), p1, "the reported failure left the stored project as it was");
+    other.execute_batch("DROP TRIGGER rb").unwrap();
+    assert_eq!(s.save_project(p).unwrap()["revision"], 2, "the same save goes through once the version write works");
+}
+
+#[test]
+fn a_version_that_is_not_a_project_object_fails_the_restore_as_corrupt_and_the_store_keeps_working() {
+    let tmp = tempfile::tempdir().unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    let p = edit(&s, project(&s), "sau");
+    let id = pid(&p);
+    let version = ids_of(&s, &id, "auto")[0].clone();
+    db(tmp.path()).execute("UPDATE project_versions SET data=?1", [miniz_oxide::deflate::compress_to_vec(b"[1]", 6)]).unwrap();
+    assert!(s.restore_version(&id, &version, 2).unwrap_err().starts_with("VERSION_CORRUPT"));
+    assert_eq!(s.load_project(&id).unwrap(), p, "no panic poisoned the store");
+    assert_eq!(versions_of(tmp.path()), 1);
+}
+
+#[test]
+fn a_version_that_fails_the_project_checks_fails_the_restore_as_corrupt() {
+    let tmp = tempfile::tempdir().unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    let p = edit(&s, project(&s), "sau");
+    let id = pid(&p);
+    let version = ids_of(&s, &id, "auto")[0].clone();
+    db(tmp.path()).execute("UPDATE project_versions SET data=?1", [miniz_oxide::deflate::compress_to_vec(br#"{"segments":"nope","transcript":[]}"#, 6)]).unwrap();
+    assert!(s.restore_version(&id, &version, 2).unwrap_err().starts_with("VERSION_CORRUPT"));
+    assert_eq!(s.load_project(&id).unwrap(), p);
+    assert_eq!(versions_of(tmp.path()), 1, "no before_restore row is left behind");
+}
+
+#[test]
+fn restore_appends_unseen_takes_but_keeps_the_versions_own_selection_and_trim() {
+    let tmp = tempfile::tempdir().unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    let mut p = s.create_project("P").unwrap();
+    let id = pid(&p);
+    p["segments"] = json!([seg("one", "chữ cũ")]);
+    p = s.save_project(p).unwrap();
+    p["segments"][0]["text"] = json!("chữ mới");
+    s.save_project(p).unwrap();
+    let version = ids_of(&s, &id, "auto")[0].clone();
+    land_take(&s, &id, "one", "a1");
+    let current = s.load_project(&id).unwrap();
+    assert!(!current["segments"][0]["selected_take_id"].is_null(), "the finished job selected its take");
+    let restored = s.restore_version(&id, &version, current["revision"].as_i64().unwrap()).unwrap();
+    let g = &restored["segments"][0];
+    assert_eq!(g["text"], "chữ cũ");
+    assert_eq!(take_ids(&restored, 0), take_ids(&current, 0), "the take is kept in the list");
+    assert!(g["selected_take_id"].is_null() && g["trim_start_ms"].is_null() && g["trim_end_ms"].is_null(), "no selection or trim is carried into the restored text: {g}");
+}
+
+#[test]
+fn the_version_error_log_stops_growing_past_256_kib() {
+    let tmp = tempfile::tempdir().unwrap();
+    let s = Store::open(tmp.path()).unwrap();
+    let log = tmp.path().join("version-errors.jsonl");
+    std::fs::write(&log, "x".repeat(300 * 1024)).unwrap();
+    let p = project(&s);
+    db(tmp.path()).execute_batch("CREATE TRIGGER no_versions BEFORE INSERT ON project_versions BEGIN SELECT RAISE(ABORT,'boom'); END;").unwrap();
+    assert_eq!(edit(&s, p, "vẫn lưu")["revision"], 2);
+    assert_eq!(std::fs::metadata(&log).unwrap().len(), 300 * 1024, "no line appended to a log over the cap");
+    assert!(s.diagnostics().unwrap().contains("== version-errors.jsonl =="));
+}
