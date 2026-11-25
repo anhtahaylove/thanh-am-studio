@@ -42,6 +42,26 @@ progress::-webkit-progress-value{background:var(--green)}
 /* Compact transcript rows (3b): speaker colours, then the one-line row. `.tr` outranks the older .transcript-row rules at every width, so the 920 and 640 px blocks above do not apply to it. */
 :root{--spk-0:#06583c;--spk-0-soft:#e0f4ea;--spk-1:#0c3457;--spk-1-soft:#e8f0fd;--spk-2:#794203;--spk-2-soft:#ffecde;--spk-3:#8d4bac;--spk-3-soft:#f8ebfc;--spk-4:#40111f;--spk-4-soft:#feeaee;--spk-5:#17757e;--spk-5-soft:#ddf3f6;--spk-6:#746b40;--spk-6-soft:#f4efe1;--spk-7:#282b00;--spk-7-soft:#f1f0e2;}
 [data-theme=dark]{--spk-0:#c8fde3;--spk-0-soft:#36433c;--spk-1:#8eb5da;--spk-1-soft:#38414a;--spk-2:#fdcaa7;--spk-2-soft:#4a3d35;--spk-3:#efd5fb;--spk-3-soft:#443e47;--spk-4:#f790a8;--spk-4-soft:#53393e;--spk-5:#10cdbc;--spk-5-soft:#264541;--spk-6:#b9b074;--spk-6-soft:#434031;--spk-7:#fcfe9e;--spk-7-soft:#41412d;}
+/* High contrast (B2): the dark theme plus data-contrast="more" (set by main.tsx before the first frame and by App). Every override carries the prefix, so it beats the dark rules whatever their order. */
+[data-theme=dark][data-contrast=more]{--bg:#000;--paper:#000;--surface:#0b0b0b;--ink:#fff;--muted:#e6e6e6;--border:#fff;--input-border:#fff;--green:#ffd60a;--green-soft:#2a2500;--ok:#8dffa0;--danger:#ffa48f;--accent:#ffd60a;--shadow:none;--spk-0:#7dffb8;--spk-0-soft:#162e21;--spk-1:#7cc0ff;--spk-1-soft:#16232e;--spk-2:#ffb36b;--spk-2-soft:#2e2013;--spk-3:#e7a5ff;--spk-3-soft:#2a1e2e;--spk-4:#ff8fa8;--spk-4-soft:#2e1a1e;--spk-5:#2ee6d6;--spk-5-soft:#082927;--spk-6:#d9c87a;--spk-6-soft:#272416;--spk-7:#f2ff6b;--spk-7-soft:#2c2e13;}
+[data-theme=dark][data-contrast=more] .sidebar{background:#000;color:var(--ink);border-right:1px solid var(--border)}
+[data-theme=dark][data-contrast=more] .sidebar-label,[data-theme=dark][data-contrast=more] .brand span:not(.brand-mark),[data-theme=dark][data-contrast=more] .sidebar-bottom p,[data-theme=dark][data-contrast=more] .sidebar-meta,[data-theme=dark][data-contrast=more] .private-note,[data-theme=dark][data-contrast=more] .private-note strong,[data-theme=dark][data-contrast=more] .nav-item{color:var(--muted)}
+[data-theme=dark][data-contrast=more] .private-note svg,[data-theme=dark][data-contrast=more] .sidebar-meta .icon-button{color:var(--ink)}
+[data-theme=dark][data-contrast=more] .sidebar-meta{border-top-color:var(--border)}
+[data-theme=dark][data-contrast=more] .nav-item:hover{background:var(--surface);outline:1px solid var(--border)}
+[data-theme=dark][data-contrast=more] .nav-item.active,[data-theme=dark][data-contrast=more] .nav-count,[data-theme=dark][data-contrast=more] .sidebar-meta .icon-button[aria-pressed=true]{background:var(--green);color:#000;box-shadow:none}
+[data-theme=dark][data-contrast=more] .primary{color:#000}[data-theme=dark][data-contrast=more] .primary:hover{background:#fff}
+[data-theme=dark][data-contrast=more] .preview-strip{background:var(--surface);border-bottom-color:var(--border);color:var(--ink)}
+[data-theme=dark][data-contrast=more] .alert.error{background:var(--paper);border:2px solid var(--danger);color:var(--danger)}
+[data-theme=dark][data-contrast=more] .tip-card{background:var(--surface);border-color:var(--border);color:var(--ink)}[data-theme=dark][data-contrast=more] .tip-card p{color:var(--ink)}
+[data-theme=dark][data-contrast=more] .script-empty{background:var(--paper)}
+[data-theme=dark][data-contrast=more] .job-icon.failed{background:var(--surface)}
+[data-theme=dark][data-contrast=more] .waveform i{background:#9a9a9a}[data-theme=dark][data-contrast=more] .waveform i.played{background:var(--green)}
+[data-theme=dark][data-contrast=more] progress,[data-theme=dark][data-contrast=more] progress::-webkit-progress-bar{background:var(--surface)}[data-theme=dark][data-contrast=more] progress{outline:1px solid var(--border)}
+[data-theme=dark][data-contrast=more] .audio-dock{box-shadow:none}
+[data-theme=dark][data-contrast=more] button[aria-pressed=true]:not(:focus-visible),[data-theme=dark][data-contrast=more] .transcript-row.playing,[data-theme=dark][data-contrast=more] .palette li[aria-selected=true]{outline:2px solid var(--ink);outline-offset:-2px}
+[data-theme=dark][data-contrast=more] .transcript-row.playing{box-shadow:none}
+[data-theme=dark][data-contrast=more] .karaoke .said{text-decoration:underline}
 .transcript-row.tr{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:8px 16px;border-left:4px solid var(--spk,transparent)}
 .transcript-row.tr .speaker-chip{margin:0;color:var(--spk,var(--green));background:var(--spk-soft,var(--green-soft))}.transcript-row.tr .overlap-chip,.transcript-row.tr .suspect-chip{margin:0}
 .tr-time{flex:none;min-height:28px;padding:3px 8px;font-size:13px;font-variant-numeric:tabular-nums;color:var(--ink);background:transparent;border:1px solid transparent;border-radius:6px;cursor:pointer}.tr-time:hover{background:var(--surface);border-color:var(--border)}
@@ -80,6 +100,8 @@ progress::-webkit-progress-value{background:var(--green)}
 .trim-handle::before{content:'';position:absolute;left:11px;top:1px;bottom:1px;width:2px;border-radius:1px;background:var(--ink)}
 .trim-handle:focus-visible{outline:2px solid var(--green);outline-offset:0}
 @media(forced-colors:active){.trim-handle::before{forced-color-adjust:none;background:CanvasText}}
+/* Forced colors (B2): backgrounds, shadows and colour-only cues are dropped there, so the bars, the lit word, the speaker stripes and every on/selected state are drawn with system colours and outlines. */
+@media(forced-colors:active){.waveform i{forced-color-adjust:none;background:CanvasText!important}.waveform i.played{background:Highlight!important}html mark,html .karaoke mark,html .diff-preview mark,html .match-preview mark{background:Highlight!important;color:HighlightText!important;box-shadow:none}.karaoke .said{text-decoration:underline}.segment,.transcript-row.tr,.speaker-tag{border-left-color:CanvasText}.speaker-input{border-bottom:1px solid CanvasText}button[aria-pressed=true]:not(:focus-visible),.nav-item.active:not(:focus-visible),.segment.selected,.transcript-row.playing,.transcript-row.active,.palette li[aria-selected=true]{outline:2px solid Highlight;outline-offset:-2px}.busy-indicator{border:1px solid CanvasText}button:disabled,button[aria-disabled=true],.palette li[aria-disabled=true]{color:GrayText!important;opacity:1}html svg{color:inherit!important}progress{forced-color-adjust:none}progress::-webkit-progress-bar{background:Canvas!important;outline:1px solid CanvasText}progress::-webkit-progress-value{background:Highlight!important}}
 /* Focus mode (B1): the script takes the inspector's column; only the active row keeps its toolbar and take button (hidden, not removed, so no row changes height when it becomes active); the text is set in a reading face. */
 .studio-grid.focus-mode{grid-template-columns:minmax(0,1fr)}
 .focus-mode .inspector,.focus-mode .segment-detail{display:none}
