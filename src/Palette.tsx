@@ -23,8 +23,8 @@ export function CommandPalette({commands,onClose,title='Bảng lệnh',closeLabe
   const n=shown.length;
   if(e.key==='ArrowDown'&&n){e.preventDefault();setSel(shown[(cur+1)%n].id);}
   else if(e.key==='ArrowUp'&&n){e.preventDefault();setSel(shown[(cur-1+n)%n].id);}
-  else if(e.key==='Home'&&n){e.preventDefault();setSel(shown[0].id);}
-  else if(e.key==='End'&&n){e.preventDefault();setSel(shown[n-1].id);}
+  else if(e.key==='Home'&&n){e.preventDefault();setSel(shown[n-1].id);}
+  else if(e.key==='End'&&n){e.preventDefault();setSel(shown[0].id);}
   else if(e.key==='Enter'){e.preventDefault();pick(shown[cur]);}
  };
  // Its own key (Ctrl+K, or Ctrl+P for quick-open) closes the dialog wherever focus is inside it (the filter or the close button); like opening, not with Alt (AltGr+K).
