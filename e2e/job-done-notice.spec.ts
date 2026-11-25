@@ -30,6 +30,15 @@ test('a long job that finishes while the window is in the background flashes the
  await settle(page);expect(await attention(page)).toHaveLength(1);
 });
 
+test('two long jobs that finish in the same poll flash the taskbar button once',async({page})=>{
+ test.setTimeout(90000);
+ await page.addInitScript(mock);await page.goto('/');
+ await setJobs(page,[['a','stt','running',60],['b','render','running',60]]);await settle(page);
+ await setJobs(page,[['a','stt','succeeded',0],['b','render','failed',0]]);
+ await expect.poll(()=>attention(page),{timeout:8000}).not.toEqual([]);
+ await settle(page);expect(await attention(page)).toHaveLength(1);
+});
+
 test('a job that finishes while the window has focus, or after a short run, or of another kind, does not flash',async({page})=>{
  test.setTimeout(90000);
  await page.addInitScript(mock);await page.goto('/');

@@ -23,6 +23,17 @@ describe('jobNotices',()=>{
   jobNotices(seen,[job('a','render','queued')],T0);
   expect(ids(jobNotices(seen,[job('a','render','succeeded')],T0+31000))).toEqual(['a']);
  });
+ it('counts a job seen queued from the poll time, not from its updated_at',()=>{
+  const seen=new Map<string,number>();
+  jobNotices(seen,[job('a','stt','queued',T0-40000)],T0);
+  expect(jobNotices(seen,[job('a','stt','succeeded')],T0+1000)).toEqual([]);
+ });
+ it('counts a running job with an unparsable updated_at from the poll time',()=>{
+  const seen=new Map<string,number>(),bad=(id:string,status:Job['status'])=>({...job(id,'stt',status),updated_at:'x'});
+  jobNotices(seen,[bad('a','running'),bad('b','running')],T0);
+  expect(ids(jobNotices(seen,[bad('a','succeeded')],T0+30000))).toEqual(['a']);
+  expect(jobNotices(seen,[bad('b','succeeded')],T0+29900)).toEqual([]);
+ });
  it('keeps the queued start when the job is then seen running',()=>{
   const seen=new Map<string,number>();
   jobNotices(seen,[job('a','separate','queued')],T0);
