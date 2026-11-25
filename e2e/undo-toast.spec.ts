@@ -123,7 +123,8 @@ test('running Undo from the palette leaves focus on the page',async({page})=>{
  await addTwo(page);const toast=page.locator('.toast');
  await page.getByRole('button',{name:'Xóa đoạn',exact:true}).first().click();await expect(toast).toBeVisible();
  await page.keyboard.press('Control+k');await page.getByRole('combobox',{name:'Gõ để tìm lệnh'}).fill('hoan tac');await page.keyboard.press('Enter');
- await expect(page.getByRole('textbox',{name:'Nội dung đoạn 2'})).toHaveValue('Câu hai.');await expect(page.locator('main')).toBeFocused();
+ // Deleting the selected row focused its neighbour's text, so the palette hands focus back to that text, not to <main>.
+ await expect(page.getByRole('textbox',{name:'Nội dung đoạn 2'})).toHaveValue('Câu hai.');await expect(page.getByRole('textbox',{name:'Nội dung đoạn 2'})).toBeFocused();
  await page.getByRole('textbox',{name:'Nội dung đoạn 1'}).focus();await page.keyboard.press('Control+k');await page.getByRole('combobox',{name:'Gõ để tìm lệnh'}).fill('hoan tac');await page.keyboard.press('Enter');
  await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toHaveCount(0);await expect(page.locator('main')).toBeFocused();
 });
