@@ -33,7 +33,7 @@ export function CommandPalette({commands,onClose,title='Bảng lệnh',closeLabe
  return <Modal><section className="modal panel palette" role="dialog" aria-modal="true" aria-labelledby={heading} onKeyDown={toggle}>
   <div className="panel-toolbar"><h3 id={heading}>{title}</h3><button type="button" className="icon-button" aria-label={closeLabel} title={closeLabel} onClick={onClose}><X size={17}/></button></div>
   <input autoFocus role="combobox" aria-expanded="true" aria-controls={list} aria-activedescendant={shown.length?`${list}-${cur}`:undefined} aria-label={inputLabel} placeholder={placeholder} value={query} onChange={e=>{setQuery(e.target.value);setSel(null);}} onKeyDown={key}/>
-  <ul id={list} role="listbox" aria-label={listLabel}>{shown.map((c,i)=><li key={c.id} id={`${list}-${i}`} role="option" aria-selected={i===cur} aria-disabled={c.disabled?true:undefined} onMouseMove={()=>{if(i!==cur)setSel(c.id);}} onClick={()=>pick(c)}><c.icon size={16}/><span>{c.label}</span>{c.disabled&&<small>{c.disabled}</small>}</li>)}</ul>
+  <ul id={list} role="listbox" aria-label={listLabel}>{shown.map((c,i)=><li key={c.id} id={`${list}-${i}`} role="option" aria-selected={i===cur} aria-disabled={c.disabled?true:undefined} onMouseMove={()=>{if(i!==cur)setSel(shown[0].id);}} onClick={()=>pick(c)}><c.icon size={16}/><span>{c.label}</span>{c.disabled&&<small>{c.disabled}</small>}</li>)}</ul>
   {!shown.length&&<p className="hint" role="status">{empty}</p>}
   <p className="hint">{help}</p>
  </section></Modal>;
