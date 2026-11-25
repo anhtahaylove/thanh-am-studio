@@ -259,7 +259,6 @@ useEffect(()=>{if(page!=='tts')return;const handler=(e:KeyboardEvent)=>{if((e.ct
    const p=await restore;
    const keep=p.segments.some(x=>x.id===selected)?selected:p.segments[0]?.id??null;
    flushSync(()=>{adopt(p,'Đã lưu');setSelected(keep);setPage('tts');setShowHistory(false);setRestored({text:restoredNotice(v)});});
-   completedTtsRef.current=ttsDone(jobs,p.id);
    document.querySelector<HTMLElement>('textarea[aria-label="Nội dung đoạn 1"],.script-empty .primary')?.focus();
    setSelected(keep); // focusing the first segment selects it; the selection stays where it was
   }finally{if(savingRef.current===restore)savingRef.current=null;}
