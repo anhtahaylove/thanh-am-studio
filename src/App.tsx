@@ -31,7 +31,7 @@ import {TakeDiff} from './TakeDiff';
 import {Focus} from 'lucide-react';
 import {TranscriptRow} from './TranscriptRow';
 import {Karaoke} from './Karaoke';
-import {karaokeParts} from './domain';
+import {karaokeParts,karaokeText} from './domain';
 import {clampTrim,takePeaks} from './audio';
 import {takeIndex,voiceSample} from './voiceSample';
 import type {VoiceSample} from './voiceSample';
@@ -332,7 +332,12 @@ useEffect(()=>{if(page!=='tts')return;const handler=(e:KeyboardEvent)=>{if((e.ct
  const narrow=useMediaQuery('(max-width:920px)',()=>{const a=document.activeElement;if(a instanceof HTMLElement&&a.closest('.segment-detail')){refocus.current=controlLabel(a);a.blur();}}); // the focused field commits its draft before the panel changes parent, and gets focus back in the panel's new place
  useLayoutEffect(()=>{const label=refocus.current;refocus.current=null;if(label)[...document.querySelectorAll<HTMLElement>('.segment-detail select,.segment-detail input,.segment-detail summary')].find(c=>controlLabel(c)===label)?.focus();},[narrow]);
  const karaokeWords=playing&&!shown?.check?.error?shown?.check?.words:undefined,karaokeLine=useMemo(()=>karaokeWords?.length&&active?karaokeParts(active.text,karaokeWords):null,[karaokeWords,active?.text]); // the alignment (an LCS over the segment's words) runs once per text and take while playing, not per render
- const karaokeEl=useMemo(()=>!playing||!shown?null:!shown.check?<p className="karaoke-none" aria-hidden="true">Chữ chạy theo giọng chỉ có ở take tạo khi bật “Tự kiểm bằng Whisper”.</p>:karaokeLine?.some(p=>p.start_ms!=null)?<Karaoke parts={karaokeLine} from={playFrom}/>:null,[playing,shown,playFrom,karaokeLine]); // karaoke under the playing segment's text: its words light up from the take's self-check word times; the hint only for a take never checked, nothing for a failed check or one whose words place nowhere
+ const karaokeEl=useMemo(()=>{
+  if(!shown||shown.check?.error)return null;
+  const hint='Chữ chạy theo giọng chỉ có ở take tạo khi bật “Tự kiểm bằng Whisper”.';
+  if(playing){if(!shown.check)return <p className="karaoke-none" aria-hidden="true">{hint}</p>;if(karaokeLine?.some(p=>p.start_ms!=null))return <Karaoke parts={karaokeLine} from={playFrom}/>;}
+  return <p className="karaoke-slot" aria-hidden="true" data-text={shown.check?karaokeText(active?.text??''):hint}/>;
+ },[playing,shown,playFrom,karaokeLine,active?.text]); // karaoke under the active segment's text: while a take plays its words light up from the self-check word times; the hint only for a take never checked, nothing for a failed check or one whose words place nowhere. Whatever else the row shows, an invisible copy of the line keeps its place (not for a failed check, which never shows one), so the rows below do not move when the line comes and goes
  const rowExtra=useMemo(()=>karaokeEl||(narrow&&segmentPart)?<>{karaokeEl}{narrow?segmentPart:null}</>:null,[karaokeEl,narrow&&segmentPart]); // the inspector prop is the selected row's extra-content slot; keep it referentially stable (a new element re-renders the row; at desktop widths a new segmentPart must not make one)
  const segmentList=rowExtra&&active?segmentRows?.map(r=>r.key===active.id?cloneElement(r,{inspector:rowExtra}):r):segmentRows; // one clone, so the other rows keep the elements they had
  // The chapter map's props as one string, empty below two chapters: it changes only when a chapter's label, first segment or size changes or the selection moves to another chapter, never on a keystroke.
