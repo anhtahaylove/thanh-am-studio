@@ -120,4 +120,8 @@ describe('clampTrim',()=>{
   expect(clampTrim(seg(0,null,3000,2000),take,'start',800)).toEqual({trim_start_ms:0});
   expect(clampTrim(seg(0,null,3000,2000),take,'end',800)).toEqual({trim_end_ms:null});
  });
+ it('changes nothing for a take without a usable length or an `ms` that is NaN, so no NaN reaches the store',()=>{
+  for(const duration_ms of [0,NaN,-1])for(const which of ['start','end'] as const)expect(clampTrim(seg(500,null),{duration_ms},which,100)).toEqual({});
+  for(const which of ['start','end'] as const)expect(clampTrim(seg(500,3500),take,which,NaN)).toEqual({});
+ });
 });
