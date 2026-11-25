@@ -138,6 +138,13 @@ test('Tạo take mới enqueues exactly one job and closes the dialog; it is dis
 test('without a voice model Tạo take mới is disabled and says why',async({page})=>{
  await open(page,{model:false});await chip(page).click();const b=dialog(page).getByRole('button',{name:'Tạo take mới'});await expect(b).toBeDisabled();await expect(b).toHaveAttribute('title',/model giọng đọc/);
 });
+test('without a voice model Tạo take mới is reached by Tab, gives its reason and does nothing',async({page})=>{
+ await open(page,{model:false});await chip(page).click();const b=dialog(page).getByRole('button',{name:'Tạo take mới'});
+ await dialog(page).getByRole('button',{name:'Nghe take này'}).focus();await page.keyboard.press('Tab');await expect(b).toBeFocused();
+ await expect(b).toHaveAccessibleDescription(/model giọng đọc/);
+ await b.click({force:true});await page.keyboard.press('Enter');await page.keyboard.press('Space');
+ await expect(dialog(page)).toBeVisible();expect((await calls(page,'enqueue_job')).length).toBe(0);
+});
 
 test('Nghe take này plays the take',async({page})=>{
  await open(page);await chip(page).click();await dialog(page).getByRole('button',{name:'Nghe take này'}).click();
