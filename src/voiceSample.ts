@@ -23,6 +23,6 @@ export function voiceSample(voiceId:string|null,{voices,jobs,project,projects,ve
  const made=jobs.filter(j=>j.kind==='tts'&&j.status==='succeeded'&&(j.payload.voice_id??null)===voiceId&&j.result?.asset_id);
  for(const j of made){const found=j.project_id===project.id&&takes.get(String(j.result!.asset_id));if(found)return {kind:'take',path:found.t.path,start_ms:found.t.speech_start_ms??0,title:`Phát 3 giây từ take ${found.n+1} của đoạn ${found.i+1}`};}
  const elsewhere=voiceId===null?[]:made.flatMap(j=>{const p=j.project_id!==project.id&&projects.find(x=>x.id===j.project_id);return p?[{j,name:p.name}]:[];}).slice(0,3);
- if(elsewhere.length){const lead=elsewhere.find(({j})=>String(j.result!.asset_id)===played)??elsewhere[0];return {kind:'job',assets:elsewhere.map(({j})=>({assetId:String(j.result!.asset_id),start_ms:Number(j.result!.speech_start_ms??0)})),title:`Phát 3 giây từ một take của dự án ${lead.name} (${new Date(lead.j.created_at).toLocaleDateString('vi-VN')})`};}
+ if(elsewhere.length){const lead=elsewhere[0];return {kind:'job',assets:elsewhere.map(({j})=>({assetId:String(j.result!.asset_id),start_ms:Number(j.result!.speech_start_ms??0)})),title:`Phát 3 giây từ một take của dự án ${lead.name} (${new Date(lead.j.created_at).toLocaleDateString('vi-VN')})`};}
  return {kind:'blocked',blocked:voiceId===null?'Chưa có take nào trong dự án này tạo bằng giọng mặc định: tạo giọng một đoạn trước.':'Chưa có take nào tạo bằng giọng này: tạo giọng một đoạn trước.'};
 }
