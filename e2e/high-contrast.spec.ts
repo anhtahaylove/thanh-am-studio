@@ -19,6 +19,7 @@ const mock=(o:{project:string}):void=>{
    case 'list_voices':return [{id:'v1',name:'Giọng có sẵn',kind:'preset',reference_asset_id:null,consent:true,engine_voice_id:'x'},{id:'v2',name:'Giọng của tôi',kind:'reference',reference_asset_id:'a1',consent:true,engine_voice_id:null}];
    case 'list_jobs':return [job('j1','running',0.4,null),job('j2','failed',0,'Không đủ bộ nhớ'),job('j3','succeeded',1,null)];
    case 'list_models':return [{id:'vieneu-v3',name:'VieNeu v3 Turbo',engine:'tts',installed:true,revision:'r',license:'Apache-2.0',description:'Giọng đọc tiếng Việt.'},{id:'whisper-small',name:'Whisper Small',engine:'stt',installed:false,revision:'r',license:'MIT',description:'Chép lời.'}];
+   case 'list_project_versions':return [{id:'v1',project_id:project.id,revision:2,state_at:'2026-11-25T08:05:00Z',created_at:'2026-11-25T08:05:00Z',reason:'auto',segments:12,transcript:0,chars:1200,bytes:4096},{id:'v2',project_id:project.id,revision:1,state_at:'2026-11-24T21:40:00Z',created_at:'2026-11-24T21:40:00Z',reason:'before_restore',segments:11,transcript:4,chars:1100,bytes:3900}];
    case 'get_settings':return {dictionary:{'TP.HCM':'thành phố Hồ Chí Minh'}};
    case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,native_worker_ready:true,python_path:null,ffmpeg_path:null,native_worker_path:null,fallback_count:0,message:''};
    case 'save_project':return {...ipc(args.project),revision:args.project.revision+1};
@@ -132,6 +133,12 @@ for(const name of PAGES)test(`high contrast, ${name}: text 7:1, borders, focus r
  expect(m.text.filter(r=>r.image).map(r=>r.el),'text on a gradient or image').toEqual([]);
  expect(below(m.text,7),'text under 7:1').toEqual([]);
  expect(below(m.edges,3),'borders, bars and stripes under 3:1').toEqual([]);
+ if(name==='Tạo giọng đọc'){
+  // E2's dialog: a modal panel with a close button, a badge and a restore button per version.
+  await page.getByRole('button',{name:'Lịch sử phiên bản',exact:true}).click();await expect(page.getByRole('dialog',{name:'Lịch sử phiên bản'}).getByRole('listitem')).toHaveCount(2);
+  const d=await sweep(page);expect(below(d.text,7),'version history: text under 7:1').toEqual([]);expect(below(d.edges,3),'version history: edges under 3:1').toEqual([]);
+  await page.keyboard.press('Escape');await expect(page.getByRole('dialog')).toHaveCount(0);
+ }
  await page.keyboard.press('Tab');
  for(const target of [page.getByRole('button',{name:'Chuyển giao diện sáng',exact:true}),page.locator('main button:not(:disabled)').first()]){
   await target.focus();
@@ -159,8 +166,12 @@ test.describe('forced colors',()=>{
   // The stylesheet paints html with --bg (#f6f5f0 or dark); under forced colors it is Canvas instead.
   expect(await page.evaluate(()=>getComputedStyle(document.documentElement).backgroundColor)).toBe(`rgb(${(await colourOf(page,'Canvas')).join(', ')})`);
  });
- test('bars, marks, the lit word, stripes and every pressed or selected state use system colours and outlines',async({page})=>{
-  await start(page,{project:false});
+});
+// Under a Windows contrast theme the app can be on any of its themes; the dark and contrast rules carry more specificity than the forced block, so each is exercised.
+for(const [name,scheme,stored] of [['light, system theme','light',undefined],['dark scheme, stored dark','dark','dark'],['dark scheme, stored contrast','dark','contrast']] as const)test.describe(`forced colors, ${name}`,()=>{
+ test.use({forcedColors:'active',colorScheme:scheme});
+  test(`bars, marks, the lit word, stripes, icons, progress and every pressed or selected state use system colours and outlines, ${name}`,async({page})=>{
+  await start(page,{project:false,stored});
   // A blocked control is GrayText at full opacity, not a faded copy of the text colour.
   const blocked=page.getByRole('button',{name:'Tạo giọng tất cả',exact:true});await expect(blocked).toHaveAttribute('aria-disabled','true');
   expect(await blocked.evaluate(el=>[getComputedStyle(el).color,getComputedStyle(el).opacity])).toEqual([`rgb(${(await colourOf(page,'GrayText')).join(', ')})`,'1']);
@@ -176,6 +187,15 @@ test.describe('forced colors',()=>{
    return {marks:[...host.querySelectorAll('mark')].map(m=>[getComputedStyle(m).backgroundColor,getComputedStyle(m).color]),said:getComputedStyle(host.querySelector('.said')!).textDecorationLine};});
   const busy=await page.evaluate(()=>{const el=document.createElement('div');el.className='busy-indicator';el.textContent='Đang tạo giọng…';document.body.append(el);const c=getComputedStyle(el);return `${c.borderTopStyle} ${c.borderTopWidth}`;});expect(busy,'busy indicator edge').toBe('solid 1px');
   expect(marks.marks,'marks').toEqual(Array(4).fill([rgb(highlight),rgb(highlightText)]));expect(marks.said,'heard word').toBe('underline');
+  // Icons and the progress bar: an icon is drawn in the text colour, never an author colour under 3:1 on Canvas; a progress bar shows its fill and its track.
+  const prog=await page.evaluate(()=>{const p=document.createElement('progress');p.value=0.4;p.max=1;document.querySelector('main')!.append(p);return [getComputedStyle(p,'::-webkit-progress-value').backgroundColor,getComputedStyle(p,'::-webkit-progress-bar').backgroundColor];});
+  expect(prog,'progress fill and track').toEqual([rgb(highlight),rgb(await colourOf(page,'Canvas'))]);
+  await page.getByRole('button',{name:'Lịch sử phiên bản',exact:true}).click();await expect(page.getByRole('dialog',{name:'Lịch sử phiên bản'})).toBeVisible();
+  const icons=await page.evaluate(()=>[...document.querySelectorAll('svg')].filter(el=>el.checkVisibility()&&el.getBoundingClientRect().width>0).map(el=>({el:(el.closest('[class]')?.className||'svg')+'',color:getComputedStyle(el).color})));
+  const canvas=await colourOf(page,'Canvas'),parse=(c:string)=>c.match(/[\d.]+/g)!.slice(0,3).map(Number) as RGB;
+  expect(icons.length,'icons measured').toBeGreaterThan(5);
+  expect(icons.filter(i=>ratio(parse(i.color),canvas)<3).map(i=>`${i.el} ${i.color}`),'icons under 3:1 on Canvas').toEqual([]);
+  await page.keyboard.press('Escape');await expect(page.getByRole('dialog')).toHaveCount(0);
   const stripe=await page.locator('article.segment').nth(1).evaluate(el=>getComputedStyle(el).borderLeftColor);expect(stripe,'speaker stripe').toBe(rgb(canvasText));
   const outline=(l:ReturnType<Page['locator']>)=>l.evaluate(el=>{const s=getComputedStyle(el);return `${s.outlineStyle} ${s.outlineWidth}`;});
   const focus=page.getByRole('button',{name:'Chế độ tập trung',exact:true});
