@@ -24,3 +24,33 @@ test('on another page with no script, a paste outside a field opens nothing',asy
  expect(await paste(page.locator('body'),CAST)).toBe(true);
  await expect(dialog(page)).toHaveCount(0);
 });
+// An IME can paste a single composed character ("â") outside a field: that is not a script, so no dialog; two or more words (NBSP included) are.
+const compose=(page:Page,type:'compositionstart'|'compositionend')=>page.evaluate(type=>{document.body.dispatchEvent(new CompositionEvent(type,{bubbles:true}));},type);
+
+test('on the empty script, a single composed character pasted outside a field opens no dialog',async({page})=>{
+ await emptyScript(page);
+ expect(await paste(page.locator('body'),'â')).toBe(true);
+ await expect(page.getByRole('button',{name:'Viết đoạn đầu tiên'})).toBeVisible();await expect(dialog(page)).toHaveCount(0);
+});
+test('on the empty script, a paste during an IME composition opens no dialog, and one after it ends does',async({page})=>{
+ await emptyScript(page);
+ await compose(page,'compositionstart');
+ expect(await paste(page.locator('body'),CAST)).toBe(true);await expect(dialog(page)).toHaveCount(0);
+ await compose(page,'compositionend');
+ expect(await paste(page.locator('body'),CAST)).toBe(false);await expect(dialog(page)).toBeVisible();
+});
+test('on the empty script, two words separated by a no-break space open the dialog',async({page})=>{
+ await emptyScript(page);
+ expect(await paste(page.locator('body'),'Chào\u00a0bạn')).toBe(false);
+ await expect(dialog(page)).toBeVisible();await expect(dialog(page).getByRole('textbox',{name:'Nội dung cần thêm'})).toHaveValue('Chào\u00a0bạn');
+});
+test('on the empty script, one word pasted outside a field opens no dialog',async({page})=>{
+ await emptyScript(page);
+ expect(await paste(page.locator('body'),'Chào')).toBe(true);
+ await expect(dialog(page)).toHaveCount(0);
+});
+test('on the empty script, a "Tên - lời" cast pasted outside a field still opens the dialog',async({page})=>{
+ await emptyScript(page);
+ expect(await paste(page.locator('body'),'Mai - Chào\nHùng - Ừ')).toBe(false);
+ await expect(dialog(page)).toBeVisible();await expect(dialog(page).getByRole('textbox',{name:'Nội dung cần thêm'})).toHaveValue('Mai - Chào\nHùng - Ừ');
+});
