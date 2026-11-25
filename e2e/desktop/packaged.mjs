@@ -860,7 +860,8 @@ try {
       } catch (e) { failure = e; }
       // Back to normal whatever happened: the window is restored and activated past the foreground lock and the page must say it has focus (a real signal while the emulation is off), then the emulation goes back on.
       try { nvda('-Focus', '-Pid', String(app.pid)); await until(() => page.evaluate(() => document.hasFocus()), Boolean, 15000, 'document.hasFocus() after the refocus'); } catch (e) { failure ??= e; }
-      try { await session.send('Emulation.setFocusEmulationEnabled', {enabled: true}); await session.detach(); } catch (e) { log(`V3 cleanup: focus emulation not restored: ${String(e).split('\n')[0]}`); }
+      // The session stays attached: detaching it would reset the emulation to off for the later steps (measured with playwright-core 1.65).
+      try { await session.send('Emulation.setFocusEmulationEnabled', {enabled: true}); } catch (e) { log(`V3 cleanup: focus emulation not restored: ${String(e).split('\n')[0]}`); }
       if (failure) throw failure;
       return detail;
     }).catch(() => {});
