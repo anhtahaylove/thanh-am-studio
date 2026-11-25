@@ -4,12 +4,13 @@
 #   -Install [-Out C:\out]          download into C:\nvdadl, verify, create C:\nvda, write its nvda.ini (copied to <Out>\nvda-config.ini)
 #   -Start [-Out C:\out]            start NVDA (minimal, no add-ons, IO log in <Out>\nvda.log) and wait for "NVDA initialized"
 #   -Focus -Pid <pid>               bring that process's main window to the foreground and check that it is there
+#   -Minimize -Pid <pid>            minimize that process's main window (SW_MINIMIZE) and check that it is iconic
 #   -Keys <sendkeys> -Pid <pid>     -Focus, then SendKeys: OS-level input that both NVDA and WebView2's host see
 #   -Windows -Pid <pid>             JSON list of the visible top-level and popup windows of that process tree
 #   -Stop                           nvda.exe -q, then end what is left of NVDA after 10 s
 # Options and nvda.ini keys checked against NVDA's source at tag release-2026.3.1 (source/argsParsing.py, config/configSpec.py,
 # core.py "NVDA initialized", speech/speech.py `log.io("Speaking %r")`, logHandler IO = 12, synthDrivers/silence.py).
-param([switch]$Install, [switch]$Start, [switch]$Focus, [string]$Keys = '', [switch]$Windows, [switch]$Stop,
+param([switch]$Install, [switch]$Start, [switch]$Focus, [switch]$Minimize, [string]$Keys = '', [switch]$Windows, [switch]$Stop,
     [Alias('Pid')][int]$AppPid = 0, [string]$Out = 'C:\out')
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue' # Windows PowerShell's progress bar slows Invoke-WebRequest down a lot
@@ -42,12 +43,13 @@ public static class Nv {
   static string Cls(IntPtr h) { var s = new StringBuilder(256); GetClassName(h, s, 256); return s.ToString(); }
   static string Title(IntPtr h) { var s = new StringBuilder(512); GetWindowText(h, s, 512); return s.ToString(); }
   public static uint PidOf(IntPtr h) { uint p; GetWindowThreadProcessId(h, out p); return p; }
-  // The process's visible, unowned top-level window with a title (the app's main window).
+  // The process's visible, unowned top-level window with a title (the app's main window); the single-instance plugin's own window ("<identifier>-siw") is not it.
   public static IntPtr MainWindow(uint pid) {
     IntPtr found = IntPtr.Zero;
-    EnumWindows((h, l) => { if (PidOf(h) == pid && IsWindowVisible(h) && GetWindow(h, 4 /*GW_OWNER*/) == IntPtr.Zero && Title(h).Length > 0) { found = h; return false; } return true; }, IntPtr.Zero);
+    EnumWindows((h, l) => { if (PidOf(h) == pid && IsWindowVisible(h) && GetWindow(h, 4 /*GW_OWNER*/) == IntPtr.Zero && Title(h).Length > 0 && !Title(h).EndsWith("-siw")) { found = h; return false; } return true; }, IntPtr.Zero);
     return found;
   }
+  public static bool Minimize(IntPtr h) { ShowWindow(h, 6 /*SW_MINIMIZE*/); return IsIconic(h); }
   public static bool Activate(IntPtr h) {
     if (IsIconic(h)) ShowWindow(h, 9 /*SW_RESTORE*/);
     IntPtr fg = GetForegroundWindow();
@@ -132,6 +134,12 @@ if ($Install) {
     "NVDA initialized; log $log"
 } elseif ($Focus) {
     Invoke-Focus
+} elseif ($Minimize) {
+    if (-not $AppPid) { throw 'ABORT nvda-minimize: -Pid is required' }
+    $h = [Nv]::MainWindow([uint32]$AppPid)
+    if ($h -eq [IntPtr]::Zero) { throw "ABORT nvda-minimize: process $AppPid has no visible main window" }
+    if (-not (Wait-Until { [Nv]::Minimize($h) } 3)) { throw "ABORT nvda-minimize: window $h is not iconic after SW_MINIMIZE" }
+    "minimized $h"
 } elseif ($Keys) {
     $f = Invoke-Focus
     Add-Type -AssemblyName System.Windows.Forms
@@ -151,5 +159,5 @@ if ($Install) {
     $mine = { @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($Portable, [StringComparison]::OrdinalIgnoreCase) }) }
     if (-not (Wait-Until { (& $mine).Count -eq 0 } 10)) { & $mine | Stop-Process -Force -ErrorAction SilentlyContinue; 'NVDA ended by force' } else { 'NVDA quit' }
 } else {
-    throw 'usage: nvda.ps1 -Install | -Start | -Focus -Pid <pid> | -Keys <sendkeys> -Pid <pid> | -Windows -Pid <pid> | -Stop [-Out <dir>]'
+    throw 'usage: nvda.ps1 -Install | -Start | -Focus -Pid <pid> | -Minimize -Pid <pid> | -Keys <sendkeys> -Pid <pid> | -Windows -Pid <pid> | -Stop [-Out <dir>]'
 }

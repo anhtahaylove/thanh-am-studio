@@ -45,9 +45,15 @@ const queueShot = async (name, job) => { try {
 
 async function launch() {
   const t = Date.now();
+  // The app is single-instance: next to a running one a launch exits at once and CDP would be served by that other instance, so the port must be free first.
+  const held = () => fetch('http://127.0.0.1:9222/json/version', {signal: AbortSignal.timeout(2000)}).then(() => true, () => false);
+  for (let i = 0; i < 40 && await held(); i++) await sleep(500);
+  if (await held()) throw Error('port 9222 still held; another Thanh Âm Studio instance is running');
   app = spawn(exe, [], {env: {...process.env, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: '--remote-debugging-port=9222', THANHAM_E2E_CDP_PORT: '9222'}, stdio: 'ignore'});
   browser = undefined;
   for (let i = 0; i < 120 && !browser; i++) { try { browser = await chromium.connectOverCDP('http://127.0.0.1:9222'); } catch { await sleep(500); } }
+  if (!browser) throw Error('app did not expose WebView2 CDP');
+  if (app.exitCode !== null) throw Error(`the launched process exited with ${app.exitCode}: CDP is served by another instance`);
   page = browser.contexts()[0].pages()[0];
   await page.getByRole('navigation', {name: 'Điều hướng chính'}).waitFor({timeout: 60000});
   return Date.now() - t;
