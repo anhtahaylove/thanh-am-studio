@@ -222,8 +222,10 @@ const dialogueCopy = (suffix = '') => {
   copyFileSync(src, audio);
   return audio;
 };
-// Whether this build has the notification command (1.0.24 with E3): called without its arguments, it is refused as not found when absent and fails on its arguments when present, so no toast is raised.
-const hasNotify = () => page.evaluate(() => window.__TAURI_INTERNALS__.invoke('plugin:notification|notify', {}).then(() => true, (e) => !/not found/i.test(String(e))));
+// 1.0.24 ships the notification command, so a build without it fails: called without its arguments it is refused as not found when absent and fails on its arguments when present, so no toast is raised.
+const requireNotify = async () => {
+  if (!await page.evaluate(() => window.__TAURI_INTERNALS__.invoke('plugin:notification|notify', {}).then(() => true, (e) => !/not found/i.test(String(e))))) throw Error('this build has no plugin:notification|notify command');
+};
 // Logs the window attention and notification commands the app sends, with the time (CDP-side wrapper of the IPC; the app calls it as `window.__TAURI_INTERNALS__.invoke`).
 const watchInvokes = () => page.evaluate(() => {
   const i = window.__TAURI_INTERNALS__;
@@ -828,33 +830,37 @@ try {
       return `restored S1 from the dialog: revision ${s2.revision} -> ${now.revision}, segment 1 "${now.segments[0].text}"`;
     }).catch(() => {});
     await step('V3 a long job that ends while the window is minimised raises the notice', async () => {
-      const audio = dialogueCopy('-x2'), notify = await hasNotify(), asset = await invoke('import_asset', {path: audio}), toastsBefore = notify ? toasts() : null;
+      await requireNotify();
+      const audio = dialogueCopy('-x2'), asset = await invoke('import_asset', {path: audio}), toastsBefore = toasts();
       await watchInvokes();
-      const queued = await invoke('enqueue_job', {kind: 'stt', projectId: null, payload: {asset_id: asset.id, model_id: 'whisper-small', language: 'vi', diarize: true, num_speakers: 2}});
-      const get = async () => (await invoke('list_jobs')).find((j) => j.id === queued.id);
-      let job = await until(get, (j) => j?.status === 'running' || ENDED.includes(j?.status), 180000, 'the job to start running');
-      if (job.status !== 'running') throw Error(`harness: the job was ${job.status} (${job.error}) before it could be watched while running`);
-      const runningAt = Date.now();
-      await sleep(3000); // the app polls the queue every 2.5 s: it has seen the job running before its window goes away
-      nvda('-Minimize', '-Pid', String(app.pid));
+      // Playwright turns focus emulation on for the page it attaches to over CDP, which keeps document.hasFocus() true even when minimised and so hides the notice from the app: turn it off for this page only, back on in the cleanup.
+      const session = await page.context().newCDPSession(page);
+      await session.send('Emulation.setFocusEmulationEnabled', {enabled: false});
       let failure = null, detail;
       try {
+        const queued = await invoke('enqueue_job', {kind: 'stt', projectId: null, payload: {asset_id: asset.id, model_id: 'whisper-small', language: 'vi', diarize: true, num_speakers: 2}});
+        const get = async () => (await invoke('list_jobs')).find((j) => j.id === queued.id);
+        let job = await until(get, (j) => j?.status === 'running' || ENDED.includes(j?.status), 180000, 'the job to start running');
+        if (job.status !== 'running') throw Error(`harness: the job was ${job.status} (${job.error}) before it could be watched while running`);
+        const runningAt = Date.now();
+        await sleep(3000); // the app polls the queue every 2.5 s: it has seen the job running before its window goes away
+        nvda('-Minimize', '-Pid', String(app.pid));
         // Invoke only while minimised: no locator, click or screenshot.
+        if (!await until(() => page.evaluate(() => !document.hasFocus()), Boolean, 5000, 'document.hasFocus() to be false').catch(() => false)) throw Error('harness: document.hasFocus() is still true while the window is minimised (focus emulation still on), so the app cannot raise the notice');
         job = await until(get, (j) => ENDED.includes(j?.status), 20 * 60000, 'the job to end');
         const endedAt = Date.parse(job.updated_at), ran = endedAt - runningAt;
         if (job.status !== 'succeeded') throw Error(`the job ended ${job.status}: ${job.error}`);
-        if (ran < 30000) throw Error(`harness: the job ran ${ran} ms, under the 30 s a notice needs; use a longer dialogue-x2.wav`);
+        if (ran < 40000) throw Error(`harness: the job ran ${ran} ms, under the 40 s this check needs (the app's notice needs 30 s); use a longer dialogue-x2.wav`);
         const call = (cmd) => until(async () => (await page.evaluate(() => window.__calls)).find((c) => c.cmd === cmd && c.at >= runningAt), Boolean, 90000, `${cmd} while minimised`);
         const flash = await call('plugin:window|request_user_attention');
         detail = `job ran ${Math.round(ran / 1000)} s; request_user_attention ${flash.at - endedAt} ms after the job ended (U4)`;
-        if (notify) {
-          const sent = await call('plugin:notification|notify');
-          const count = await until(async () => toasts(), (n) => n > toastsBefore, 30000, `a new toast in the notification history (was ${toastsBefore})`);
-          detail += `; notify ${sent.at - endedAt} ms after it, toast history ${toastsBefore} -> ${count}`;
-        } else detail += '; no notification command in this build: taskbar flash only';
+        const sent = await call('plugin:notification|notify');
+        const count = await until(async () => toasts(), (n) => n > toastsBefore, 30000, `a new toast in the notification history (was ${toastsBefore})`);
+        detail += `; notify ${sent.at - endedAt} ms after it, toast history ${toastsBefore} -> ${count}`;
       } catch (e) { failure = e; }
-      // Back to normal whatever happened: the window is restored and activated past the foreground lock, and the page must say it has focus.
+      // Back to normal whatever happened: the window is restored and activated past the foreground lock and the page must say it has focus (a real signal while the emulation is off), then the emulation goes back on.
       try { nvda('-Focus', '-Pid', String(app.pid)); await until(() => page.evaluate(() => document.hasFocus()), Boolean, 15000, 'document.hasFocus() after the refocus'); } catch (e) { failure ??= e; }
+      try { await session.send('Emulation.setFocusEmulationEnabled', {enabled: true}); await session.detach(); } catch (e) { log(`V3 cleanup: focus emulation not restored: ${String(e).split('\n')[0]}`); }
       if (failure) throw failure;
       return detail;
     }).catch(() => {});
@@ -1287,7 +1293,8 @@ try {
       return `2 versions, newest before_restore with state_at ${list[0].state_at}`;
     });
     // The popup's identity: an update never rewrites shortcuts, so the app id 1.0.23's installer set must still be the one the toast uses.
-    if (await hasNotify()) await step('N7 the Start-menu shortcut carries the app id of the toast', async () => {
+    await step('N7 the Start-menu shortcut carries the app id of the toast', async () => {
+      await requireNotify();
       const links = JSON.parse(winps(`$sh = New-Object -ComObject Shell.Application
 $items = @(Get-ChildItem -LiteralPath ([Environment]::GetFolderPath('Programs')) -Recurse -Filter '*.lnk' -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'Thanh*' } | ForEach-Object { [pscustomobject]@{ path = $_.FullName; aumid = $sh.NameSpace($_.DirectoryName).ParseName($_.Name).ExtendedProperty('System.AppUserModel.ID') } })
 ConvertTo-Json -Compress -InputObject $items`));
@@ -1866,9 +1873,13 @@ ConvertTo-Json -Compress -InputObject $items`));
         await waitForced(true).catch(() => { note = `(forced-colors: active) did not follow ${file} within 60 s`; });
         if (!note) {
           const bar = await page.evaluate(() => {
-            const colour = (c) => { const x = document.createElement('canvas').getContext('2d'); x.fillStyle = c; x.fillRect(0, 0, 1, 1); return `rgb(${[...x.getImageData(0, 0, 1, 1).data.slice(0, 3)].join(', ')})`; };
-            const b = document.querySelector('.waveform i'), r = b.getBoundingClientRect();
-            return {w: r.width, h: r.height, bg: getComputedStyle(b).backgroundColor, text: colour('CanvasText'), canvas: colour('Canvas')};
+            // The system colours as the page resolves them: a probe element in the page, removed again.
+            const probe = document.body.appendChild(document.createElement('div'));
+            probe.style.cssText = 'color:CanvasText;background:Canvas';
+            try {
+              const p = getComputedStyle(probe), b = document.querySelector('.waveform i'), r = b.getBoundingClientRect();
+              return {w: r.width, h: r.height, bg: getComputedStyle(b).backgroundColor, text: p.color, canvas: p.backgroundColor};
+            } finally { probe.remove(); }
           });
           if (!bar.w || !bar.h || bar.bg !== bar.text || bar.bg === bar.canvas) throw Error(`waveform bar under ${file}: ${JSON.stringify(bar)}; wanted a drawn bar in CanvasText, not the canvas colour`);
           await page.evaluate(() => document.activeElement?.blur());
