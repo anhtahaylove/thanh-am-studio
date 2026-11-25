@@ -17,7 +17,7 @@ import {DEMO_NAME,demoProject} from './demo';
 import {ListChecks} from 'lucide-react';
 import {InstallOnClose,Modal,UpdateBanner,UpdateSettings,WhatsNew,feedEntry,useEscape,useUpdates} from './Updates';
 import {CommandPalette,ShortcutSheet} from './Palette';
-import {ReasonBubble,ReasonButton} from './ui';
+import {BusyIndicator,ReasonBubble,ReasonButton} from './ui';
 import {playError} from './bridge';
 import {fuzzyRank} from './domain';
 import {castLines} from './domain';
@@ -38,7 +38,7 @@ import type {VoiceSample} from './voiceSample';
 import {ChapterMap} from './ChapterMap';
 import {useJobNotices} from './notify';
 import type {TranscriptApi} from './TranscriptRow';
-import {BusyIndicator,Empty,IconButton,NumberField,rovingKeyDown,useMediaQuery,whyBlocked} from './ui';
+import {Empty,IconButton,NumberField,rovingKeyDown,useMediaQuery,whyBlocked} from './ui';
 import type {AppSettings,Asset,WorkerEngine,Job,ModelInfo,Project,ProjectSummary,RuntimeStatus,Segment,Take,TranscriptSegment,Voice} from './types';
 
 type Page='tts'|'stt'|'voices'|'jobs'|'projects'|'models';
