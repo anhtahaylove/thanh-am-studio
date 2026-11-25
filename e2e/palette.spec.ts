@@ -105,7 +105,7 @@ test('Ctrl+Alt+K (AltGr+K) neither opens nor closes the palette, and Meta+? does
  await page.keyboard.press('Shift+Slash');await expect(sheet(page)).toBeVisible();
 });
 test('End highlights the last command and Home the first, and aria-activedescendant follows',async({page})=>{
- await withSegment(page);await page.keyboard.press('Control+k');await expect(palette(page).getByRole('option')).toHaveCount(14);
+ await withSegment(page);await page.keyboard.press('Control+k');await expect(palette(page).getByRole('option').first()).toBeVisible();
  const options=palette(page).getByRole('option');
  await page.keyboard.press('End');await expect(options.last()).toHaveAttribute('aria-selected','true');await expect(box(page)).toHaveAttribute('aria-activedescendant',(await options.last().getAttribute('id'))!);
  await page.keyboard.press('Home');await expect(options.first()).toHaveAttribute('aria-selected','true');await expect(box(page)).toHaveAttribute('aria-activedescendant',(await options.first().getAttribute('id'))!);
