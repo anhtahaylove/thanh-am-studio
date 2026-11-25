@@ -150,7 +150,7 @@ main:focus{outline:none}
 .row-hint{font-size:12px;font-weight:600;color:var(--danger)}
 .reason-bubble{position:fixed;z-index:22;pointer-events:none;max-width:min(360px,calc(100vw - 12px));padding:6px 10px;border-radius:8px;background:var(--ink);color:var(--paper);font-size:13px;line-height:1.4;box-shadow:0 4px 16px #0003}
 /* B5: the "Thêm nội dung" preview. The dialog scrolls when the window is too short for it; the shorter box leaves room for 8 preview rows at 1024x720. */
-.import-dialog{max-height:calc(100vh - 50px);overflow-y:auto}
+.import-dialog{}
 .import-dialog textarea{height:160px;margin-bottom:12px}
 .paste-preview{margin:10px 0 18px;font-size:13px;color:var(--muted)}
 .paste-preview p{margin:0}
