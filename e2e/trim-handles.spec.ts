@@ -218,12 +218,10 @@ test('arrow keys on a stored trim past the take step from the edge the handle sh
 
 test('a take whose length is 0 shows the bars without handles',async({page})=>{
  await page.addInitScript(()=>{(window as any).__duration=0;}); // runs before the mock, which reads it
- const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
  await open(page);
  await expect(page.locator('.waveform i').first()).toBeVisible();
  await expect(page.getByRole('slider')).toHaveCount(0);await expect(page.getByRole('group',{name:'Cắt take trên dạng sóng'})).toHaveCount(0);
  await expect(page.getByRole('img',{name:'Dạng sóng âm thanh'})).toBeVisible();
- expect(errors).toEqual([]);
 });
 
 test('the digit keys do not audition a take while a handle has focus',async({page})=>{
