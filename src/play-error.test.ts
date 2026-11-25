@@ -10,6 +10,9 @@ describe('playError',()=>{
  it('asks for another press when playback is not allowed yet',()=>{
   expect(playError(new DOMException('play() failed because the user didn\'t interact with the document first.','NotAllowedError'))).toBe('Ứng dụng chưa được phép phát âm thanh. Bấm phát lại một lần nữa.');
  });
+ it('says a take file the browser cannot decode may be broken or unfinished',()=>{
+  expect(playError(new DOMException('Unable to decode audio data','EncodingError'))).toBe('Không đọc được audio của take này: tệp có thể bị hỏng hoặc chưa ghi xong. Hãy tạo take mới.');
+ });
  it('falls back to the error name for anything else',()=>{
   expect(playError(new DOMException('boom','InvalidStateError'))).toBe('Không phát được audio (InvalidStateError).');
   expect(playError(new TypeError('x'))).toBe('Không phát được audio (TypeError).');
