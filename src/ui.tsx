@@ -75,7 +75,7 @@ export function BusyIndicator(){
   const ro=new ResizeObserver(queue);
   ro.observe(document.documentElement);place();
   addEventListener('scroll',queue,{passive:true,capture:true});addEventListener('resize',queue);
-  return()=>{cancelAnimationFrame(frame);ro.disconnect();removeEventListener('scroll',queue,{capture:true});removeEventListener('resize',queue);};
+  return()=>{cancelAnimationFrame(frame);};
  },[]);
  return <div ref={ref} className="busy-indicator" role="status"><LoaderCircle className="spin" size={16}/>Đang thực hiện…</div>;
 }
