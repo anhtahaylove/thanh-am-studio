@@ -36,3 +36,9 @@ export function modelAdvice(id:string,totalMb:number|null|undefined,ram:Record<s
  }
  return {badge:null};
 }
+const STT_IDS=['whisper-small','whisper-turbo']; // catalog order
+/** The STT model to select: an installed one, the recommended first, then catalog order; with none installed, the recommended one. */
+export function sttDefault(installed:string[],totalMb:number|null|undefined):string{
+ const recommended=STT_IDS.find(id=>modelAdvice(id,totalMb).badge==='recommended')!,have=STT_IDS.filter(id=>installed.includes(id));
+ return have.includes(recommended)?recommended:have[0]??recommended;
+}
