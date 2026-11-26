@@ -841,37 +841,48 @@ try {
       await requireNotify();
       const audio = dialogueCopy('-x2'), asset = await invoke('import_asset', {path: audio}), toastsBefore = toasts();
       await watchInvokes();
-      // Playwright turns focus emulation on for the page it attaches to over CDP, which keeps document.hasFocus() true even when minimised and so hides the notice from the app: turn it off for this page only, back on in the cleanup.
-      const session = await page.context().newCDPSession(page);
-      await session.send('Emulation.setFocusEmulationEnabled', {enabled: false});
-      let failure = null, detail;
+      // Playwright turns focus emulation on for every page it attaches to over CDP, which keeps document.hasFocus() true even when minimised, and nothing overrides it from a second session.
+      // So the CDP client is detached (browser.close() on a connectOverCDP connection only closes the transport; the emulation goes with it) while the window is minimised and the job runs.
+      // Nothing can be asked of the page then: the job end is seen as a new toast in the Windows notification history, and the page's own fetch watch (window.__calls) is read after the reconnect.
+      const browser = page.context().browser();
+      let failure = null, detail, queued, runningAt, detached = false;
       try {
-        const queued = await invoke('enqueue_job', {kind: 'stt', projectId: null, payload: {asset_id: asset.id, model_id: 'whisper-small', language: 'vi', diarize: true, num_speakers: 2}});
+        queued = await invoke('enqueue_job', {kind: 'stt', projectId: null, payload: {asset_id: asset.id, model_id: 'whisper-small', language: 'vi', diarize: true, num_speakers: 2}});
         const get = async () => (await invoke('list_jobs')).find((j) => j.id === queued.id);
-        let job = await until(get, (j) => j?.status === 'running' || ENDED.includes(j?.status), 180000, 'the job to start running');
+        const job = await until(get, (j) => j?.status === 'running' || ENDED.includes(j?.status), 180000, 'the job to start running');
         if (job.status !== 'running') throw Error(`harness: the job was ${job.status} (${job.error}) before it could be watched while running`);
-        const runningAt = Date.now();
+        runningAt = Date.now();
         await sleep(3000); // the app polls the queue every 2.5 s: it has seen the job running before its window goes away
         nvda('-Minimize', '-Pid', String(app.pid));
-        // Invoke only while minimised: no locator, click or screenshot.
-        if (!await until(() => page.evaluate(() => !document.hasFocus()), Boolean, 5000, 'document.hasFocus() to be false').catch(() => false)) throw Error('harness: document.hasFocus() is still true while the window is minimised (focus emulation still on), so the app cannot raise the notice');
-        job = await until(get, (j) => ENDED.includes(j?.status), 20 * 60000, 'the job to end');
-        const endedAt = Date.parse(job.updated_at), ran = endedAt - runningAt;
-        if (job.status !== 'succeeded') throw Error(`the job ended ${job.status}: ${job.error}`);
-        if (ran < 40000) throw Error(`harness: the job ran ${ran} ms, under the 40 s this check needs (the app's notice needs 30 s); use a longer dialogue-x2.wav`);
-        const call = (cmd) => until(async () => (await page.evaluate(() => window.__calls)).find((c) => c.cmd === cmd && c.at >= runningAt), Boolean, 90000, `${cmd} while minimised`);
-        const flash = await call('plugin:window|request_user_attention');
-        detail = `job ran ${Math.round(ran / 1000)} s; request_user_attention ${flash.at - endedAt} ms after the job ended (U4)`;
-        const sent = await call('plugin:notification|notify');
-        const count = await until(async () => toasts(), (n) => n > toastsBefore, 30000, `a new toast in the notification history (was ${toastsBefore})`);
-        detail += `; notify ${sent.at - endedAt} ms after it, toast history ${toastsBefore} -> ${count}`;
+        await browser.close();
+        detached = true;
+        log('V3 window minimised, CDP client detached');
+        const count = await until(async () => toasts(), (n) => n > toastsBefore, 12 * 60000, `a new toast in the notification history while minimised and detached (was ${toastsBefore})`);
+        detail = `toast history ${toastsBefore} -> ${count} ${Math.round((Date.now() - runningAt) / 1000)} s after the job started running`;
       } catch (e) { failure = e; }
-      // Back to normal whatever happened: the window is restored and activated past the foreground lock and the page must say it has focus (a real signal while the emulation is off), then the emulation goes back on.
-      try { nvda('-Focus', '-Pid', String(app.pid)); await until(() => page.evaluate(() => document.hasFocus()), Boolean, 15000, 'document.hasFocus() after the refocus'); } catch (e) { failure ??= e; }
-      // The session stays attached: detaching it would reset the emulation to off for the later steps (measured with playwright-core 1.65).
-      try { await session.send('Emulation.setFocusEmulationEnabled', {enabled: true}); } catch (e) { log(`V3 cleanup: focus emulation not restored: ${String(e).split('\n')[0]}`); }
-      if (failure) throw failure;
-      return detail;
+      // Back to normal whatever happened: the window is restored and activated past the foreground lock, then the client reconnects to the same page (its JS state, including the fetch watch, survives) and takes over as `page` for the later steps.
+      try { nvda('-Focus', '-Pid', String(app.pid)); } catch (e) { failure ??= e; }
+      if (detached) try {
+        let reconnected;
+        for (let i = 0; i < 30 && !reconnected; i++) { try { reconnected = await chromium.connectOverCDP('http://127.0.0.1:9222'); } catch { await sleep(500); } }
+        if (!reconnected) throw Error('harness: could not reconnect to WebView2 CDP after V3');
+        page = reconnected.contexts()[0].pages()[0];
+        log('V3 CDP client reconnected');
+      } catch (e) { failure ??= e; }
+      if (failure) {
+        // What the page recorded while detached, to tell a missing notice from a harness defect.
+        const seen = queued && await page.evaluate(() => window.__calls).then((c) => JSON.stringify(c), () => '(unreadable)');
+        const job = queued && await invoke('list_jobs').then((l) => l.find((j) => j.id === queued.id), () => null);
+        throw Error(`${failure.message ?? failure}; job ${job?.status ?? '(unknown)'}, app calls ${seen}`);
+      }
+      const calls = await page.evaluate(() => window.__calls);
+      if (!calls) throw Error('harness: the page lost its fetch watch (window.__calls) while detached');
+      const job = (await invoke('list_jobs')).find((j) => j.id === queued.id), endedAt = Date.parse(job.updated_at), ran = endedAt - runningAt;
+      if (job.status !== 'succeeded') throw Error(`the job ended ${job.status}: ${job.error}`);
+      if (ran < 40000) throw Error(`harness: the job ran ${ran} ms, under the 40 s this check needs (the app's notice needs 30 s); use a longer dialogue-x2.wav`);
+      const flash = calls.find((c) => c.cmd === 'plugin:window|request_user_attention' && c.at >= runningAt), sent = calls.find((c) => c.cmd === 'plugin:notification|notify' && c.at >= runningAt);
+      if (!flash || !sent) throw Error(`the toast appeared but the app's own calls are missing: request_user_attention ${flash ? 'seen' : 'missing'}, notify ${sent ? 'seen' : 'missing'}`);
+      return `job ran ${Math.round(ran / 1000)} s; request_user_attention ${flash.at - endedAt} ms after the job ended (U4), notify ${sent.at - endedAt} ms after it; ${detail}`;
     }).catch(() => {});
     await step('V2 a second launch hands over to the running app', async () => {
       const asset = await invoke('import_asset', {path: dialogueCopy()});
