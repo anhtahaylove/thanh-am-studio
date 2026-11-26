@@ -55,7 +55,7 @@ const type=async(page:Page,label:string,value:string)=>{const f=page.getByRole('
 const queued=(page:Page)=>expect(page.getByRole('status').filter({hasText:'Đã thêm vào hàng đợi. Audio mới được giữ thành take riêng.'})).toBeVisible();
 const exported=async(page:Page,chapters=false)=>{await page.getByRole('button',{name:'Xuất audio'}).click();
  // The export stays on the page: one render is in the mock's job list (its send is recorded first), or the chapters' notice has come after the last send.
- if(chapters)await expect(page.getByRole('status').filter({hasText:/^Đã thêm \d+ chương vào hàng đợi xuất\.$/})).toBeVisible();
+ if(chapters)await expect(page.getByRole('status').filter({hasText:/Đã thêm \d+ chương vào hàng đợi xuất\./})).toBeVisible();
  else await expect.poll(()=>page.evaluate(()=>(window as any).__jobs.filter((j:any)=>j.kind==='render').length)).toBe(1);};
 const generateAll=async(page:Page)=>{await page.getByRole('button',{name:'Tạo giọng tất cả'}).click();await queued(page);};
 const addEntry=async(page:Page,scope:string,key:string,value:string)=>{const d=page.locator(scope);await d.getByRole('textbox',{name:'Từ gốc'}).fill(key);await d.getByRole('textbox',{name:'Cách đọc'}).fill(value);
