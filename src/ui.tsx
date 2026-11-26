@@ -59,7 +59,7 @@ export function MenuButton({kind,label,className='quiet',children}:{kind:'menu'|
  },[open]);
  useEffect(()=>{if(open&&kind==='menu')items()[0]?.focus();},[open,kind]);
  const key=(e:React.KeyboardEvent)=>{
-  if(e.key==='Escape'&&open&&!e.nativeEvent.isComposing){e.preventDefault();e.stopPropagation();setOpen(false);button.current?.focus();return;}
+  if(e.key==='Escape'&&open&&!e.nativeEvent.isComposing){e.preventDefault();e.stopPropagation();setOpen(false);return;}
   if(kind!=='menu'||!['ArrowDown','ArrowUp','Home','End'].includes(e.key)||e.altKey||e.ctrlKey||e.metaKey)return;
   e.preventDefault();if(!open){setOpen(true);return;}
   const list=items(),at=list.indexOf(document.activeElement as HTMLElement),last=list.length-1;
