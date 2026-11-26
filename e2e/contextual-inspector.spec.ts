@@ -93,10 +93,12 @@ test('inspector shows voice, speed, take; Chỉnh âm holds the same fields and 
  await expect(inspector.getByRole('combobox',{name:'Giọng đoạn 6',exact:true})).toBeVisible();await expect(inspector.getByRole('combobox',{name:'Tốc độ đọc đoạn 6',exact:true})).toBeVisible();
  await expect(inspector.getByRole('combobox',{name:'Take đang sử dụng'})).toBeVisible();
  await expect(tuning).toHaveCount(1);await expect(tuning).toHaveJSProperty('open',false); // closed until asked for
+ const s=JSON.parse(FIXTURE).segments[5],take=s.takes.find((t:{id:string})=>t.id===s.selected_take_id);
+ const expected=[s.chapter??'',s.gap_ms,s.gain_db,s.trim_start_ms,s.trim_end_ms??take.duration_ms,s.fade_in_ms,s.fade_out_ms].map(String); // segment 6's stored values, in the order of the labels
  const before:string[]=[];for(const label of labels){const field=tuning.getByLabel(label,{exact:true});await expect(field,label).toBeHidden();before.push(await field.inputValue());}
  await expect(inspector.getByLabel('Chương',{exact:true})).toHaveCount(1);
  await tuning.locator('summary').click();await expect(tuning).toHaveJSProperty('open',true);
- for(const [i,label] of labels.entries()){const field=tuning.getByLabel(label,{exact:true});await expect(field,label).toBeVisible();await expect(field,label).toHaveValue(before[i]);}
+ for(const [i,label] of labels.entries()){const field=tuning.getByLabel(label,{exact:true});await expect(field,label).toBeVisible();await expect(field,label).toHaveValue(before[i]);await expect(field,label).toHaveValue(expected[i]);}
  await expect(tuning.getByLabel('Nghỉ sau (ms)',{exact:true})).toHaveValue('300');
  await pick(page,9);await expect(tuning).toHaveJSProperty('open',true); // the open state is kept for the session, like "Văn bản sau chuẩn hóa"
  await pick(page,3);await expect(tuning.getByLabel('Âm lượng (dB)',{exact:true})).toHaveCount(0);await expect(tuning.getByLabel('Nghỉ sau (ms)',{exact:true})).toBeVisible(); // no take: only the fields that apply before one exists
@@ -152,7 +154,7 @@ for(const theme of ['light','dark'])test(`the panel's legend, labels and hints h
   await open(page,width);await pick(page,3); // no take: its hint is the note
   const pairs=await page.evaluate(()=>{const bgOf=(el:Element)=>{let bg='',e:Element|null=el;while(e&&(!bg||bg==='rgba(0, 0, 0, 0)')){bg=getComputedStyle(e).backgroundColor;e=e.parentElement;}return bg;};
    const p=document.querySelector('.segment-detail')!;
-   return [p.querySelector('legend')!,p.querySelector('label.field')!,p.querySelector('.hint')!,p.querySelector('h3')!,p.querySelector('summary')!].map(e=>({n:e.tagName,fg:getComputedStyle(e).color,bg:bgOf(e)}));});
+   return [p.querySelector('legend')!,p.querySelector('label.field')!,p.querySelector('.hint')!,p.querySelector('h3')!,p.querySelector('.normalization>summary')!,p.querySelector('.tuning>summary')!].map(e=>({n:e.tagName,fg:getComputedStyle(e).color,bg:bgOf(e)}));});
   for(const q of pairs){const a=lum(q.fg),b=lum(q.bg);expect((Math.max(a,b)+.05)/(Math.min(a,b)+.05),`${q.n} ${q.fg} on ${q.bg}, ${width}, ${theme}`).toBeGreaterThanOrEqual(4.5);}
  }
 });

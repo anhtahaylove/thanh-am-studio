@@ -128,8 +128,8 @@ const ROWS:[string,WK,At,Step[],L][]=[
  ['inspector: Giọng đoạn','studio','tts',[],['combobox','Giọng đoạn 1',INSP]],
  ['inspector: Tốc độ','studio','tts',[],['combobox','Tốc độ đọc đoạn 1',INSP]],
  ['inspector: Take đang sử dụng','studio','tts',[],['combobox',/^Take đang sử dụng/,INSP]],
- ['inspector: Chương','studio','tts',[],['textbox','Chương',INSP]],
- ...(['Nghỉ sau (ms)','Âm lượng (dB)','Cắt đầu (ms)','Cắt cuối (ms)','To dần (ms)','Nhỏ dần (ms)'] as const).map(n=>[`inspector: ${n}`,'studio','tts',[],['label',n,INSP]] as [string,WK,At,Step[],L]),
+ ['inspector: Chương','studio','tts',[['text','Chỉnh âm',INSP]],['textbox','Chương',INSP]],
+ ...(['Nghỉ sau (ms)','Âm lượng (dB)','Cắt đầu (ms)','Cắt cuối (ms)','To dần (ms)','Nhỏ dần (ms)'] as const).map(n=>[`inspector: ${n}`,'studio','tts',[['text','Chỉnh âm',INSP]],['label',n,INSP]] as [string,WK,At,Step[],L]),
  ['inspector: Văn bản sau chuẩn hóa','studio','tts',[],['text','Văn bản sau chuẩn hóa',INSP]],
  ['inspector: Phân vai, giọng','studio','tts',[],['combobox','Giọng của Người dẫn',INSP]],
  ['inspector: Phân vai, nghe mẫu','studio','tts',[],['button','Nghe mẫu giọng của Người dẫn',INSP]],
@@ -306,7 +306,7 @@ test('Ctrl+Z and Ctrl+Y undo and redo an added segment',async({page})=>{
  await page.keyboard.press('Control+y');await expect(third).toBeVisible();
 });
 test('Escape in the segment details goes back to the segment text',async({page})=>{
- await open(page,'studio');await at(page,['textbox','Chương',INSP]).focus();await page.keyboard.press('Escape');
+ await open(page,'studio');await at(page,['text','Chỉnh âm',INSP]).click();await at(page,['textbox','Chương',INSP]).focus();await page.keyboard.press('Escape');
  await expect(at(page,['textbox','Nội dung đoạn 1'])).toBeFocused();
 });
 test('Alt+ArrowUp and Alt+ArrowDown move a segment',async({page})=>{
