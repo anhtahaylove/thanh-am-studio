@@ -53,7 +53,7 @@ export function MenuButton({kind,label,className='quiet',children}:{kind:'menu'|
  useEffect(()=>{
   if(!open)return;
   const down=(e:MouseEvent)=>{
-   if(root.current!.contains(e.target as Node))return;
+   if(root.current!.contains(e.target as Node)||(e.target as Element).closest?.('[aria-modal="true"]'))return; // a click inside a dialog opened from an option is not outside
    const had=root.current!.contains(document.activeElement);setOpen(false);
    if(had)requestAnimationFrame(()=>{if(document.activeElement===document.body)button.current?.focus();}); // the click moved focus to nothing
   };

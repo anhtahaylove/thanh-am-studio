@@ -1885,7 +1885,8 @@ ConvertTo-Json -Compress -InputObject $items`));
           await hear([['Tùy chọn', 'button', 'collapsed']], 5000);
           mark();
           await page.keyboard.press('Enter');
-          await hear([['Tùy chọn', 'expanded']], 5000);
+          await hear(['expanded'], 5000); // a state change on the focused button is announced without its name
+          await focusIs('Tùy chọn');
           mark();
           await page.keyboard.press('Tab');
           await hear([['Chế độ tập trung', 'toggle button', 'not pressed']], 5000);
