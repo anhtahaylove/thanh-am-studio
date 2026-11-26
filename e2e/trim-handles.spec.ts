@@ -20,7 +20,7 @@ const mock=()=>{
    case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,python_path:null,ffmpeg_path:null,message:''};
    case 'save_project':project={...ipc(args.project),revision:args.project.revision+1};return ipc(project);
    case 'enqueue_job':return {id:'j'+w.__calls.length,kind:args.kind,project_id:args.projectId,payload:args.payload,status:'queued',progress:0,error:null,result:null,created_at:'2026-11-23T00:00:00Z',updated_at:'2026-11-23T00:00:00Z'};
-   default:return null;}}};
+   case 'plugin:dialog|save':return 'C:/x/ban-xuat.wav';default:return null;}}};
 };
 const open=async(page:Page,width=1440,height=960,lateMs=0)=>{
  await page.setViewportSize({width,height});
