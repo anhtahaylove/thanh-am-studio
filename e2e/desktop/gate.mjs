@@ -3,7 +3,7 @@
 // usage: node gate.mjs <app.exe> <outDir> [segments=500]
 import {chromium} from 'playwright-core';
 import {spawn, execSync, execFileSync} from 'node:child_process';
-import {mkdirSync, writeFileSync, appendFileSync, copyFileSync} from 'node:fs';
+import {mkdirSync, writeFileSync, appendFileSync, copyFileSync, existsSync, statSync} from 'node:fs';
 import {join, dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
@@ -161,7 +161,8 @@ try {
   phase = 'render';
   await page.getByRole('navigation', {name: 'Điều hướng chính'}).getByRole('button').first().click();
   await page.getByRole('button', {name: 'Xuất audio'}).click();
-  dialog(join(out, 'full-render-saved.wav')); // the export asks for the file first; the render saves itself when it finishes
+  const savedRender = join(out, 'full-render-saved.wav');
+  dialog(savedRender); // the export asks for the file first; the render saves itself when it finishes
   const tr = Date.now();
   let render;
   while (!(render = (await invoke('list_jobs')).find((j) => j.kind === 'render' && j.project_id === pid && j.status === 'succeeded'))) {
@@ -173,6 +174,9 @@ try {
   report.render_duration_ms = render.result.duration_ms;
   report.render_expected_ms = report.audio_ms + 300 * N;
   copyFileSync(render.result.path, join(pack, 'full-render.wav'));
+  // The app saves the render to the chosen file on its next poll after the job succeeds.
+  for (let i = 0; i < 60 && !(existsSync(savedRender) && statSync(savedRender).size > 0); i++) await sleep(500);
+  if (!existsSync(savedRender) || statSync(savedRender).size === 0) throw Error(`the export did not save ${savedRender}`);
 
   // STT round trip on the full render; reference = the script that was synthesized.
   phase = 'stt';
