@@ -121,11 +121,11 @@ test('the toast names Ctrl+Z, and the palette offers Undo while the toast sits i
  await page.getByRole('button',{name:'Hoàn tác (Ctrl+Z)'}).click();await expect(page.getByRole('button',{name:'Hoàn tác (Ctrl+Z)'})).toBeDisabled();
  await page.keyboard.press('Control+k');await box.fill('hoan tac');await expect(command).toHaveAttribute('aria-disabled','true');await expect(command).toContainText('Chưa có thay đổi nào để hoàn tác');
 });
-test('Ctrl+Z on the toast Undo button undoes like a click and leaves focus on the page, not on nothing',async({page})=>{
+test('Ctrl+Z on the toast Undo button undoes like a click and leaves focus on the restored segment, not on nothing',async({page})=>{
  await addTwo(page);const toast=page.locator('.toast');
  await page.getByRole('button',{name:'Xóa đoạn',exact:true}).first().click();await toast.getByRole('button',{name:'Hoàn tác',exact:true}).focus();
  await page.keyboard.press('Control+z');await expect(page.getByRole('textbox',{name:'Nội dung đoạn 2'})).toHaveValue('Câu hai.');await expect(toast).toHaveCount(0);
- await expect(page.locator('main')).toBeFocused();
+ await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toBeFocused();
  // Only one step was undone: the two added segments are still there.
  await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toHaveValue('Câu một.');
 });
