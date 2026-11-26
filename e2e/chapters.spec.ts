@@ -26,7 +26,7 @@ test('a script with [P1] and [P2] lines shows one chip per chapter, never speaks
  await page.goto('/');await page.getByRole('button',{name:'Thêm nội dung',exact:true}).click();
  await page.getByRole('textbox',{name:'Nội dung cần thêm'}).fill('[P1] Mở đầu.\nMột câu nữa.\n[ p2 ]\nChương hai.');await page.getByRole('button',{name:/^Thêm \d+ đoạn vào kịch bản$/}).click();
  await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toHaveValue('Mở đầu.');await expect(page.getByRole('textbox',{name:'Nội dung đoạn 3'})).toHaveValue('Chương hai.');
- await expect(page.locator('.chapter-chip')).toHaveText(['P1','P2']);
+ await expect(page.locator('.chapter-chip')).toHaveText(['P1','P2']);await page.getByText('Chỉnh âm',{exact:true}).click();
  await expect(page.getByRole('textbox',{name:'Chương',exact:true})).toHaveValue('P1');
  await page.getByRole('textbox',{name:'Chương',exact:true}).fill('');await expect(page.locator('.chapter-chip')).toHaveText(['P2']);
  await page.getByRole('textbox',{name:'Chương',exact:true}).fill('Mở đầu');await expect(page.locator('.chapter-chip')).toHaveText(['Mở đầu','P2']);
@@ -89,7 +89,7 @@ test('a batch that stopped enqueuing halfway is never offered as complete',async
 });
 
 test('a chapter label survives save and reload',async({page})=>{
- await open(page,{chapters:['P1',null,'P2']});
+ await open(page,{chapters:['P1',null,'P2']});await page.getByText('Chỉnh âm',{exact:true}).click();
  await page.getByRole('textbox',{name:'Chương',exact:true}).fill('Mở đầu');await expect(page.locator('.chapter-chip')).toHaveText(['Mở đầu','P2']);
  await page.keyboard.press('Control+s');
  await expect.poll(async()=>(await calls(page,'save_project')).at(-1)?.project.segments.map((s:any)=>s.chapter??null)).toEqual(['Mở đầu',null,'P2']);

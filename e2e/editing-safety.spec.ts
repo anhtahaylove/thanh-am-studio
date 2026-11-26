@@ -22,7 +22,7 @@ test('a time field keeps what is typed as a draft: 0:10,000 over 0:09,100 is 100
  await page.locator('.tr-time').click();await end.press('Control+a');await page.keyboard.type('-');await end.blur();await expect(end).toHaveAttribute('aria-invalid','true');await expect(page.getByText('Nhập dạng phút:giây, ví dụ 0:09,200')).toBeVisible();
 });
 test('Ctrl+S in a number field saves what is typed there',async({page})=>{
- await page.goto('/');await page.getByRole('button',{name:'Viết đoạn đầu tiên'}).click();await expect(page.getByRole('button',{name:'Đã lưu'})).toBeVisible();
+ await page.goto('/');await page.getByRole('button',{name:'Viết đoạn đầu tiên'}).click();await expect(page.getByRole('button',{name:'Đã lưu'})).toBeVisible();await page.getByText('Chỉnh âm',{exact:true}).click();
  const gap=page.getByLabel('Nghỉ sau (ms)');await gap.click();await gap.press('Control+a');await page.keyboard.type('777');await page.keyboard.press('Control+s');
  await expect.poll(()=>page.evaluate(k=>JSON.parse(localStorage.getItem(k)!)[0].segments[0].gap_ms,KEY),{timeout:2000}).toBe(777);await expect(gap).toHaveValue('777');
 });

@@ -25,7 +25,7 @@ const open=async(page:Page,count=3,width=1440,delay:Record<string,number|'abort'
  await page.setViewportSize({width,height:900});
  await page.route(/\/t[123]\.wav$/,async r=>{const p=new URL(r.request().url()).pathname;if(delay[p])await new Promise(z=>setTimeout(z,delay[p]==='abort'?500:delay[p] as number));if(delay[p]==='abort')return r.abort();await r.fulfill({body:FILES[p],contentType:'audio/wav'});});
  await page.addInitScript(mock,{count,selected:extra.selected===undefined?'t1':extra.selected,fadeIn:extra.fadeIn??0});await page.goto('/');
- await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
+ await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();await page.getByText('Chỉnh âm',{exact:true}).click();
  await page.getByRole('heading',{level:1}).click();
 };
 const strip=(page:Page)=>page.getByRole('toolbar',{name:'So sánh take'});
