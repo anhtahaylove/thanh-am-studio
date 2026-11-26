@@ -40,9 +40,9 @@ const CODEC_RATE: u32 = 48000;
 const CODEC_FRAME: usize = 3840;
 /// The runtime's libsndfile, beside python-soundfile.
 const SNDFILE_DLL: &str = "libsndfile_x64.dll";
-/// SHA-256 of the FFmpeg build's `swresample-7.dll` (BtbN autobuild-2026-11-10-12-39, `setup-runtime.ps1`), which holds the libsoxr
+/// SHA-256 of the FFmpeg build's `swresample-7.dll` (BtbN autobuild-2026-10-31-12-59, `setup-runtime.ps1`), which holds the libsoxr
 /// that was checked bit for bit against python-soxr.
-const SWRESAMPLE_SHA256: &str = "eacddd70febf920546b177b1c7daf64f728cabe998e37a477ebee0dd96c23d7b";
+const SWRESAMPLE_SHA256: &str = "12b907ddfff765e10c3b7da1a7985513dc9282c08953259f337f952f7b8a9f2a";
 
 fn worker_error(message: &str) -> WorkerError {
     WorkerError::new("WORKER_ERROR", message)

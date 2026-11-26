@@ -10,10 +10,11 @@ param(
 # Does not modify system Python or PATH and needs no administrator rights.
 $ErrorActionPreference = 'Stop'
 $PythonVersion = '3.11.18'
-# BtbN LGPL shared build, pinned by name and SHA-256 (autobuild tags expire; update the pin together).
-$FfmpegTag = 'autobuild-2026-11-10-12-39'
-$FfmpegAsset = 'ffmpeg-n9.0.2-48-gd4070a14ce-win64-lgpl-shared-9.0'
-$FfmpegSha256 = 'cdc19c20aa80d46f78cfc69c8d87430ee34990864e30379db02d1447cd111e83'
+# BtbN LGPL shared build, pinned by name and SHA-256 (update the pin together). Daily autobuild tags expire after about two
+# weeks; month-end ones stay for months, so pin a month-end build.
+$FfmpegTag = 'autobuild-2026-10-31-12-59'
+$FfmpegAsset = 'ffmpeg-n9.0.2-39-g7adfbe40dc-win64-lgpl-shared-9.0'
+$FfmpegSha256 = 'e907b01fa4783913151237e37df2a10fa97d99a1598a021bf59d4ae62ffed4c0'
 # conda-forge llvm-openmp (LLVM OpenMP runtime, Apache-2.0 WITH LLVM-exception), pinned by URL and SHA-256. It replaces
 # Intel's OpenMP runtime; scripts/openmp-shim/vcomp_shim.c explains the shim built against it.
 $LlvmOpenmpUrl = 'https://conda.anaconda.org/conda-forge/win-64/llvm-openmp-23.1.5-h49e36cd_0.conda'

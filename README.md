@@ -55,7 +55,7 @@ Check that this fits your use before you download it.
   reachable (a proxy or firewall); `DISK_FULL` means the drive that holds the app's data is out of space.
 - **A job fails with `WORKER_EXIT`.** The job folder holds `worker.log`; attach it when you report
   the problem. The message names the likely cause for common crash codes (for example a CPU without
-  an instruction set the engine needs, or running out of memory). TTS needs about 2.2 GB of RAM on
+  an instruction set the engine needs, or running out of memory). TTS needs about 2.1 GB of RAM on
   top of the app; 8 GB in total is the tested minimum.
 - **Speech-to-text on a CPU without AVX** (Intel CPUs before Sandy Bridge, and many Pentium, Celeron
   and Atom models). The native engine needs AVX: its Whisper runtime (CTranslate2) stops with an
