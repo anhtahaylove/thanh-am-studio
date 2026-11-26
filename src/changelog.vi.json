@@ -1,4 +1,12 @@
 [
+ {"version": "1.0.25", "date": "2026-11-27", "changes": [
+  "Báo khi xong việc dài giờ dựa vào trạng thái cửa sổ của Windows nên vẫn báo đúng khi cửa sổ Thanh Âm Studio đang thu nhỏ hay nằm sau cửa sổ khác (bản 1.0.24 có thể không báo vì app tưởng cửa sổ vẫn đang được dùng).",
+  "Mở Thanh Âm Studio lần nữa khi bản đang chạy bị treo: sau khoảng 10 giây, app hiện hộp báo “Thanh Âm Studio đang chạy nhưng không phản hồi” kèm cách xử lý, thay vì im lặng không mở gì.",
+  "Xóa đoạn bằng bàn phím hoặc trình đọc màn hình khi cửa sổ hẹp không còn làm mất vị trí con trỏ; Hoàn tác việc xóa đoạn (nút Hoàn tác trên thông báo hoặc Ctrl+Z ngay trên nút đó) chọn lại đoạn vừa khôi phục và đặt con trỏ vào ô nội dung của nó.",
+  "Khôi phục phiên bản hoặc bấm Tải lại để nhận take mới: dòng chép lời đang tô sáng được bỏ chọn; ô Giữ nhạc nền chỉ tự tắt khi tệp nguồn của dự án đã đổi, còn cùng tệp nguồn thì giữ nguyên lựa chọn của bạn.",
+  "App không còn hiện trang trắng khi bộ nhớ cục bộ của WebView2 bị chặn.",
+  "Dự án đã chuyển về github.com/huuhungn/thanh-am-studio. Các bản cũ vẫn tự tìm và tải bản cập nhật như trước nhờ GitHub tự chuyển hướng địa chỉ cũ."
+ ]},
  {"version": "1.0.24", "date": "2026-11-26", "changes": [
   "Chế độ tập trung trên trang Tạo giọng đọc (nút Chế độ tập trung ở đầu trang, Ctrl+Shift+F hoặc bảng lệnh Ctrl+K): ẩn cột bên phải (chi tiết đoạn, Phân vai, Từ điển phát âm) để kịch bản chiếm cả chiều rộng, chữ kịch bản to hơn, kiểu chữ có chân, chỉ đoạn đang chọn hiện thanh thao tác. App nhớ lựa chọn này cho lần mở sau.",
   "Lịch sử phiên bản (nút Lịch sử phiên bản trên thanh trên cùng hoặc bảng lệnh, khi đang mở dự án): trong lúc bạn sửa, app tự giữ các phiên bản cũ của dự án, cách nhau ít nhất 10 phút, tối đa 30 phiên bản. Bấm Khôi phục để quay về; trạng thái ngay trước đó được giữ thành phiên bản \"Trước khi khôi phục\" nên quay lại được. Khôi phục dùng được khi dự án không còn việc chờ hay đang chạy trong Hàng đợi.",
