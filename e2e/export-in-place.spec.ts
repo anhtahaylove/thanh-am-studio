@@ -17,7 +17,7 @@ const mock=(o:O)=>{
    case 'list_projects':return [{id:'p1',name:project.name,updated_at:now,revision:1}];case 'load_project':return project;
    case 'save_project':return {...args.project,revision:args.project.revision+1};
    case 'list_voices':case 'list_models':return [];case 'get_settings':return {dictionary:{}};
-   case 'list_jobs':return [...jobs].reverse();
+   case 'list_jobs':return JSON.parse(JSON.stringify([...jobs].reverse())); // a copy, as IPC gives: the app skips a poll that equals the last one
    case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,python_path:null,ffmpeg_path:null,message:''};
    case 'enqueue_job':{const j=job('j'+(jobs.length+1),'queued',args.payload);jobs.push(j);return j;}
    case 'plugin:dialog|save':return o.save===undefined?'C:\\Xuất\\bản-xuất.wav':o.save;
