@@ -28,7 +28,7 @@ describe('model advice',()=>{
   expect(modelAdvice('whisper-small',7910).note).toBe('Cần khoảng 1,4 GB RAM, máy có 7,7 GB.'); // 1,400 MiB / 1,024
  });
  it('ships measured values, so Turbo is the STT pick at 15,760 MB and Small at 7,910 MB',()=>{
-  for(const id of ['whisper-turbo','diarization','htdemucs'])expect(MODEL_RAM_MB[id],id).not.toBeNull();
+  expect(MODEL_RAM_MB).toMatchObject({'vieneu-v3':2200,'whisper-small':1400,'whisper-turbo':1900,diarization:600,htdemucs:1400});
   expect(MODEL_RAM_MB['separation-runtime']).toBeNull(); // the htdemucs figure covers the job this pack runs
   expect(modelAdvice('whisper-turbo',15760)).toEqual({badge:'recommended',note:'Máy có 15,4 GB RAM, đủ cho model lớn này.'});
   expect(modelAdvice('whisper-small',15760)).toEqual({badge:null,note:'Cần cho Tự kiểm bằng Whisper'});
