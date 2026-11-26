@@ -23,7 +23,8 @@ users see is in the [README](../README.md#code-signing-policy).
 
 ## Owner steps (cannot be delegated)
 
-1. Make sure GitHub two-factor authentication is on for `anhtahaylove`. Done 2026-11-13.
+1. Make sure GitHub two-factor authentication is on for `anhtahaylove`. Done 2026-11-13. The
+   `huuhungn` organization, which owns the repository since 2026-11-26, also requires it for every member.
 2. Apply at <https://signpath.org/apply> with the repository URL, the release page, and the
    README policy section. Accepting SignPath's terms is the owner's decision. Submitted by the
    owner on 2026-11-13 (category Audio, individual maintainer, GitHub Actions), twice: the first
