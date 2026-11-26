@@ -45,6 +45,8 @@ const open=async(page:Page,patch:object={})=>{
 };
 const go=(page:Page,label:string)=>page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:label,exact:true}).click();
 const check=(page:Page,label:string)=>page.getByRole('checkbox',{name:label}).check();
+// "Đọc từ tiếng Anh" and "Tự kiểm bằng Whisper" sit in the hero's "Tùy chọn" panel: open it first (navigation only).
+const options=(page:Page)=>page.getByRole('button',{name:'Tùy chọn',exact:true}).click();
 const row=(page:Page,n:number)=>page.locator('article.segment').nth(n-1);
 const pick=async(page:Page,n:number)=>{await row(page,n).locator('.segment-index').click();await expect(row(page,n)).toHaveClass(/selected/);};
 // A number field takes its value on Enter.
@@ -59,7 +61,7 @@ const transcribe=async(page:Page)=>{await page.getByRole('button',{name:'Chọn 
 const NO_SOURCE='"Giữ nhạc nền" in a project without a source: the picked file is separated';
 const scenarios:Record<string,(page:Page)=>Promise<void>>={
  'generate all, "Đọc từ tiếng Anh" off':generateAll,
- 'generate all, "Đọc từ tiếng Anh" on':async page=>{await check(page,'Đọc từ tiếng Anh');await generateAll(page);},
+ 'generate all, "Đọc từ tiếng Anh" on':async page=>{await options(page);await check(page,'Đọc từ tiếng Anh');await generateAll(page);},
  'generate the selected segment from the command palette':async page=>{
   await pick(page,5);await page.keyboard.press('Control+k');await page.getByRole('dialog',{name:'Bảng lệnh'}).getByRole('option',{name:'Tạo giọng đoạn đang chọn'}).click();await queued(page);
  },
@@ -82,7 +84,7 @@ const scenarios:Record<string,(page:Page)=>Promise<void>>={
  },
  'edit (b): a row\'s voice and speed changed, then generate with "Tự kiểm bằng Whisper" on':async page=>{
   await pick(page,3); // the voice and speed selects are in the inspector, which shows the selected segment
-  await page.getByRole('combobox',{name:'Giọng đoạn 3'}).selectOption('v-ref');await page.getByRole('combobox',{name:'Tốc độ đọc đoạn 3'}).selectOption('1.15');await check(page,'Tự kiểm bằng Whisper');
+  await page.getByRole('combobox',{name:'Giọng đoạn 3'}).selectOption('v-ref');await page.getByRole('combobox',{name:'Tốc độ đọc đoạn 3'}).selectOption('1.15');await options(page);await check(page,'Tự kiểm bằng Whisper');
   await row(page,3).getByRole('button',{name:'Tạo take mới'}).click();await queued(page);
  },
  'edit (c): a project dictionary entry added, then generate all':async page=>{

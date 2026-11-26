@@ -29,6 +29,8 @@ const domSnippet = () => !page ? Promise.resolve('(no page yet)') : Promise.race
 const invoke = (cmd, args = {}) => page.evaluate(([c, a]) => window.__TAURI_INTERNALS__.invoke(c, a), [cmd, args]);
 const dialog = (path) => log('dialog ' + execFileSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', join(here, 'file-dialog.ps1'), '-Path', path], {encoding: 'utf8'}).trim());
 const nav = (name) => page.getByRole('navigation', {name: 'Điều hướng chính'}).getByRole('button', {name: new RegExp(`^${name}`)}).click(); // the queue button also carries a count badge
+// The focus-mode, English-words and Whisper options sit in the hero's "Tùy chọn" panel, which closes on a click elsewhere or when focus leaves it: open it when it is closed.
+const openOptions = async () => { const button = page.getByRole('button', {name: 'Tùy chọn', exact: true}); if (await button.getAttribute('aria-expanded', {timeout: 5000}) !== 'true') await button.click(); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Calls `get` every 500 ms until `ok(its value)` holds and returns that value; for steps that must not touch the page's DOM (a minimised window).
 const until = async (get, ok, ms, what) => {
@@ -623,12 +625,13 @@ try {
     }
     // 1.0.24, at the smallest window (1024x720 css px, x1.25): the editor in focus mode, then every page in the high-contrast theme. Both settings persist in the app's storage, so they are put back.
     const focusButton = () => page.getByRole('button', {name: 'Chế độ tập trung', exact: true}), themeButton = (label) => page.getByRole('button', {name: label, exact: true});
-    const focusOff = async () => { await nav('Tạo giọng đọc'); if (await focusButton().getAttribute('aria-pressed', {timeout: 5000}) === 'true') await focusButton().click(); };
+    const focusOff = async () => { await nav('Tạo giọng đọc'); await openOptions(); if (await focusButton().getAttribute('aria-pressed', {timeout: 5000}) === 'true') await focusButton().click(); await page.keyboard.press('Escape'); };
     try {
       await cdp.send('Emulation.setDeviceMetricsOverride', {width: 1024, height: 720, deviceScaleFactor: 1.25, mobile: false});
       await step('layout in focus mode (1024x720 css px, x1.25): the editor does not overflow', async () => {
-        await nav('Tạo giọng đọc');
+        await nav('Tạo giọng đọc'); await openOptions();
         if (await focusButton().getAttribute('aria-pressed', {timeout: 5000}) !== 'true') await focusButton().click();
+        await page.keyboard.press('Escape'); // the panel closes and focus returns to "Tùy chọn"
         await page.locator('.studio-grid.focus-mode').waitFor({timeout: 5000});
         await page.waitForTimeout(400);
         const bad = await overflow();
@@ -714,21 +717,27 @@ try {
       await box.click(); await page.keyboard.press('Control+End');
       await page.keyboard.type(' Cứ do it đi.'); // English words go through sea-g2p's English engine in the bundled runtime
       const english = page.getByRole('checkbox', {name: 'Đọc từ tiếng Anh'});
+      await openOptions();
       await english.check();
+      await page.keyboard.press('Escape');
       await page.getByRole('button', {name: 'Chèn khoảng nghỉ 0,5 giây tại con trỏ'}).first().click();
       // Since 1.0.8 the pause button inserts like the emotion buttons: at the end of the text it adds a space after the tag.
       if (!/\[nghỉ 0\.5s\] ?$/.test(await box.inputValue())) throw Error(`pause mark missing: ${await box.inputValue()}`);
       await box.click(); // the speed select is in the inspector, which shows the selected segment
       await page.getByRole('combobox', {name: 'Tốc độ đọc đoạn 1'}).selectOption('1.1');
       const check = page.getByRole('checkbox', {name: 'Tự kiểm bằng Whisper'});
+      await openOptions();
       if (!(await check.isChecked())) await check.check();
+      await page.keyboard.press('Escape');
       await page.waitForTimeout(1500); // autosave
       const before = await done('tts');
       await page.getByRole('button', {name: 'Tạo take mới'}).first().click();
       const [job] = await waitJobs('tts', before + 1, 5 * 60000); // newest first
       if (job.payload.speed !== 1.1) throw Error(`speed not sent: ${JSON.stringify(job.payload)}`);
       if (!job.payload.text.includes('<en>it</en>')) throw Error(`English word not tagged: ${job.payload.text}`);
+      await openOptions();
       await english.uncheck(); // later phases measure takes without it
+      await page.keyboard.press('Escape');
       const takes = page.getByRole('combobox', {name: 'Take đang sử dụng'}); // a new take does not replace the chosen one
       await page.waitForTimeout(3000); // the take reaches the project on the next refresh
       await takes.selectOption({index: (await takes.locator('option').count()) - 1});
@@ -1833,16 +1842,18 @@ ConvertTo-Json -Compress -InputObject $items`));
       await nvdaStep('S9 focus mode', async (r) => {
         r.input = 'CDP: focus segment 1 textarea; OS ^+f (Ctrl+Shift+F, U8)';
         const toggle = page.getByRole('button', {name: 'Chế độ tập trung', exact: true});
+        // aria-pressed is read through the opened panel and Escape closes it again, so focus is set (or checked) after the read
+        const pressedNow = async () => { await openOptions(); const v = await toggle.getAttribute('aria-pressed', {timeout: 5000}); await page.keyboard.press('Escape'); return v; };
         await nav('Tạo giọng đọc');
         try {
-          if (await toggle.getAttribute('aria-pressed', {timeout: 5000}) !== 'false') throw Error('focus mode is already on (aria-pressed is not false)');
+          if (await pressedNow() !== 'false') throw Error('focus mode is already on (aria-pressed is not false)');
           await focus(segmentText(1));
           mark();
           osKeys('^+f');
           await hear(['Đã bật chế độ tập trung'], 5000);
-          if (await toggle.getAttribute('aria-pressed', {timeout: 5000}) !== 'true') throw Error('the announcement was heard but aria-pressed is not true');
+          if (await pressedNow() !== 'true') throw Error('the announcement was heard but aria-pressed is not true');
         } finally {
-          if (await toggle.getAttribute('aria-pressed', {timeout: 5000}).catch(() => 'false') === 'true') await toggle.click(); // the preference persists: back to off
+          if (await pressedNow().catch(() => 'false') === 'true') { await openOptions(); await toggle.click(); await page.keyboard.press('Escape'); } // the preference persists: back to off
         }
       }, {baselineExpectFail: true});
       await nvdaStep('S10 version history dialog', async (r) => {
@@ -1862,6 +1873,30 @@ ConvertTo-Json -Compress -InputObject $items`));
           await focusIs('Lịch sử phiên bản');
         } finally {
           if (await dialog.count()) await page.keyboard.press('Escape'); // a failed step must not leave the dialog open
+        }
+      }, {baselineExpectFail: true});
+      await nvdaStep('S11 options disclosure', async (r) => {
+        r.input = 'CDP: focus "Tùy chọn"; Enter; Tab; Escape';
+        const options = page.getByRole('button', {name: 'Tùy chọn', exact: true});
+        await nav('Tạo giọng đọc');
+        try {
+          mark();
+          await focus(options);
+          await hear([['Tùy chọn', 'button', 'collapsed']], 5000);
+          mark();
+          await page.keyboard.press('Enter');
+          await hear(['expanded'], 5000); // a state change on the focused button is announced without its name
+          await focusIs('Tùy chọn');
+          mark();
+          await page.keyboard.press('Tab');
+          await hear([['Chế độ tập trung', 'toggle button', 'not pressed']], 5000);
+          await focusIs('Chế độ tập trung');
+          mark();
+          await page.keyboard.press('Escape');
+          await hear([['Tùy chọn', 'collapsed']], 5000);
+          await focusIs('Tùy chọn');
+        } finally {
+          if (await options.getAttribute('aria-expanded', {timeout: 5000}).catch(() => 'false') === 'true') await options.click(); // a failed step must not leave the panel open
         }
       }, {baselineExpectFail: true});
     } finally {

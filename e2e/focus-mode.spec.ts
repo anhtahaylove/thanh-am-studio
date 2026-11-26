@@ -25,7 +25,10 @@ const open=async(page:Page,d:{width?:number;height?:number;stored?:string;reduce
  await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
  await expect(page.getByRole('textbox',{name:'Nội dung đoạn 12'})).toBeAttached();
 };
-const toggle=(page:Page)=>page.getByRole('button',{name:'Chế độ tập trung',exact:true});
+const options=(page:Page)=>page.getByRole('button',{name:'Tùy chọn',exact:true});
+const button=(page:Page)=>page.getByRole('button',{name:'Chế độ tập trung',exact:true});
+// The button sits in the hero's "Tùy chọn" panel, which closes on Escape, on a click elsewhere and when focus leaves it: toggle() opens it when it is closed, so a test reaches the button the way a user does.
+const toggle=async(page:Page)=>{if(await options(page).getAttribute('aria-expanded')!=='true')await options(page).click();return button(page);};
 const grid=(page:Page)=>page.locator('.studio-grid');
 const area=(page:Page,n:number)=>page.getByRole('textbox',{name:`Nội dung đoạn ${n}`,exact:true});
 const said=(page:Page,text:string)=>expect(page.locator('[aria-live=polite]').filter({hasText:text})).toHaveCount(1);
@@ -33,15 +36,15 @@ const stored=(page:Page)=>page.evaluate(()=>localStorage.getItem('thanh-am-focus
 
 test('the heading button, Ctrl+Shift+F and the palette each toggle focus mode, and each says so aloud',async({page})=>{
  await open(page);
- await expect(toggle(page)).toHaveAttribute('aria-pressed','false');await expect(toggle(page)).toHaveAttribute('title','Chế độ tập trung (Ctrl+Shift+F)');
- await toggle(page).click();
- await expect(toggle(page)).toHaveAttribute('aria-pressed','true');await expect(grid(page)).toHaveClass(/focus-mode/);await said(page,'Đã bật chế độ tập trung.');
+ await expect(await toggle(page)).toHaveAttribute('aria-pressed','false');await expect(await toggle(page)).toHaveAttribute('title','Chế độ tập trung (Ctrl+Shift+F)');
+ await (await toggle(page)).click();
+ await expect(await toggle(page)).toHaveAttribute('aria-pressed','true');await expect(grid(page)).toHaveClass(/focus-mode/);await said(page,'Đã bật chế độ tập trung.');
  await page.keyboard.press('Control+Shift+F');
- await expect(toggle(page)).toHaveAttribute('aria-pressed','false');await expect(grid(page)).not.toHaveClass(/focus-mode/);await said(page,'Đã tắt chế độ tập trung.');
+ await expect(await toggle(page)).toHaveAttribute('aria-pressed','false');await expect(grid(page)).not.toHaveClass(/focus-mode/);await said(page,'Đã tắt chế độ tập trung.');
  await page.keyboard.press('Control+k');
  const on=page.getByRole('option',{name:'Bật chế độ tập trung'});await expect(on).toBeVisible();await expect(page.getByRole('option',{name:'Tắt chế độ tập trung'})).toHaveCount(0);
  await on.click();
- await expect(grid(page)).toHaveClass(/focus-mode/);await expect(toggle(page)).toHaveAttribute('aria-pressed','true');await said(page,'Đã bật chế độ tập trung.');
+ await expect(grid(page)).toHaveClass(/focus-mode/);await expect(await toggle(page)).toHaveAttribute('aria-pressed','true');await said(page,'Đã bật chế độ tập trung.');
  await page.keyboard.press('Control+k');
  await page.getByRole('option',{name:'Tắt chế độ tập trung'}).click();
  await expect(grid(page)).not.toHaveClass(/focus-mode/);await said(page,'Đã tắt chế độ tập trung.');
@@ -51,8 +54,10 @@ test('Ctrl+Shift+F works while typing in a segment, types nothing and keeps the 
  await open(page);
  const box=area(page,3);await box.click();const before=await box.inputValue();
  await page.keyboard.press('Control+Shift+F');
- await expect(toggle(page)).toHaveAttribute('aria-pressed','true');await expect(box).toBeFocused();await expect(box).toHaveValue(before);
- await page.keyboard.press('Control+Shift+F');await expect(toggle(page)).toHaveAttribute('aria-pressed','false');await expect(box).toBeFocused();
+ await expect(box).toBeFocused();await expect(box).toHaveValue(before); // focus and text first: reading the button below opens the panel, which moves focus
+ await expect(await toggle(page)).toHaveAttribute('aria-pressed','true');await page.keyboard.press('Escape');await box.focus();
+ await page.keyboard.press('Control+Shift+F');await expect(box).toBeFocused();
+ await expect(await toggle(page)).toHaveAttribute('aria-pressed','false');await page.keyboard.press('Escape');
  await page.locator('main').click({position:{x:2,y:2}});await page.keyboard.press('?');
  const sheet=page.getByRole('dialog',{name:'Phím tắt'});
  await expect(sheet.getByText('Bật hoặc tắt chế độ tập trung',{exact:true})).toBeVisible();
@@ -64,21 +69,21 @@ test('Ctrl+Shift+F does nothing in a dialog or on another page',async({page})=>{
  await page.getByRole('button',{name:'Chép lời',exact:true}).click();
  await page.keyboard.press('Control+Shift+F');expect(await stored(page)).toBeNull();
  await page.getByRole('button',{name:'Tạo giọng đọc',exact:true}).click();
- await expect(toggle(page)).toHaveAttribute('aria-pressed','false');
+ await expect(await toggle(page)).toHaveAttribute('aria-pressed','false');
  await page.keyboard.press('Control+k');await expect(page.getByRole('dialog',{name:'Bảng lệnh'})).toBeVisible();
  await page.keyboard.press('Control+Shift+F');
  await expect(page.getByRole('dialog',{name:'Bảng lệnh'})).toBeVisible();expect(await stored(page)).toBeNull();
- await page.keyboard.press('Escape');await expect(toggle(page)).toHaveAttribute('aria-pressed','false');
+ await page.keyboard.press('Escape');await expect(await toggle(page)).toHaveAttribute('aria-pressed','false');
 });
 
 test('the choice is stored in thanh-am-focus and survives a reload',async({page})=>{
  await open(page);
- await toggle(page).click();expect(await stored(page)).toBe('1');
+ await (await toggle(page)).click();expect(await stored(page)).toBe('1');
  await page.reload();await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
- await expect(toggle(page)).toHaveAttribute('aria-pressed','true');await expect(grid(page)).toHaveClass(/focus-mode/);
- await toggle(page).click();expect(await stored(page)).toBe('0');
+ await expect(await toggle(page)).toHaveAttribute('aria-pressed','true');await expect(grid(page)).toHaveClass(/focus-mode/);
+ await (await toggle(page)).click();expect(await stored(page)).toBe('0');
  await page.reload();await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
- await expect(toggle(page)).toHaveAttribute('aria-pressed','false');
+ await expect(await toggle(page)).toHaveAttribute('aria-pressed','false');
 });
 
 test('a storage that refuses reads and writes leaves focus mode working for the session',async({page})=>{
@@ -88,21 +93,21 @@ test('a storage that refuses reads and writes leaves focus mode working for the 
   Storage.prototype.setItem=function(k:string,v:string){if(k==='thanh-am-focus')no();return set.call(this,k,v);};
  });
  await open(page);
- await expect(toggle(page)).toHaveAttribute('aria-pressed','false');
- await toggle(page).click();await expect(grid(page)).toHaveClass(/focus-mode/);await expect(toggle(page)).toHaveAttribute('aria-pressed','true');
+ await expect(await toggle(page)).toHaveAttribute('aria-pressed','false');
+ await (await toggle(page)).click();await expect(grid(page)).toHaveClass(/focus-mode/);await expect(await toggle(page)).toHaveAttribute('aria-pressed','true');
 });
 
 test('focus mode takes the inspector out of the layout and the accessibility tree, at wide and narrow widths',async({page})=>{
  await open(page);
  const aside=page.getByRole('complementary',{name:'Chi tiết đoạn'});
  await expect(aside).toBeVisible();await expect(page.getByRole('group',{name:'Giọng & tốc độ'})).toBeVisible();
- await toggle(page).click();
+ await (await toggle(page)).click();
  await expect(aside).toHaveCount(0);await expect(page.getByRole('group',{name:'Giọng & tốc độ'})).toHaveCount(0);await expect(page.getByRole('button',{name:'Từ điển phát âm'})).toHaveCount(0);
  await expect(page.locator('.inspector')).toBeHidden();
  await expect.poll(async()=>(await page.locator('.script-panel').boundingBox())!.width).toBeGreaterThan(1100); // the script takes the inspector's column too
  await page.setViewportSize({width:800,height:720});
  await expect(page.locator('.segment-detail')).toBeHidden();await expect(page.getByRole('group',{name:'Giọng & tốc độ'})).toHaveCount(0);await expect(page.getByRole('combobox',{name:'Giọng đoạn 1',exact:true})).toHaveCount(0);
- await toggle(page).click();
+ await (await toggle(page)).click();
  await expect(page.locator('.segment-detail')).toBeVisible();await expect(page.getByRole('combobox',{name:'Giọng đoạn 1',exact:true})).toBeVisible();
 });
 
@@ -121,7 +126,7 @@ test('Tab skips the toolbar and take controls of every row but the active one',a
  const plain=await walk();
  expect(plain.some(s=>s.toolbar&&!s.active),'without focus mode Tab reaches the toolbars of other rows').toBe(true);
  expect(plain.some(s=>s.take&&!s.active),'and their take buttons').toBe(true);
- await toggle(page).click();
+ await (await toggle(page)).click();
  const focused=await walk();
  expect(focused.filter(s=>(s.toolbar||s.take)&&!s.active),'focus mode: no stop in a toolbar or take button of an inactive row').toEqual([]);
  expect(focused.some(s=>s.toolbar&&s.active),'the active row keeps its toolbar').toBe(true);
@@ -129,7 +134,7 @@ test('Tab skips the toolbar and take controls of every row but the active one',a
 });
 
 test('the active row keeps its toolbar and take controls and the other rows show none',async({page})=>{
- await open(page);await toggle(page).click();
+ await open(page);await (await toggle(page)).click();
  await area(page,2).click();
  const row=(n:number)=>page.locator('.segment').nth(n-1);
  await expect(row(2)).toHaveClass(/selected/);
@@ -144,11 +149,11 @@ test('the text is set in the reading face: 19 px serif at 1.7, 17 px at 640 px a
  await open(page);
  const style=()=>area(page,1).evaluate(t=>{const c=getComputedStyle(t);return {family:c.fontFamily,size:c.fontSize,line:c.lineHeight};});
  expect((await style()).size).toBe('15px');
- await toggle(page).click();
+ await (await toggle(page)).click();
  let s=await style();expect(s.size).toBe('19px');expect(s.family).toContain('Palatino Linotype');expect(s.family).toContain('serif');expect(parseFloat(s.line)).toBeCloseTo(19*1.7,1);
  await page.setViewportSize({width:640,height:720});s=await style();expect(s.size).toBe('17px');expect(parseFloat(s.line)).toBeCloseTo(17*1.7,1);
  await page.setViewportSize({width:641,height:720});expect((await style()).size).toBe('19px');
- await toggle(page).click();await page.setViewportSize({width:1440,height:960});expect((await style()).size).toBe('15px');
+ await (await toggle(page)).click();await page.setViewportSize({width:1440,height:960});expect((await style()).size).toBe('15px');
 });
 
 for(const [width,height] of [[1440,960],[1024,720],[800,720],[641,720],[456,320]]){
@@ -191,7 +196,7 @@ test('turning it on with focus inside the in-row panel at 800 px moves focus to 
 
 test('with reduced motion focus mode animates nothing',async({page})=>{
  await open(page,{reduce:true});
- await toggle(page).click();await expect(grid(page)).toHaveClass(/focus-mode/);
+ await (await toggle(page)).click();await expect(grid(page)).toHaveClass(/focus-mode/);
  const motion=await page.evaluate(()=>['.studio-grid','.script-panel','.segment','.segment textarea','.segment-toolbar'].map(q=>{const c=getComputedStyle(document.querySelector(q)!);return [q,c.transitionDuration,c.animationName] as const;}));
  for(const [q,t,a] of motion){expect(t.split(',').every(d=>parseFloat(d)===0),`${q} transition ${t}`).toBe(true);expect(a,`${q} animation`).toBe('none');}
 });
@@ -199,10 +204,11 @@ test('with reduced motion focus mode animates nothing',async({page})=>{
 for(const width of [1440,800]){
  test(`"Chi tiết đoạn N" leaves focus mode and focuses the voice select at ${width} px`,async({page})=>{
   await open(page,{width,height:720,stored:'1'});
-  await expect(toggle(page)).toHaveAttribute('aria-pressed','true');
+  await expect(await toggle(page)).toHaveAttribute('aria-pressed','true');
   await page.getByRole('toolbar',{name:'Thao tác đoạn 1'}).getByRole('button',{name:'Chi tiết đoạn 1',exact:true}).click();
-  await expect(toggle(page)).toHaveAttribute('aria-pressed','false');await expect(grid(page)).not.toHaveClass(/focus-mode/);
+  await expect(grid(page)).not.toHaveClass(/focus-mode/);
   await expect(page.getByRole('combobox',{name:'Giọng đoạn 1',exact:true})).toBeFocused();
+  await expect(await toggle(page)).toHaveAttribute('aria-pressed','false'); // after the focus assert: reading it opens the panel
   await said(page,'Đã tắt chế độ tập trung.');expect(await stored(page)).toBe('0');
  });
 }
@@ -212,7 +218,7 @@ test('a held Ctrl+Shift+F toggles once: auto-repeat keydowns are ignored',async(
  await page.keyboard.down('Control');await page.keyboard.down('Shift');await page.keyboard.down('F');
  await page.keyboard.down('F'); // a key that is already down sends keydown with repeat:true: without the guard this second one toggles back
  await page.keyboard.up('F');await page.keyboard.up('Shift');await page.keyboard.up('Control');
- await expect(toggle(page)).toHaveAttribute('aria-pressed','true');
+ await expect(await toggle(page)).toHaveAttribute('aria-pressed','true');
 });
 
 test('the palette command opens the TTS page, where focus mode shows, from any other page',async({page})=>{
@@ -220,5 +226,5 @@ test('the palette command opens the TTS page, where focus mode shows, from any o
  await page.getByRole('button',{name:'Chép lời',exact:true}).click();await expect(page.getByRole('heading',{level:1})).toContainText('Chép lời');
  await page.keyboard.press('Control+k');await page.getByRole('option',{name:'Bật chế độ tập trung'}).click();
  await expect(page.getByRole('heading',{level:1})).toContainText('Tạo giọng đọc');
- await expect(toggle(page)).toHaveAttribute('aria-pressed','true');await expect(grid(page)).toHaveClass(/focus-mode/);
+ await expect(await toggle(page)).toHaveAttribute('aria-pressed','true');await expect(grid(page)).toHaveClass(/focus-mode/);
 });

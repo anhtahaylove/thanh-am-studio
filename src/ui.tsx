@@ -1,5 +1,5 @@
 import {useCallback,useEffect,useId,useLayoutEffect,useMemo,useRef,useState,useSyncExternalStore} from 'react';
-import {LoaderCircle,type LucideIcon} from 'lucide-react';
+import {ChevronDown,LoaderCircle,type LucideIcon} from 'lucide-react';
 import {desktop} from './bridge';
 import type {Segment} from './types';
 
@@ -42,6 +42,40 @@ export const whyBlocked={generateAll:(ttsBlock:string|null,count:number)=>ttsBlo
 export function Empty({icon:Icon,title,children}:{icon:LucideIcon;title:string;children:React.ReactNode}){return <div className="empty"><div className="empty-icon"><Icon size={30}/></div><h3>{title}</h3><p>{children}</p></div>;}
 // What is typed stays a draft until blur, Enter or Ctrl+S (which runs before the window's save handler), so a keystroke is never applied to (or appended after) a rejected value; Escape restores the stored value (and is then spent: the panel's own Escape, which leaves the field, takes the next one).
 export function NumberField({label,value,onChange,min=0,step=1,check}:{label:string;value:number;onChange:(n:number)=>void;min?:number;step?:number;check?:(n:number)=>string|null}){const [draft,setDraft]=useState<string|null>(null),hint=useId();const n=Number(draft),problem=draft===null?null:draft.trim()===''||!Number.isFinite(n)?'Nhập một số.':n<min?`Từ ${min.toLocaleString('vi-VN')} trở lên.`:check?.(n)??null;const commit=()=>{if(draft===null||problem)return;if(n!==value)onChange(n);setDraft(null);};return <label className="field">{label}<input type="number" min={min} step={step} value={draft??value} aria-invalid={problem?true:undefined} aria-describedby={problem?hint:undefined} onChange={e=>setDraft(e.target.value)} onBlur={commit} onKeyDown={e=>{if(e.key==='Enter'||(e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s')commit();else if(e.key==='Escape'&&draft!==null){e.preventDefault();setDraft(null);}}}/>{problem&&<small id={hint} className="field-error" aria-hidden="true">{problem}</small>}</label>;}
+/** The house overflow control: a button that opens a small panel under it. Kind `menu` (`aria-haspopup="menu"`, a `role="menu"` panel, `role="menuitem"` buttons with roving focus: ArrowUp/Down and Home/End move, Tab leaves)
+ *  is for actions and closes after one; an `aria-disabled` item does nothing, and an item that moves focus on purpose keeps it. Kind `disclosure` (`aria-controls`, no menu roles) is for native controls
+ *  (checkboxes, a pressed toggle) that Tab walks through and that keep the panel open. Escape closes and returns focus to the button; so does a click outside when focus was inside the panel and would otherwise be lost;
+ *  Tab out of the panel closes it, but focus moving into a modal does not (the modal gives focus back to the option that opened it). The panel element is always there (hidden when closed) so `aria-controls`
+ *  always resolves; its children exist only while it is open. */
+export function MenuButton({kind,label,className='quiet',children}:{kind:'menu'|'disclosure';label:string;className?:string;children:React.ReactNode}){
+ const [open,setOpen]=useState(false),root=useRef<HTMLDivElement>(null),button=useRef<HTMLButtonElement>(null),from=useRef<'first'|'last'>('first'),id=useId();
+ const items=()=>[...root.current!.querySelectorAll<HTMLElement>('[role=menuitem]:not(:disabled)')];
+ useEffect(()=>{
+  if(!open)return;
+  const down=(e:MouseEvent)=>{
+   if(root.current!.contains(e.target as Node)||(e.target as Element).closest?.('[aria-modal="true"]'))return; // a click inside a dialog opened from an option is not outside
+   const had=root.current!.contains(document.activeElement);setOpen(false);
+   if(had)requestAnimationFrame(()=>{if(document.activeElement===document.body)button.current?.focus();}); // the click moved focus to nothing
+  };
+  document.addEventListener('mousedown',down);return()=>document.removeEventListener('mousedown',down);
+ },[open]);
+ useEffect(()=>{if(open&&kind==='menu')items().forEach(i=>{i.tabIndex=-1;});}); // roving focus: the arrows move between items, Tab leaves the menu
+ useEffect(()=>{if(open&&kind==='menu'){const list=items();list[from.current==='last'?list.length-1:0]?.focus();}from.current='first';},[open,kind]);
+ const key=(e:React.KeyboardEvent)=>{
+  if(e.key==='Escape'&&open&&!e.nativeEvent.isComposing){e.preventDefault();e.stopPropagation();setOpen(false);button.current?.focus();return;}
+  if(kind!=='menu'||!['ArrowDown','ArrowUp','Home','End'].includes(e.key)||e.altKey||e.ctrlKey||e.metaKey)return;
+  e.preventDefault();if(!open){from.current=e.key==='ArrowUp'?'last':'first';setOpen(true);return;}
+  const list=items(),at=list.indexOf(document.activeElement as HTMLElement),last=list.length-1;
+  list[e.key==='Home'?0:e.key==='End'?last:e.key==='ArrowDown'?(at<last?at+1:0):(at>0?at-1:last)]?.focus();
+ };
+ return <div className="menu-wrap" ref={root} onKeyDown={key} onBlur={e=>{const to=e.relatedTarget as Element|null;if(open&&to&&!root.current!.contains(to)&&!to.closest('[aria-modal="true"]'))setOpen(false);}}>
+  <button ref={button} type="button" className={className} aria-expanded={open} aria-controls={id} aria-haspopup={kind==='menu'?'menu':undefined} onClick={()=>setOpen(o=>!o)}>{label}<ChevronDown size={14} className="menu-caret"/></button>
+  <div id={id} className="menu-panel" hidden={!open} role={kind==='menu'?'menu':undefined} aria-label={kind==='menu'?label:undefined} onClick={e=>{
+   if(kind!=='menu'||!(e.target as HTMLElement).closest('[role=menuitem]:not([aria-disabled=true])'))return;
+   const had=root.current!.contains(document.activeElement);setOpen(false);if(had)button.current?.focus(); // an item that moved focus elsewhere keeps it
+  }}>{open&&children}</div>
+ </div>;
+}
 /** Roving focus for an ARIA toolbar: ←/→ (wrapping), Home and End move focus between its buttons and skip natively disabled ones; an item marked `aria-disabled` stays reachable.
  *  The caller keeps `tabIndex` 0 on the item that last had focus and -1 on the rest, so Tab leaves the toolbar. */
 export function rovingKeyDown(e:React.KeyboardEvent,container:HTMLElement){

@@ -8,7 +8,7 @@ const CAST='Mai: Chào anh.\nHùng – Chào em.';
 const emptyScript=async(page:Page)=>{await page.goto('/');await expect(page.getByRole('button',{name:'Viết đoạn đầu tiên'})).toBeVisible();};
 
 test('on the empty script, a cast pasted into a field other than a segment is left to the browser',async({page})=>{
- await emptyScript(page);
+ await emptyScript(page);await page.getByRole('button',{name:'Tùy chọn',exact:true}).click();
  expect(await paste(page.getByRole('checkbox',{name:/^Đọc từ tiếng Anh/}),CAST)).toBe(true);
  await expect(page.getByRole('button',{name:'Viết đoạn đầu tiên'})).toBeVisible();await expect(dialog(page)).toHaveCount(0);
 });
