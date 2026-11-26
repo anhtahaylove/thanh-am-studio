@@ -30,10 +30,11 @@ const countRenders=():void=>{
  };
  w.__REACT_DEVTOOLS_GLOBAL_HOOK__={supportsFiber:true,renderers:new Map(),inject(r:any){const id=this.renderers.size+1;this.renderers.set(id,r);return id;},onCommitFiberRoot(_:number,root:any){if(root.current.alternate)walk(root.current,root.current.alternate);},onCommitFiberUnmount(){},onPostCommitFiberRoot(){},checkDCE(){}};
 };
-const open=async(page:Page,width=1440,live=false)=>{
+const open=async(page:Page,width=1440,live=false,tuning=true)=>{
  await page.setViewportSize({width,height:900});if(live)await page.addInitScript(countRenders);await page.addInitScript(mock,{project:FIXTURE,live});await page.goto('/');
  await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
  await expect(page.getByRole('textbox',{name:'Nội dung đoạn 12'})).toBeVisible();
+ if(tuning)await page.getByText('Chỉnh âm',{exact:true}).click(); // "Chỉnh âm" holds the fields most of these tests use; the one test about it opens it itself
 };
 const seg=(page:Page,n:number)=>page.locator('.segment').nth(n-1);
 const area=(page:Page,n:number)=>page.getByRole('textbox',{name:`Nội dung đoạn ${n}`,exact:true});
@@ -85,6 +86,25 @@ test('with no take the inspector says so and shows no take or trim field; with o
  await expect(page.getByText('Tạo lại không thay thế take đang chọn.')).toBeVisible();
 });
 
+test('inspector shows voice, speed, take; Chỉnh âm holds the same fields and values',async({page})=>{
+ await open(page,1440,false,false);await pick(page,6);
+ const inspector=page.locator('.inspector'),tuning=inspector.locator('details',{has:page.locator('summary',{hasText:'Chỉnh âm'})});
+ const labels=['Chương','Nghỉ sau (ms)','Âm lượng (dB)','Cắt đầu (ms)','Cắt cuối (ms)','To dần (ms)','Nhỏ dần (ms)'];
+ await expect(inspector.getByRole('combobox',{name:'Giọng đoạn 6',exact:true})).toBeVisible();await expect(inspector.getByRole('combobox',{name:'Tốc độ đọc đoạn 6',exact:true})).toBeVisible();
+ await expect(inspector.getByRole('combobox',{name:'Take đang sử dụng'})).toBeVisible();
+ await expect(tuning).toHaveCount(1);await expect(tuning).toHaveJSProperty('open',false); // closed until asked for
+ const s=JSON.parse(FIXTURE).segments[5],take=s.takes.find((t:{id:string})=>t.id===s.selected_take_id);
+ const expected=[s.chapter??'',s.gap_ms,s.gain_db,s.trim_start_ms,s.trim_end_ms??take.duration_ms,s.fade_in_ms,s.fade_out_ms].map(String); // segment 6's stored values, in the order of the labels
+ const before:string[]=[];for(const label of labels){const field=tuning.getByLabel(label,{exact:true});await expect(field,label).toBeHidden();before.push(await field.inputValue());}
+ await expect(inspector.getByLabel('Chương',{exact:true})).toHaveCount(1);
+ await tuning.locator('summary').click();await expect(tuning).toHaveJSProperty('open',true);
+ for(const [i,label] of labels.entries()){const field=tuning.getByLabel(label,{exact:true});await expect(field,label).toBeVisible();await expect(field,label).toHaveValue(before[i]);await expect(field,label).toHaveValue(expected[i]);}
+ await expect(tuning.getByLabel('Nghỉ sau (ms)',{exact:true})).toHaveValue('300');
+ await pick(page,9);await expect(tuning).toHaveJSProperty('open',true); // the open state is kept for the session, like "Văn bản sau chuẩn hóa"
+ await pick(page,3);await expect(tuning.getByLabel('Âm lượng (dB)',{exact:true})).toHaveCount(0);await expect(tuning.getByLabel('Nghỉ sau (ms)',{exact:true})).toBeVisible(); // no take: only the fields that apply before one exists
+ await tuning.locator('summary').click();await expect(tuning).toHaveJSProperty('open',false);await pick(page,6);await expect(tuning).toHaveJSProperty('open',false);
+});
+
 test('the panel is in the aside beside the script and inside the selected row at 920 px and below, never twice',async({page})=>{
  await open(page);await pick(page,6);
  await expect(panel(page)).toHaveCount(1);await expect(page.locator('.inspector .segment-detail')).toHaveCount(1);
@@ -134,7 +154,7 @@ for(const theme of ['light','dark'])test(`the panel's legend, labels and hints h
   await open(page,width);await pick(page,3); // no take: its hint is the note
   const pairs=await page.evaluate(()=>{const bgOf=(el:Element)=>{let bg='',e:Element|null=el;while(e&&(!bg||bg==='rgba(0, 0, 0, 0)')){bg=getComputedStyle(e).backgroundColor;e=e.parentElement;}return bg;};
    const p=document.querySelector('.segment-detail')!;
-   return [p.querySelector('legend')!,p.querySelector('label.field')!,p.querySelector('.hint')!,p.querySelector('h3')!,p.querySelector('summary')!].map(e=>({n:e.tagName,fg:getComputedStyle(e).color,bg:bgOf(e)}));});
+   return [p.querySelector('legend')!,p.querySelector('label.field')!,p.querySelector('.hint')!,p.querySelector('h3')!,p.querySelector('.normalization>summary')!,p.querySelector('.tuning>summary')!].map(e=>({n:e.tagName,fg:getComputedStyle(e).color,bg:bgOf(e)}));});
   for(const q of pairs){const a=lum(q.fg),b=lum(q.bg);expect((Math.max(a,b)+.05)/(Math.min(a,b)+.05),`${q.n} ${q.fg} on ${q.bg}, ${width}, ${theme}`).toBeGreaterThanOrEqual(4.5);}
  }
 });
@@ -251,7 +271,7 @@ test('the normalized text in the panel follows the app dictionary while it is op
 });
 
 test('crossing 920 px with focus on the "Văn bản sau chuẩn hóa" summary keeps focus on it',async({page})=>{
- await open(page,1000);await pick(page,5);const summary=()=>page.locator('.segment-detail summary');
+ await open(page,1000);await pick(page,5);const summary=()=>page.locator('.segment-detail summary',{hasText:'Văn bản sau chuẩn hóa'});
  await summary().focus();await expect(summary()).toBeFocused();
  await page.setViewportSize({width:800,height:900});await expect(seg(page,5).locator('.segment-detail')).toHaveCount(1);await expect(summary()).toBeFocused();
  await page.setViewportSize({width:1000,height:900});await expect(page.locator('.inspector .segment-detail')).toHaveCount(1);await expect(summary()).toBeFocused();

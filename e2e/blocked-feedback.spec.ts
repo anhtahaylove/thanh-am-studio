@@ -131,7 +131,7 @@ test('the bubble follows the focused control: Ctrl+Z unblocks "Tạo giọng" an
 });
 
 test('an enabled control with a description shows no bubble: "Nghỉ sau (ms)" holding an invalid value',async({page})=>{
- await desktop(page,FIXTURE.segments);
+ await desktop(page,FIXTURE.segments);await page.getByText('Chỉnh âm',{exact:true}).click();
  const field=page.getByLabel('Nghỉ sau (ms)');await field.fill('-5');await expect(field).toHaveAccessibleDescription(/trở lên/);
  await page.keyboard.press('Tab');await field.focus();await settle(page); // a fresh focusin on the field, which keeps its draft and description
  await expect(field).toBeFocused();await expect(field).toHaveAccessibleDescription(/trở lên/);await expect(bubble(page)).toHaveCount(0);

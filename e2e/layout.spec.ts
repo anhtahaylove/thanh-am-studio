@@ -22,7 +22,7 @@ const pages:[string,string][]=[['Tạo giọng đọc','.segment'],['Chép lời
 const open=async(page:Page,width:number,height:number)=>{
  await page.setViewportSize({width,height});await page.addInitScript(mock);await page.goto('/');
  await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
- await expect(page.getByRole('textbox',{name:/^Nội dung đoạn/})).toHaveCount(12);
+ await expect(page.getByRole('textbox',{name:/^Nội dung đoạn/})).toHaveCount(12);await page.getByText('Chỉnh âm',{exact:true}).click(); // the tuning group stays open, so its fields keep the size, border and ellipsis checks they had
 };
 const nav=(page:Page,name:string)=>page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:new RegExp('^'+name)}).click();
 test('the export action stays on screen and the page is the only scroller',async({page})=>{

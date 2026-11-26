@@ -97,6 +97,7 @@ const scenarios:Record<string,(page:Page)=>Promise<void>>={
  },
  'edit (e): every inspector field of a segment, then export as MP3 without "Chuẩn hóa"':async page=>{
   await pick(page,2); // its trim end is unset
+  await page.getByText('Chỉnh âm',{exact:true}).click();
   await page.getByRole('textbox',{name:'Chương',exact:true}).fill('Chương 1b');
   for(const [label,value] of [['Nghỉ sau (ms)','750'],['Âm lượng (dB)','-4.5'],['Cắt đầu (ms)','120'],['Cắt cuối (ms)','0'],['To dần (ms)','35'],['Nhỏ dần (ms)','90']])await type(page,label,value);
   await pick(page,4);await page.getByRole('textbox',{name:'Chương',exact:true}).fill(''); // a cleared chapter is null, not ''
