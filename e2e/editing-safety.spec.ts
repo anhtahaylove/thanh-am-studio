@@ -31,7 +31,7 @@ test('moving focus into a segment selects it, so the inspector follows the keybo
  const segments=page.locator('article.segment');await page.getByRole('textbox',{name:'Nội dung đoạn 2'}).click();await expect(segments.nth(1)).toHaveClass(/selected/);
  await page.getByRole('textbox',{name:'Nội dung đoạn 3'}).focus();await expect(segments.nth(2)).toHaveClass(/selected/);await expect(segments.nth(1)).not.toHaveClass(/selected/);
  // A mouse click on a button of another segment must still act: selecting on mouse focus would move the emotion bar under the pointer.
- await page.getByRole('textbox',{name:'Nội dung đoạn 1'}).click();await segments.nth(2).getByRole('button',{name:'Đưa đoạn lên'}).click();
+ await page.getByRole('textbox',{name:'Nội dung đoạn 1'}).click();await segments.nth(2).getByRole('button',{name:'Thao tác khác cho đoạn 3'}).click();await segments.nth(2).getByRole('menuitem',{name:'Đưa đoạn lên'}).click();
  await expect(page.getByRole('textbox',{name:'Nội dung đoạn 2'})).toHaveValue('Ba.');await expect(page.getByRole('textbox',{name:'Nội dung đoạn 3'})).toHaveValue('Hai.');
  const third=page.getByRole('textbox',{name:'Nội dung đoạn 3'});await page.getByRole('textbox',{name:'Nội dung đoạn 1'}).click();await third.click();await expect(segments.nth(2)).toHaveClass(/selected/);
  expect(await third.evaluate((el:HTMLTextAreaElement)=>el.selectionStart===el.selectionEnd)).toBe(true);

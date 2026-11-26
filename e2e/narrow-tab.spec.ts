@@ -37,7 +37,7 @@ test('at 800 px, Tab from the text of segment 2 to the text of segment 4 makes 6
  const stops:{name:string;row:number;panel:boolean}[]=[];
  for(let i=0;i<60&&stops.at(-1)?.name!=='Nội dung đoạn 4';i++){await page.keyboard.press('Tab');stops.push(await focused(page));}
  const past=stops.filter(s=>s.row>2);
- expect(past.map(s=>s.name),JSON.stringify(stops)).toEqual(['Nhân vật đoạn 3','Chia đoạn tại con trỏ','Nội dung đoạn 3','Nhân vật đoạn 4','Chia đoạn tại con trỏ','Nội dung đoạn 4']);
+ expect(past.map(s=>s.name),JSON.stringify(stops)).toEqual(['Nhân vật đoạn 3','Tạo giọng','Nội dung đoạn 3','Nhân vật đoạn 4','Tạo giọng','Nội dung đoạn 4']);
  expect(past.every(s=>!s.panel)).toBe(true);
  await expect(seg(page,2)).toHaveClass(/selected/);await expect(page.locator('.segment-detail')).toHaveCount(1);await expect(seg(page,2).locator('.segment-detail')).toHaveCount(1);
 });

@@ -90,7 +90,8 @@ test('with VieNeu missing, Ctrl+Enter gives the model reason, and editing the te
 
 for(const theme of ['light','dark'] as const)test(`a focused blocked control shows its reason in a readable bubble that no panel clips: "Đưa đoạn lên" and the dock's "Xuất audio", ${theme}`,async({page})=>{
  await preview(page,theme);
- await seg(page,1).getByRole('button',{name:'Đưa đoạn lên'}).focus();
+ await seg(page,1).getByRole('button',{name:'Thao tác khác cho đoạn 1',exact:true}).click();
+ await seg(page,1).getByRole('menuitem',{name:'Đưa đoạn lên'}).focus();
  await readable(page,'Đây là đoạn đầu tiên','"Đưa đoạn lên" of segment 1');
  const exportAudio=page.getByRole('button',{name:'Xuất audio',exact:true});
  await expect(exportAudio).toHaveAttribute('aria-disabled','true');await expect(exportAudio).toHaveAccessibleDescription('Cần bản desktop để xuất audio');

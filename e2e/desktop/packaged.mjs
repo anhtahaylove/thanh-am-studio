@@ -714,7 +714,8 @@ try {
       await openOptions();
       await english.check();
       await page.keyboard.press('Escape');
-      await page.getByRole('button', {name: 'Chèn khoảng nghỉ 0,5 giây tại con trỏ'}).first().click();
+      await page.getByRole('button', {name: 'Thao tác khác cho đoạn 1', exact: true}).click(); // the pause mark is an item of the segment menu since 1.0.26
+      await page.getByRole('menuitem', {name: 'Chèn khoảng nghỉ 0,5 giây tại con trỏ', exact: true}).click();
       // Since 1.0.8 the pause button inserts like the emotion buttons: at the end of the text it adds a space after the tag.
       if (!/\[nghỉ 0\.5s\] ?$/.test(await box.inputValue())) throw Error(`pause mark missing: ${await box.inputValue()}`);
       await box.click(); // the speed select is in the inspector, which shows the selected segment
@@ -1678,16 +1679,35 @@ ConvertTo-Json -Compress -InputObject $items`));
         await focusIs('Xuất audio');
       });
       await nvdaStep('S2 toolbar', async (r) => {
-        r.input = 'CDP: focus segment 1 textarea, Shift+Tab; ArrowRight x3';
+        r.input = 'CDP: focus segment 1 textarea, Shift+Tab; ArrowRight x3; Enter; ArrowDown x3; Escape';
+        const more = page.getByRole('button', {name: 'Thao tác khác cho đoạn 1', exact: true});
         await focus(segmentText(1));
-        mark();
-        await page.keyboard.press('Shift+Tab');
-        await hear([['Thao tác đoạn 1', 'tool bar'], ['Chia đoạn tại con trỏ', 'button']], 5000); // NVDA's role label is "tool bar"
-        await focusIs('Chia đoạn tại con trỏ');
-        mark();
-        for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowRight');
-        await hear([['Đưa đoạn lên', 'unavailable', 'Đây là đoạn đầu tiên']], 5000);
-        await focusIs('Đưa đoạn lên');
+        try {
+          mark();
+          await page.keyboard.press('Shift+Tab');
+          await hear([['Thao tác đoạn 1', 'tool bar'], ['Tạo giọng', 'button']], 5000); // NVDA's role label is "tool bar"; segment 1 has no take, so the first button is "Tạo giọng"
+          await focusIs('Tạo giọng');
+          mark();
+          for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowRight'); // Chi tiết đoạn 1, Xóa đoạn, the menu button
+          await hear([['Thao tác khác cho đoạn 1', 'collapsed']], 5000);
+          await focusIs('Thao tác khác cho đoạn 1');
+          mark();
+          await page.keyboard.press('Enter'); // opens the menu and moves focus to its first item, which is a focus change, so the name is spoken
+          await hear([['Chia đoạn tại con trỏ', 'menu item']], 5000);
+          await focusIs('Chia đoạn tại con trỏ');
+          mark();
+          for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowDown');
+          await hear([['Đưa đoạn lên', 'unavailable', 'Đây là đoạn đầu tiên']], 5000); // the first segment cannot move up: the item stays focusable and says why
+          // A blocked item's reason is a hidden child, so its text is more than its name: compare the item's own text.
+          const now = await page.evaluate(() => { const a = document.activeElement; return [a?.getAttribute('role'), a?.getAttribute('aria-disabled'), [...(a?.childNodes ?? [])].filter((n) => n.nodeType === 3).map((n) => n.textContent).join('')].join('|'); });
+          if (now !== 'menuitem|true|Đưa đoạn lên') throw Error('CDP focus is on ' + now + ', not on the disabled item "Đưa đoạn lên"');
+          mark();
+          await page.keyboard.press('Escape');
+          await hear([['Thao tác khác cho đoạn 1', 'collapsed']], 5000); // focus goes back to the button, which is a focus change
+          await focusIs('Thao tác khác cho đoạn 1');
+        } finally {
+          if (await more.getAttribute('aria-expanded', {timeout: 5000}).catch(() => 'false') === 'true') await more.click(); // a failed step must not leave the menu open
+        }
       });
       await nvdaStep('S3 blocked Ctrl+Enter', async (r) => {
         r.input = 'CDP: focus segment 3 textarea (empty), Ctrl+Enter';
@@ -1697,10 +1717,11 @@ ConvertTo-Json -Compress -InputObject $items`));
         await hear(['Chưa tạo giọng được: Đoạn này chưa có nội dung'], 5000);
       }, {baselineExpectFail: true});
       await nvdaStep('S4 inspector and Esc', async (r) => {
-        r.input = 'CDP: focus segment 1 toolbar, End, Enter; Escape';
+        r.input = 'CDP: focus segment 1 toolbar, Home, ArrowRight, Enter; Escape';
         await focus(page.getByRole('toolbar', {name: 'Thao tác đoạn 1'}).locator('button[tabindex="0"]'));
+        await page.keyboard.press('Home');
         mark();
-        await page.keyboard.press('End');
+        await page.keyboard.press('ArrowRight'); // Tạo giọng, then Chi tiết đoạn 1
         await hear([['Chi tiết đoạn 1', 'button']], 5000);
         await focusIs('Chi tiết đoạn 1');
         mark();

@@ -56,7 +56,7 @@ test('merging into a segment that already has audio no longer asks, says what ha
  let dialogs=0;page.on('dialog',d=>{dialogs++;void d.dismiss();});
  await page.addInitScript(seedWithTake);await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
  await expect(page.getByRole('textbox',{name:'Nội dung đoạn 2'})).toHaveValue('Câu hai.');await expect(page.getByText('1 take',{exact:true})).toHaveCount(1);
- await page.getByRole('button',{name:'Gộp với đoạn sau'}).first().click();
+ await page.getByRole('button',{name:'Thao tác khác cho đoạn 1',exact:true}).click();await page.getByRole('menuitem',{name:'Gộp với đoạn sau'}).click();
  await expect(page.getByRole('textbox',{name:'Nội dung đoạn 2'})).toHaveCount(0);await expect(page.getByText('1 take',{exact:true})).toHaveCount(0);
  const toast=page.locator('.toast');await expect(toast).toContainText('Đã gộp đoạn 1 và 2');await expect(toast).toContainText('file audio vẫn còn trên đĩa');
  await toast.getByRole('button',{name:'Hoàn tác',exact:true}).click();

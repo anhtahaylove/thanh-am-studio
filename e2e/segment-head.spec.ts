@@ -63,7 +63,7 @@ test('at 1024x720, Tab walks the head of segment 2 in reading order: down a line
   const s=await page.evaluate(()=>{const a=document.activeElement as HTMLElement;if(!a.closest('.segment-head'))return null;const r=a.getBoundingClientRect();return {name:a.getAttribute('aria-label')??a.textContent??'',top:r.top,bottom:r.bottom,left:r.left};});
   if(!s)break;stops.push(s);
  }
- expect(stops.map(s=>s.name)).toEqual(['Khớp kịch bản','Chia đoạn tại con trỏ']);
+ expect(stops.map(s=>s.name)).toEqual(['Khớp kịch bản','Tạo take mới']);
  for(let i=1;i<stops.length;i++){
   const a=stops[i-1],b=stops[i],sameLine=b.top<a.bottom&&a.top<b.bottom;
   if(sameLine)expect(b.left,`${b.name} is right of ${a.name}`).toBeGreaterThan(a.left);else expect(b.top,`${b.name} is on a line below ${a.name}`).toBeGreaterThanOrEqual(a.bottom-1);

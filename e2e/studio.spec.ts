@@ -14,7 +14,7 @@ test('script import, dictionary and segment controls remain functional',async({p
  await page.goto('/');await page.getByRole('button',{name:'Thêm nội dung',exact:true}).click();await page.getByRole('textbox',{name:'Nội dung cần thêm'}).fill('Xin chào TP.HCM\nChúng ta kể chuyện.');await page.getByRole('button',{name:/^Thêm \d+ đoạn vào kịch bản$/}).click();
  await expect(page.getByRole('textbox',{name:'Nội dung đoạn 2'})).toHaveValue('Chúng ta kể chuyện.');await page.getByRole('button',{name:'Từ điển phát âm'}).click();await page.getByRole('textbox',{name:'Từ gốc',exact:true}).fill('TP.HCM');await page.getByRole('textbox',{name:'Cách đọc',exact:true}).fill('Thành phố Hồ Chí Minh');await page.getByRole('button',{name:'Thêm cách đọc'}).click();
  await page.getByText('Văn bản sau chuẩn hóa',{exact:true}).click();await expect(page.locator('.normalization p')).toHaveText('Xin chào Thành phố Hồ Chí Minh (Từ điển phát âm: “TP.HCM” → “Thành phố Hồ Chí Minh”)');await expect(page.locator('.normalization p')).toBeVisible();
- await page.getByRole('button',{name:'Đưa đoạn xuống',exact:true}).first().click();await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toHaveValue('Chúng ta kể chuyện.');
+ await page.getByRole('button',{name:'Thao tác khác cho đoạn 1',exact:true}).click();await page.getByRole('menuitem',{name:'Đưa đoạn xuống',exact:true}).click();await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toHaveValue('Chúng ta kể chuyện.');
 });
 test('Escape closes the add-content dialog and keeps what was typed',async({page})=>{
  await page.goto('/');const open=page.getByRole('button',{name:'Thêm nội dung',exact:true}),dialog=page.getByRole('dialog',{name:'Thêm nội dung'}),box=page.getByRole('textbox',{name:'Nội dung cần thêm'});
@@ -39,9 +39,9 @@ test('app dictionary persists, applies to every project and loses to the project
 test('speaker panel, split, merge and undo/redo edit the script',async({page})=>{
  await page.goto('/');await page.getByRole('button',{name:'Thêm nội dung',exact:true}).click();await page.getByRole('textbox',{name:'Nội dung cần thêm'}).fill('Câu một. Câu hai.\nDòng sau.');await page.getByRole('button',{name:/^Thêm \d+ đoạn vào kịch bản$/}).click();
  await expect(page.getByRole('combobox',{name:'Giọng của Người dẫn'})).toBeVisible();
- await page.getByRole('button',{name:'Chia đoạn tại con trỏ'}).first().click();
+ await page.getByRole('button',{name:'Thao tác khác cho đoạn 1',exact:true}).click();await page.getByRole('menuitem',{name:'Chia đoạn tại con trỏ'}).click();
  await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toHaveValue('Câu một.');await expect(page.getByRole('textbox',{name:'Nội dung đoạn 2'})).toHaveValue('Câu hai.');await expect(page.getByRole('textbox',{name:'Nội dung đoạn 3'})).toHaveValue('Dòng sau.');
- await page.getByRole('button',{name:'Gộp với đoạn sau'}).first().click();await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toHaveValue('Câu một. Câu hai.');await expect(page.getByRole('textbox',{name:'Nội dung đoạn 2'})).toHaveValue('Dòng sau.');
+ await page.getByRole('button',{name:'Thao tác khác cho đoạn 1',exact:true}).click();await page.getByRole('menuitem',{name:'Gộp với đoạn sau'}).click();await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toHaveValue('Câu một. Câu hai.');await expect(page.getByRole('textbox',{name:'Nội dung đoạn 2'})).toHaveValue('Dòng sau.');
  await page.keyboard.press('Control+z');await expect(page.getByRole('textbox',{name:'Nội dung đoạn 3'})).toHaveValue('Dòng sau.');
  await page.keyboard.press('Control+Shift+z');await expect(page.getByRole('textbox',{name:'Nội dung đoạn 2'})).toHaveValue('Dòng sau.');
  await page.getByRole('button',{name:'Hoàn tác (Ctrl+Z)'}).click();await expect(page.getByRole('textbox',{name:'Nội dung đoạn 3'})).toBeVisible();await expect(page.getByRole('button',{name:'Làm lại (Ctrl+Shift+Z)'})).toBeEnabled();
@@ -63,7 +63,7 @@ test('transcript find and replace changes every match in one undo step',async({p
 test('a pause mark is inserted at the cursor',async({page})=>{
  await page.goto('/');await page.getByRole('button',{name:'Thêm nội dung',exact:true}).click();await page.getByRole('textbox',{name:'Nội dung cần thêm'}).fill('Câu một. Câu hai.');await page.getByRole('button',{name:/^Thêm \d+ đoạn vào kịch bản$/}).click();
  const box=page.getByRole('textbox',{name:'Nội dung đoạn 1'});await box.click();await page.keyboard.press('Control+Home');for(let i=0;i<8;i++)await page.keyboard.press('ArrowRight');
- await page.getByRole('button',{name:'Chèn khoảng nghỉ 0,5 giây tại con trỏ'}).click();await expect(box).toHaveValue('Câu một. [nghỉ 0.5s] Câu hai.');
+ await page.getByRole('button',{name:'Thao tác khác cho đoạn 1',exact:true}).click();await page.getByRole('menuitem',{name:'Chèn khoảng nghỉ 0,5 giây tại con trỏ'}).click();await expect(box).toHaveValue('Câu một. [nghỉ 0.5s] Câu hai.');
 });
 test('project dictionary imports a semicolon CSV in one undo step and exports it with a BOM',async({page})=>{
  await page.goto('/');await page.getByRole('button',{name:'Từ điển phát âm'}).click();await expect(page.getByRole('button',{name:'Xuất CSV'})).toBeDisabled();
