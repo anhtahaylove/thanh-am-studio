@@ -19,6 +19,16 @@ test('deleting a segment happens at once with no dialog, and the toast Undo brin
  await expect(first).toHaveValue('Câu một.');await expect(page.getByRole('textbox',{name:'Nội dung đoạn 2'})).toHaveValue('Câu hai.');await expect(toast).toHaveCount(0);
  expect(dialogs).toBe(0);
 });
+// Undo of a delete puts the user back on the segment it restored: selected, with its text box focused, wide or narrow.
+for(const width of [900,1440])test(`the toast Undo of a delete reselects and focuses the restored segment at ${width}px`,async({page})=>{
+ await page.setViewportSize({width,height:1000});
+ await addTwo(page);const toast=page.locator('.toast');
+ await page.getByRole('button',{name:'Xóa đoạn',exact:true}).first().click();await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toHaveValue('Câu hai.');
+ await toast.getByRole('button',{name:'Hoàn tác',exact:true}).click();
+ const first=page.getByRole('textbox',{name:'Nội dung đoạn 1'});
+ await expect(first).toHaveValue('Câu một.');await expect(first).toBeFocused();
+ await expect(page.locator('article.segment.selected textarea')).toHaveValue('Câu một.');
+});
 test('Ctrl+Z still undoes the delete and retires the toast; a later edit retires it too',async({page})=>{
  await addTwo(page);const toast=page.locator('.toast'),first=page.getByRole('textbox',{name:'Nội dung đoạn 1'});
  await page.getByRole('button',{name:'Xóa đoạn',exact:true}).first().click();await expect(toast).toBeVisible();

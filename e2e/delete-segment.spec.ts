@@ -33,6 +33,23 @@ test('deleting the only segment focuses "Viết đoạn đầu tiên"',async({pa
  await expect(page.getByRole('button',{name:'Viết đoạn đầu tiên'})).toBeFocused();
 });
 
+// The keyboard moves focus to the delete button (the Tab press tells Chromium the focus is keyboard focus) and activates it either with Enter or, as a screen reader does, with a click that carries no key event.
+const kbDel=async(page:Page,n:number,how:'Enter'|'click')=>{
+ await page.keyboard.press('Tab');const b=page.getByRole('button',{name:'Xóa đoạn',exact:true}).nth(n-1);await b.focus();
+ if(how==='Enter')await page.keyboard.press('Enter');else await b.evaluate(e=>(e as HTMLElement).click());
+};
+// At 900 px a row's focus does not select it (the selected row holds the segment panel), at 1440 px it does; the outcome of deleting by keyboard is the same.
+for(const width of [900,1440])for(const how of ['Enter','click'] as const)test(`keyboard delete (${how}) of an unselected segment hands focus to its neighbour at ${width}px`,async({page})=>{
+ await page.setViewportSize({width,height:1000});
+ await addThree(page);
+ await page.locator('article.segment').nth(2).click();await expect(selectedText(page)).toHaveValue('Câu ba.');
+ await kbDel(page,1,how);
+ await expect(page.locator('article.segment')).toHaveCount(2);
+ await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toHaveValue('Câu hai.');
+ await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toBeFocused();
+ await expect(selectedText(page)).toHaveValue('Câu hai.');
+});
+
 // Tauri is mocked and a spy on AudioBufferSourceNode records every start() and stop(), as in preview-switch.spec.ts.
 const tone=()=>{const rate=8000,n=rate*8,b=Buffer.alloc(44+n*2);b.write('RIFF',0);b.writeUInt32LE(36+n*2,4);b.write('WAVEfmt ',8);b.writeUInt32LE(16,16);b.writeUInt16LE(1,20);b.writeUInt16LE(1,22);b.writeUInt32LE(rate,24);b.writeUInt32LE(rate*2,28);b.writeUInt16LE(2,32);b.writeUInt16LE(16,34);b.write('data',36);b.writeUInt32LE(n*2,40);for(let i=0;i<n;i++)b.writeInt16LE(Math.round(Math.sin(2*Math.PI*440*i/rate)*6000),44+i*2);return b;};
 const mock=()=>{
