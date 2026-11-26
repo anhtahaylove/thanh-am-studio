@@ -54,3 +54,10 @@ test('none installed: the button is blocked with the reason and sends nothing, t
  await page.evaluate(()=>(window as any).__downloading('whisper-small'));
  await expect(go(page)).toHaveAccessibleDescription('Đang tải Whisper Small…');
 });
+test('review A: a non-recommended installed pick stays when another model installs',async({page})=>{
+ await open(page,['whisper-small','whisper-turbo'],15760);
+ await expect(select(page)).toHaveValue('whisper-turbo');
+ await select(page).selectOption('whisper-small');
+ await page.evaluate(()=>(window as any).__install('diarization'));await nextPoll(page);await nextPoll(page);
+ await expect(select(page)).toHaveValue('whisper-small');
+});
