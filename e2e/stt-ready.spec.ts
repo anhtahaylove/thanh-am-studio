@@ -54,3 +54,27 @@ test('none installed: the button is blocked with the reason and sends nothing, t
  await page.evaluate(()=>(window as any).__downloading('whisper-small'));
  await expect(go(page)).toHaveAccessibleDescription('Đang tải Whisper Small…');
 });
+test('review A: a non-recommended installed pick stays when another model installs',async({page})=>{
+ await open(page,['whisper-small','whisper-turbo'],15760);
+ await expect(select(page)).toHaveValue('whisper-turbo');
+ await select(page).selectOption('whisper-small');
+ await page.evaluate(()=>(window as any).__install('diarization'));await nextPoll(page);await nextPoll(page);
+ await expect(select(page)).toHaveValue('whisper-small');
+});
+test('review B: with none installed, the model that finishes installing is selected',async({page})=>{
+ await open(page,[]);
+ await expect(go(page)).toHaveAttribute('aria-disabled','true');
+ await expect(select(page)).toHaveValue('whisper-small');
+ await page.evaluate(()=>(window as any).__install('whisper-turbo'));await nextPoll(page);await nextPoll(page);
+ await expect(select(page)).toHaveValue('whisper-turbo');
+ await expect(go(page)).not.toHaveAttribute('aria-disabled','true');
+});
+test('review C: a picked model that is downloading stays picked when another model finishes installing',async({page})=>{
+ await open(page,['whisper-turbo']);
+ await expect(select(page)).toHaveValue('whisper-turbo');
+ await select(page).selectOption('whisper-small');
+ await page.evaluate(()=>(window as any).__downloading('whisper-small'));
+ await expect(go(page)).toHaveAccessibleDescription('Đang tải Whisper Small…');
+ await page.evaluate(()=>(window as any).__install('vieneu-v3'));await nextPoll(page);await nextPoll(page);
+ await expect(select(page)).toHaveValue('whisper-small');
+});
