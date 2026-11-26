@@ -2,9 +2,9 @@ import {useEffect,useRef} from 'react';
 import {UserAttentionType,getCurrentWindow} from '@tauri-apps/api/window';
 import {addPluginListener} from '@tauri-apps/api/core';
 import {call,desktop} from './bridge';
-import type {Asset,Job,ProjectSummary} from './types';
+import type {Asset,Job,ModelInfo,ProjectSummary} from './types';
 
-const KINDS=['stt','render','separate'],LONG_MS=30000;
+const KINDS=['stt','render','separate','model_download'],LONG_MS=30000;
 /** The jobs of the notified kinds that ended in this poll after running (or waiting) for at least 30 s, each with `ms`, how long that was. `seen` maps a job id to when the app took it to have started,
  * and is updated in place: a job counts once it has been seen queued or running in an earlier poll (the app may never see "running" between two polls), starting at
  * its `updated_at` when first seen running and at the poll time when first seen queued. A job that is cancelled, interrupted or already over at the first poll counts for nothing. */
@@ -18,9 +18,9 @@ export function jobNotices(seen:Map<string,number>,jobs:Job[],now:number):(Job&{
  }
  return done;
 }
-const DONE:Record<string,string>={stt:'Đã chép lời xong',render:'Đã xuất audio xong',separate:'Đã tách nhạc nền xong'};
-const FAILED:Record<string,string>={stt:'Chép lời không thành công',render:'Xuất audio không thành công',separate:'Tách nhạc nền không thành công'};
-const KIND_NAME:Record<string,string>={stt:'Chép lời',render:'Xuất audio',separate:'Tách nhạc nền'};
+const DONE:Record<string,string>={stt:'Đã chép lời xong',render:'Đã xuất audio xong',separate:'Đã tách nhạc nền xong',model_download:'Đã tải model xong'};
+const FAILED:Record<string,string>={stt:'Chép lời không thành công',render:'Xuất audio không thành công',separate:'Tách nhạc nền không thành công',model_download:'Tải model không thành công'};
+const KIND_NAME:Record<string,string>={stt:'Chép lời',render:'Xuất audio',separate:'Tách nhạc nền',model_download:'Tải model'};
 const duration=(ms:number)=>{const s=Math.round(ms/1000);if(s<60)return `${s} giây`;const m=Math.round(s/60),h=Math.floor(m/60);return h?`${h} giờ${m%60?` ${m%60} phút`:''}`:`${m} phút`;};
 export interface Ended{kind:string;status:string;name:string;ms:number}
 /** The title and body of the desktop notification for the jobs that ended in one poll: one job gets its own title, name and duration; several get a count and up to three "kind: name". */
@@ -33,6 +33,7 @@ export function noticeText(ended:Ended[]):{title:string;body:string}{
 async function jobName(j:Job):Promise<string>{
  if(typeof j.payload?.name==='string'&&j.payload.name)return j.payload.name;
  try{
+  if(typeof j.payload.model_id==='string')return (await call<ModelInfo[]|null>('list_models'))?.find(m=>m.id===j.payload.model_id)?.name??'';
   if(typeof j.payload.asset_id==='string')return (await call<Asset|null>('get_asset',{id:j.payload.asset_id}))?.name??'';
   if(j.project_id)return (await call<ProjectSummary[]|null>('list_projects'))?.find(p=>p.id===j.project_id)?.name??'';
  }catch{/* the notification still says what finished */}
