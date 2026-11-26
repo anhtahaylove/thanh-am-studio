@@ -1,5 +1,6 @@
 import {test,expect} from '@playwright/test';
 // Tauri is mocked as in taskbar-progress.spec.ts: the job list is whatever window.__jobs holds, window.__focus is what document.hasFocus() answers,
+// window.__native, when set, is what the native window answers to is_focused instead of window.__focus (true, false, or 'reject' for a failing call),
 // window.__attention records every request_user_attention call, and window.__notified every desktop notification asked for (the asset behind a job is named "<asset_id>.mp3"). A job's age sets its updated_at, which is when the app takes a running job to have started.
 const mock=()=>{
  const w=window as any;w.isTauri=true;w.__jobs=[];w.__attention=[];w.__notified=[];w.__projects=[];w.__focus=false;w.__polls=0;
@@ -7,6 +8,7 @@ const mock=()=>{
  w.__job=(id:string,kind:string,status:string,age:number,payload:object={},project_id:string|null=null)=>({id,kind,project_id,payload,status,progress:0.5,error:null,result:null,created_at:new Date(Date.now()-age*1000).toISOString(),updated_at:new Date(Date.now()-age*1000).toISOString()});
  w.__TAURI_INTERNALS__={convertFileSrc:(p:string)=>p,transformCallback:()=>1,unregisterCallback:()=>{},metadata:{currentWindow:{label:'main'},currentWebview:{label:'main',windowLabel:'main'}},
   invoke:async(cmd:string,args:any)=>{switch(cmd){
+   case 'plugin:window|is_focused':if(w.__native==='reject')throw new Error('no native window');return w.__native??w.__focus;
    case 'plugin:window|request_user_attention':w.__attention.push(args.value);return null;
    case 'plugin:notification|notify':w.__notified.push(args.options);return null;
    case 'get_asset':return {id:args.id,path:'/audio/'+args.id,name:args.id+'.mp3',duration_ms:1000,sample_rate:16000};
@@ -99,6 +101,39 @@ test('no notification while the window has focus, after a short run, or for anot
  await setJobs(page,[['c','tts','running',60]]);await settle(page);
  await setJobs(page,[['c','tts','succeeded',0]]);await settle(page);
  expect(await notified(page)).toEqual([]);
+});
+
+test('the native window state decides: hasFocus() true but the window unfocused or minimised still raises the notice',async({page})=>{
+ test.setTimeout(90000);
+ await page.addInitScript(mock);await page.goto('/');
+ await page.evaluate(()=>{const w=window as any;w.__focus=true;w.__native=false;});
+ await setJobs(page,[['a','stt','running',60]]);await settle(page);
+ await setJobs(page,[['a','stt','succeeded',0]]);
+ await expect.poll(()=>notified(page),{timeout:8000}).toHaveLength(1);
+ await expect.poll(()=>attention(page),{timeout:8000}).toEqual([{type:'Informational'}]);
+ await settle(page);expect(await notified(page)).toHaveLength(1);expect(await attention(page)).toHaveLength(1);
+});
+
+test('a native window that is focused raises no notice even when hasFocus() says it is not',async({page})=>{
+ test.setTimeout(90000);
+ await page.addInitScript(mock);await page.goto('/');
+ await page.evaluate(()=>{const w=window as any;w.__focus=false;w.__native=true;});
+ await setJobs(page,[['a','stt','running',60]]);await settle(page);
+ await setJobs(page,[['a','stt','succeeded',0]]);await settle(page);
+ expect(await notified(page)).toEqual([]);expect(await attention(page)).toEqual([]);
+});
+
+test('when the native focus call fails the notice falls back to document.hasFocus()',async({page})=>{
+ test.setTimeout(90000);
+ await page.addInitScript(mock);await page.goto('/');
+ await page.evaluate(()=>{(window as any).__native='reject';});
+ await setJobs(page,[['a','stt','running',60]]);await settle(page);
+ await setJobs(page,[['a','stt','succeeded',0]]);
+ await expect.poll(()=>notified(page),{timeout:8000}).toHaveLength(1);
+ await page.evaluate(()=>{(window as any).__focus=true;});
+ await setJobs(page,[['b','stt','running',60]]);await settle(page);
+ await setJobs(page,[['b','stt','succeeded',0]]);await settle(page);
+ expect(await notified(page)).toHaveLength(1);
 });
 
 test('a plain export with no name of its own is named after its project',async({page})=>{

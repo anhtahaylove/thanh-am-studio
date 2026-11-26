@@ -841,8 +841,8 @@ try {
       await requireNotify();
       const audio = dialogueCopy('-x2'), asset = await invoke('import_asset', {path: audio}), toastsBefore = toasts();
       await watchInvokes();
-      // Playwright turns focus emulation on for every page it attaches to over CDP, which keeps document.hasFocus() true even when minimised, and nothing overrides it from a second session.
-      // So the CDP client is detached (browser.close() on a connectOverCDP connection only closes the transport; the emulation goes with it) while the window is minimised and the job runs.
+      // The app decides "in the background" from the native window state (isFocused), not document.hasFocus(), which stayed true on a minimised window in a Sandbox run (309 of 309 samples) once a CDP client had attached.
+      // The CDP client is still detached (browser.close() on a connectOverCDP connection only closes the transport) while the window is minimised and the job runs, so the check does not depend on any page-side emulation.
       // Nothing can be asked of the page then: the job end is seen as a new toast in the Windows notification history, and the page's own fetch watch (window.__calls) is read after the reconnect.
       const browser = page.context().browser();
       let failure = null, detail, queued, runningAt, detached = false;
