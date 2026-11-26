@@ -85,6 +85,23 @@ test('with no take the inspector says so and shows no take or trim field; with o
  await expect(page.getByText('Tạo lại không thay thế take đang chọn.')).toBeVisible();
 });
 
+test('inspector shows voice, speed, take; Chỉnh âm holds the same fields and values',async({page})=>{
+ await open(page);await pick(page,6);
+ const inspector=page.locator('.inspector'),tuning=inspector.locator('details',{has:page.locator('summary',{hasText:'Chỉnh âm'})});
+ const labels=['Chương','Nghỉ sau (ms)','Âm lượng (dB)','Cắt đầu (ms)','Cắt cuối (ms)','To dần (ms)','Nhỏ dần (ms)'];
+ await expect(inspector.getByRole('combobox',{name:'Giọng đoạn 6',exact:true})).toBeVisible();await expect(inspector.getByRole('combobox',{name:'Tốc độ đọc đoạn 6',exact:true})).toBeVisible();
+ await expect(inspector.getByRole('combobox',{name:'Take đang sử dụng'})).toBeVisible();
+ await expect(tuning).toHaveCount(1);await expect(tuning).toHaveJSProperty('open',false); // closed until asked for
+ const before:string[]=[];for(const label of labels){const field=tuning.getByLabel(label,{exact:true});await expect(field,label).toBeHidden();before.push(await field.inputValue());}
+ await expect(inspector.getByLabel('Chương',{exact:true})).toHaveCount(1);
+ await tuning.locator('summary').click();await expect(tuning).toHaveJSProperty('open',true);
+ for(const [i,label] of labels.entries()){const field=tuning.getByLabel(label,{exact:true});await expect(field,label).toBeVisible();await expect(field,label).toHaveValue(before[i]);}
+ await expect(tuning.getByLabel('Nghỉ sau (ms)',{exact:true})).toHaveValue('300');
+ await pick(page,9);await expect(tuning).toHaveJSProperty('open',true); // the open state is kept for the session, like "Văn bản sau chuẩn hóa"
+ await pick(page,3);await expect(tuning.getByLabel('Âm lượng (dB)',{exact:true})).toHaveCount(0);await expect(tuning.getByLabel('Nghỉ sau (ms)',{exact:true})).toBeVisible(); // no take: only the fields that apply before one exists
+ await tuning.locator('summary').click();await expect(tuning).toHaveJSProperty('open',false);await pick(page,6);await expect(tuning).toHaveJSProperty('open',false);
+});
+
 test('the panel is in the aside beside the script and inside the selected row at 920 px and below, never twice',async({page})=>{
  await open(page);await pick(page,6);
  await expect(panel(page)).toHaveCount(1);await expect(page.locator('.inspector .segment-detail')).toHaveCount(1);
