@@ -67,7 +67,7 @@ export function MenuButton({kind,label,className='quiet',children}:{kind:'menu'|
  };
  return <div className="menu-wrap" ref={root} onKeyDown={key} onBlur={e=>{if(open&&e.relatedTarget&&!root.current!.contains(e.relatedTarget as Node))setOpen(false);}}>
   <button ref={button} type="button" className={className} aria-expanded={open} aria-controls={id} aria-haspopup={kind==='menu'?'menu':undefined} onClick={()=>setOpen(o=>!o)}>{label}<ChevronDown size={14} className="menu-caret"/></button>
-  <div id={id} className="menu-panel" hidden={!open} role={kind==='menu'?'menu':undefined} aria-label={kind==='menu'?label:undefined} onClick={e=>{if(kind==='menu'&&(e.target as HTMLElement).closest('[role=menuitem]')){setOpen(false);button.current?.focus();}}}>{children}</div>
+  <div id={id} className="menu-panel" hidden={false} role={kind==='menu'?'menu':undefined} aria-label={kind==='menu'?label:undefined} onClick={e=>{if(kind==='menu'&&(e.target as HTMLElement).closest('[role=menuitem]')){setOpen(false);button.current?.focus();}}}>{children}</div>
  </div>;
 }
 /** Roving focus for an ARIA toolbar: ←/→ (wrapping), Home and End move focus between its buttons and skip natively disabled ones; an item marked `aria-disabled` stays reachable.
