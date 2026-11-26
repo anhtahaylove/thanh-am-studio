@@ -5,6 +5,7 @@ test('a localStorage that throws on every read still renders the TTS page with t
  await page.addInitScript(()=>{Storage.prototype.getItem=function(){throw new Error('blocked');};});
  await page.goto('/');
  await expect(page.getByRole('heading',{level:1,name:/Tạo giọng đọc/})).toBeVisible();
+ await page.getByRole('button',{name:'Tùy chọn',exact:true}).click();
  await expect(page.getByRole('checkbox',{name:'Đọc từ tiếng Anh'})).not.toBeChecked();
  await expect(page.getByRole('checkbox',{name:/^Tự kiểm/})).not.toBeChecked();
  expect(errors).toEqual([]);

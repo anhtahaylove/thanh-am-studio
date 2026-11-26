@@ -149,6 +149,7 @@ for(const name of PAGES)test(`high contrast, ${name}: text 7:1, borders, focus r
 });
 test('the pressed focus-mode button and the pressed theme button are drawn with an outline in the contrast theme',async({page})=>{
  await start(page,{stored:'contrast'});
+ await page.getByRole('button',{name:'Tùy chọn',exact:true}).click();
  const focus=page.getByRole('button',{name:'Chế độ tập trung',exact:true}),theme=contrastButton(page);
  await focus.click();await page.mouse.move(0,0);await expect(focus).toHaveAttribute('aria-pressed','true');
  for(const [name,button] of [['focus mode',focus],['contrast theme',theme]] as const){
@@ -206,6 +207,7 @@ for(const [name,scheme,stored] of [['light, system theme','light',undefined],['d
   await page.keyboard.press('Escape');await expect(page.getByRole('dialog')).toHaveCount(0);
   const stripe=await page.locator('article.segment').nth(1).evaluate(el=>getComputedStyle(el).borderLeftColor);expect(stripe,'speaker stripe').toBe(rgb(canvasText));
   const outline=(l:ReturnType<Page['locator']>)=>l.evaluate(el=>{const s=getComputedStyle(el);return `${s.outlineStyle} ${s.outlineWidth}`;});
+  await page.getByRole('button',{name:'Tùy chọn',exact:true}).click();
   const focus=page.getByRole('button',{name:'Chế độ tập trung',exact:true});
   expect(await outline(focus),'focus mode off').toMatch(/^none /);
   await focus.click();await page.mouse.move(0,0);await expect(focus).toHaveAttribute('aria-pressed','true');expect(await outline(focus),'focus mode on').toBe('solid 2px');
