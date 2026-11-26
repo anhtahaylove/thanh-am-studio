@@ -41,8 +41,10 @@ async function jobName(j:Job):Promise<string>{
 /** Flashes the taskbar button and raises a desktop notification, once per poll, when such a job ends while the window is in the background; clicking the notification brings the window forward. Cosmetic: a failure is ignored. */
 export function useJobNotices(jobs:Job[]){
  const seen=useRef(new Map<string,number>());
- useEffect(()=>{if(!desktop)return;const done=jobNotices(seen.current,jobs,Date.now());if(!done.length||document.hasFocus())return;void getCurrentWindow().requestUserAttention(UserAttentionType.Informational).catch(()=>{});
-  void Promise.all(done.map(async j=>({kind:j.kind,status:j.status,ms:j.ms,name:await jobName(j)}))).then(ended=>call('plugin:notification|notify',{options:noticeText(ended)})).catch(()=>{});},[jobs]);
+ useEffect(()=>{if(!desktop)return;const done=jobNotices(seen.current,jobs,Date.now());if(!done.length)return;const w=getCurrentWindow();
+  // The native state decides: a minimised window is not focused, and document.hasFocus() stayed true on a minimised WebView2 window once a CDP client had attached. If the native call fails, hasFocus() is the fallback.
+  void w.isFocused().catch(()=>document.hasFocus()).then(focused=>{if(focused)return;void w.requestUserAttention(UserAttentionType.Informational).catch(()=>{});
+   return Promise.all(done.map(async j=>({kind:j.kind,status:j.status,ms:j.ms,name:await jobName(j)}))).then(ended=>call('plugin:notification|notify',{options:noticeText(ended)}));}).catch(()=>{});},[jobs]);
  useEffect(()=>{
   if(!desktop)return;let off:{unregister:()=>Promise<void>}|undefined,live=true;
   void addPluginListener('notification','actionPerformed',()=>{const w=getCurrentWindow();void w.unminimize().then(()=>w.show()).then(()=>w.setFocus()).catch(()=>{});}).then(l=>{if(live)off=l;else void l.unregister().catch(()=>{});}).catch(()=>{});
