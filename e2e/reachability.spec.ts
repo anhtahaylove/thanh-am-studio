@@ -14,7 +14,7 @@ const WORLDS={fresh:{models:false,projects:false,jobs:'none'},studio:{models:tru
 type WK=keyof typeof WORLDS;
 const LABEL:Record<At,string>={tts:'Tạo giọng đọc',stt:'Chép lời',voices:'Thư viện giọng',jobs:'Hàng đợi',projects:'Dự án',models:'Model & cài đặt'};
 // Forced jumps pinned at main (PLAN §2 rows :290, :359, :372, :382): the page the user is on after the action. Each owner sets its constant to the page the action started from.
-const AFTER_RENDER='Hàng đợi'; // :290 "Xuất audio" (both setPage calls); F2 -> 'Tạo giọng đọc'
+const AFTER_RENDER='Tạo giọng đọc'; // :290 "Xuất audio" (both setPage calls); F2 -> 'Tạo giọng đọc'
 const AFTER_CHECKLIST_MODEL='Model & cài đặt'; // :359 the checklist's model button; F5 -> 'Tạo giọng đọc'
 const AFTER_DOWNLOAD='Hàng đợi'; // :372 "Tải model" and "Kiểm tra lại gói"; F1 -> 'Model & cài đặt'
 const AFTER_PACK_CONSENT='Hàng đợi'; // :382 "Đồng ý và tải"; F1 -> 'Model & cài đặt'
