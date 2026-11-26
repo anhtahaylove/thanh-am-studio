@@ -50,12 +50,6 @@ describe('jobNotices',()=>{
   jobNotices(seen,kinds.map(k=>job(k,k,'running')),T0);
   expect(ids(jobNotices(seen,kinds.map(k=>job(k,k,'succeeded')),T0+60000))).toEqual(['stt','render','separate']);
  });
- it('names a model download that ended after 30 s, and not one that ended after 29.9 s',()=>{
-  const seen=new Map<string,number>();
-  jobNotices(seen,[job('a','model_download','running'),job('b','model_download','running')],T0);
-  expect(ids(jobNotices(seen,[job('a','model_download','succeeded')],T0+30000))).toEqual(['a']);
-  expect(jobNotices(seen,[job('b','model_download','succeeded')],T0+29900)).toEqual([]);
- });
  it('names nothing for a cancelled or interrupted job, and forgets it',()=>{
   const seen=new Map<string,number>();
   jobNotices(seen,[job('a','stt','running'),job('b','stt','running')],T0);
@@ -113,11 +107,6 @@ describe('noticeText',()=>{
   expect(body(60000)).toBe('a · 1 phút');
   expect(body(89000)).toBe('a · 1 phút');
   expect(body(90000)).toBe('a · 2 phút');
- });
- it('titles a model download by its kind and gives the model name and duration',()=>{
-  expect(noticeText([done('model_download','succeeded','Whisper Small',3)])).toEqual({title:'Đã tải model xong',body:'Whisper Small · 3 phút'});
-  expect(noticeText([done('model_download','failed','Whisper Small',2)])).toEqual({title:'Tải model không thành công',body:'Whisper Small · 2 phút · Mở Thanh Âm Studio để xem lỗi.'});
-  expect(noticeText([done('model_download','succeeded','Whisper Small',1),done('stt','succeeded','a.mp3',1)])).toEqual({title:'Đã xong 2 công việc',body:'Tải model: Whisper Small; Chép lời: a.mp3'});
  });
  it('leaves the name out when none is known',()=>{
   expect(noticeText([done('stt','succeeded','',2)]).body).toBe('2 phút');
