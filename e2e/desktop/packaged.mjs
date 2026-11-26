@@ -31,6 +31,8 @@ const dialog = (path) => log('dialog ' + execFileSync('powershell', ['-NoProfile
 const nav = (name) => page.getByRole('navigation', {name: 'Điều hướng chính'}).getByRole('button', {name: new RegExp(`^${name}`)}).click(); // the queue button also carries a count badge
 // The focus-mode, English-words and Whisper options sit in the hero's "Tùy chọn" panel, which closes on a click elsewhere or when focus leaves it: open it when it is closed.
 const openOptions = async () => { const button = page.getByRole('button', {name: 'Tùy chọn', exact: true}); if (await button.getAttribute('aria-expanded', {timeout: 5000}) !== 'true') await button.click(); };
+// The dock's "Chuẩn hóa", "Theo mốc phụ đề", "Giữ nhạc nền", "Mỗi chương một file" and SRT sit in its "Tùy chọn xuất" group, which stays open for the session: open it when it is closed.
+const openExportOptions = async () => { const group = page.locator('#audio-dock details'); if (await group.getAttribute('open', {timeout: 5000}) === null) await group.locator('summary').click(); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Calls `get` every 500 ms until `ok(its value)` holds and returns that value; for steps that must not touch the page's DOM (a minimised window).
 const until = async (get, ok, ms, what) => {
@@ -967,6 +969,7 @@ try {
       const withTake = page.locator('article.segment').getByRole('button', {name: 'Tạo take mới'});
       for (const end = Date.now() + 30000; (await withTake.count()) < 3 && Date.now() < end;) await page.waitForTimeout(500);
       await nav('Tạo giọng đọc');
+      await openExportOptions();
       await page.getByRole('checkbox', {name: 'Mỗi chương một file'}).check();
       const before = await done('render');
       await page.getByRole('button', {name: 'Xuất audio'}).click();
@@ -1047,6 +1050,7 @@ try {
     let plan;
     await step('export bar shows the dub plan', async () => {
       await nav('Tạo giọng đọc');
+      await openExportOptions();
       await page.getByRole('checkbox', {name: 'Theo mốc phụ đề'}).check();
       plan = spec();
       const sped = plan.filter((p) => p.rate > 1).length, pushed = plan.filter((p) => p.at - p.cue > 5).length;
@@ -1060,6 +1064,7 @@ try {
     });
     const render = async (normalize, name, length) => { // length: a longer background runs the output past pad_to_ms
       await nav('Tạo giọng đọc');
+      await openExportOptions();
       await page.getByRole('checkbox', {name: 'Chuẩn hóa'}).setChecked(normalize);
       const before = await done('render');
       await page.getByRole('button', {name: 'Xuất audio'}).click();
@@ -1101,6 +1106,7 @@ try {
     await step('srt export uses the same places', async () => {
       const srt = join(saves, `phụ đề lồng tiếng ${Date.now()}.srt`);
       await nav('Tạo giọng đọc');
+      await openExportOptions();
       await page.getByRole('button', {name: 'SRT', exact: true}).first().click();
       dialog(srt);
       await saved(srt);
@@ -1147,6 +1153,7 @@ try {
     });
     await step('checking "Giữ nhạc nền" picks the source and separates it', async () => {
       await nav('Tạo giọng đọc');
+      await openExportOptions();
       await page.getByRole('checkbox', {name: 'Theo mốc phụ đề'}).check();
       const before = await done('separate'), keep = page.getByRole('checkbox', {name: 'Giữ nhạc nền'});
       await keep.click();

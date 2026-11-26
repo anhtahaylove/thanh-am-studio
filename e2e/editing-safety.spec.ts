@@ -37,7 +37,7 @@ test('moving focus into a segment selects it, so the inspector follows the keybo
  expect(await third.evaluate((el:HTMLTextAreaElement)=>el.selectionStart===el.selectionEnd)).toBe(true);
 });
 test('disabled generate and export buttons say why',async({page})=>{
- await page.goto('/');
+ await page.goto('/');await page.getByText('Tùy chọn xuất',{exact:true}).click();
  await expect(page.getByRole('button',{name:'SRT',exact:true})).toHaveAttribute('title','Thêm ít nhất một đoạn');
  await page.getByRole('button',{name:'Viết đoạn đầu tiên'}).click();
  await expect(page.getByRole('button',{name:'Tạo giọng tất cả'})).toHaveAttribute('title','Cần bản desktop để tạo giọng');

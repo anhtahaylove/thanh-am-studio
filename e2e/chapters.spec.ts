@@ -18,7 +18,7 @@ const mock=(o:{chapters:(string|null)[];cues?:boolean;failEnqueueAt?:number})=>{
    default:return null;}}};
 };
 const open=async(page:any,opts:{chapters:(string|null)[];cues?:boolean;failEnqueueAt?:number})=>{
- await page.addInitScript(mock,opts);await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
+ await page.addInitScript(mock,opts);await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();await page.getByText('Tùy chọn xuất',{exact:true}).click();
 };
 const calls=(page:any,cmd:string)=>page.evaluate((c:string)=>(window as any).__calls.filter((x:any)=>x.cmd===c).map((x:any)=>x.args),cmd);
 

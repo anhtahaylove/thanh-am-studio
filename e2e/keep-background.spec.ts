@@ -22,7 +22,7 @@ const mock=(o:{model:boolean;pack?:boolean;source:string|null;cues?:boolean;jobs
 const calls=(page:any,cmd:string)=>page.evaluate((c:string)=>(window as any).__calls.filter((x:any)=>x.cmd===c).map((x:any)=>x.args),cmd);
 const separation=(asset_id:string,status:string,stem?:string,at=0)=>({id:`s-${asset_id}-${status}-${at}`,kind:'separate',project_id:'p1',payload:{asset_id},status,progress:status==='succeeded'?1:0,error:null,result:stem?{asset_id:stem,path:`C:\\assets\\${stem}.flac`}:null,created_at:new Date(at).toISOString(),updated_at:new Date(at).toISOString()});
 const open=async(page:any,o:Parameters<typeof mock>[0])=>{
- await page.addInitScript(mock,o);await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
+ await page.addInitScript(mock,o);await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();await page.getByText('Tùy chọn xuất',{exact:true}).click();
 };
 const keep=(page:any)=>page.getByRole('checkbox',{name:'Giữ nhạc nền'});
 

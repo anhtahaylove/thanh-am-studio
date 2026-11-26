@@ -15,7 +15,7 @@ test('subtitle-timed dubbing counts and marks the takes that still run past thei
  });
  await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
  const marker=page.locator('.segment .take-check',{hasText:'Dài hơn mốc'});await expect(page.getByRole('textbox',{name:'Nội dung đoạn 3'})).toBeVisible();await expect(marker).toHaveCount(0);
- await page.getByRole('checkbox',{name:'Theo mốc phụ đề'}).check();
+ await page.getByText('Tùy chọn xuất',{exact:true}).click();await page.getByRole('checkbox',{name:'Theo mốc phụ đề'}).check();
  await expect(page.locator('.dub-stats')).toContainText('1 đoạn vẫn dài hơn mốc ở 1,5×');await expect(page.locator('.dub-stats')).toContainText('1 đoạn bị lùi');
  await expect(marker).toHaveCount(1);await expect(page.locator('.segment').first().locator('.take-check')).toHaveText('Dài hơn mốc 667 ms');
  await page.getByRole('checkbox',{name:'Theo mốc phụ đề'}).uncheck();await expect(marker).toHaveCount(0);

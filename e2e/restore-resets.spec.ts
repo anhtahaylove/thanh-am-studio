@@ -27,7 +27,7 @@ const activeRows=(page:Page)=>page.locator('.transcript-row.active');
 // With the project open: dub and background on, and the first transcript row highlighted.
 const prepare=async(page:Page)=>{
  await page.addInitScript(mock);await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
- await page.getByRole('checkbox',{name:'Theo mốc phụ đề'}).check();await keep(page).click();await expect(keep(page)).toBeChecked();
+ await page.getByText('Tùy chọn xuất',{exact:true}).click();await page.getByRole('checkbox',{name:'Theo mốc phụ đề'}).check();await keep(page).click();await expect(keep(page)).toBeChecked();
  await page.getByRole('button',{name:'Chép lời',exact:true}).click();await page.locator('.transcript-row').first().locator('.tr-time').focus();await expect(activeRows(page)).toHaveCount(1);
  await page.getByRole('button',{name:'Tạo giọng đọc',exact:true}).click();
 };
