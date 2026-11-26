@@ -1,6 +1,6 @@
 import {test,expect,type Page} from '@playwright/test';
-// Replacing the project content (restoring a version, "Tải lại để nhận take mới") must clear the per-project view state
-// the same way opening a project does: the highlighted transcript row (activeRow) and the "Giữ nhạc nền" choice (keepBg).
+// Replacing the project content (restoring a version, "Tải lại để nhận take mới") clears the highlighted transcript row (activeRow)
+// and, only when the source file changed, the "Giữ nhạc nền" choice (keepBg): the separated stem belongs to the source, so it stays valid for the same one.
 // Tauri is mocked as in keep-background.spec.ts; window.__disk is the stored project, window.__calls records every command.
 const mock=()=>{
  const w=window as any,calls:any[]=[],jobs:any[]=[];w.isTauri=true;w.__calls=calls;
@@ -41,7 +41,7 @@ const replaced=async(page:Page)=>{
  await expect(activeRows(page)).toHaveCount(0);
 };
 
-test('restoring a version clears the background choice and the highlighted transcript row',async({page})=>{
+test('restoring a version with a different source clears the background choice and the highlighted transcript row',async({page})=>{
  await prepare(page);
  await page.getByRole('button',{name:'Lịch sử phiên bản',exact:true}).click();
  await page.getByRole('dialog',{name:'Lịch sử phiên bản'}).getByRole('button',{name:/^Khôi phục trạng thái lúc/}).click();
@@ -49,9 +49,36 @@ test('restoring a version clears the background choice and the highlighted trans
  await replaced(page);
 });
 
-test('reloading from disk clears the background choice and the highlighted transcript row',async({page})=>{
+test('reloading from disk with a different source clears the background choice and the highlighted transcript row',async({page})=>{
  await prepare(page);
  await page.evaluate(()=>{(window as any).__disk.source_asset_id='src2';});
  await page.getByRole('button',{name:'Tải lại để nhận take mới'}).click();
  await replaced(page);
+});
+
+// The normal case: the source is unchanged, so the stem still fits and the export keeps the background.
+const kept=async(page:Page)=>{
+ await expect(keep(page)).toBeChecked();
+ await page.getByRole('button',{name:'Xuất audio'}).click();
+ await expect.poll(()=>page.evaluate(()=>(window as any).__calls.filter((c:any)=>c.cmd==='enqueue_job').length)).toBe(1);
+ const job=await page.evaluate(()=>(window as any).__calls.find((c:any)=>c.cmd==='enqueue_job').args);
+ expect(job.kind).toBe('render');expect(job.payload.background_asset_id).toBe('stem');
+ await page.getByRole('button',{name:'Tạo giọng đọc',exact:true}).click();await page.getByRole('button',{name:'Chép lời',exact:true}).click();
+ await expect(activeRows(page)).toHaveCount(0);
+};
+
+test('reloading from disk with the same source keeps the background choice and clears the highlighted row',async({page})=>{
+ await prepare(page);
+ await page.getByRole('button',{name:'Tải lại để nhận take mới'}).click();
+ await expect(page.getByText('Đã tải lại')).toBeVisible();
+ await kept(page);
+});
+
+test('restoring a version with the same source keeps the background choice and clears the highlighted row',async({page})=>{
+ await prepare(page);
+ await page.evaluate(()=>{const w=window as any,orig=w.__TAURI_INTERNALS__.invoke;w.__TAURI_INTERNALS__.invoke=async(c:string,a:any)=>{if(c!=='restore_project_version')return orig(c,a);w.__calls.push({cmd:c,args:a});w.__disk={...w.__disk,revision:w.__disk.revision+1};return structuredClone(w.__disk);};});
+ await page.getByRole('button',{name:'Lịch sử phiên bản',exact:true}).click();
+ await page.getByRole('dialog',{name:'Lịch sử phiên bản'}).getByRole('button',{name:/^Khôi phục trạng thái lúc/}).click();
+ await expect(page.getByRole('dialog',{name:'Lịch sử phiên bản'})).toHaveCount(0);
+ await kept(page);
 });
