@@ -140,7 +140,7 @@ test('an imported SRT keeps its cue times and audio export can follow them',asyn
     case 'enqueue_job':return {id:'j1'};case 'plugin:dialog|save':return 'C:/x/ban-xuat.wav';default:return null;}}};
  });
  await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
- const dub=page.getByRole('checkbox',{name:'Theo mốc phụ đề'});await dub.check();
+ await page.getByText('Tùy chọn xuất',{exact:true}).click();const dub=page.getByRole('checkbox',{name:'Theo mốc phụ đề'});await dub.check();
  // 3 s in a 2 s cue is read 1.5x faster and ends at 2 s, so the second take starts 50 ms late.
  await expect(page.getByText('1 đoạn đọc nhanh hơn · 1 đoạn bị lùi (tối đa 0,05 s)')).toBeVisible();
  await page.getByRole('button',{name:'Xuất audio'}).click();

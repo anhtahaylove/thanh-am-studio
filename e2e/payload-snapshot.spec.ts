@@ -47,6 +47,8 @@ const go=(page:Page,label:string)=>page.getByRole('navigation',{name:'Điều h�
 const check=(page:Page,label:string)=>page.getByRole('checkbox',{name:label}).check();
 // "Đọc từ tiếng Anh" and "Tự kiểm bằng Whisper" sit in the hero's "Tùy chọn" panel: open it first (navigation only).
 const options=(page:Page)=>page.getByRole('button',{name:'Tùy chọn',exact:true}).click();
+// The dock's "Chuẩn hóa", "Theo mốc phụ đề", "Giữ nhạc nền" and "Mỗi chương một file" sit in its "Tùy chọn xuất" group: open it first (navigation only).
+const exportOptions=(page:Page)=>page.getByText('Tùy chọn xuất',{exact:true}).click();
 const row=(page:Page,n:number)=>page.locator('article.segment').nth(n-1);
 const pick=async(page:Page,n:number)=>{await row(page,n).locator('.segment-index').click();await expect(row(page,n)).toHaveClass(/selected/);};
 // A number field takes its value on Enter.
@@ -69,19 +71,19 @@ const scenarios:Record<string,(page:Page)=>Promise<void>>={
   await pick(page,5);await page.keyboard.press('Control+k');await page.getByRole('dialog',{name:'Bảng lệnh'}).getByRole('option',{name:'Tạo giọng đoạn đang chọn'}).click();await queued(page);
  },
  'export audio, plain':exported,
- 'export audio, "Theo mốc phụ đề"':async page=>{await check(page,'Theo mốc phụ đề');await exported(page);},
+ 'export audio, "Theo mốc phụ đề"':async page=>{await exportOptions(page);await check(page,'Theo mốc phụ đề');await exported(page);},
  'export audio, "Theo mốc phụ đề" and "Giữ nhạc nền"':async page=>{
-  await check(page,'Theo mốc phụ đề');
+  await exportOptions(page);await check(page,'Theo mốc phụ đề');
   const keep=page.getByRole('checkbox',{name:'Giữ nhạc nền'});await expect(page.locator('label',{has:keep})).toHaveAttribute('title',/nguồn có nhạc\.mp4/); // the source is loaded
   await keep.click();await expect(keep).toBeChecked();await expect.poll(()=>page.evaluate(()=>(window as any).__jobs.filter((j:any)=>j.kind==='separate').length)).toBe(1);
   await page.evaluate(()=>Object.assign((window as any).__jobs.find((j:any)=>j.kind==='separate'),{status:'succeeded',progress:1,result:{asset_id:'bg-stem',path:'C:\\assets\\bg-stem.flac'}}));
   await exported(page);
  },
  [NO_SOURCE]:async page=>{
-  await check(page,'Theo mốc phụ đề');const keep=page.getByRole('checkbox',{name:'Giữ nhạc nền'});await keep.click();await expect(keep).toBeChecked();
+  await exportOptions(page);await check(page,'Theo mốc phụ đề');const keep=page.getByRole('checkbox',{name:'Giữ nhạc nền'});await keep.click();await expect(keep).toBeChecked();
   await expect(page.getByRole('status').filter({hasText:'Đang tách nhạc nền từ phỏng vấn.wav'})).toBeVisible();
  },
- 'export audio, "Mỗi chương một file"':async page=>{await check(page,'Mỗi chương một file');await exported(page,true);},
+ 'export audio, "Mỗi chương một file"':async page=>{await exportOptions(page);await check(page,'Mỗi chương một file');await exported(page,true);},
  'edit (a): take 2 chosen in the inspector, then export':async page=>{
   await page.getByRole('combobox',{name:'Take đang sử dụng'}).selectOption('t1b');await exported(page);
  },
@@ -98,7 +100,7 @@ const scenarios:Record<string,(page:Page)=>Promise<void>>={
   await go(page,'Chép lời');await page.locator('.tr-time').nth(1).click();const end=page.getByRole('textbox',{name:'Kết thúc'});await end.fill('0:05,000');await end.press('Enter');await expect(page.locator('.tr-time').nth(1)).toContainText('– 0:05,000');
   await page.getByRole('button',{name:'Thành kịch bản'}).click();await expect(page.getByRole('textbox',{name:'Nội dung đoạn 9'})).toBeVisible();
   for(const n of [8,9]){await row(page,n).getByRole('button',{name:'Tạo giọng'}).click();await expect(row(page,n).getByRole('button',{name:'Tạo take mới'})).toBeVisible();}
-  await check(page,'Theo mốc phụ đề');await exported(page);
+  await exportOptions(page);await check(page,'Theo mốc phụ đề');await exported(page);
  },
  'edit (e): every inspector field of a segment, then export as MP3 without "Chuẩn hóa"':async page=>{
   await pick(page,2); // its trim end is unset
@@ -107,7 +109,7 @@ const scenarios:Record<string,(page:Page)=>Promise<void>>={
   for(const [label,value] of [['Nghỉ sau (ms)','750'],['Âm lượng (dB)','-4.5'],['Cắt đầu (ms)','120'],['Cắt cuối (ms)','0'],['To dần (ms)','35'],['Nhỏ dần (ms)','90']])await type(page,label,value);
   await pick(page,4);await page.getByRole('textbox',{name:'Chương',exact:true}).fill(''); // a cleared chapter is null, not ''
   await pick(page,6);await type(page,'Cắt cuối (ms)','1600');
-  await page.getByRole('combobox',{name:'Định dạng audio'}).selectOption({label:'MP3'});await page.getByRole('checkbox',{name:'Chuẩn hóa'}).uncheck();await exported(page);
+  await page.getByRole('combobox',{name:'Định dạng audio'}).selectOption({label:'MP3'});await exportOptions(page);await page.getByRole('checkbox',{name:'Chuẩn hóa'}).uncheck();await exported(page);
  },
  // The caret is not where a split without one would cut (the sentence end nearest the middle, after TP.HCM.).
  'edit (f): split at the caret, merge with the next segment, move down, then generate all and export by subtitle cues':async page=>{
@@ -115,7 +117,7 @@ const scenarios:Record<string,(page:Page)=>Promise<void>>={
   await row(page,1).getByRole('button',{name:'Chia đoạn tại con trỏ'}).click();await expect(text).toHaveValue('Chào mừng đến TP.HCM. [nghỉ 0.5s]');
   await row(page,4).getByRole('button',{name:'Gộp với đoạn sau'}).click();await expect(page.getByRole('textbox',{name:'Nội dung đoạn 4'})).toHaveValue('Trí tuệ AI giúp làm sách nói. Tôi đã đọc 3 chương.');
   await row(page,6).getByRole('button',{name:'Đưa đoạn xuống'}).click();await expect(page.getByRole('textbox',{name:'Nội dung đoạn 6'})).toHaveValue('Hết.');
-  await generateAll(page);await check(page,'Theo mốc phụ đề');await exported(page);
+  await generateAll(page);await exportOptions(page);await check(page,'Theo mốc phụ đề');await exported(page);
  },
  'stt: model, language, diarization and a speaker range':async page=>{
   await go(page,'Chép lời');await page.getByRole('combobox',{name:'Model STT'}).selectOption('whisper-turbo');await page.getByRole('combobox',{name:'Ngôn ngữ STT'}).selectOption('auto');

@@ -150,7 +150,7 @@ test('"Thay N chỗ" with no exact match is focusable and shows its reason',asyn
 
 test('with no segment the dock\'s SRT and "Xuất audio" keep their names, are focusable, say why and do nothing',async({page})=>{
  await desktop(page,[]);
- const busy=()=>page.evaluate(()=>(window as any).__busy as number);await settle(page);await page.waitForTimeout(500);const before=await busy();
+ const busy=()=>page.evaluate(()=>(window as any).__busy as number);await settle(page);await page.waitForTimeout(500);const before=await busy();await page.getByText('Tùy chọn xuất',{exact:true}).click();
  for(const name of ['SRT','Xuất audio']){
   const b=page.getByRole('button',{name,exact:true});await expect(b).toHaveAccessibleDescription('Thêm ít nhất một đoạn');await expect(b).toHaveAttribute('title','Thêm ít nhất một đoạn');
   await b.focus();await readable(page,'Thêm ít nhất một đoạn',name);

@@ -50,13 +50,13 @@ test('busy indicator stays on screen and clear of a plain audio dock at every wi
 });
 test('busy indicator stays on screen and clear of a dock with subtitle options, chapter options and a take strip',async({page})=>{
  await page.addInitScript(mock,true);await page.goto('/');await openProject(page);await exportAndHold(page);
- await page.getByRole('checkbox',{name:'Theo mốc phụ đề'}).check();
+ await page.getByText('Tùy chọn xuất',{exact:true}).click();await page.getByRole('checkbox',{name:'Theo mốc phụ đề'}).check();
  await expect(page.getByRole('checkbox',{name:'Giữ nhạc nền'})).toBeVisible();await expect(page.getByRole('checkbox',{name:'Mỗi chương một file'})).toBeVisible();await expect(page.getByRole('toolbar',{name:'So sánh take'})).toBeVisible();
  expect(await sweep(page,'rich',WIDTHS,HEIGHTS)).toEqual([]);
 });
 test('busy indicator stays on screen and clear of the dock in a 456 x 320 window',async({page})=>{
  await page.addInitScript(mock,true);await page.goto('/');await openProject(page);await exportAndHold(page);
- await page.getByRole('checkbox',{name:'Theo mốc phụ đề'}).check();
+ await page.getByText('Tùy chọn xuất',{exact:true}).click();await page.getByRole('checkbox',{name:'Theo mốc phụ đề'}).check();
  expect(await sweep(page,'tiny',[456],[320])).toEqual([]);
 });
 test('busy indicator started on the queue page stays clear of the dock once the page switches to the script',async({page})=>{
@@ -67,7 +67,7 @@ test('busy indicator started on the queue page stays clear of the dock once the 
  expect(await sweep(page,'queue',[641,800,1024,1440],[720])).toEqual([]);
 });
 test('busy indicator follows a dock that grows while busy, with no resize or scroll',async({page})=>{
- await page.addInitScript(mock,true);await page.goto('/');await page.setViewportSize({width:800,height:720});await openProject(page);await exportAndHold(page);await frames(page);
+ await page.addInitScript(mock,true);await page.goto('/');await page.setViewportSize({width:800,height:720});await openProject(page);await exportAndHold(page);await page.getByText('Tùy chọn xuất',{exact:true}).click();await frames(page);
  const before=await snap(page);expect(verdict(before).ok,'clear before the dock grows').toBe(true);
  // A script click: a real click focuses the checkbox, which scrolls the page (scroll padding) and would wake the scroll listener, hiding a dead observer.
  const y=await page.evaluate(()=>scrollY);await page.getByRole('checkbox',{name:'Theo mốc phụ đề'}).evaluate((e:HTMLInputElement)=>e.click());await expect(page.getByRole('checkbox',{name:'Giữ nhạc nền'})).toBeVisible();await frames(page);
