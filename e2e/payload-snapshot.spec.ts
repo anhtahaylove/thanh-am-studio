@@ -31,7 +31,7 @@ const mock=(d:any)=>{
     if(s){const n=s.takes.length,take={id:`take-${s.id}-${n}`,asset_id:`asset-${s.id}-${n}`,path:`C:\\takes\\${s.id}-${n}.wav`,duration_ms:2000,sample_rate:48000,created_at:'2026-11-21T00:00:00Z'};
      project={...project,segments:project.segments.map((x:any)=>x===s?{...x,takes:[...x.takes,take],selected_take_id:x.selected_take_id??take.id}:x)};Object.assign(job,{status:'succeeded',progress:1,result:{asset_id:take.asset_id,take_id:take.id}});}
     jobs.push(job);return ipc(job);}
-   default:return null;}}};
+   case 'plugin:dialog|save':return 'C:/x/ban-xuat.wav';default:return null;}}};
 };
 const sorted=(v:any):any=>Array.isArray(v)?v.map(sorted):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,sorted(v[k])])):v;
 // Canonical text: keys sorted; a random id (the chapter `batch`, the id of a segment or voice the app makes) named by its first appearance,
@@ -51,7 +51,10 @@ const pick=async(page:Page,n:number)=>{await row(page,n).locator('.segment-index
 const type=async(page:Page,label:string,value:string)=>{const f=page.getByRole('spinbutton',{name:label,exact:true});await f.fill(value);await f.press('Enter');};
 // What each action shows once it has sent everything it sends.
 const queued=(page:Page)=>expect(page.getByRole('status').filter({hasText:'Đã thêm vào hàng đợi. Audio mới được giữ thành take riêng.'})).toBeVisible();
-const exported=async(page:Page)=>{await page.getByRole('button',{name:'Xuất audio'}).click();await expect(page.getByRole('heading',{level:1,name:/^Hàng đợi/})).toBeVisible();};
+const exported=async(page:Page,chapters=false)=>{await page.getByRole('button',{name:'Xuất audio'}).click();
+ // The export stays on the page: one render is in the mock's job list (its send is recorded first), or the chapters' notice has come after the last send.
+ if(chapters)await expect(page.getByRole('status').filter({hasText:/^Đã thêm \d+ chương vào hàng đợi xuất\.$/})).toBeVisible();
+ else await expect.poll(()=>page.evaluate(()=>(window as any).__jobs.filter((j:any)=>j.kind==='render').length)).toBe(1);};
 const generateAll=async(page:Page)=>{await page.getByRole('button',{name:'Tạo giọng tất cả'}).click();await queued(page);};
 const addEntry=async(page:Page,scope:string,key:string,value:string)=>{const d=page.locator(scope);await d.getByRole('textbox',{name:'Từ gốc'}).fill(key);await d.getByRole('textbox',{name:'Cách đọc'}).fill(value);
  await d.getByRole('button',{name:'Thêm cách đọc'}).click();await expect(d.getByText(`${key} → ${value}`)).toBeVisible();};
@@ -76,7 +79,7 @@ const scenarios:Record<string,(page:Page)=>Promise<void>>={
   await check(page,'Theo mốc phụ đề');const keep=page.getByRole('checkbox',{name:'Giữ nhạc nền'});await keep.click();await expect(keep).toBeChecked();
   await expect(page.getByRole('status').filter({hasText:'Đang tách nhạc nền từ phỏng vấn.wav'})).toBeVisible();
  },
- 'export audio, "Mỗi chương một file"':async page=>{await check(page,'Mỗi chương một file');await exported(page);},
+ 'export audio, "Mỗi chương một file"':async page=>{await check(page,'Mỗi chương một file');await exported(page,true);},
  'edit (a): take 2 chosen in the inspector, then export':async page=>{
   await page.getByRole('combobox',{name:'Take đang sử dụng'}).selectOption('t1b');await exported(page);
  },

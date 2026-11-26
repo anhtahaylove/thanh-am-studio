@@ -17,7 +17,7 @@ const mock=(o:{model:boolean;pack?:boolean;source:string|null;cues?:boolean;jobs
    case 'save_project':project={...args.project,revision:args.project.revision+1};return project;
    case 'create_project':project={...project,id:'p2',name:args.name,revision:0,source_asset_id:null};return project;
    case 'enqueue_job':{const job={id:'j'+(jobs.length+1),kind:args.kind,project_id:args.projectId,payload:args.payload,status:'queued',progress:0,error:null,result:null,created_at:new Date(Date.now()+jobs.length).toISOString(),updated_at:new Date().toISOString()};jobs.push(job);return job;}
-   default:return null;}}};
+   case 'plugin:dialog|save':return 'C:/x/ban-xuat.wav';default:return null;}}};
 };
 const calls=(page:any,cmd:string)=>page.evaluate((c:string)=>(window as any).__calls.filter((x:any)=>x.cmd===c).map((x:any)=>x.args),cmd);
 const separation=(asset_id:string,status:string,stem?:string,at=0)=>({id:`s-${asset_id}-${status}-${at}`,kind:'separate',project_id:'p1',payload:{asset_id},status,progress:status==='succeeded'?1:0,error:null,result:stem?{asset_id:stem,path:`C:\\assets\\${stem}.flac`}:null,created_at:new Date(at).toISOString(),updated_at:new Date(at).toISOString()});

@@ -137,7 +137,7 @@ test('an imported SRT keeps its cue times and audio export can follow them',asyn
     case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,python_path:null,ffmpeg_path:null,message:''};
     case 'save_project':project={...args.project,revision:args.project.revision+1};return project;
     case 'plugin:dialog|open':return ['C:/phụ đề.srt'];case 'read_text_file':return '1\n00:00:05,000 --> 00:00:06,500\nBa.\n';
-    case 'enqueue_job':return {id:'j1'};default:return null;}}};
+    case 'enqueue_job':return {id:'j1'};case 'plugin:dialog|save':return 'C:/x/ban-xuat.wav';default:return null;}}};
  });
  await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
  const dub=page.getByRole('checkbox',{name:'Theo mốc phụ đề'});await dub.check();
