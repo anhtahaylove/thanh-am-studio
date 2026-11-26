@@ -60,5 +60,5 @@ test('the queued-chapters notice shows while Tùy chọn xuất is closed',async
 
 test('the per-chapter tooltip points at the Chương field in Chỉnh âm',async({page})=>{
  await open(page);await group(page).click();
- await expect(page.locator('label',{has:controls(page).chapters})).toHaveAttribute('title',/ô Chương trong Chỉnh âm/);
+ await expect(dock(page).locator('label.check',{hasText:'Mỗi chương một file'})).toHaveAttribute('title',/ô Chương trong Chỉnh âm/);
 });
