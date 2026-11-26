@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {MODEL_RAM_MB,formatBytes,modelAdvice,modelSize,ramText} from './models';
+import {MODEL_RAM_MB,formatBytes,modelAdvice,modelSize,ramText,sttDefault} from './models';
 // A 16 GB machine reports about 15,760 MB of physical memory, an 8 GB one about 7,910 MB.
 const STT=['whisper-small','whisper-turbo'];
 const picks=(total:number|null,ram?:Record<string,number|null>)=>STT.filter(id=>modelAdvice(id,total,ram).badge==='recommended');
@@ -54,5 +54,22 @@ describe('model advice',()=>{
  });
  it('gives diarization, HTDemucs and the pack no badge',()=>{
   for(const id of ['diarization','htdemucs','separation-runtime'])expect(modelAdvice(id,15760)).toEqual({badge:null});
+ });
+});
+describe('STT default',()=>{
+ it('picks an installed model, the recommended one first',()=>{
+  expect(sttDefault(['whisper-turbo'],7910)).toBe('whisper-turbo'); // Small is recommended here, but it is not installed
+  expect(sttDefault(['whisper-small'],15760)).toBe('whisper-small');
+  expect(sttDefault(['whisper-small','whisper-turbo'],15760)).toBe('whisper-turbo');
+  expect(sttDefault(['whisper-small','whisper-turbo'],7910)).toBe('whisper-small');
+  expect(sttDefault(['vieneu-v3','whisper-turbo','diarization'],7910)).toBe('whisper-turbo');
+ });
+ it('keeps whisper-small when all are installed and the memory is unknown (the "stt: the defaults" payload)',()=>{
+  expect(sttDefault(['vieneu-v3','whisper-small','whisper-turbo','diarization','htdemucs','separation-runtime'],null)).toBe('whisper-small');
+ });
+ it('names the recommended model when no STT model is installed',()=>{
+  expect(sttDefault([],15760)).toBe('whisper-turbo');
+  expect(sttDefault([],7910)).toBe('whisper-small');
+  expect(sttDefault(['vieneu-v3','diarization'],null)).toBe('whisper-small');
  });
 });
