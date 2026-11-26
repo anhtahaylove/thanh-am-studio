@@ -9,7 +9,7 @@ export const formatBytes=(bytes:number)=>{const mb=Math.round(bytes/1e6);return 
 export const MODEL_RAM_MB:Record<string,number|null>={
  'vieneu-v3':2200, // STATUS.md: TTS worker peak 2,179 MB, clean 8 GB Sandbox 2,221 MB; README: about 2.2 GB
  'whisper-small':1400, // F1 2026-11-25: native STT worker tree peak working set 1,331.3 MiB on a dense 74.5-min talk show (919.6 on the 70.5-min TTS render); STATUS.md "Model RAM measurement (F1)"
- 'whisper-turbo':1900, // F1 2026-11-26: native STT worker tree peak working set, max 1,832.7 MiB over 5 valid runs (3 short, 2 long), dense-speech Turbo pending; STATUS.md "Model RAM measurement (F1)"
+ 'whisper-turbo':1900, // F1 2026-11-26: native STT worker tree peak working set, max 1,832.7 MiB over 5 valid runs (3 short, 2 long), not measured on dense long speech; STATUS.md "Model RAM measurement (F1)"
  'diarization':600, // F1 2026-11-26: thanham-diarize.exe peak working set 523.7 MiB on the 70.5-min file; the tree peak stays at the STT model's; STATUS.md "Model RAM measurement (F1)"
  'htdemucs':1400, // F1 2026-11-26: separation job tree (pack Python + FFmpeg) peak working set, max 1,381.4 MiB over 5 valid runs; STATUS.md "Model RAM measurement (F1)"
  'separation-runtime':null, // the htdemucs figure covers the job this pack runs
