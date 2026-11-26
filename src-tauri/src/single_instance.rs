@@ -35,6 +35,7 @@ pub fn probe(id:&str,timeout_ms:u32)->Running{unsafe{
  if SendMessageTimeoutW(hwnd,WM_NULL,0,0,SMTO_ABORTIFHUNG,timeout_ms,std::ptr::null_mut())==0{Running::Unresponsive}else{Running::Answering}
 }}
 
-/// Before the plugin's init: shows the box and exits when the running instance does not answer within 2 s.
-/// shortcut: a first instance that is still starting and has not pumped messages for 2 s also gets the box, when the second launch is that early.
-pub fn exit_if_unresponsive(id:&str){if probe(id,2000)==Running::Unresponsive{crate::message_box(MESSAGE);std::process::exit(0)}}
+/// Before the plugin's init: shows the box and exits when the running instance does not answer. The wait is the plugin's own 10 s, so a first
+/// instance that is only starting (cold start about 4 s, setup runs on its UI thread) still gets the plugin's forward; ABORTIFHUNG ends a real hang at once.
+/// shortcut: a first instance whose startup blocks its UI thread for more than about 5 s counts as hung to Windows and gets the box.
+pub fn exit_if_unresponsive(id:&str){if probe(id,10_000)==Running::Unresponsive{crate::message_box(MESSAGE);std::process::exit(0)}}
