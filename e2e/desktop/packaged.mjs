@@ -252,11 +252,9 @@ async function exportSteps() {
   await step('render and export wav via save dialog', async () => {
     const before = await done('render');
     await page.getByRole('button', {name: 'Xuất audio'}).click();
+    dialog(wav); // the export asks for the file first; the render saves itself when it finishes
     const [job] = await waitJobs('render', before + 1, 5 * 60000);
-    await nav('Hàng đợi');
-    await jobButton(job.id, 'Lưu audio').click();
     wavMs = job.result.duration_ms;
-    dialog(wav);
     await saved(wav);
     copyFileSync(wav, join(out, 'xuất thử ổn định.wav'));
     return `${statSync(wav).size} bytes at ${wav}`;
@@ -295,12 +293,10 @@ async function exportSteps() {
       await page.getByRole('textbox', {name: 'Nội dung đoạn 1'}).waitFor();
       await page.getByRole('combobox', {name: 'Định dạng audio'}).selectOption({label});
       const before = await done('render');
-      await page.getByRole('button', {name: 'Xuất audio'}).click();
-      const [job] = await waitJobs('render', before + 1, 5 * 60000);
-      await nav('Hàng đợi');
-      await jobButton(job.id, 'Lưu audio').click();
       const file = files[ext] = join(saves, `xuất thử định dạng ${Date.now()}.${ext}`);
+      await page.getByRole('button', {name: 'Xuất audio'}).click();
       dialog(file);
+      await waitJobs('render', before + 1, 5 * 60000);
       await saved(file);
       copyFileSync(file, join(out, `xuất thử định dạng.${ext}`));
       const {streams: [stream], format} = JSON.parse(execFileSync(ffprobe, ['-v', 'error', '-select_streams', 'a:0', '-show_entries', 'stream=codec_name,sample_rate,channels,bits_per_raw_sample:format=duration,format_name', '-of', 'json', file], {encoding: 'utf8'}));
@@ -427,10 +423,8 @@ try {
       await page.getByRole('combobox', {name: 'Định dạng audio'}).selectOption('mp3');
       const before = await done('render');
       await page.getByRole('button', {name: 'Xuất audio'}).click();
-      const [job] = await waitJobs('render', before + 1, 5 * 60000);
-      await nav('Hàng đợi');
-      await jobButton(job.id, 'Lưu audio').click();
       dialog(mp3);
+      const [job] = await waitJobs('render', before + 1, 5 * 60000);
       await saved(mp3);
       copyFileSync(mp3, join(out, 'xuất thử.mp3'));
       const ffprobe = join(dirname(exe), 'runtime', 'ffmpeg', 'ffprobe.exe');
@@ -1068,6 +1062,7 @@ try {
       await page.getByRole('checkbox', {name: 'Chuẩn hóa'}).setChecked(normalize);
       const before = await done('render');
       await page.getByRole('button', {name: 'Xuất audio'}).click();
+      dialog(join(saves, `lồng tiếng ${Date.now()}.wav`)); // the export asks for the file first; the render saves itself when it finishes
       const [rendered] = await waitJobs('render', before + 1, 5 * 60000);
       const {payload} = rendered, pad = Math.max(plan.at(-1).end, ...project.segments.map((s) => s.cue_end_ms));
       const sent = payload.segments.map((s) => [s.dub_at_ms, s.dub_rate]);

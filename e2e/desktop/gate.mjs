@@ -2,9 +2,10 @@
 // mid-batch, restart/retry, full render, STT round trip with WER/CER, RAM and timing.
 // usage: node gate.mjs <app.exe> <outDir> [segments=500]
 import {chromium} from 'playwright-core';
-import {spawn, execSync} from 'node:child_process';
+import {spawn, execSync, execFileSync} from 'node:child_process';
 import {mkdirSync, writeFileSync, appendFileSync, copyFileSync} from 'node:fs';
-import {join} from 'node:path';
+import {join, dirname} from 'node:path';
+import {fileURLToPath} from 'node:url';
 
 // usage: ... [segments] [from-render]: resume an existing gate project at the render step.
 const [exe, out, n = '500', resume] = process.argv.slice(2);
@@ -15,6 +16,8 @@ const report = {segments: N};
 let page, app, browser;
 const invoke = (c, a = {}) => page.evaluate(([c, a]) => window.__TAURI_INTERNALS__.invoke(c, a), [c, a]);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Fills the native save dialog (the same helper packaged.mjs uses).
+const dialog = (path) => log('dialog ' + execFileSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', join(dirname(fileURLToPath(import.meta.url)), 'file-dialog.ps1'), '-Path', path], {encoding: 'utf8'}).trim());
 const procs = () => { try { return JSON.parse(execSync(`powershell -NoProfile -Command "Get-Process python,thanham-worker,thanh-am-studio -EA SilentlyContinue | Where-Object { $_.Path -like '*thanh*' -or $_.ProcessName -like 'thanh*' } | Select-Object Id,ProcessName,WorkingSet64 | ConvertTo-Json -Compress"`, {encoding: 'utf8'}) || '[]'); } catch { return []; } };
 const peak = {python: 0, app: 0};
 // Per-phase peaks plus a raw per-process timeline (ram.csv) to attribute worker memory to TTS, render or STT.
@@ -157,8 +160,9 @@ try {
   // Full render through the UI.
   phase = 'render';
   await page.getByRole('navigation', {name: 'Điều hướng chính'}).getByRole('button').first().click();
-  const tr = Date.now();
   await page.getByRole('button', {name: 'Xuất audio'}).click();
+  dialog(join(out, 'full-render-saved.wav')); // the export asks for the file first; the render saves itself when it finishes
+  const tr = Date.now();
   let render;
   while (!(render = (await invoke('list_jobs')).find((j) => j.kind === 'render' && j.project_id === pid && j.status === 'succeeded'))) {
     const bad = (await invoke('list_jobs')).find((j) => j.kind === 'render' && j.project_id === pid && j.status === 'failed');
