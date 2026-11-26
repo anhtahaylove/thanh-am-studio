@@ -226,15 +226,23 @@ const dialogueCopy = (suffix = '') => {
 const requireNotify = async () => {
   if (!await page.evaluate(() => window.__TAURI_INTERNALS__.invoke('plugin:notification|notify', {}).then(() => true, (e) => !/not found/i.test(String(e))))) throw Error('this build has no plugin:notification|notify command');
 };
-// Logs the window attention and notification commands the app sends, with the time (CDP-side wrapper of the IPC; the app calls it as `window.__TAURI_INTERNALS__.invoke`).
+// Logs the window attention and notification commands the app sends, with the time. Tauri 2 defines `__TAURI_INTERNALS__.invoke`
+// read-only (scripts/core.js), so this wraps the page's `fetch`, which the IPC custom protocol calls for each command
+// (scripts/ipc-protocol.js: `fetch(convertFileSrc(cmd, 'ipc'))`, http://ipc.localhost/<command> on Windows).
 const watchInvokes = () => page.evaluate(() => {
-  const i = window.__TAURI_INTERNALS__;
-  if (i.__watched) return;
-  const orig = i.invoke;
+  if (window.__watched) return;
+  const orig = window.fetch;
   window.__calls = [];
-  i.invoke = function (cmd, ...rest) { if (/^plugin:(window\|request_user_attention|notification\|notify)$/.test(cmd)) window.__calls.push({cmd, at: Date.now()}); return orig.call(i, cmd, ...rest); };
-  if (i.invoke === orig) throw Error('the IPC invoke could not be wrapped');
-  i.__watched = true;
+  window.fetch = function (input, ...rest) {
+    try {
+      const u = new URL(String(input?.url ?? input));
+      const cmd = decodeURIComponent(u.pathname.slice(1));
+      if ((u.hostname === 'ipc.localhost' || u.protocol === 'ipc:') && /^plugin:(window\|request_user_attention|notification\|notify)$/.test(cmd)) window.__calls.push({cmd, at: Date.now()});
+    } catch {}
+    return orig.apply(window, [input, ...rest]);
+  };
+  if (window.fetch === orig) throw Error('fetch could not be wrapped');
+  window.__watched = true;
 });
 async function exportSteps() {
   const wav = join(saves, `xuất thử ổn định ${Date.now()}.wav`);
