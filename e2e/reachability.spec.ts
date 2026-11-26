@@ -192,7 +192,7 @@ const ROWS:[string,WK,At,Step[],L][]=[
  ['models: Kiểm tra ngay','studio','models',[],['button','Kiểm tra ngay']],
  ['models: Có gì mới','studio','models',[],['button','Có gì mới']],
 ];
-for(const [id,world,page,path,target] of ROWS)test.only(`reach ${page} | ${id}`,async({page:p})=>{
+for(const [id,world,page,path,target] of ROWS)test(`reach ${page} | ${id}`,async({page:p})=>{
  await open(p,world,page);
  for(const s of path)await act(p,s);
  await expect(at(p,target),id).toBeVisible();
@@ -202,7 +202,7 @@ for(const [id,world,page,path,target] of ROWS)test.only(`reach ${page} | ${id}`,
 });
 // Each page at most 2 clicks from anywhere (criterion 5): Projects, Voices and Queue change owner in S2 and S3a; edit these paths there.
 const PAGE_PATH:Record<At,Step[]>={tts:[NAV('tts')],stt:[NAV('stt')],voices:[NAV('voices')],jobs:[NAV('jobs')],projects:[NAV('projects')],models:[NAV('models')]};
-for(const from of ['tts','models'] as const)for(const to of Object.keys(LABEL) as At[])if(to!==from)test.only(`page ${LABEL[to]} from ${LABEL[from]}`,async({page})=>{
+for(const from of ['tts','models'] as const)for(const to of Object.keys(LABEL) as At[])if(to!==from)test(`page ${LABEL[to]} from ${LABEL[from]}`,async({page})=>{
  await open(page,'studio',from);
  for(const s of PAGE_PATH[to])await act(page,s);
  await expect(page.locator('main h1')).toContainText(LABEL[to]);
@@ -236,7 +236,7 @@ const SCENARIOS:[id:string,world:WK,from:At,run:(p:Page)=>Promise<unknown>,lands
  ...(['Đi tới Tạo giọng đọc','Thêm đoạn mới','Bật chế độ tập trung','Tạo giọng tất cả','Tạo giọng đoạn đang chọn','Hiện hướng dẫn bắt đầu'] as const).map(n=>[`:383 palette "${n}"`,'studio','stt',paletteOption(n),LABEL.tts] as [string,WK,At,(p:Page)=>Promise<unknown>,string]),
  [':384 quick open (Ctrl+P, a project)','studio','stt',async p=>{await p.keyboard.press('Control+p');await p.getByRole('dialog',{name:'Mở nhanh dự án'}).getByRole('option',{name:'Dự án khác',exact:true}).click();},LABEL.tts],
 ];
-for(const [id,world,from,run,lands,native] of SCENARIOS)test.only(`page log ${id}`,async({page})=>{
+for(const [id,world,from,run,lands,native] of SCENARIOS)test(`page log ${id}`,async({page})=>{
  await open(page,world,from);
  await run(page);
  await expect.poll(()=>h1(page)).toBe(lands);
@@ -245,7 +245,7 @@ for(const [id,world,from,run,lands,native] of SCENARIOS)test.only(`page log ${id
  expect(log.at(-1)?.to).toBe(lands);
  expect(log.at(-1)?.input===null,`a ${native?'native drop has no DOM input':'trusted input precedes the page change'}: ${JSON.stringify(log.at(-1))}`).toBe(!!native);
 });
-test.only('page log: finishing background work never moves the page',async({page})=>{
+test('page log: finishing background work never moves the page',async({page})=>{
  await open(page,'busy','tts');
  const start=await read(page,()=>(window as any).__polls as number);
  await page.evaluate(()=>(window as any).__finish());
@@ -256,52 +256,52 @@ test.only('page log: finishing background work never moves the page',async({page
 });
 
 // Shortcuts, and what each does.
-test.only('Ctrl+K opens the command palette and Escape closes it',async({page})=>{
+test('Ctrl+K opens the command palette and Escape closes it',async({page})=>{
  await open(page,'studio');await page.keyboard.press('Control+k');const d=page.getByRole('dialog',{name:'Bảng lệnh'});
  await expect(d).toBeVisible();await page.keyboard.press('Escape');await expect(d).toHaveCount(0);
 });
-test.only('Ctrl+P opens quick open and Escape closes it',async({page})=>{
+test('Ctrl+P opens quick open and Escape closes it',async({page})=>{
  await open(page,'studio');await page.keyboard.press('Control+p');const d=page.getByRole('dialog',{name:'Mở nhanh dự án'});
  await expect(d).toBeVisible();await page.keyboard.press('Escape');await expect(d).toHaveCount(0);
 });
-test.only('? opens the shortcut sheet and Escape closes it',async({page})=>{
+test('? opens the shortcut sheet and Escape closes it',async({page})=>{
  await open(page,'studio');await page.keyboard.press('?');const d=page.getByRole('dialog',{name:'Phím tắt'});
  await expect(d).toBeVisible();await page.keyboard.press('Escape');await expect(d).toHaveCount(0);
 });
-test.only('Ctrl+S saves the project at once (before the 0.9 s autosave)',async({page})=>{
+test('Ctrl+S saves the project at once (before the 0.9 s autosave)',async({page})=>{
  await open(page,'studio');await at(page,['textbox','Nội dung đoạn 1']).fill('Xin chào lại.');await page.keyboard.press('Control+s');
  await expect.poll(async()=>(await calls(page,'save_project')).length,{timeout:600}).toBeGreaterThan(0);
 });
-test.only('Ctrl+Enter in a segment queues its voice',async({page})=>{
+test('Ctrl+Enter in a segment queues its voice',async({page})=>{
  await open(page,'studio');await at(page,['textbox','Nội dung đoạn 2']).click();await page.keyboard.press('Control+Enter');
  await expect.poll(async()=>(await calls(page,'enqueue_job')).map(c=>c.args.kind)).toEqual(['tts']);
 });
-test.only('Ctrl+Shift+F toggles focus mode',async({page})=>{
+test('Ctrl+Shift+F toggles focus mode',async({page})=>{
  await open(page,'studio');const grid=page.locator('.studio-grid.focus-mode'),button=at(page,['button','Chế độ tập trung']);
  await page.keyboard.press('Control+Shift+f');await expect(grid).toHaveCount(1);await expect(button).toHaveAttribute('aria-pressed','true');
  await page.keyboard.press('Control+Shift+f');await expect(grid).toHaveCount(0);
 });
-test.only('Ctrl+F on the transcript page focuses the search box',async({page})=>{
+test('Ctrl+F on the transcript page focuses the search box',async({page})=>{
  await open(page,'studio','stt');await page.keyboard.press('Control+f');await expect(at(page,['textbox','Tìm trong bản chép lời'])).toBeFocused();
 });
-test.only('Ctrl+Z and Ctrl+Y undo and redo an added segment',async({page})=>{
+test('Ctrl+Z and Ctrl+Y undo and redo an added segment',async({page})=>{
  await open(page,'studio');await at(page,['button','Thêm đoạn','.script-footer']).click(); // a segment with no take (undo and redo keep a segment that has takes, so its audio is never lost)
  const third=at(page,['textbox','Nội dung đoạn 3']);await expect(third).toBeVisible();
  await page.keyboard.press('Control+z');await expect(third).toHaveCount(0);
  await page.keyboard.press('Control+y');await expect(third).toBeVisible();
 });
-test.only('Escape in the segment details goes back to the segment text',async({page})=>{
+test('Escape in the segment details goes back to the segment text',async({page})=>{
  await open(page,'studio');await at(page,['textbox','Chương',INSP]).focus();await page.keyboard.press('Escape');
  await expect(at(page,['textbox','Nội dung đoạn 1'])).toBeFocused();
 });
-test.only('Alt+ArrowUp and Alt+ArrowDown move a segment',async({page})=>{
+test('Alt+ArrowUp and Alt+ArrowDown move a segment',async({page})=>{
  await open(page,'studio');
  await at(page,['textbox','Nội dung đoạn 2']).click();await page.keyboard.press('Alt+ArrowUp');
  await expect(at(page,['textbox','Nội dung đoạn 1'])).toHaveValue('Hẹn gặp lại.');
  await at(page,['textbox','Nội dung đoạn 1']).click();await page.keyboard.press('Alt+ArrowDown');
  await expect(at(page,['textbox','Nội dung đoạn 1'])).toHaveValue('Xin chào làng chài.');
 });
-test.only('the segment toolbar and the take strip move focus with the arrow keys, Home and End',async({page})=>{
+test('the segment toolbar and the take strip move focus with the arrow keys, Home and End',async({page})=>{
  await open(page,'studio');
  const first=at(page,['button','Chia đoạn tại con trỏ',SEG]);await first.focus();
  await page.keyboard.press('ArrowRight');await expect(at(page,['button','Chèn khoảng nghỉ 0,5 giây tại con trỏ',SEG])).toBeFocused();
@@ -309,11 +309,11 @@ test.only('the segment toolbar and the take strip move focus with the arrow keys
  await page.keyboard.press('Home');await expect(first).toBeFocused();
  await at(page,['button',/^Take 1/,DOCK]).focus();await page.keyboard.press('ArrowRight');await expect(at(page,['button',/^Take 2/,DOCK])).toBeFocused();
 });
-test.only('the waveform trim handle moves by 10 ms with ArrowRight',async({page})=>{
+test('the waveform trim handle moves by 10 ms with ArrowRight',async({page})=>{
  await open(page,'studio');const handle=at(page,['slider','Cắt đầu',DOCK]);await expect(handle).toBeVisible();
  await handle.focus();await page.keyboard.press('ArrowRight');await expect(handle).toHaveAttribute('aria-valuenow','10');
 });
-test.only('the transcript row time editor: Enter applies and Escape cancels, both give focus back to the time button',async({page})=>{
+test('the transcript row time editor: Enter applies and Escape cancels, both give focus back to the time button',async({page})=>{
  await open(page,'studio','stt');const time=at(page,['css','.transcript-row .tr-time']),start=at(page,['label','Bắt đầu']);
  await time.click();await expect(start).toBeFocused();await start.fill('0:01,000');await start.press('Enter');
  await expect(time).toHaveText('0:01,000 – 0:03,000');await expect(time).toBeFocused();
