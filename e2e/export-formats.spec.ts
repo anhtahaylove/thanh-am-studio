@@ -26,9 +26,14 @@ for(const [value,label] of [['wav','WAV'],['mp3','MP3'],['m4a','M4A'],['flac','F
   await menu.selectOption(value);await page.getByRole('button',{name:'Xuất audio'}).click();
   await expect.poll(async()=>(await calls(page,'enqueue_job')).length).toBe(1);
   expect((await calls(page,'enqueue_job'))[0].payload.format).toBe(value);
-  await page.getByRole('button',{name:'Lưu audio'}).click();
+  // The export asks for the file when it starts (the render saves itself when it finishes); the queue's "Lưu audio" asks again, with the same name and filter.
   await expect.poll(async()=>(await calls(page,'plugin:dialog|save')).length).toBe(1);
-  const options=(await calls(page,'plugin:dialog|save'))[0].options;
+  let options=(await calls(page,'plugin:dialog|save'))[0].options;
+  expect(options.defaultPath).toBe(`thanh-am.${value}`);expect(options.filters[0].extensions).toEqual([value]);
+  await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:/^Hàng đợi/}).click();
+  await page.getByRole('button',{name:'Lưu audio'}).click();
+  await expect.poll(async()=>(await calls(page,'plugin:dialog|save')).length).toBe(2);
+  options=(await calls(page,'plugin:dialog|save'))[1].options;
   expect(options.defaultPath).toBe(`thanh-am.${value}`);expect(options.filters[0].extensions).toEqual([value]);
  });
 }

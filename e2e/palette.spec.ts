@@ -73,7 +73,7 @@ test('enabled commands call the existing generate and export handlers',async({pa
   w.__TAURI_INTERNALS__={convertFileSrc:(p:string)=>p,transformCallback:()=>1,unregisterCallback:()=>{},metadata:{currentWindow:{label:'main'},currentWebview:{label:'main',windowLabel:'main'}},
    invoke:async(cmd:string,args:any)=>{calls.push({cmd,args});switch(cmd){case 'list_projects':return [project];case 'load_project':return project;case 'list_jobs':case 'list_voices':return [];
     case 'list_models':return [{id:'vieneu-v3',name:'VieNeu',engine:'vieneu',installed:true,revision:'1',license:'',description:''}];case 'get_settings':return {dictionary:{}};
-    case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,python_path:null,ffmpeg_path:null,message:''};default:return null;}}};
+    case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,python_path:null,ffmpeg_path:null,message:''};case 'enqueue_job':return {id:'j'+calls.length};case 'plugin:dialog|save':return 'C:/x/ban-xuat.wav';default:return null;}}};
  });
  const jobs=()=>page.evaluate(()=>(window as any).__calls.filter((c:any)=>c.cmd==='enqueue_job').map((c:any)=>[c.args.kind,c.args.payload.segment_id??null]));
  await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();await expect(page.getByRole('textbox',{name:'Nội dung đoạn 2'})).toBeVisible();

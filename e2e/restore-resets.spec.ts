@@ -20,7 +20,7 @@ const mock=()=>{
    case 'list_project_versions':return [{id:'v1',state_at:at(2),reason:'auto',segments:2,transcript:2,content:[['1','Câu 1.'],['2','Câu 2.']]}];
    case 'restore_project_version':w.__disk={...w.__disk,source_asset_id:'src2',revision:w.__disk.revision+1};return disk();
    case 'enqueue_job':return {id:'j'+(jobs.length+1),kind:args.kind,project_id:args.projectId,payload:args.payload,status:'queued',progress:0,error:null,result:null,created_at:new Date().toISOString(),updated_at:new Date().toISOString()};
-   default:return null;}}};
+   case 'plugin:dialog|save':return 'C:/x/ban-xuat.wav';default:return null;}}};
 };
 const keep=(page:Page)=>page.getByRole('checkbox',{name:'Giữ nhạc nền'});
 const activeRows=(page:Page)=>page.locator('.transcript-row.active');

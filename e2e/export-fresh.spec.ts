@@ -13,7 +13,7 @@ test('export loads the takes the server already made instead of failing on a sta
     case 'list_jobs':return [...jobs].reverse();
     case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,python_path:null,ffmpeg_path:null,message:''};
     case 'enqueue_job':{const job={id:'j'+(jobs.length+1),kind:args.kind,project_id:args.projectId,payload:args.payload,status:'succeeded',progress:1,error:null,result:{asset_id:'r1'},created_at:new Date().toISOString(),updated_at:new Date().toISOString()};jobs.push(job);return job;}
-    default:return null;}}};
+    case 'plugin:dialog|save':return 'C:/x/ban-xuat.wav';default:return null;}}};
  });
  await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
  await expect(page.getByRole('textbox',{name:'Nội dung đoạn 2'})).toHaveValue('Câu 2.');

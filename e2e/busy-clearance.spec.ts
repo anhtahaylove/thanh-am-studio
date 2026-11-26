@@ -13,7 +13,7 @@ const mock=(rich:boolean)=>{
   case 'list_voices':case 'list_models':return [];case 'get_settings':return {dictionary:{}};
   case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,native_worker_ready:true,python_path:null,ffmpeg_path:null,native_worker_path:null,fallback_count:0,total_memory_mb:7910,message:''};
   case 'enqueue_job':return new Promise((_,reject)=>{w.__failExport=()=>reject('WORKER_ERROR: disk full');});
-  default:return null;}}};
+  case 'plugin:dialog|save':return 'C:/x/ban-xuat.wav';default:return null;}}};
 };
 const nav=(page:Page,name:string)=>page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name,exact:true});
 const openProject=async(page:Page)=>{await nav(page,'Dự án').click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();await expect(page.locator('#audio-dock')).toBeVisible();};

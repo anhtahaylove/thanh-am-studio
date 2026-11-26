@@ -18,7 +18,7 @@ const mock=(exportMs:number)=>{
   case 'get_asset':return {id:'src',path:'/tone.wav',name:'phong-van.wav',duration_ms:20000,sample_rate:8000};
   case 'save_settings':await later(300);settings=args.settings;return settings;
   case 'enqueue_job':await later(exportMs);throw 'WORKER_ERROR: disk full';
-  default:return null;}}};
+  case 'plugin:dialog|save':return 'C:/x/ban-xuat.wav';default:return null;}}};
 };
 const tone=()=>{const rate=8000,n=rate*20,b=Buffer.alloc(44+n*2);b.write('RIFF',0);b.writeUInt32LE(36+n*2,4);b.write('WAVEfmt ',8);b.writeUInt32LE(16,16);b.writeUInt16LE(1,20);b.writeUInt16LE(1,22);b.writeUInt32LE(rate,24);b.writeUInt32LE(rate*2,28);b.writeUInt16LE(2,32);b.writeUInt16LE(16,34);b.write('data',36);b.writeUInt32LE(n*2,40);return b;};
 const start=async(page:Page,exportMs=300)=>{await page.addInitScript(mock,exportMs);await page.goto('/');};

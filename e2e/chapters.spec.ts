@@ -40,6 +40,7 @@ test('one render job per chapter with numbered names, and the queue saves them a
  const sent=await calls(page,'enqueue_job');
  expect(sent.map((c:any)=>[c.kind,c.payload.name,c.payload.segments.map((s:any)=>s.id)])).toEqual([['render','001-P1',['1','2']],['render','002-P2',['3']]]);
  expect(sent[0].payload).toMatchObject({normalize:true,format:'wav'});expect(sent[0].payload.batch).toBeTruthy();expect(sent[1].payload.batch).toBe(sent[0].payload.batch);
+ await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:/^Hàng đợi/}).click();
  await expect(page.getByText('001-P1',{exact:true})).toBeVisible();await expect(page.getByText('002-P2',{exact:true})).toBeVisible();
  await page.getByRole('button',{name:'Lưu audio'}).first().click();
  expect((await calls(page,'plugin:dialog|save')).at(-1).options.defaultPath).toMatch(/^002-P2\.wav$/);
@@ -72,6 +73,7 @@ test('chapter export and subtitle timing exclude each other and the bar stays ti
 test('one file that cannot be saved does not stop the others and the notice names it',async({page})=>{
  await open(page,{chapters:['P1','P2','P3']});
  await page.getByRole('checkbox',{name:'Mỗi chương một file'}).check();await page.getByRole('button',{name:'Xuất audio'}).click();
+ await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:/^Hàng đợi/}).click();
  await expect(page.getByText('003-P3',{exact:true})).toBeVisible();
  expect((await calls(page,'enqueue_job')).map((c:any)=>c.payload.batch_size)).toEqual([3,3,3]);
  await page.getByRole('button',{name:'Lưu tất cả chương'}).click();
