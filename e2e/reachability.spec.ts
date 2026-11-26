@@ -284,11 +284,11 @@ test.only('Ctrl+Shift+F toggles focus mode',async({page})=>{
 test.only('Ctrl+F on the transcript page focuses the search box',async({page})=>{
  await open(page,'studio','stt');await page.keyboard.press('Control+f');await expect(at(page,['textbox','Tìm trong bản chép lời'])).toBeFocused();
 });
-test.only('Ctrl+Z and Ctrl+Y undo and redo a deleted segment',async({page})=>{
- await open(page,'studio');await at(page,['button','Xóa đoạn']).click(); // the first segment's
- const second=at(page,['textbox','Nội dung đoạn 2']);await expect(second).toHaveCount(0);
- await page.keyboard.press('Control+z');await expect(second).toBeVisible();
- await page.keyboard.press('Control+y');await expect(second).toHaveCount(0);
+test.only('Ctrl+Z and Ctrl+Y undo and redo an added segment',async({page})=>{
+ await open(page,'studio');await at(page,['button','Thêm đoạn','.script-footer']).click(); // a segment with no take (undo and redo keep a segment that has takes, so its audio is never lost)
+ const third=at(page,['textbox','Nội dung đoạn 3']);await expect(third).toBeVisible();
+ await page.keyboard.press('Control+z');await expect(third).toHaveCount(0);
+ await page.keyboard.press('Control+y');await expect(third).toBeVisible();
 });
 test.only('Escape in the segment details goes back to the segment text',async({page})=>{
  await open(page,'studio');await at(page,['textbox','Chương',INSP]).focus();await page.keyboard.press('Escape');
