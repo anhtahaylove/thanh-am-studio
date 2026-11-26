@@ -47,8 +47,8 @@ export function NumberField({label,value,onChange,min=0,step=1,check}:{label:str
  *  (checkboxes, a pressed toggle) that Tab walks through and that keep the panel open. Escape closes and returns focus to the button; so does a click outside when focus was inside the panel and would otherwise be lost;
  *  Tab out of the panel closes it, but focus moving into a modal does not (the modal gives focus back to the option that opened it). The panel element is always there (hidden when closed) so `aria-controls`
  *  always resolves; its children exist only while it is open. */
-export function MenuButton({kind,label,className='quiet',children}:{kind:'menu'|'disclosure';label:string;className?:string;children:React.ReactNode}){
- const [open,setOpen]=useState(false),root=useRef<HTMLDivElement>(null),button=useRef<HTMLButtonElement>(null),from=useRef<'first'|'last'>('first'),id=useId();
+export function MenuButton({kind,label,className='quiet',icon:Icon,tabIndex,onFocus,children}:{kind:'menu'|'disclosure';label:string;className?:string;icon?:LucideIcon;tabIndex?:number;onFocus?:()=>void;children:React.ReactNode}){
+ const [open,setOpen]=useState(false),root=useRef<HTMLDivElement>(null),button=useRef<HTMLButtonElement>(null),from=useRef<'first'|'last'>('first'),inside=useRef(false),id=useId();
  const items=()=>[...root.current!.querySelectorAll<HTMLElement>('[role=menuitem]:not(:disabled)')];
  useEffect(()=>{
   if(!open)return;
@@ -63,16 +63,19 @@ export function MenuButton({kind,label,className='quiet',children}:{kind:'menu'|
  useEffect(()=>{if(open&&kind==='menu'){const list=items();list[from.current==='last'?list.length-1:0]?.focus();}from.current='first';},[open,kind]);
  const key=(e:React.KeyboardEvent)=>{
   if(e.key==='Escape'&&open&&!e.nativeEvent.isComposing){e.preventDefault();e.stopPropagation();setOpen(false);button.current?.focus();return;}
-  if(kind!=='menu'||!['ArrowDown','ArrowUp','Home','End'].includes(e.key)||e.altKey||e.ctrlKey||e.metaKey)return;
+  if(kind!=='menu')return;
+  if(e.key==='Tab'&&e.shiftKey&&open&&(e.target as Element).closest('[role=menu]')){e.preventDefault();setOpen(false);button.current?.focus();return;} // the previous stop is the button, which is inside the wrapper, so the blur below would not close it
+  if(!['ArrowDown','ArrowUp','Home','End'].includes(e.key)||e.altKey||e.ctrlKey||e.metaKey||!open&&(e.key==='Home'||e.key==='End'))return; // Home and End do nothing on the closed button (a toolbar around it moves along its buttons)
   e.preventDefault();if(!open){from.current=e.key==='ArrowUp'?'last':'first';setOpen(true);return;}
   const list=items(),at=list.indexOf(document.activeElement as HTMLElement),last=list.length-1;
   list[e.key==='Home'?0:e.key==='End'?last:e.key==='ArrowDown'?(at<last?at+1:0):(at>0?at-1:last)]?.focus();
  };
  return <div className="menu-wrap" ref={root} onKeyDown={key} onBlur={e=>{const to=e.relatedTarget as Element|null;if(open&&to&&!root.current!.contains(to)&&!to.closest('[aria-modal="true"]'))setOpen(false);}}>
-  <button ref={button} type="button" className={className} aria-expanded={open} aria-controls={id} aria-haspopup={kind==='menu'?'menu':undefined} onClick={()=>setOpen(o=>!o)}>{label}<ChevronDown size={14} className="menu-caret"/></button>
-  <div id={id} className="menu-panel" hidden={!open} role={kind==='menu'?'menu':undefined} aria-label={kind==='menu'?label:undefined} onClick={e=>{
+  <button ref={button} type="button" className={className} aria-expanded={open} aria-controls={id} aria-haspopup={kind==='menu'?'menu':undefined} aria-label={Icon?label:undefined} title={Icon?label:undefined} tabIndex={tabIndex} onFocus={onFocus} onClick={()=>setOpen(o=>!o)}>{Icon?<Icon size={17}/>:<>{label}<ChevronDown size={14} className="menu-caret"/></>}</button>
+  <div id={id} className="menu-panel" hidden={!open} role={kind==='menu'?'menu':undefined} aria-label={kind==='menu'?label:undefined} onClickCapture={()=>{inside.current=root.current!.contains(document.activeElement);}} onClick={e=>{
    if(kind!=='menu'||!(e.target as HTMLElement).closest('[role=menuitem]:not([aria-disabled=true])'))return;
-   const had=root.current!.contains(document.activeElement);setOpen(false);if(had)button.current?.focus(); // an item that moved focus elsewhere keeps it
+   // Focus was inside before the item ran (read in the capture phase: an item that removes the menu at once leaves it on <body>); it goes back to the button unless the item moved it elsewhere.
+   const at=document.activeElement;setOpen(false);if(inside.current&&(at===document.body||root.current!.contains(at)))button.current?.focus();
   }}>{open&&children}</div>
  </div>;
 }
@@ -80,7 +83,7 @@ export function MenuButton({kind,label,className='quiet',children}:{kind:'menu'|
  *  The caller keeps `tabIndex` 0 on the item that last had focus and -1 on the rest, so Tab leaves the toolbar. */
 export function rovingKeyDown(e:React.KeyboardEvent,container:HTMLElement){
  if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key)||e.altKey||e.ctrlKey||e.metaKey)return;
- const items=[...container.querySelectorAll<HTMLButtonElement>('button')].filter(b=>!b.disabled),at=items.indexOf(e.target as HTMLButtonElement);if(at<0)return;
+ const items=[...container.querySelectorAll<HTMLButtonElement>('button:not([role=menuitem])')].filter(b=>!b.disabled),at=items.indexOf(e.target as HTMLButtonElement);if(at<0)return;
  e.preventDefault();items[e.key==='Home'?0:e.key==='End'?items.length-1:(at+(e.key==='ArrowRight'?1:-1)+items.length)%items.length].focus();
 }
 /** Whether a CSS media query matches, kept current. `beforeChange` runs first when it flips, so a caller can settle what the flip is about to move (a focused field's draft). */
