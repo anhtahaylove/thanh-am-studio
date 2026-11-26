@@ -96,6 +96,14 @@ test('"?" from an option opens the shortcut sheet and Escape gives focus back to
  await page.keyboard.press('Escape');await expect(sheet).toHaveCount(0);await expect(focusMode(page)).toBeFocused();
 });
 
+test('a click inside the palette opened from an option keeps the panel, and Escape gives focus back to the option',async({page})=>{
+ await open(page);await options(page).click();
+ await english(page).focus();await page.keyboard.press('Control+k');
+ const palette=page.getByRole('dialog',{name:'Bảng lệnh'});await expect(palette).toBeVisible();
+ await palette.getByRole('combobox').click();
+ await page.keyboard.press('Escape');await expect(palette).toHaveCount(0);await expect(english(page)).toBeFocused();
+});
+
 test('with reduced motion the panel animates nothing, and the focus ring is drawn on an option',async({page})=>{
  await open(page,{reduce:true});
  await options(page).click();
