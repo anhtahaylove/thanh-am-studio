@@ -178,13 +178,13 @@ test('the toolbar shows four buttons, and split and pause still act at the caret
  expect(await bar.getByRole('button').evaluateAll(l=>l.map(b=>b.getAttribute('aria-label')))).toEqual(['Tạo giọng','Chi tiết đoạn 4','Xóa đoạn','Thao tác khác cho đoạn 4']);
  await expect(more(page,4)).toHaveAttribute('aria-haspopup','menu');await expect(more(page,4)).toHaveAttribute('aria-expanded','false');
  // The caret is set in the text, the focus goes to the menu button and then to an item: the cut is still where the caret was.
- await area(page,4).click();await page.keyboard.press('Home');for(let i=0;i<12;i++)await page.keyboard.press('ArrowRight');
+ await area(page,4).click();await page.keyboard.press('Control+Home');for(let i=0;i<12;i++)await page.keyboard.press('ArrowRight');
  await more(page,4).click();await expect(bar.getByRole('menuitem')).toHaveCount(5);await item(page,4,'Chia đoạn tại con trỏ').click();
  await expect(page.locator('.segment')).toHaveCount(13);
  const t=await texts(page);expect(t[3]).toBe(ORIGINAL[3].slice(0,12).trim());expect(t[4]).toBe(ORIGINAL[3].slice(12).trim());
  // The same for a pause mark: 5 characters into segment 8 (now segment 9), and it needs no space of its own where the text already has one.
- const text=ORIGINAL[7],k=5,gap=(c?:string)=>/s/.test(c??'');
- await area(page,9).click();await page.keyboard.press('Home');for(let i=0;i<k;i++)await page.keyboard.press('ArrowRight');
+ const text=ORIGINAL[7],k=5,gap=(c?:string)=>/\s/.test(c??'');
+ await area(page,9).click();await page.keyboard.press('Control+Home');for(let i=0;i<k;i++)await page.keyboard.press('ArrowRight');
  await more(page,9).click();await item(page,9,'Chèn khoảng nghỉ 0,5 giây tại con trỏ').click();
  await expect(area(page,9)).toHaveValue(text.slice(0,k)+(gap(text[k-1])?'':' ')+'[nghỉ 0.5s]'+(gap(text[k])?'':' ')+text.slice(k));
 });

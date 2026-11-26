@@ -115,7 +115,7 @@ test('with reduced motion the panel animates nothing, and the focus ring is draw
 
 for(const width of [456,1440])test(`the panel stays inside the window at ${width} px`,async({page})=>{
  await open(page,{width});await options(page).click();
- const box=(await page.locator('.menu-panel').boundingBox())!;
+ const box=(await page.locator('.hero-actions .menu-panel').boundingBox())!;
  expect(box.x,'left edge').toBeGreaterThanOrEqual(0);expect(box.x+box.width,'right edge').toBeLessThanOrEqual(width);
 });
 
@@ -200,7 +200,7 @@ const AFTER:[string,(n:number)=>string,number][]=[ // [item, the button that hol
  [NAMES[0],n=>`Thao tác khác cho đoạn ${n}`,13],[NAMES[2],n=>`Thao tác khác cho đoạn ${n}`,11],[NAMES[3],n=>`Thao tác khác cho đoạn ${n-1}`,12],[NAMES[4],n=>`Thao tác khác cho đoạn ${n+1}`,12]];
 for(const [name,button,count] of AFTER)test(`menu: after "${name}" the menu is closed and focus is on the button of the row, not on the page`,async({page})=>{
  await open(page);
- await area(page,5).click();await page.keyboard.press('Home');for(let i=0;i<10;i++)await page.keyboard.press('ArrowRight'); // the caret is inside the text, for the split
+ await area(page,5).click();await page.keyboard.press('Control+Home');for(let i=0;i<10;i++)await page.keyboard.press('ArrowRight'); // the caret is inside the text, for the split
  await more(page,5).click();await item(page,5,name).click();
  await expect(page.locator('.segment')).toHaveCount(count);
  await expect(page.getByRole('menuitem')).toHaveCount(0);
@@ -209,7 +209,7 @@ for(const [name,button,count] of AFTER)test(`menu: after "${name}" the menu is c
 });
 test('menu: after "Chèn khoảng nghỉ 0,5 giây tại con trỏ" the menu is closed and the caret is in the text, after the mark',async({page})=>{
  await open(page);
- await area(page,5).click();await page.keyboard.press('Home');for(let i=0;i<10;i++)await page.keyboard.press('ArrowRight');
+ await area(page,5).click();await page.keyboard.press('Control+Home');for(let i=0;i<10;i++)await page.keyboard.press('ArrowRight');
  await more(page,5).click();await item(page,5,NAMES[1]).click();
  await expect(page.getByRole('menuitem')).toHaveCount(0);await expect(area(page,5)).toBeFocused();
  await page.keyboard.type('X');await expect(area(page,5)).toHaveValue(/\[nghỉ 0\.5s\] ?X/);
