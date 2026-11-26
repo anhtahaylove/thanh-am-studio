@@ -4,6 +4,7 @@ pub mod pack;
 pub mod engine;
 pub mod docx;
 pub mod update;
+#[cfg(windows)] pub mod single_instance;
 use serde_json::{json,Value};
 use std::{path::{Path,PathBuf},sync::{Arc,atomic::Ordering}};
 use tauri::{Manager,State};
@@ -66,6 +67,8 @@ pub fn startup_hook(dir:PathBuf,notify:impl Fn(&str)+Send+Sync+'static)->Box<dyn
 
 pub fn run() {
  let ctx=tauri::generate_context!();
+ // Before the plugin, whose own wait on a hung first instance is 10 s and silent.
+ #[cfg(windows)] single_instance::exit_if_unresponsive(&ctx.config().identifier);
  // Until RunEvent::Ready; the default hook runs first so a debug build still prints the panic.
  let (default,hook)=(std::panic::take_hook(),startup_hook(std::env::var_os("LOCALAPPDATA").filter(|v|!v.is_empty()).map_or_else(std::env::temp_dir,PathBuf::from).join(&ctx.config().identifier),message_box));
  std::panic::set_hook(Box::new(move|i|{default(i);hook(i)}));
