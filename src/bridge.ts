@@ -57,7 +57,10 @@ export async function saveDiagnostics():Promise<void>{
  if(!desktop){await saveText('thanh-am-chan-doan.txt','Bản xem trước giao diện trong trình duyệt: chưa có nhật ký chẩn đoán.');return;}
  const path=await save({defaultPath:'thanh-am-chan-doan.txt',filters:[{name:'Văn bản',extensions:['txt']}]});if(path){await call('export_diagnostics',{path});announceSaved(path);}
 }
-export async function saveAudio(assetId:string,format:string,name='thanh-am'):Promise<void>{const path=await save({defaultPath:`${name}.${format}`,filters:[{name:'Audio',extensions:[format]}]});if(path){await call('export_asset',{assetId,path});announceSaved(path);}}
+/** Asks where to save an audio file of `format`. Null when cancelled. */
+export const pickAudioPath=(format:string,name='thanh-am'):Promise<string|null>=>save({defaultPath:`${name}.${format}`,filters:[{name:'Audio',extensions:[format]}]});
+/** Copies a rendered audio asset to `path` and tells the app, which offers to show it in Explorer. */
+export async function saveAudio(assetId:string,path:string):Promise<void>{await call('export_asset',{assetId,path});announceSaved(path);}
 /** Asks for a folder and copies each audio asset there as `file`, leaving a file that already exists alone; a file that fails is reported and the rest still go on. Null when cancelled. */
 export async function saveAudioFiles(items:{assetId:string;file:string}[]):Promise<{saved:number;skipped:string[];failed:{file:string;error:string}[]}|null>{
  if(!desktop)throw Error('Mở bản desktop để lưu tệp.');
