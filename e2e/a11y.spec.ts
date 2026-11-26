@@ -16,7 +16,7 @@ test('the narrow rail names every page, marks the current one and keeps the them
  await page.getByRole('button',{name:'Chuyển giao diện tối'}).click();await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
 });
 test('muted text, success text, input borders and the focus ring keep AA contrast in both themes',async({page})=>{
- await page.goto('/');await page.getByRole('button',{name:'Viết đoạn đầu tiên'}).click();
+ await page.goto('/');await page.getByRole('button',{name:'Viết đoạn đầu tiên'}).click();await page.getByText('Chỉnh âm',{exact:true}).click();
  const bgs=['--bg','--paper','--surface','--green-soft'],input=page.getByLabel('Nghỉ sau (ms)');
  for(const theme of ['light','dark']){
   await expect(page.locator('html')).toHaveAttribute('data-theme',theme);

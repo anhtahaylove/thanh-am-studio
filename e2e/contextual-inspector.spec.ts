@@ -30,10 +30,11 @@ const countRenders=():void=>{
  };
  w.__REACT_DEVTOOLS_GLOBAL_HOOK__={supportsFiber:true,renderers:new Map(),inject(r:any){const id=this.renderers.size+1;this.renderers.set(id,r);return id;},onCommitFiberRoot(_:number,root:any){if(root.current.alternate)walk(root.current,root.current.alternate);},onCommitFiberUnmount(){},onPostCommitFiberRoot(){},checkDCE(){}};
 };
-const open=async(page:Page,width=1440,live=false)=>{
+const open=async(page:Page,width=1440,live=false,tuning=true)=>{
  await page.setViewportSize({width,height:900});if(live)await page.addInitScript(countRenders);await page.addInitScript(mock,{project:FIXTURE,live});await page.goto('/');
  await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
  await expect(page.getByRole('textbox',{name:'Nội dung đoạn 12'})).toBeVisible();
+ if(tuning)await page.getByText('Chỉnh âm',{exact:true}).click(); // "Chỉnh âm" holds the fields most of these tests use; the one test about it opens it itself
 };
 const seg=(page:Page,n:number)=>page.locator('.segment').nth(n-1);
 const area=(page:Page,n:number)=>page.getByRole('textbox',{name:`Nội dung đoạn ${n}`,exact:true});
@@ -86,7 +87,7 @@ test('with no take the inspector says so and shows no take or trim field; with o
 });
 
 test('inspector shows voice, speed, take; Chỉnh âm holds the same fields and values',async({page})=>{
- await open(page);await pick(page,6);
+ await open(page,1440,false,false);await pick(page,6);
  const inspector=page.locator('.inspector'),tuning=inspector.locator('details',{has:page.locator('summary',{hasText:'Chỉnh âm'})});
  const labels=['Chương','Nghỉ sau (ms)','Âm lượng (dB)','Cắt đầu (ms)','Cắt cuối (ms)','To dần (ms)','Nhỏ dần (ms)'];
  await expect(inspector.getByRole('combobox',{name:'Giọng đoạn 6',exact:true})).toBeVisible();await expect(inspector.getByRole('combobox',{name:'Tốc độ đọc đoạn 6',exact:true})).toBeVisible();
@@ -268,7 +269,7 @@ test('the normalized text in the panel follows the app dictionary while it is op
 });
 
 test('crossing 920 px with focus on the "Văn bản sau chuẩn hóa" summary keeps focus on it',async({page})=>{
- await open(page,1000);await pick(page,5);const summary=()=>page.locator('.segment-detail summary');
+ await open(page,1000);await pick(page,5);const summary=()=>page.locator('.segment-detail summary',{hasText:'Văn bản sau chuẩn hóa'});
  await summary().focus();await expect(summary()).toBeFocused();
  await page.setViewportSize({width:800,height:900});await expect(seg(page,5).locator('.segment-detail')).toHaveCount(1);await expect(summary()).toBeFocused();
  await page.setViewportSize({width:1000,height:900});await expect(page.locator('.inspector .segment-detail')).toHaveCount(1);await expect(summary()).toBeFocused();

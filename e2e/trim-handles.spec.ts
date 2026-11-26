@@ -26,7 +26,7 @@ const open=async(page:Page,width=1440,height=960,lateMs=0)=>{
  await page.setViewportSize({width,height});
  await page.route(/\/s\d+b?\.wav$/,async r=>{const id=new URL(r.request().url()).pathname.slice(1,-4);if(id==='s1'&&lateMs)await new Promise(z=>setTimeout(z,lateMs));return r.fulfill({body:tone(id==='s1b'?.9:.2+.1*Number(id.slice(1))),contentType:'audio/wav'});});
  await page.addInitScript(mock);await page.goto('/');
- await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
+ await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();await page.getByText('Chỉnh âm',{exact:true}).click();
  await page.getByRole('heading',{level:1}).click(); // the take keys (1-9) act when focus is not in a field
 };
 const slider=(page:Page,name:'Cắt đầu'|'Cắt cuối')=>page.getByRole('slider',{name,exact:true});
