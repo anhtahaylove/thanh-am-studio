@@ -7,6 +7,16 @@ revisions and digests in `worker/models.json`). Background separation runs on a 
 (Python + PyTorch 2.15.0+cpu + Demucs 4.1.0, `worker/requirements-separation.lock`) that the app downloads on
 demand from this repository's `pack-separation-v<N>` prerelease (see "Separation runtime pack" below).
 
+It installs per user into `%LOCALAPPDATA%\Thanh Am Studio`: since 1.0.26 the productName, which names the folder, the
+registry keys, the Start Menu shortcut and the updater's `%TEMP%` copies, is ASCII; the window title and the Apps & Features
+name stay "Thanh Âm Studio". The hooks in `src-tauri/installer-hooks.nsh` move an install of the old name: one in a folder
+the user chose is updated there; the old default folder `%LOCALAPPDATA%\Thanh Âm Studio` loses only what the app put there
+(`runtime`, `worker`, the exe, `uninstall.exe` and the two licence files), so a user's file keeps it; the old uninstall entry
+and location key go once that install is gone or reused; the old Start Menu and Desktop shortcuts are replaced and a pinned
+taskbar shortcut is pointed at the new exe. Uninstall also removes the `__pycache__` folders Python writes under
+`runtime\python` and `worker`. Two entries stay when the new install goes to a third folder over a custom old one, or inside
+the old default folder; both use the same projects and models, so uninstall the old one without deleting app data.
+
 ## Reproducible build (Windows x64)
 
 Requirements: Node 22+, Rust stable (MSVC; Visual Studio Build Tools also provide the redistributable CRT the runtime ships app-locally), uv, git. No administrator rights.

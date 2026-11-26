@@ -1,4 +1,4 @@
-use thanh_am_studio::update::remove_installer_copies;
+use thanh_am_studio::update::{remove_installer_copies,LEGACY_NAME};
 
 fn temp(tag:&str)->std::path::PathBuf{let t=std::env::temp_dir().join(format!("thanh-am cleanup {tag} {}",std::process::id()));let _=std::fs::remove_dir_all(&t);std::fs::create_dir_all(&t).unwrap();t}
 
@@ -11,6 +11,16 @@ fn removes_only_this_apps_updater_copies(){
  let file=t.join("Thanh Âm Studio-1.0.12-updater-note");std::fs::write(&file,b"x").unwrap();
  assert_eq!(remove_installer_copies(&t,"Thanh Âm Studio"),0);
  assert!(!copy.exists());assert!(other_app.exists()&&unrelated.exists()&&file.exists());
+ std::fs::remove_dir_all(&t).unwrap();
+}
+
+// The 1.0.25 updater names its copy after the old productName; the ASCII name does not match it, the legacy name does.
+#[test]
+fn removes_copies_of_the_old_product_name(){
+ let t=temp("legacy");
+ let copy=t.join("Thanh Âm Studio-1.0.26-updater-x");std::fs::create_dir_all(&copy).unwrap();
+ assert_eq!(remove_installer_copies(&t,"Thanh Am Studio"),0);assert!(copy.exists());
+ assert_eq!(remove_installer_copies(&t,LEGACY_NAME),0);assert!(!copy.exists());
  std::fs::remove_dir_all(&t).unwrap();
 }
 

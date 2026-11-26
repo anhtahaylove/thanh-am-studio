@@ -65,9 +65,12 @@ pub fn remove_installer_copies(temp:&Path,app:&str)->usize{
  let prefix=format!("{app}-");
  std::fs::read_dir(temp).map(|d|d.flatten().filter(|e|{let n=e.file_name().to_string_lossy().into_owned();n.starts_with(&prefix)&&n.contains("-updater-")&&e.file_type().is_ok_and(|t|t.is_dir())}).filter(|e|std::fs::remove_dir_all(e.path()).is_err()).count()).unwrap_or(0)
 }
+/// The productName up to 1.0.25 (precomposed U+00C2, as tauri.conf.json had it). The updater of those versions names its
+/// installer copy after it, so the copy that installed this version carries that name.
+pub const LEGACY_NAME:&str="Thanh \u{c2}m Studio";
 
 /// The version the last install was meant to bring, once: the installer runs after the app exits, so only the next start can tell.
 /// When that install took, its kept installer goes too. Installer copies left in the temp folder are removed on every start,
 /// retried for a minute because the installer that reopened the app may still be running from one.
 #[tauri::command]
-pub fn update_last_install(app:AppHandle)->Result<Option<String>>{let (temp,name)=(std::env::temp_dir(),app.package_info().name.clone());std::thread::spawn(move||{for _ in 0..30{if remove_installer_copies(&temp,&name)==0{break}std::thread::sleep(Duration::from_secs(2));}});let dir=dir(&app)?;let v=std::fs::read_to_string(dir.join("installing")).ok();let _=std::fs::remove_file(dir.join("installing"));if v.as_deref()==Some(app.package_info().version.to_string().as_str()){let _=std::fs::remove_dir_all(&dir);}Ok(v)}
+pub fn update_last_install(app:AppHandle)->Result<Option<String>>{let (temp,name)=(std::env::temp_dir(),app.package_info().name.clone());std::thread::spawn(move||{for _ in 0..30{if remove_installer_copies(&temp,&name)+remove_installer_copies(&temp,LEGACY_NAME)==0{break}std::thread::sleep(Duration::from_secs(2));}});let dir=dir(&app)?;let v=std::fs::read_to_string(dir.join("installing")).ok();let _=std::fs::remove_file(dir.join("installing"));if v.as_deref()==Some(app.package_info().version.to_string().as_str()){let _=std::fs::remove_dir_all(&dir);}Ok(v)}
