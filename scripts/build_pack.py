@@ -173,7 +173,7 @@ def main():
     parser.add_argument('source', nargs='?')
     parser.add_argument('out', nargs='?')
     parser.add_argument('--tag')
-    parser.add_argument('--repo', default=os.environ.get('GITHUB_REPOSITORY', 'anhtahaylove/thanh-am-studio'))
+    parser.add_argument('--repo', default=os.environ.get('GITHUB_REPOSITORY', 'huuhungn/thanh-am-studio'))
     parser.add_argument('--verify')
     parser.add_argument('--manifest-sha256')
     args = parser.parse_args()

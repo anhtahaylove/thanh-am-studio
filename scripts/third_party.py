@@ -177,7 +177,7 @@ if stale: sys.exit('runtime not built by the current scripts/setup-runtime.ps1: 
 app_version = json.loads((ROOT / 'package.json').read_text())['version']
 add('runtime', 'Thanh Âm Studio stand-in DLLs, part of this project: the OpenMP shim libiomp5md.dll in ctranslate2 and beside the native worker '
     '(scripts/openmp-shim) and the libx264 and libx265 stubs in av.libs, which contain no x264 or x265 code (scripts/encoder-stubs)',
-    app_version, 'Apache-2.0', f'pkg:github/anhtahaylove/thanh-am-studio@{app_version}', [ROOT / 'LICENSE'])
+    app_version, 'Apache-2.0', f'pkg:github/huuhungn/thanh-am-studio@{app_version}', [ROOT / 'LICENSE'])
 # soundfile's libsndfile_x64.dll links its codec libraries in statically (scripts/licenses/libsndfile-SOURCE.txt).
 for name, version, license_, purl, files in [
     ('libsndfile (_soundfile_data/libsndfile_x64.dll in soundfile)', '1.2.2', 'LGPL-2.1-or-later', 'pkg:generic/libsndfile@1.2.2',

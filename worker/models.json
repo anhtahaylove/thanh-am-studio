@@ -293,7 +293,7 @@
       "description": "Python 3.11 with PyTorch and Demucs that runs background separation. Downloaded once from this project's GitHub release, checked against a manifest, and never changed afterwards. The installer does not carry it.",
       "artifacts": [],
       "pack": {
-        "url": "https://github.com/anhtahaylove/thanh-am-studio/releases/download/pack-separation-v1/separation-runtime-v1.zip",
+        "url": "https://github.com/huuhungn/thanh-am-studio/releases/download/pack-separation-v1/separation-runtime-v1.zip",
         "size": 173988339,
         "unpacked_size": 573999243,
         "sha256": "637e2d34d08e828bf7305b6e0317663e90ac67b79fc300709cc0f94c192567ec",
