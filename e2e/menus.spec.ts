@@ -35,7 +35,7 @@ const stored=(page:Page,key:string)=>page.evaluate(k=>localStorage.getItem(k),ke
 
 test('hero has two controls; each option in 2 clicks, state kept; Escape returns focus',async({page})=>{
  await open(page);
- await expect(hero(page).getByRole('button')).toHaveCount(2);
+ await expect(hero(page).locator('button:visible,input:visible'),'two visible controls, no checkbox').toHaveCount(2);
  await expect(options(page)).toHaveAttribute('aria-expanded','false');await expect(hero(page).getByRole('button',{name:'Tạo giọng tất cả'})).toBeVisible();
  for(const hidden of [focusMode(page),english(page),whisper(page)])await expect(hidden,'a closed panel leaves its options out of the page').toHaveCount(0);
  // A disclosure, not a menu: aria-controls names the panel and nothing carries a menu role or aria-haspopup.
@@ -80,6 +80,20 @@ test('titles and disabled states move with the options: Whisper needs its model,
  await page.keyboard.press('Control+Shift+F');await expect(focusMode(page)).toHaveAttribute('aria-pressed','true');
  await page.keyboard.press('Escape');await page.keyboard.press('Control+Shift+F'); // closed: the shortcut still works and the option shows it when the panel opens again
  await options(page).click();await expect(focusMode(page)).toHaveAttribute('aria-pressed','false');
+});
+
+test('Ctrl+K from an option opens the palette and Escape gives focus back to the option',async({page})=>{
+ await open(page);await options(page).click();
+ await english(page).focus();await page.keyboard.press('Control+k');
+ const palette=page.getByRole('dialog',{name:'Bảng lệnh'});await expect(palette).toBeVisible();
+ await page.keyboard.press('Escape');await expect(palette).toHaveCount(0);await expect(english(page)).toBeFocused();
+});
+
+test('"?" from an option opens the shortcut sheet and Escape gives focus back to the option',async({page})=>{
+ await open(page);await options(page).click();
+ await focusMode(page).focus();await page.keyboard.press('?');
+ const sheet=page.getByRole('dialog',{name:'Phím tắt'});await expect(sheet).toBeVisible();
+ await page.keyboard.press('Escape');await expect(sheet).toHaveCount(0);await expect(focusMode(page)).toBeFocused();
 });
 
 test('with reduced motion the panel animates nothing, and the focus ring is drawn on an option',async({page})=>{

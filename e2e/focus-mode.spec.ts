@@ -29,8 +29,6 @@ const options=(page:Page)=>page.getByRole('button',{name:'Tùy chọn',exact:tru
 const button=(page:Page)=>page.getByRole('button',{name:'Chế độ tập trung',exact:true});
 // The button sits in the hero's "Tùy chọn" panel, which closes on Escape, on a click elsewhere and when focus leaves it: toggle() opens it when it is closed, so a test reaches the button the way a user does.
 const toggle=async(page:Page)=>{if(await options(page).getAttribute('aria-expanded')!=='true')await options(page).click();return button(page);};
-// The same button without opening the panel, for the two tests that assert where focus is: opening it would move focus to "Tùy chọn".
-const pressed=(page:Page)=>page.getByRole('button',{name:'Chế độ tập trung',exact:true,includeHidden:true});
 const grid=(page:Page)=>page.locator('.studio-grid');
 const area=(page:Page,n:number)=>page.getByRole('textbox',{name:`Nội dung đoạn ${n}`,exact:true});
 const said=(page:Page,text:string)=>expect(page.locator('[aria-live=polite]').filter({hasText:text})).toHaveCount(1);
@@ -56,8 +54,10 @@ test('Ctrl+Shift+F works while typing in a segment, types nothing and keeps the 
  await open(page);
  const box=area(page,3);await box.click();const before=await box.inputValue();
  await page.keyboard.press('Control+Shift+F');
- await expect(pressed(page)).toHaveAttribute('aria-pressed','true');await expect(box).toBeFocused();await expect(box).toHaveValue(before);
- await page.keyboard.press('Control+Shift+F');await expect(pressed(page)).toHaveAttribute('aria-pressed','false');await expect(box).toBeFocused();
+ await expect(box).toBeFocused();await expect(box).toHaveValue(before); // focus and text first: reading the button below opens the panel, which moves focus
+ await expect(await toggle(page)).toHaveAttribute('aria-pressed','true');await page.keyboard.press('Escape');await box.focus();
+ await page.keyboard.press('Control+Shift+F');await expect(box).toBeFocused();
+ await expect(await toggle(page)).toHaveAttribute('aria-pressed','false');await page.keyboard.press('Escape');
  await page.locator('main').click({position:{x:2,y:2}});await page.keyboard.press('?');
  const sheet=page.getByRole('dialog',{name:'Phím tắt'});
  await expect(sheet.getByText('Bật hoặc tắt chế độ tập trung',{exact:true})).toBeVisible();
@@ -206,8 +206,9 @@ for(const width of [1440,800]){
   await open(page,{width,height:720,stored:'1'});
   await expect(await toggle(page)).toHaveAttribute('aria-pressed','true');
   await page.getByRole('toolbar',{name:'Thao tác đoạn 1'}).getByRole('button',{name:'Chi tiết đoạn 1',exact:true}).click();
-  await expect(pressed(page)).toHaveAttribute('aria-pressed','false');await expect(grid(page)).not.toHaveClass(/focus-mode/);
+  await expect(grid(page)).not.toHaveClass(/focus-mode/);
   await expect(page.getByRole('combobox',{name:'Giọng đoạn 1',exact:true})).toBeFocused();
+  await expect(await toggle(page)).toHaveAttribute('aria-pressed','false'); // after the focus assert: reading it opens the panel
   await said(page,'Đã tắt chế độ tập trung.');expect(await stored(page)).toBe('0');
  });
 }

@@ -113,7 +113,7 @@ progress::-webkit-progress-value{background:var(--green)}
 .menu-wrap{position:relative;display:inline-flex} /* MenuButton: the panel opens under the button, right edges aligned; at 640 px and below it spans the hero row so it can never leave the window */
 .menu-wrap>.quiet[aria-expanded=true]{background:var(--surface);color:var(--ink)}
 .menu-caret{transition:transform .18s ease}.menu-wrap>[aria-expanded=true] .menu-caret{transform:rotate(180deg)}
-.menu-panel{position:absolute;top:calc(100% + 6px);right:0;z-index:27;display:flex;flex-direction:column;gap:2px;min-width:250px;max-width:calc(100vw - 32px);padding:6px;border:1px solid var(--border);border-radius:12px;background:var(--paper);box-shadow:0 8px 28px #0003;animation:menu-in .18s ease-out}
+.menu-panel{position:absolute;top:calc(100% + 6px);right:0;z-index:24;display:flex;flex-direction:column;gap:2px;min-width:250px;max-width:calc(100vw - 32px);padding:6px;border:1px solid var(--border);border-radius:12px;background:var(--paper);box-shadow:0 8px 28px #0003;animation:menu-in .18s ease-out}
 .menu-panel[hidden]{display:none}
 .menu-panel>*{width:100%;padding:8px 10px;border-radius:8px}
 .menu-panel>.quiet{justify-content:flex-start}

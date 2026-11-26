@@ -293,9 +293,10 @@ test('Ctrl+Enter in a segment queues its voice',async({page})=>{
  await expect.poll(async()=>(await calls(page,'enqueue_job')).map(c=>c.args.kind)).toEqual(['tts']);
 });
 test('Ctrl+Shift+F toggles focus mode',async({page})=>{
- await open(page,'studio');const grid=page.locator('.studio-grid.focus-mode'),button=at(page,['button','Chế độ tập trung']);await at(page,['button','Tùy chọn']).click();
- await page.keyboard.press('Control+Shift+f');await expect(grid).toHaveCount(1);await expect(button).toHaveAttribute('aria-pressed','true');
- await page.keyboard.press('Control+Shift+f');await expect(grid).toHaveCount(0);
+ await open(page,'studio');const grid=page.locator('.studio-grid.focus-mode'),button=at(page,['button','Chế độ tập trung']);
+ await page.keyboard.press('Control+Shift+f');await expect(grid).toHaveCount(1); // the panel is still closed: the shortcut needs no click
+ await at(page,['button','Tùy chọn']).click();await expect(button).toHaveAttribute('aria-pressed','true');
+ await page.keyboard.press('Control+Shift+f');await expect(grid).toHaveCount(0);await expect(button).toHaveAttribute('aria-pressed','false');
 });
 test('Ctrl+F on the transcript page focuses the search box',async({page})=>{
  await open(page,'studio','stt');await page.keyboard.press('Control+f');await expect(at(page,['textbox','Tìm trong bản chép lời'])).toBeFocused();

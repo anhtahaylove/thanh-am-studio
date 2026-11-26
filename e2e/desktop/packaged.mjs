@@ -1841,17 +1841,19 @@ ConvertTo-Json -Compress -InputObject $items`));
       });
       await nvdaStep('S9 focus mode', async (r) => {
         r.input = 'CDP: focus segment 1 textarea; OS ^+f (Ctrl+Shift+F, U8)';
-        const toggle = page.getByRole('button', {name: 'Chế độ tập trung', exact: true, includeHidden: true}); // read while the panel is closed: focus sits in the segment text
+        const toggle = page.getByRole('button', {name: 'Chế độ tập trung', exact: true});
+        // aria-pressed is read through the opened panel and Escape closes it again, so focus is set (or checked) after the read
+        const pressedNow = async () => { await openOptions(); const v = await toggle.getAttribute('aria-pressed', {timeout: 5000}); await page.keyboard.press('Escape'); return v; };
         await nav('Tạo giọng đọc');
         try {
-          if (await toggle.getAttribute('aria-pressed', {timeout: 5000}) !== 'false') throw Error('focus mode is already on (aria-pressed is not false)');
+          if (await pressedNow() !== 'false') throw Error('focus mode is already on (aria-pressed is not false)');
           await focus(segmentText(1));
           mark();
           osKeys('^+f');
           await hear(['Đã bật chế độ tập trung'], 5000);
-          if (await toggle.getAttribute('aria-pressed', {timeout: 5000}) !== 'true') throw Error('the announcement was heard but aria-pressed is not true');
+          if (await pressedNow() !== 'true') throw Error('the announcement was heard but aria-pressed is not true');
         } finally {
-          if (await toggle.getAttribute('aria-pressed', {timeout: 5000}).catch(() => 'false') === 'true') { await openOptions(); await toggle.click(); await page.keyboard.press('Escape'); } // the preference persists: back to off
+          if (await pressedNow().catch(() => 'false') === 'true') { await openOptions(); await toggle.click(); await page.keyboard.press('Escape'); } // the preference persists: back to off
         }
       }, {baselineExpectFail: true});
       await nvdaStep('S10 version history dialog', async (r) => {
@@ -1871,6 +1873,29 @@ ConvertTo-Json -Compress -InputObject $items`));
           await focusIs('Lịch sử phiên bản');
         } finally {
           if (await dialog.count()) await page.keyboard.press('Escape'); // a failed step must not leave the dialog open
+        }
+      }, {baselineExpectFail: true});
+      await nvdaStep('S11 options disclosure', async (r) => {
+        r.input = 'CDP: focus "Tùy chọn"; Enter; Tab; Escape';
+        const options = page.getByRole('button', {name: 'Tùy chọn', exact: true});
+        await nav('Tạo giọng đọc');
+        try {
+          mark();
+          await focus(options);
+          await hear([['Tùy chọn', 'button', 'collapsed']], 5000);
+          mark();
+          await page.keyboard.press('Enter');
+          await hear([['Tùy chọn', 'expanded']], 5000);
+          mark();
+          await page.keyboard.press('Tab');
+          await hear([['Chế độ tập trung', 'toggle button', 'not pressed']], 5000);
+          await focusIs('Chế độ tập trung');
+          mark();
+          await page.keyboard.press('Escape');
+          await hear([['Tùy chọn', 'collapsed']], 5000);
+          await focusIs('Tùy chọn');
+        } finally {
+          if (await options.getAttribute('aria-expanded', {timeout: 5000}).catch(() => 'false') === 'true') await options.click(); // a failed step must not leave the panel open
         }
       }, {baselineExpectFail: true});
     } finally {
