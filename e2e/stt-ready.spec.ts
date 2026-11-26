@@ -68,6 +68,7 @@ test('none installed: the button is blocked with the reason and sends nothing, t
  await go(page).click({force:true});
  expect(await page.evaluate(()=>(window as any).__sent)).toEqual([]);
  expect(await page.evaluate(()=>(window as any).__dialogs)).toBe(0); // the forced click never reached the file dialog
+ await nextPoll(page);await expect(page.getByRole('alert')).toHaveCount(0); // and the old guard's error alert never showed
  await page.evaluate(()=>(window as any).__downloading('whisper-small'));
  await expect(go(page)).toHaveAccessibleDescription('Đang tải Whisper Small…');
 });
