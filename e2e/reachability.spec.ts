@@ -90,8 +90,8 @@ const open=async(page:Page,world:WK,to:At='tts')=>{
 };
 
 const SEG='.segment',INSP='.inspector',DOCK='#audio-dock',FIRST='.first-run',TB='.topbar-actions',STT='.transcript-panel',TIME=F(['css','.transcript-row .tr-time']);
-// [id, world, page, clicks before the control is there, the control]
-const ROWS:[string,WK,At,Step[],L][]=[
+// [id, world, page, clicks before the control is there, the control, steps that put the page in the state where the control applies (set up like open(): not counted)]
+const ROWS:[string,WK,At,Step[],L,Step[]?][]=[
  // Global chrome (any page) and the first-run page: no project, no model.
  ...(['Chuyển giao diện theo hệ thống','Chuyển giao diện sáng','Chuyển giao diện tối','Chuyển giao diện tương phản cao'] as const).map(n=>[`chrome: ${n}`,'fresh','tts',[],['button',n]] as [string,WK,At,Step[],L]),
  ['hero: Tùy chọn','fresh','tts',[],['button','Tùy chọn']],
@@ -114,9 +114,9 @@ const ROWS:[string,WK,At,Step[],L][]=[
  ['inspector dictionary: Xóa TPHCM','studio','tts',[['button','Từ điển phát âm',INSP]],['button','Xóa TPHCM',INSP]],
  ['dock: Nghe thử đoạn','fresh','tts',[],['button','Nghe thử đoạn',DOCK]],
  ['dock: Định dạng audio','fresh','tts',[],['combobox','Định dạng audio',DOCK]],
- ['dock: Chuẩn hóa','fresh','tts',[],['checkbox','Chuẩn hóa',DOCK]],
+ ['dock: Chuẩn hóa','fresh','tts',[['text','Tùy chọn xuất',DOCK]],['checkbox','Chuẩn hóa',DOCK]],
  ['dock: Xuất audio','fresh','tts',[],['button','Xuất audio',DOCK]],
- ['dock: SRT','fresh','tts',[],['button','SRT',DOCK]],
+ ['dock: SRT','fresh','tts',[['text','Tùy chọn xuất',DOCK]],['button','SRT',DOCK]],
  // TTS page with a project: top bar, one segment, the inspector, the dock.
  ['top bar: Hoàn tác','studio','tts',[],['button','Hoàn tác (Ctrl+Z)',TB]],
  ['top bar: Làm lại','studio','tts',[],['button','Làm lại (Ctrl+Shift+Z)',TB]],
@@ -137,9 +137,9 @@ const ROWS:[string,WK,At,Step[],L][]=[
  ['inspector: Phân vai, giọng','studio','tts',[],['combobox','Giọng của Người dẫn',INSP]],
  ['inspector: Phân vai, nghe mẫu','studio','tts',[],['button','Nghe mẫu giọng của Người dẫn',INSP]],
  ['inspector: Tải lại để nhận take mới','studio','tts',[],['button','Tải lại để nhận take mới',INSP]],
- ['dock: Theo mốc phụ đề','studio','tts',[],['checkbox','Theo mốc phụ đề',DOCK]],
- ['dock: Giữ nhạc nền','studio','tts',[['checkbox','Theo mốc phụ đề',DOCK]],['checkbox','Giữ nhạc nền',DOCK]],
- ['dock: Mỗi chương một file','studio','tts',[],['checkbox','Mỗi chương một file',DOCK]],
+ ['dock: Theo mốc phụ đề','studio','tts',[['text','Tùy chọn xuất',DOCK]],['checkbox','Theo mốc phụ đề',DOCK]],
+ ['dock: Giữ nhạc nền','studio','tts',[['text','Tùy chọn xuất',DOCK]],['checkbox','Giữ nhạc nền',DOCK],[['text','Tùy chọn xuất',DOCK],['checkbox','Theo mốc phụ đề',DOCK],['text','Tùy chọn xuất',DOCK]]], // state: subtitle timing is on and the group is closed again
+ ['dock: Mỗi chương một file','studio','tts',[['text','Tùy chọn xuất',DOCK]],['checkbox','Mỗi chương một file',DOCK]],
  ['dock: take strip','studio','tts',[],['toolbar','So sánh take',DOCK]],
  ['dock: Dùng take này','studio','tts',[['button',/^Take 2/,DOCK]],['button','Dùng take này',DOCK]],
  ['dock: waveform Cắt đầu','studio','tts',[],['slider','Cắt đầu',DOCK]],
@@ -203,8 +203,9 @@ const ROWS:[string,WK,At,Step[],L][]=[
  ['models: Kiểm tra ngay','studio','models',[],['button','Kiểm tra ngay']],
  ['models: Có gì mới','studio','models',[],['button','Có gì mới']],
 ];
-for(const [id,world,page,path,target] of ROWS)test(`reach ${page} | ${id}`,async({page:p})=>{
+for(const [id,world,page,path,target,state] of ROWS)test(`reach ${page} | ${id}`,async({page:p})=>{
  await open(p,world,page);
+ if(state){for(const s of state)await act(p,s);await p.evaluate(()=>(window as any).__reset());}
  for(const s of path)await act(p,s);
  await expect(at(p,target),id).toBeVisible();
  const n=await read(p,()=>(window as any).__clicks as number);
@@ -237,7 +238,7 @@ const SCENARIOS:[id:string,world:WK,from:At,run:(p:Page)=>Promise<unknown>,lands
  [':269 restoreVersion ("Khôi phục")','studio','stt',async p=>{await act(p,['button','Lịch sử phiên bản',TB]);await act(p,['button',/^Khôi phục trạng thái lúc/,'[role=dialog]']);},LABEL.tts],
  [':281 applyTranscript ("Áp dụng transcript")','studio','jobs',p=>act(p,['button','Áp dụng transcript']),LABEL.stt],
  [':290 render ("Xuất audio")','studio','tts',p=>act(p,['button','Xuất audio',DOCK]),AFTER_RENDER,undefined,queued('render')],
- [':290 render per chapter ("Mỗi chương một file", "Xuất audio")','studio','tts',async p=>{await act(p,['checkbox','Mỗi chương một file',DOCK]);await act(p,['button','Xuất audio',DOCK]);},AFTER_RENDER,undefined,queued('render')],
+ [':290 render per chapter ("Mỗi chương một file", "Xuất audio")','studio','tts',async p=>{await act(p,['text','Tùy chọn xuất',DOCK]);await act(p,['checkbox','Mỗi chương một file',DOCK]);await act(p,['button','Xuất audio',DOCK]);},AFTER_RENDER,undefined,queued('render')],
  ...(Object.keys(LABEL) as At[]).filter(to=>to!=='models').map(to=>[`:353 sidebar to ${LABEL[to]}`,'studio','models',p=>act(p,NAV(to)),LABEL[to]] as [string,WK,At,(p:Page)=>Promise<unknown>,string]),
  [':359 checklist model button ("Xem model giọng đọc")','fresh','tts',p=>act(p,['button','Xem model giọng đọc',FIRST]),AFTER_CHECKLIST_MODEL,undefined,downloads(CHECKLIST_MODEL_DOWNLOADS)],
  [':366 "Thành kịch bản"','studio','stt',p=>act(p,['button','Thành kịch bản',STT]),LABEL.tts],
