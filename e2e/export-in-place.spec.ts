@@ -12,6 +12,8 @@ const mock=(o:O)=>{
  const job=(id:string,status:string,payload:object)=>({id,kind:'render',project_id:'p1',payload,status,progress:status==='succeeded'?1:0,error:null,result:status==='succeeded'?{asset_id:'r'+id}:null,created_at:now,updated_at:now});
  const jobs:any[]=o.seeded?[job('old','succeeded',{format:'wav',name:'Bản cũ'})]:[];
  w.__finish=()=>{for(const j of jobs){j.status='succeeded';j.progress=1;j.result={asset_id:'r'+j.id};}};
+ w.__fail=()=>{for(const j of jobs){j.status='failed';j.error='WORKER_ERROR: disk full';}};
+ w.__busy=()=>{jobs.push(job('later','running',{}));}; // another job appears, so the app takes in a new job list
  w.__TAURI_INTERNALS__={convertFileSrc:(p:string)=>p,transformCallback:()=>1,unregisterCallback:()=>{},metadata:{currentWindow:{label:'main'},currentWebview:{label:'main',windowLabel:'main'}},
   invoke:async(cmd:string,args:any)=>{calls.push({cmd,args:JSON.parse(JSON.stringify(args??{}))});switch(cmd){
    case 'list_projects':return [{id:'p1',name:project.name,updated_at:now,revision:1}];case 'load_project':return project;
@@ -33,6 +35,7 @@ const of=async(page:Page,cmd:string)=>(await calls(page)).filter(c=>c.cmd===cmd)
 const onTts=(page:Page)=>expect(page.locator('main h1')).toContainText('Tạo giọng đọc');
 const exportAudio=(page:Page)=>page.getByRole('button',{name:'Xuất audio'});
 const finish=(page:Page)=>page.evaluate(()=>(window as any).__finish());
+const later=(page:Page,fn:'__fail'|'__busy')=>page.evaluate(f=>(window as any)[f](),fn);
 
 test('the save dialog opens before the render is queued, the payload is the same and the page stays',async({page})=>{
  await open(page);await exportAudio(page).click();
@@ -70,6 +73,23 @@ test('the file is saved when the render finishes, with the banner and its folder
  await banner.getByRole('button',{name:'Mở thư mục'}).click();
  await expect.poll(async()=>await of(page,'reveal_path')).toEqual([{path:'C:\\Xuất\\bản-xuất.wav'}]);
  await onTts(page);expect((await of(page,'export_asset')).length,'saved once').toBe(1);
+ await later(page,'__busy');await page.waitForTimeout(6000); // more than two polls, each with a new job list
+ expect((await of(page,'export_asset')).length,'saved once, not again by a later job update').toBe(1);
+});
+
+test('a render that fails shows the error, saves nothing and stays on the page',async({page})=>{
+ await open(page);await exportAudio(page).click();
+ await expect.poll(async()=>(await of(page,'enqueue_job')).length).toBe(1);await later(page,'__fail');
+ await expect(page.getByRole('alert')).toContainText('Xuất audio không thành công: WORKER_ERROR: disk full',{timeout:15000});
+ expect(await of(page,'export_asset')).toEqual([]);await expect(page.getByRole('status').filter({hasText:'Đã lưu'})).toHaveCount(0);await onTts(page);
+});
+
+test('a finished render saves only to its own path, not to the one a later export is waiting on',async({page})=>{
+ await open(page,{seeded:true});await exportAudio(page).click();
+ await expect.poll(async()=>(await of(page,'enqueue_job')).length).toBe(1);
+ await page.waitForTimeout(3000);expect(await of(page,'export_asset'),'the older finished render is not saved with the new path').toEqual([]);
+ await finish(page);
+ await expect.poll(async()=>await of(page,'export_asset'),{timeout:15000}).toEqual([{assetId:'rj2',path:'C:\\Xuất\\bản-xuất.wav'}]);
 });
 
 test('a save that fails is reported',async({page})=>{
