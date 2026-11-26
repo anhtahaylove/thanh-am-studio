@@ -110,6 +110,15 @@ progress::-webkit-progress-value{background:var(--green)}
 @media(max-width:640px){.focus-mode .segment textarea{font-size:17px}}
 .hero-actions{flex-wrap:wrap;justify-content:flex-end} /* the focus button widens the row: at 641 px it wraps instead of pushing the page sideways */
 .hero-actions .quiet[aria-pressed=true]{background:var(--paper);color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.menu-wrap{position:relative;display:inline-flex} /* MenuButton: the panel opens under the button, right edges aligned; at 640 px and below it spans the hero row so it can never leave the window */
+.menu-wrap>.quiet[aria-expanded=true]{background:var(--surface);color:var(--ink)}
+.menu-caret{transition:transform .18s ease}.menu-wrap>[aria-expanded=true] .menu-caret{transform:rotate(180deg)}
+.menu-panel{position:absolute;top:calc(100% + 6px);right:0;z-index:27;display:flex;flex-direction:column;gap:2px;min-width:250px;max-width:calc(100vw - 32px);padding:6px;border:1px solid var(--border);border-radius:12px;background:var(--paper);box-shadow:0 8px 28px #0003;animation:menu-in .18s ease-out}
+.menu-panel[hidden]{display:none}
+.menu-panel>*{width:100%;padding:8px 10px;border-radius:8px}
+.menu-panel>.quiet{justify-content:flex-start}
+@keyframes menu-in{from{opacity:0;transform:translateY(-4px)}}
+@media(max-width:640px){.hero-actions{position:relative}.menu-wrap{position:static}.menu-panel{left:0;right:0;min-width:0;max-width:none}}
 .trim-readout{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:1px;padding:0 6px;font-size:11px;line-height:16px;white-space:nowrap;color:var(--ink);background:var(--paper);border-radius:4px;pointer-events:none}
 /* Voice sample (A4): the "Phân vai" sample button sits beside its voice select, centred on it. */
 .cast-row{display:flex;align-items:flex-end;gap:6px;margin-bottom:14px}

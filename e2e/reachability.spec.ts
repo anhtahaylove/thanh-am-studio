@@ -94,9 +94,10 @@ const SEG='.segment',INSP='.inspector',DOCK='#audio-dock',FIRST='.first-run',TB=
 const ROWS:[string,WK,At,Step[],L][]=[
  // Global chrome (any page) and the first-run page: no project, no model.
  ...(['Chuyển giao diện theo hệ thống','Chuyển giao diện sáng','Chuyển giao diện tối','Chuyển giao diện tương phản cao'] as const).map(n=>[`chrome: ${n}`,'fresh','tts',[],['button',n]] as [string,WK,At,Step[],L]),
- ['hero: Chế độ tập trung','fresh','tts',[],['button','Chế độ tập trung']],
- ['hero: Đọc từ tiếng Anh','fresh','tts',[],['checkbox','Đọc từ tiếng Anh']],
- ['hero: Tự kiểm bằng Whisper','fresh','tts',[],['checkbox','Tự kiểm bằng Whisper']],
+ ['hero: Tùy chọn','fresh','tts',[],['button','Tùy chọn']],
+ ['hero: Chế độ tập trung','fresh','tts',[['button','Tùy chọn']],['button','Chế độ tập trung']],
+ ['hero: Đọc từ tiếng Anh','fresh','tts',[['button','Tùy chọn']],['checkbox','Đọc từ tiếng Anh']],
+ ['hero: Tự kiểm bằng Whisper','fresh','tts',[['button','Tùy chọn']],['checkbox','Tự kiểm bằng Whisper']],
  ['hero: Tạo giọng tất cả','fresh','tts',[],['button','Tạo giọng tất cả']],
  ['script: Nhập TXT / SRT / Word','fresh','tts',[],['button','Nhập TXT / SRT / Word']],
  ['script: Thêm nội dung','fresh','tts',[],['button','Thêm nội dung']],
@@ -292,7 +293,7 @@ test('Ctrl+Enter in a segment queues its voice',async({page})=>{
  await expect.poll(async()=>(await calls(page,'enqueue_job')).map(c=>c.args.kind)).toEqual(['tts']);
 });
 test('Ctrl+Shift+F toggles focus mode',async({page})=>{
- await open(page,'studio');const grid=page.locator('.studio-grid.focus-mode'),button=at(page,['button','Chế độ tập trung']);
+ await open(page,'studio');const grid=page.locator('.studio-grid.focus-mode'),button=at(page,['button','Chế độ tập trung']);await at(page,['button','Tùy chọn']).click();
  await page.keyboard.press('Control+Shift+f');await expect(grid).toHaveCount(1);await expect(button).toHaveAttribute('aria-pressed','true');
  await page.keyboard.press('Control+Shift+f');await expect(grid).toHaveCount(0);
 });
