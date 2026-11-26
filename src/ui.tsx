@@ -68,7 +68,7 @@ export function MenuButton({kind,label,className='quiet',children}:{kind:'menu'|
   const list=items(),at=list.indexOf(document.activeElement as HTMLElement),last=list.length-1;
   list[e.key==='Home'?0:e.key==='End'?last:e.key==='ArrowDown'?(at<last?at+1:0):(at>0?at-1:last)]?.focus();
  };
- return <div className="menu-wrap" ref={root} onKeyDown={key} onBlur={e=>{const to=e.relatedTarget as Element|null;if(open&&to&&!root.current!.contains(to)&&!to.closest('[aria-modal="true"]'))setOpen(false);}}>
+ return <div className="menu-wrap" ref={root} onKeyDown={key} onBlur={e=>{const to=e.relatedTarget as Element|null;if(open&&to&&!root.current!.contains(to))setOpen(false);}}>
   <button ref={button} type="button" className={className} aria-expanded={open} aria-controls={id} aria-haspopup={kind==='menu'?'menu':undefined} onClick={()=>setOpen(o=>!o)}>{label}<ChevronDown size={14} className="menu-caret"/></button>
   <div id={id} className="menu-panel" hidden={!open} role={kind==='menu'?'menu':undefined} aria-label={kind==='menu'?label:undefined} onClick={e=>{
    if(kind!=='menu'||!(e.target as HTMLElement).closest('[role=menuitem]:not([aria-disabled=true])'))return;
