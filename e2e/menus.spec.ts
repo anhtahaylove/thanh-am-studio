@@ -1,6 +1,6 @@
 import {test,expect,type Page} from '@playwright/test';
 import {readFileSync} from 'node:fs';
-// Round 1.0.26 C1 (PLAN §6): the TTS hero shows two controls, "Tùy chọn" and "Tạo giọng tất cả". "Tùy chọn" is a disclosure button (aria-expanded, aria-controls, no menu roles,
+// Round 1.0.26 C1 (PLAN §6), and C3's tests of the kind-`menu` contract through the segment menu (from "Kind menu" on): the TTS hero shows two controls, "Tùy chọn" and "Tạo giọng tất cả". "Tùy chọn" is a disclosure button (aria-expanded, aria-controls, no menu roles,
 // because its items are native checkboxes and a pressed toggle) holding "Chế độ tập trung", "Đọc từ tiếng Anh" and "Tự kiểm bằng Whisper". Tauri is mocked with the 12-segment fixture.
 const PROJECT=JSON.parse(readFileSync('e2e/fixtures/script-12.json','utf8'));
 const mock=(o:{project:string;whisper:boolean}):void=>{
@@ -115,6 +115,102 @@ test('with reduced motion the panel animates nothing, and the focus ring is draw
 
 for(const width of [456,1440])test(`the panel stays inside the window at ${width} px`,async({page})=>{
  await open(page,{width});await options(page).click();
- const box=(await page.locator('.menu-panel').boundingBox())!;
+ const box=(await page.locator('.hero-actions .menu-panel').boundingBox())!;
  expect(box.x,'left edge').toBeGreaterThanOrEqual(0);expect(box.x+box.width,'right edge').toBeLessThanOrEqual(width);
+});
+
+// Kind `menu` (C3 is its first consumer): the menu button of a segment holds the five items "Chia đoạn tại con trỏ", "Chèn khoảng nghỉ 0,5 giây tại con trỏ", "Gộp với đoạn sau", "Đưa đoạn lên" and "Đưa đoạn xuống".
+const NAMES=['Chia đoạn tại con trỏ','Chèn khoảng nghỉ 0,5 giây tại con trỏ','Gộp với đoạn sau','Đưa đoạn lên','Đưa đoạn xuống'];
+const row=(page:Page,n:number)=>page.locator('.segment').nth(n-1);
+const more=(page:Page,n:number)=>row(page,n).getByRole('button',{name:`Thao tác khác cho đoạn ${n}`,exact:true});
+const item=(page:Page,n:number,name:string)=>row(page,n).getByRole('menuitem',{name,exact:true});
+const area=(page:Page,n:number)=>page.getByRole('textbox',{name:`Nội dung đoạn ${n}`,exact:true});
+const expanded=(page:Page,n:number,v:'true'|'false')=>expect(more(page,n)).toHaveAttribute('aria-expanded',v);
+
+test('menu: an aria-disabled item keeps the menu open and focus where it is, by click, Enter and Space',async({page})=>{
+ await open(page);
+ await more(page,12).click();await expanded(page,12,'true');
+ const merge=item(page,12,'Gộp với đoạn sau');await expect(merge).toHaveAttribute('aria-disabled','true');await expect(merge).toHaveAccessibleDescription('Không có đoạn sau để gộp');
+ await merge.focus();await merge.click({force:true});await page.keyboard.press('Enter');await page.keyboard.press('Space');
+ await expanded(page,12,'true');await expect(merge).toBeFocused();await expect(page.locator('.segment')).toHaveCount(12);
+ await page.keyboard.press('Escape');await expanded(page,12,'false');await expect(more(page,12)).toBeFocused(); // Escape still closes it
+});
+
+test('menu: focus goes back to the button only when it was still inside the menu',async({page})=>{
+ await open(page);
+ // Inside the menu, then a click on a spot that takes no focus: the focus would be lost, so it returns to the button.
+ await more(page,6).click();await expect(item(page,6,NAMES[0])).toBeFocused();await page.locator('main h1').click();
+ await expanded(page,6,'false');await expect(more(page,6)).toBeFocused();
+ // A click on another field closes the menu and keeps the focus where the click put it.
+ await more(page,6).click();await area(page,9).click();
+ await expanded(page,6,'false');await expect(area(page,9)).toBeFocused();
+ // An item that moves focus on purpose keeps it: the pause item puts the caret back in the text.
+ await area(page,6).click();await more(page,6).click();await item(page,6,NAMES[1]).click();
+ await expanded(page,6,'false');await expect(area(page,6)).toBeFocused();await expect(area(page,6)).toHaveValue(/\[nghỉ 0\.5s\]/);
+});
+
+test('menu: the items are not tab stops; Tab leaves and closes the menu, and so does Shift+Tab, which lands on the button',async({page})=>{
+ await open(page);
+ await more(page,6).focus();await page.keyboard.press('Enter');await expect(row(page,6).getByRole('menuitem')).toHaveCount(5);
+ expect(await row(page,6).getByRole('menuitem').evaluateAll(l=>l.map(i=>(i as HTMLElement).tabIndex))).toEqual([-1,-1,-1,-1,-1]);
+ await page.keyboard.press('Tab');
+ await expanded(page,6,'false');expect(await page.evaluate(()=>!!document.activeElement?.closest('.menu-panel')),'focus is outside the menu').toBe(false);await expect(area(page,6)).toBeFocused(); // the next stop after the toolbar
+ await more(page,6).focus();await page.keyboard.press('Enter');await expect(item(page,6,NAMES[0])).toBeFocused();
+ await page.keyboard.press('ArrowDown');await page.keyboard.press('ArrowDown');await page.keyboard.press('Shift+Tab'); // from the third item, not only from the first
+ await expanded(page,6,'false');await expect(more(page,6)).toBeFocused();
+});
+
+test('menu: the items exist only while it is open, and aria-controls always names the panel',async({page})=>{
+ await open(page);
+ const id=await more(page,6).getAttribute('aria-controls');expect(id).toBeTruthy();
+ const panel=page.locator(`[id="${id}"]`);
+ await expect(panel).toHaveCount(1);await expect(panel).toBeHidden();await expect(panel).toHaveAttribute('role','menu');await expect(panel).toHaveAttribute('aria-label','Thao tác khác cho đoạn 6');
+ expect(await panel.evaluate(p=>p.childElementCount),'a closed menu holds nothing').toBe(0);await expect(page.getByRole('menuitem')).toHaveCount(0);
+ await more(page,6).click();
+ await expect(panel).toBeVisible();expect(await panel.evaluate(p=>p.childElementCount)).toBe(5);
+ expect(await row(page,6).getByRole('menuitem').evaluateAll(l=>l.map(i=>i.textContent))).toEqual(NAMES);
+ await page.keyboard.press('Escape');
+ await expect(panel).toHaveCount(1);await expect(panel).toBeHidden();expect(await panel.evaluate(p=>p.childElementCount)).toBe(0);
+});
+
+test('menu: ArrowDown opens on the first item and ArrowUp on the last; Home, End and the arrows move inside; the focus ring is drawn',async({page})=>{
+ await open(page);
+ await more(page,6).focus();await page.keyboard.press('ArrowUp');
+ await expanded(page,6,'true');await expect(item(page,6,NAMES[4])).toBeFocused();
+ expect(await item(page,6,NAMES[4]).evaluate(e=>getComputedStyle(e).outlineStyle),'focus ring on an item').toBe('solid');
+ await page.keyboard.press('Home');await expect(item(page,6,NAMES[0])).toBeFocused();
+ await page.keyboard.press('End');await expect(item(page,6,NAMES[4])).toBeFocused();
+ await page.keyboard.press('ArrowDown');await expect(item(page,6,NAMES[0])).toBeFocused();
+ await page.keyboard.press('ArrowUp');await expect(item(page,6,NAMES[4])).toBeFocused();
+ await page.keyboard.press('ArrowUp');await expect(item(page,6,NAMES[3])).toBeFocused();
+ await page.keyboard.press('Escape');await expanded(page,6,'false');await expect(more(page,6)).toBeFocused();
+ await page.keyboard.press('ArrowDown');await expanded(page,6,'true');await expect(item(page,6,NAMES[0])).toBeFocused();
+});
+
+test('menu: Home and End on the closed button open nothing; the toolbar around it moves along its buttons',async({page})=>{
+ await open(page);
+ await more(page,6).focus();await page.keyboard.press('Home');
+ await expect(row(page,6).getByRole('button',{name:'Tạo take mới',exact:true})).toBeFocused();await expanded(page,6,'false');
+ await page.keyboard.press('End');await expect(more(page,6)).toBeFocused();await expanded(page,6,'false');
+ await expect(page.getByRole('menuitem')).toHaveCount(0);
+});
+
+// Every item that changes or moves the row leaves focus on something sensible, never <body>: the button of the row the item ends in (a row that moves keeps its focus too), the text for the pause mark.
+const AFTER:[string,(n:number)=>string,number][]=[ // [item, the button that holds focus afterwards, segments afterwards]
+ [NAMES[0],n=>`Thao tác khác cho đoạn ${n}`,13],[NAMES[2],n=>`Thao tác khác cho đoạn ${n}`,11],[NAMES[3],n=>`Thao tác khác cho đoạn ${n-1}`,12],[NAMES[4],n=>`Thao tác khác cho đoạn ${n+1}`,12]];
+for(const [name,button,count] of AFTER)test(`menu: after "${name}" the menu is closed and focus is on the button of the row, not on the page`,async({page})=>{
+ await open(page);
+ await area(page,5).click();await page.keyboard.press('Control+Home');for(let i=0;i<10;i++)await page.keyboard.press('ArrowRight'); // the caret is inside the text, for the split
+ await more(page,5).click();await item(page,5,name).click();
+ await expect(page.locator('.segment')).toHaveCount(count);
+ await expect(page.getByRole('menuitem')).toHaveCount(0);
+ await expect(page.getByRole('button',{name:button(5),exact:true})).toBeFocused();
+ expect(await page.evaluate(()=>document.activeElement===document.body)).toBe(false);
+});
+test('menu: after "Chèn khoảng nghỉ 0,5 giây tại con trỏ" the menu is closed and the caret is in the text, after the mark',async({page})=>{
+ await open(page);
+ await area(page,5).click();await page.keyboard.press('Control+Home');for(let i=0;i<10;i++)await page.keyboard.press('ArrowRight');
+ await more(page,5).click();await item(page,5,NAMES[1]).click();
+ await expect(page.getByRole('menuitem')).toHaveCount(0);await expect(area(page,5)).toBeFocused();
+ await page.keyboard.type('X');await expect(area(page,5)).toHaveValue(/\[nghỉ 0\.5s\] ?X/);
 });

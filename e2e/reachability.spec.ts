@@ -124,7 +124,9 @@ const ROWS:[string,WK,At,Step[],L][]=[
  ['top bar: save state','studio','tts',[],['button','Đã lưu',TB]],
  ['segment: Nội dung','studio','tts',[],['textbox','Nội dung đoạn 1',SEG]],
  ['segment: Nhân vật','studio','tts',[],['textbox','Nhân vật đoạn 1',SEG]],
- ...(['Chia đoạn tại con trỏ','Chèn khoảng nghỉ 0,5 giây tại con trỏ','Gộp với đoạn sau','Đưa đoạn lên','Đưa đoạn xuống','Xóa đoạn','Tạo take mới','Chi tiết đoạn 1'] as const).map(n=>[`segment: ${n}`,'studio','tts',[],['button',n,SEG]] as [string,WK,At,Step[],L]),
+ ['segment: Thao tác khác cho đoạn 1','studio','tts',[],['button','Thao tác khác cho đoạn 1',SEG]],
+ ...(['Chia đoạn tại con trỏ','Chèn khoảng nghỉ 0,5 giây tại con trỏ','Gộp với đoạn sau','Đưa đoạn lên','Đưa đoạn xuống'] as const).map(n=>[`segment: ${n}`,'studio','tts',[['button','Thao tác khác cho đoạn 1',SEG]],['menuitem',n,SEG]] as [string,WK,At,Step[],L]),
+ ...(['Xóa đoạn','Tạo take mới','Chi tiết đoạn 1'] as const).map(n=>[`segment: ${n}`,'studio','tts',[],['button',n,SEG]] as [string,WK,At,Step[],L]),
  ['segment: Thở dài','studio','tts',[],['button','Thở dài',SEG]],
  ['inspector: Giọng đoạn','studio','tts',[],['combobox','Giọng đoạn 1',INSP]],
  ['inspector: Tốc độ','studio','tts',[],['combobox','Tốc độ đọc đoạn 1',INSP]],
@@ -320,9 +322,9 @@ test('Alt+ArrowUp and Alt+ArrowDown move a segment',async({page})=>{
 });
 test('the segment toolbar and the take strip move focus with the arrow keys, Home and End',async({page})=>{
  await open(page,'studio');
- const first=at(page,['button','Chia đoạn tại con trỏ',SEG]);await first.focus();
- await page.keyboard.press('ArrowRight');await expect(at(page,['button','Chèn khoảng nghỉ 0,5 giây tại con trỏ',SEG])).toBeFocused();
- await page.keyboard.press('End');await expect(at(page,['button','Chi tiết đoạn 1',SEG])).toBeFocused();
+ const first=at(page,['button','Tạo take mới',SEG]);await first.focus();
+ await page.keyboard.press('ArrowRight');await expect(at(page,['button','Chi tiết đoạn 1',SEG])).toBeFocused();
+ await page.keyboard.press('End');await expect(at(page,['button','Thao tác khác cho đoạn 1',SEG])).toBeFocused();
  await page.keyboard.press('Home');await expect(first).toBeFocused();
  await at(page,['button',/^Take 1/,DOCK]).focus();await page.keyboard.press('ArrowRight');await expect(at(page,['button',/^Take 2/,DOCK])).toBeFocused();
 });

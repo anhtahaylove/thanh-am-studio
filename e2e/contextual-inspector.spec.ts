@@ -212,7 +212,7 @@ const detailButton=(page:Page,n:number)=>seg(page,n).getByRole('button',{name:`C
 for(const width of [1440,800])for(const how of ['Enter','click'])test(`"Chi tiết đoạn 5" in the toolbar, by ${how}, moves focus to "Giọng đoạn 5" at ${width} px`,async({page})=>{
  await open(page,width);
  if(how==='click')await detailButton(page,5).click(); // segment 1 is the selected one: the click selects segment 5 first
- else{await page.getByRole('textbox',{name:'Nhân vật đoạn 5'}).focus();await page.keyboard.press('Tab');await page.keyboard.press('End');await expect(detailButton(page,5)).toBeFocused();await page.keyboard.press('Enter');}
+ else{await page.getByRole('textbox',{name:'Nhân vật đoạn 5'}).focus();await page.keyboard.press('Tab');await page.keyboard.press('ArrowRight');await expect(detailButton(page,5)).toBeFocused();await page.keyboard.press('Enter');}
  await expect(page.getByRole('combobox',{name:'Giọng đoạn 5',exact:true})).toBeFocused();
  await expect(seg(page,5)).toHaveClass(/selected/);await expect(page.locator('.segment-detail h3')).toHaveText('Đoạn 05 · Người dẫn');
  await expect(seg(page,5).locator('.segment-detail')).toHaveCount(width===800?1:0);

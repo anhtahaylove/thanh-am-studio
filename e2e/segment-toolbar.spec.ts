@@ -30,6 +30,8 @@ const open=async(page:Page,o:{width?:number;installed?:boolean;empty?:boolean}={
 };
 const seg=(page:Page,n:number)=>page.locator('.segment').nth(n-1);
 const toolbar=(page:Page,n:number)=>seg(page,n).getByRole('toolbar');
+const more=(page:Page,n:number)=>seg(page,n).getByRole('button',{name:`Thao tác khác cho đoạn ${n}`,exact:true});
+const item=(page:Page,n:number,name:string)=>seg(page,n).getByRole('menuitem',{name,exact:true});
 const area=(page:Page,n:number)=>page.getByRole('textbox',{name:`Nội dung đoạn ${n}`,exact:true});
 const texts=(page:Page)=>page.locator('.segment textarea').evaluateAll(l=>l.map(t=>(t as HTMLTextAreaElement).value));
 const region=(page:Page)=>page.locator('.sr-only[aria-live=polite]');
@@ -42,30 +44,31 @@ const ORIGINAL:string[]=JSON.parse(FIXTURE).segments.map((s:{text:string})=>s.te
 test('a segment that is not selected has three tab stops, in the order speaker, toolbar, text',async({page})=>{
  await open(page);
  const stops=await page.evaluate(()=>[...document.querySelectorAll('.segment')[5].querySelectorAll<HTMLElement>('a[href],button,input,select,textarea,[tabindex]')].filter(e=>e.tabIndex>=0&&!(e as HTMLButtonElement).disabled).map(e=>e.getAttribute('aria-label')??e.tagName));
- expect(stops).toEqual(['Nhân vật đoạn 6','Chia đoạn tại con trỏ','Nội dung đoạn 6']); // the voice and speed selects are in the inspector now
+ expect(stops).toEqual(['Nhân vật đoạn 6','Tạo take mới','Nội dung đoạn 6']); // the voice and speed selects are in the inspector now
  await page.getByRole('textbox',{name:'Nhân vật đoạn 6'}).focus();
  // Focusing the row selects it, which adds its emotion bar after the text; the count above is for a row that is not selected.
- for(const next of ['Chia đoạn tại con trỏ','Nội dung đoạn 6']){await page.keyboard.press('Tab');expect(await active(page)).toBe(next);}
+ for(const next of ['Tạo take mới','Nội dung đoạn 6']){await page.keyboard.press('Tab');expect(await active(page)).toBe(next);}
 });
 
 test('a segment with a checked take has four tab stops: speaker, the check, toolbar, text',async({page})=>{
  await open(page);
  for(const n of [2,9]){
   const stops=await page.evaluate(i=>[...document.querySelectorAll('.segment')[i-1].querySelectorAll<HTMLElement>('a[href],button,input,select,textarea,[tabindex]')].filter(e=>e.tabIndex>=0&&!(e as HTMLButtonElement).disabled).map(e=>e.getAttribute('aria-label')??e.textContent),n);
-  expect(stops,`segment ${n}`).toEqual(['Nhân vật đoạn '+n,'Khớp kịch bản','Chia đoạn tại con trỏ','Nội dung đoạn '+n]);
+  expect(stops,`segment ${n}`).toEqual(['Nhân vật đoạn '+n,'Khớp kịch bản','Tạo take mới','Nội dung đoạn '+n]);
  }
 });
 
 test('the arrow keys, Home and End move inside the toolbar and wrap, and Tab comes back to the item that last had focus',async({page})=>{
  await open(page);
  await page.getByRole('textbox',{name:'Nhân vật đoạn 6'}).focus();await page.keyboard.press('Tab');
- expect(await active(page)).toBe('Chia đoạn tại con trỏ');
- await page.keyboard.press('ArrowRight');expect(await active(page)).toBe('Chèn khoảng nghỉ 0,5 giây tại con trỏ');
- await page.keyboard.press('End');expect(await active(page)).toBe('Chi tiết đoạn 6');await page.keyboard.press('ArrowRight');expect(await active(page)).toBe('Chia đoạn tại con trỏ');
- await page.keyboard.press('ArrowLeft');expect(await active(page)).toBe('Chi tiết đoạn 6');await page.keyboard.press('ArrowLeft');expect(await active(page)).toBe('Tạo take mới');await page.keyboard.press('Home');expect(await active(page)).toBe('Chia đoạn tại con trỏ');
- await page.keyboard.press('ArrowRight');await page.keyboard.press('ArrowRight');await page.keyboard.press('ArrowRight');expect(await active(page)).toBe('Đưa đoạn lên');
+ expect(await active(page)).toBe('Tạo take mới');
+ await page.keyboard.press('ArrowRight');expect(await active(page)).toBe('Chi tiết đoạn 6');
+ await page.keyboard.press('End');expect(await active(page)).toBe('Thao tác khác cho đoạn 6');await page.keyboard.press('ArrowRight');expect(await active(page)).toBe('Tạo take mới');
+ await page.keyboard.press('ArrowLeft');expect(await active(page)).toBe('Thao tác khác cho đoạn 6');await page.keyboard.press('ArrowLeft');expect(await active(page)).toBe('Xóa đoạn');await page.keyboard.press('Home');expect(await active(page)).toBe('Tạo take mới');
+ await page.keyboard.press('ArrowRight');await page.keyboard.press('ArrowRight');expect(await active(page)).toBe('Xóa đoạn');
  await page.keyboard.press('Tab');expect(await active(page)).toBe('Nội dung đoạn 6');
- await page.keyboard.press('Shift+Tab');expect(await active(page)).toBe('Đưa đoạn lên');
+ await page.keyboard.press('Shift+Tab');expect(await active(page)).toBe('Xóa đoạn');
+ await expect(page.getByRole('menuitem')).toHaveCount(0); // the arrows and Home and End moved along the toolbar and opened no menu
 });
 
 test('a segment moved to the end still reaches its toolbar with Tab, and its blocked items say why',async({page})=>{
@@ -74,9 +77,10 @@ test('a segment moved to the end still reaches its toolbar with Tab, and its blo
  expect((await texts(page))[11]).toBe(ORIGINAL[5]);expect(await active(page)).toBe('Nội dung đoạn 12');
  await page.getByRole('textbox',{name:'Nhân vật đoạn 12'}).focus();await page.keyboard.press('Tab');
  expect(await toolbar(page,12).evaluate(t=>t.contains(document.activeElement))).toBe(true);
- await page.keyboard.press('Home');await page.keyboard.press('ArrowRight');await page.keyboard.press('ArrowRight');
+ await page.keyboard.press('End');await page.keyboard.press('Enter'); // the menu button is the last stop; Enter opens the menu on its first item
+ await page.keyboard.press('ArrowDown');await page.keyboard.press('ArrowDown');
  await expect(page.locator(':focus')).toHaveAccessibleName('Gộp với đoạn sau');await expect(page.locator(':focus')).toHaveAccessibleDescription('Không có đoạn sau để gộp');
- await page.keyboard.press('ArrowRight');await page.keyboard.press('ArrowRight');
+ await page.keyboard.press('ArrowDown');await page.keyboard.press('ArrowDown');
  await expect(page.locator(':focus')).toHaveAccessibleName('Đưa đoạn xuống');await expect(page.locator(':focus')).toHaveAccessibleDescription('Đây là đoạn cuối cùng');
  await expect(page.locator(':focus')).toHaveAttribute('aria-disabled','true');
 });
@@ -84,7 +88,8 @@ test('a segment moved to the end still reaches its toolbar with Tab, and its blo
 test('moving the first segment up does nothing, by click, Enter, Space or Alt+Up: no change, no undo step, no error',async({page})=>{
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
  await open(page);
- const up=seg(page,1).getByRole('button',{name:'Đưa đoạn lên'});await expect(up).toHaveAttribute('aria-disabled','true');await expect(up).toHaveAccessibleDescription('Đây là đoạn đầu tiên');
+ await more(page,1).click();
+ const up=item(page,1,'Đưa đoạn lên');await expect(up).toHaveAttribute('aria-disabled','true');await expect(up).toHaveAccessibleDescription('Đây là đoạn đầu tiên');
  await up.click({force:true});await up.focus();await page.keyboard.press('Enter');await page.keyboard.press('Space');
  await area(page,1).focus();await page.keyboard.press('Alt+ArrowUp');await settle(page);
  expect(await texts(page)).toEqual(ORIGINAL);await expect(undo(page)).toBeDisabled();await expect(page.getByText(/Đoạn chuyển/)).toHaveCount(0);
@@ -94,17 +99,18 @@ test('moving the first segment up does nothing, by click, Enter, Space or Alt+Up
 test('moving the last segment down or merging it does nothing, by click, Enter, Space or Alt+Down',async({page})=>{
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
  await open(page);
- for(const name of ['Đưa đoạn xuống','Gộp với đoạn sau']){const b=seg(page,12).getByRole('button',{name});await expect(b).toHaveAttribute('aria-disabled','true');await b.click({force:true});await b.focus();await page.keyboard.press('Enter');await page.keyboard.press('Space');}
+ await more(page,12).click();
+ for(const name of ['Đưa đoạn xuống','Gộp với đoạn sau']){const b=item(page,12,name);await expect(b).toHaveAttribute('aria-disabled','true');await b.click({force:true});await b.focus();await page.keyboard.press('Enter');await page.keyboard.press('Space');}
  await area(page,12).focus();await page.keyboard.press('Alt+ArrowDown');await settle(page);
  expect(await texts(page)).toEqual(ORIGINAL);await expect(undo(page)).toBeDisabled();await expect(page.getByText(/Đoạn chuyển/)).toHaveCount(0);expect(errors).toEqual([]);
 });
 
 test('a blocked button runs no handler at all, while an enabled one does',async({page})=>{
  await open(page);await settle(page);await page.waitForTimeout(500);const busy=()=>page.evaluate(()=>(window as any).__busy as number),before=await busy(); // opening the project showed it too
- const merge=seg(page,12).getByRole('button',{name:'Gộp với đoạn sau'});
+ await more(page,12).click();const merge=item(page,12,'Gộp với đoạn sau');
  await merge.click({force:true});await merge.focus();await page.keyboard.press('Enter');await page.keyboard.press('Space');await settle(page);
  expect(await busy()).toBe(before);
- await seg(page,11).getByRole('button',{name:'Gộp với đoạn sau'}).click();await expect.poll(busy).toBeGreaterThan(before); // the control: an enabled button shows the indicator
+ await more(page,11).click();await item(page,11,'Gộp với đoạn sau').click();await expect.poll(busy).toBeGreaterThan(before); // the control: an enabled button shows the indicator
 });
 
 test('with the voice model missing, Ctrl+Enter and the blocked generate button enqueue nothing',async({page})=>{
@@ -132,8 +138,8 @@ test('Alt+Down in the textarea moves the segment and focus stays in it; from the
  await open(page);
  await area(page,2).focus();await page.keyboard.press('Alt+ArrowDown');await settle(page);
  expect((await texts(page)).slice(0,3)).toEqual([ORIGINAL[0],ORIGINAL[2],ORIGINAL[1]]);expect(await active(page)).toBe('Nội dung đoạn 3');
- await seg(page,3).getByRole('button',{name:'Chèn khoảng nghỉ 0,5 giây tại con trỏ'}).focus();await page.keyboard.press('Alt+ArrowUp');await settle(page);
- expect((await texts(page)).slice(0,3)).toEqual(ORIGINAL.slice(0,3));expect(await active(page)).toBe('Chèn khoảng nghỉ 0,5 giây tại con trỏ');
+ await seg(page,3).getByRole('button',{name:'Xóa đoạn'}).focus();await page.keyboard.press('Alt+ArrowUp');await settle(page);
+ expect((await texts(page)).slice(0,3)).toEqual(ORIGINAL.slice(0,3));expect(await active(page)).toBe('Xóa đoạn');
  expect(await toolbar(page,2).evaluate(t=>t.contains(document.activeElement))).toBe(true);
 });
 
@@ -144,7 +150,7 @@ test('a move is said through the live region that is already in the page, again 
  await page.keyboard.press('Alt+ArrowUp');await expect(region(page)).toHaveText('Đoạn chuyển lên vị trí 2');
  await page.keyboard.press('Alt+ArrowDown'); // the same words as the first move, inside the 6 s the first one stays
  await expect.poll(said).toEqual(['Đoạn chuyển xuống vị trí 3','Đoạn chuyển lên vị trí 2','Đoạn chuyển xuống vị trí 3']);
- await seg(page,3).getByRole('button',{name:'Đưa đoạn xuống'}).click(); // a click on the button says it too
+ await more(page,3).click();await item(page,3,'Đưa đoạn xuống').click(); // a click on the item says it too
  await expect.poll(said).toHaveLength(4);
  await expect(page.locator('.alert.notice')).toHaveCount(0);
 });
@@ -165,11 +171,43 @@ test('the shortcuts do nothing while an input method is composing',async({page})
  await settle(page);expect(await texts(page)).toEqual(ORIGINAL);expect(await calls(page,'enqueue_job')).toBe(0);await expect(page.locator('.segment')).toHaveCount(12);
 });
 
+test('the toolbar shows four buttons, and split and pause still act at the caret from the menu',async({page})=>{
+ await open(page);
+ const bar=toolbar(page,4);
+ await expect(bar.getByRole('button')).toHaveCount(4);await expect(bar.getByRole('menuitem'),'the menu items are not in the page while the menu is closed').toHaveCount(0);
+ expect(await bar.getByRole('button').evaluateAll(l=>l.map(b=>b.getAttribute('aria-label')))).toEqual(['Tạo giọng','Chi tiết đoạn 4','Xóa đoạn','Thao tác khác cho đoạn 4']);
+ await expect(more(page,4)).toHaveAttribute('aria-haspopup','menu');await expect(more(page,4)).toHaveAttribute('aria-expanded','false');
+ // The caret is set in the text, the focus goes to the menu button and then to an item: the cut is still where the caret was.
+ await area(page,4).click();await page.keyboard.press('Control+Home');for(let i=0;i<12;i++)await page.keyboard.press('ArrowRight');
+ await more(page,4).click();await expect(bar.getByRole('menuitem')).toHaveCount(5);await item(page,4,'Chia đoạn tại con trỏ').click();
+ await expect(page.locator('.segment')).toHaveCount(13);
+ const t=await texts(page);expect(t[3]).toBe(ORIGINAL[3].slice(0,12).trim());expect(t[4]).toBe(ORIGINAL[3].slice(12).trim());
+ // The same for a pause mark: 5 characters into segment 8 (now segment 9), and it needs no space of its own where the text already has one.
+ const text=ORIGINAL[7],k=5,gap=(c?:string)=>/\s/.test(c??'');
+ await area(page,9).click();await page.keyboard.press('Control+Home');for(let i=0;i<k;i++)await page.keyboard.press('ArrowRight');
+ await more(page,9).click();await item(page,9,'Chèn khoảng nghỉ 0,5 giây tại con trỏ').click();
+ await expect(area(page,9)).toHaveValue(text.slice(0,k)+(gap(text[k-1])?'':' ')+'[nghỉ 0.5s]'+(gap(text[k])?'':' ')+text.slice(k));
+});
+
+test('a segment menu is not clipped: every item of the last segment is on top, over the dock',async({page})=>{
+ await open(page);
+ await more(page,12).click();await page.keyboard.press('End');
+ await expect(item(page,12,'Đưa đoạn xuống')).toBeFocused();
+ const hits=await seg(page,12).getByRole('menuitem').evaluateAll(l=>l.map(i=>{const r=i.getBoundingClientRect(),top=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return {name:i.textContent,onTop:!!top&&i.contains(top),inside:r.top>=0&&r.bottom<=innerHeight};}));
+ expect(hits).toHaveLength(5);for(const h of hits)expect(h,h.name??'').toEqual({name:h.name,onTop:true,inside:true});
+});
+
+for(const width of [456,1440])test(`a segment menu stays inside the window at ${width} px`,async({page})=>{
+ await open(page,{width});await more(page,6).click();
+ const box=(await seg(page,6).locator('.menu-panel').boundingBox())!;
+ expect(box.x,'left edge').toBeGreaterThanOrEqual(0);expect(box.x+box.width,'right edge').toBeLessThanOrEqual(width);
+});
+
 test('the toolbar shows on hover, focus and for the selected segment, and hides by opacity only',async({page})=>{
  await open(page);await page.mouse.move(2,2);
  const opacity=(n:number)=>toolbar(page,n).evaluate(t=>getComputedStyle(t).opacity);
  await expect.poll(()=>opacity(6)).toBe('0');await expect.poll(()=>opacity(1)).toBe('1'); // the first segment is the selected one
- await expect(toolbar(page,6)).toBeAttached();expect(await toolbar(page,6).getByRole('button').count()).toBe(8);
+ await expect(toolbar(page,6)).toBeAttached();expect(await toolbar(page,6).getByRole('button').count()).toBe(4);
  await page.getByRole('textbox',{name:'Nhân vật đoạn 6'}).focus();await page.keyboard.press('Tab');await expect.poll(()=>opacity(6)).toBe('1');
  await page.getByRole('textbox',{name:'Nhân vật đoạn 9'}).focus();await expect.poll(()=>opacity(6)).toBe('0');
  await seg(page,8).hover({position:{x:200,y:60}});await expect.poll(()=>opacity(8)).toBe('1');

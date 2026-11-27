@@ -43,7 +43,7 @@ for(const [width,height,segments] of [[800,720,[3]],[921,720,[2,3]],[1024,720,[2
 
 test('a label longer than the room beside the chips ends in an ellipsis on one line, the head keeps its height, and the whole label stays readable',async({page})=>{
  const LONG='Gián đoạn · Thử lại trong Hàng đợi';
- await open(page,1440,960);
+ await open(page,1280,960); // the toolbar has four buttons since 1.0.26, so 1440 px leaves room for the whole label; 1280 px is where it is cut again
  const idle=await headHeight(page,2);
  await jobs(page,['s2'],'interrupted');
  await expect(ring(page,2)).toHaveText(LONG);await expect(ring(page,2)).toHaveAttribute('title',LONG);
@@ -63,7 +63,7 @@ test('at 1024x720, Tab walks the head of segment 2 in reading order: down a line
   const s=await page.evaluate(()=>{const a=document.activeElement as HTMLElement;if(!a.closest('.segment-head'))return null;const r=a.getBoundingClientRect();return {name:a.getAttribute('aria-label')??a.textContent??'',top:r.top,bottom:r.bottom,left:r.left};});
   if(!s)break;stops.push(s);
  }
- expect(stops.map(s=>s.name)).toEqual(['Khớp kịch bản','Chia đoạn tại con trỏ']);
+ expect(stops.map(s=>s.name)).toEqual(['Khớp kịch bản','Tạo take mới']);
  for(let i=1;i<stops.length;i++){
   const a=stops[i-1],b=stops[i],sameLine=b.top<a.bottom&&a.top<b.bottom;
   if(sameLine)expect(b.left,`${b.name} is right of ${a.name}`).toBeGreaterThan(a.left);else expect(b.top,`${b.name} is on a line below ${a.name}`).toBeGreaterThanOrEqual(a.bottom-1);

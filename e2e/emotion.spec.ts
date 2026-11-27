@@ -44,8 +44,8 @@ test('after an emotion or pause button the caret sits behind the inserted tag, s
  await expect(box).toHaveValue('Nghe hay [thở dài] [thở dài] quá 50k nhé.');await expect(box).toBeFocused();
  await page.keyboard.type('X');await expect(box).toHaveValue('Nghe hay [thở dài] [thở dài]X quá 50k nhé.');
  await box.fill('Nghe hay quá 50k nhé.');await at8();
- const pause=page.getByRole('button',{name:'Chèn khoảng nghỉ 0,5 giây tại con trỏ'});
- await pause.click();await pause.click();
+ const more=page.getByRole('button',{name:'Thao tác khác cho đoạn 1',exact:true}),pause=page.getByRole('menuitem',{name:'Chèn khoảng nghỉ 0,5 giây tại con trỏ'});
+ await more.click();await pause.click();await more.click();await pause.click();
  await expect(box).toHaveValue('Nghe hay [nghỉ 0.5s] [nghỉ 0.5s] quá 50k nhé.');await expect(box).toBeFocused();
  await page.keyboard.type('X');await expect(box).toHaveValue('Nghe hay [nghỉ 0.5s] [nghỉ 0.5s]X quá 50k nhé.');
 });
