@@ -28,7 +28,14 @@ const shot = async (name) => { try { await page?.screenshot({path: join(out, `${
 const domSnippet = () => !page ? Promise.resolve('(no page yet)') : Promise.race([page.evaluate(() => (document.querySelector('[role=dialog]') ?? document.querySelector('main') ?? document.body).outerHTML.replace(/\s+/g, ' ').slice(0, 900)), new Promise((r) => setTimeout(() => r('(the page did not answer within 3 s)'), 3000))]).catch((e) => `(no snippet: ${String(e).split('\n')[0].slice(0, 120)})`);
 const invoke = (cmd, args = {}) => page.evaluate(([c, a]) => window.__TAURI_INTERNALS__.invoke(c, a), [cmd, args]);
 const dialog = (path) => log('dialog ' + execFileSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', join(here, 'file-dialog.ps1'), '-Path', path], {encoding: 'utf8'}).trim());
-const nav = (name) => page.getByRole('navigation', {name: 'Điều hướng chính'}).getByRole('button', {name: new RegExp(`^${name}`)}).click(); // the queue button also carries a count badge
+// Four pages are sidebar items (the queue button also carries a count badge); "Dự án" is the top-bar button; "Thư viện giọng" is the section of the models page, opened here.
+const nav = async (name) => {
+  if (name === 'Dự án') return page.locator('.topbar').getByRole('button', {name: 'Dự án', exact: true}).click();
+  if (name !== 'Thư viện giọng') return page.getByRole('navigation', {name: 'Điều hướng chính'}).getByRole('button', {name: new RegExp(`^${name}`)}).click();
+  await nav('Model & cài đặt');
+  const group = page.locator('details.mc-voices');
+  if (await group.getAttribute('open', {timeout: 5000}) === null) await group.locator('summary').click();
+};
 // The focus-mode, English-words and Whisper options sit in the hero's "Tùy chọn" panel, which closes on a click elsewhere or when focus leaves it: open it when it is closed.
 const openOptions = async () => { const button = page.getByRole('button', {name: 'Tùy chọn', exact: true}); if (await button.getAttribute('aria-expanded', {timeout: 5000}) !== 'true') await button.click(); };
 // The dock's "Chuẩn hóa", "Theo mốc phụ đề", "Giữ nhạc nền", "Mỗi chương một file" and SRT sit in its "Tùy chọn xuất" group, which stays open for the session: open it when it is closed.

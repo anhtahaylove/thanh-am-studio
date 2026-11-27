@@ -66,7 +66,14 @@ async function close() {
   try { execFileSync('taskkill', ['/PID', String(app.pid), '/T', '/F'], {stdio: 'ignore'}); } catch {}
   for (let i = 0; i < 40; i++) { try { await fetch('http://127.0.0.1:9222/json/version'); await sleep(500); } catch { return; } }
 }
-const nav = (name) => page.getByRole('navigation', {name: 'Điều hướng chính'}).getByRole('button', {name: new RegExp(`^${name}`)}).click({timeout: 5000});
+// Four pages are sidebar items (the queue button also carries a count badge); "Dự án" is the top-bar button; "Thư viện giọng" is the section of the models page, opened here.
+const nav = async (name) => {
+  if (name === 'Dự án') return page.locator('.topbar').getByRole('button', {name: 'Dự án', exact: true}).click({timeout: 5000});
+  if (name !== 'Thư viện giọng') return page.getByRole('navigation', {name: 'Điều hướng chính'}).getByRole('button', {name: new RegExp(`^${name}`)}).click({timeout: 5000});
+  await nav('Model & cài đặt');
+  const group = page.locator('details.mc-voices');
+  if (await group.getAttribute('open', {timeout: 5000}) === null) await group.locator('summary').click({timeout: 5000});
+};
 const metrics = () => page.evaluate(() => {
   const probe = document.createElement('div'), medium = document.createElement('div');
   probe.style.cssText = 'position:fixed;left:0;top:0;font:16px/1 Arial,sans-serif;white-space:nowrap;visibility:hidden';

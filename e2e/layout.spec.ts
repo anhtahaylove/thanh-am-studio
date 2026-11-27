@@ -24,7 +24,12 @@ const open=async(page:Page,width:number,height:number)=>{
  await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
  await expect(page.getByRole('textbox',{name:/^Nội dung đoạn/})).toHaveCount(12);await page.getByText('Chỉnh âm',{exact:true}).click(); // the tuning group stays open, so its fields keep the size, border and ellipsis checks they had
 };
-const nav=(page:Page,name:string)=>page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:new RegExp('^'+name)}).click();
+// "Dự án" is the top-bar button; "Thư viện giọng" is a section of the models page (opened once).
+const nav=async(page:Page,name:string)=>{
+ if(name==='Dự án')return page.locator('.topbar').getByRole('button',{name,exact:true}).click();
+ if(name!=='Thư viện giọng')return page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:new RegExp('^'+name)}).click();
+ await nav(page,'Model & cài đặt');const section=page.locator('details.mc-voices');if(!await section.evaluate(d=>(d as HTMLDetailsElement).open))await section.locator('summary').click();
+};
 test('the export action stays on screen and the page is the only scroller',async({page})=>{
  await open(page,1280,800);
  const exportAudio=page.getByRole('button',{name:'Xuất audio'}),onScreen=()=>exportAudio.evaluate(b=>{const r=b.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight;});

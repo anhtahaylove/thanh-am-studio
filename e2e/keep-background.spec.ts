@@ -105,10 +105,10 @@ test('another or a new project starts with the background option off',async({pag
  await open(page,{model:true,source:'src',jobs:[separation('src','succeeded','stem')]});
  await page.getByRole('checkbox',{name:'Theo mốc phụ đề'}).check();
  await keep(page).click();await expect(keep(page)).toBeChecked();
- await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:'Dự án'}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
+ await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
  await expect(keep(page)).not.toBeChecked();
  await keep(page).click();await expect(keep(page)).toBeChecked();
- await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:'Dự án'}).click();await page.getByRole('button',{name:'Tạo dự án'}).click();
+ await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Tạo dự án'}).click();
  await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toBeVisible(); // the mock's new project has the same cues
  await expect(keep(page)).not.toBeChecked();
 });

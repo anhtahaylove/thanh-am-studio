@@ -8,11 +8,12 @@ import type {Locator,Page} from '@playwright/test';
 // 3. Shortcuts and the keys PLAN §6 T0 lists, each with its effect.
 // Tauri is mocked as in the other desktop specs; every command is recorded in window.__calls.
 test.describe.configure({mode:'parallel'});
-type At='tts'|'stt'|'voices'|'jobs'|'projects'|'models';
+type At='tts'|'stt'|'jobs'|'projects'|'models';
+type Dest=At|'voices'; // the voice library is a section of the models page, not a page of its own (S2)
 type W={models:boolean;projects:boolean;jobs:'none'|'done'|'all'};
 const WORLDS={fresh:{models:false,projects:false,jobs:'none'},studio:{models:true,projects:true,jobs:'done'},busy:{models:true,projects:true,jobs:'all'}} satisfies Record<string,W>;
 type WK=keyof typeof WORLDS;
-const LABEL:Record<At,string>={tts:'Tạo giọng đọc',stt:'Chép lời',voices:'Thư viện giọng',jobs:'Hàng đợi',projects:'Dự án',models:'Model & cài đặt'};
+const LABEL:Record<Dest,string>={tts:'Tạo giọng đọc',stt:'Chép lời',voices:'Thư viện giọng',jobs:'Hàng đợi',projects:'Dự án',models:'Model & cài đặt'};
 // Forced jumps pinned at main (PLAN §2 rows :290, :359, :372, :382): the page the user is on after the action. Each owner sets its constant to the page the action started from.
 const AFTER_RENDER='Tạo giọng đọc'; // :290 "Xuất audio" (both setPage calls removed by F2): the user stays where the action started
 const AFTER_CHECKLIST_MODEL='Model & cài đặt'; // :359 the checklist's model button; F5 -> 'Tạo giọng đọc'
@@ -74,7 +75,9 @@ const at=(page:Page,[role,name,scope,first]:L):Locator=>{const root=scope?MANY.h
 const act=(page:Page,s:Step)=>Array.isArray(s[0])?at(page,s[0] as L).fill(s[1] as string):at(page,s as L).click();
 const clicks=(path:Step[])=>path.filter(s=>!Array.isArray(s[0])).length;
 const NAVBAR='nav[aria-label="Điều hướng chính"]';
-const NAV=(to:At):Step=>['button',new RegExp('^'+LABEL[to]),NAVBAR]; // the queue button also carries a count badge
+// Four pages are sidebar items (the queue button also carries a count badge); "Dự án" is the top-bar button (S2); the voice library is a section of the models page (VOICES).
+const NAV=(to:At):Step=>to==='projects'?['button','Dự án','.topbar']:['button',new RegExp('^'+LABEL[to]),NAVBAR];
+const H1:Record<Dest,string>={...LABEL,voices:LABEL.models}; // the page heading of each page: the voice library has none of its own
 const read=<T>(page:Page,fn:()=>T)=>page.evaluate(fn);
 const h1=(page:Page)=>read(page,()=>document.querySelector('main h1')?.firstChild?.textContent??'');
 const calls=(page:Page,cmd:string)=>page.evaluate(c=>(window as any).__calls.filter((x:any)=>x.cmd===c) as {args:any;t:number}[],cmd);
@@ -89,7 +92,7 @@ const open=async(page:Page,world:WK,to:At='tts')=>{
  await page.evaluate(()=>(window as any).__reset());
 };
 
-const MORE:L=['text','Thêm model'],ADV:L=['text','Nâng cao']; // the folds of the models page (C6): one opening click
+const MORE:L=['text','Thêm model'],ADV:L=['text','Nâng cao'],VOICES:L=['text','Thư viện giọng']; // the folds of the models page (C6, S2): one opening click
 const SEG='.segment',INSP='.inspector',DOCK='#audio-dock',FIRST='.first-run',TB='.topbar-actions',STT='.transcript-panel',TIME=F(['css','.transcript-row .tr-time']);
 // [id, world, page, clicks before the control is there, the control, steps that put the page in the state where the control applies (set up like open(): not counted)]
 const ROWS:[string,WK,At,Step[],L,Step[]?][]=[
@@ -130,6 +133,7 @@ const ROWS:[string,WK,At,Step[],L,Step[]?][]=[
  ...(['Xóa đoạn','Tạo take mới','Chi tiết đoạn 1'] as const).map(n=>[`segment: ${n}`,'studio','tts',[],['button',n,SEG]] as [string,WK,At,Step[],L]),
  ['segment: Thở dài','studio','tts',[],['button','Thở dài',SEG]],
  ['inspector: Giọng đoạn','studio','tts',[],['combobox','Giọng đoạn 1',INSP]],
+ ['inspector: Thêm giọng…','studio','tts',[],['button','Thêm giọng…',INSP]],
  ['inspector: Tốc độ','studio','tts',[],['combobox','Tốc độ đọc đoạn 1',INSP]],
  ['inspector: Take đang sử dụng','studio','tts',[],['combobox',/^Take đang sử dụng/,INSP]],
  ['inspector: Chương','studio','tts',[['text','Chỉnh âm',INSP]],['textbox','Chương',INSP]],
@@ -176,11 +180,11 @@ const ROWS:[string,WK,At,Step[],L,Step[]?][]=[
  ['stt row: Gộp sau','studio','stt',[],['button','Gộp sau','.transcript-row']],
  ['stt: Tạo dự án TTS từ transcript','studio','stt',[],['button','Tạo dự án TTS từ transcript']],
  // Voices, queue, projects, models.
- ['voices: Tên hiển thị','studio','voices',[],['label','Tên hiển thị']],
- ['voices: Chọn mẫu audio','studio','voices',[],['button','Chọn mẫu audio']],
- ['voices: Nghe mẫu đã làm sạch','studio','voices',[],['button','Nghe mẫu đã làm sạch']],
- ['voices: consent','studio','voices',[],['checkbox','Tôi có quyền sử dụng và tạo giọng từ mẫu audio này.']],
- ['voices: Lưu mẫu giọng','studio','voices',[],['button','Lưu mẫu giọng']],
+ ['voices: Tên hiển thị','studio','models',[VOICES],['label','Tên hiển thị']],
+ ['voices: Chọn mẫu audio','studio','models',[VOICES],['button','Chọn mẫu audio']],
+ ['voices: Nghe mẫu đã làm sạch','studio','models',[VOICES],['button','Nghe mẫu đã làm sạch']],
+ ['voices: consent','studio','models',[VOICES],['checkbox','Tôi có quyền sử dụng và tạo giọng từ mẫu audio này.']],
+ ['voices: Lưu mẫu giọng','studio','models',[VOICES],['button','Lưu mẫu giọng']],
  ['jobs: Làm mới','busy','jobs',[],['button','Làm mới']],
  ['jobs: Lưu tất cả chương','busy','jobs',[],['button','Lưu tất cả chương']],
  ['jobs: Hủy','busy','jobs',[],F(['button','Hủy'])],
@@ -215,12 +219,13 @@ for(const [id,world,page,path,target,state] of ROWS)test(`reach ${page} | ${id}`
  expect(clicks(path)+1,'the opening clicks plus the click that uses the control: at most 2 (PLAN §2, criterion 5)').toBeLessThanOrEqual(2);
 });
 test('only the "Giữ nhạc nền" row sets a state up before its counted clicks',()=>{expect(ROWS.filter(r=>r[5]).map(r=>r[0])).toEqual(['dock: Giữ nhạc nền']);});
-// Each page at most 2 clicks from anywhere (criterion 5): Projects, Voices and Queue change owner in S2 and S3a; edit these paths there.
-const PAGE_PATH:Record<At,Step[]>={tts:[NAV('tts')],stt:[NAV('stt')],voices:[NAV('voices')],jobs:[NAV('jobs')],projects:[NAV('projects')],models:[NAV('models')]};
-for(const from of ['tts','models'] as const)for(const to of Object.keys(LABEL) as At[])if(to!==from)test(`page ${LABEL[to]} from ${LABEL[from]}`,async({page})=>{
+// Each page at most 2 clicks from anywhere (criterion 5): Projects is the top-bar button (1), Voices is Models then its section (2); S3a changes the Queue path.
+const PAGE_PATH:Record<Dest,Step[]>={tts:[NAV('tts')],stt:[NAV('stt')],voices:[NAV('models'),VOICES],jobs:[NAV('jobs')],projects:[NAV('projects')],models:[NAV('models')]};
+for(const from of ['tts','models'] as const)for(const to of Object.keys(LABEL) as Dest[])if(to!==from)test(`page ${LABEL[to]} from ${LABEL[from]}`,async({page})=>{
  await open(page,'studio',from);
  for(const s of PAGE_PATH[to])await act(page,s);
- await expect(page.locator('main h1')).toContainText(LABEL[to]);
+ await expect(page.locator('main h1')).toContainText(H1[to]);
+ if(to==='voices')await expect(page.locator('details.mc-voices')).toHaveAttribute('open','');
  const n=await read(page,()=>(window as any).__clicks as number);
  expect(n).toBe(clicks(PAGE_PATH[to]));expect(n).toBeLessThanOrEqual(2);
 });
@@ -242,7 +247,9 @@ const SCENARIOS:[id:string,world:WK,from:At,run:(p:Page)=>Promise<unknown>,lands
  [':281 applyTranscript ("Áp dụng transcript")','studio','jobs',p=>act(p,['button','Áp dụng transcript']),LABEL.stt],
  [':290 render ("Xuất audio")','studio','tts',p=>act(p,['button','Xuất audio',DOCK]),AFTER_RENDER,undefined,queued('render')],
  [':290 render per chapter ("Mỗi chương một file", "Xuất audio")','studio','tts',async p=>{await act(p,['text','Tùy chọn xuất',DOCK]);await act(p,['checkbox','Mỗi chương một file',DOCK]);await act(p,['button','Xuất audio',DOCK]);},AFTER_RENDER,undefined,queued('render')],
- ...(Object.keys(LABEL) as At[]).filter(to=>to!=='models').map(to=>[`:353 sidebar to ${LABEL[to]}`,'studio','models',p=>act(p,NAV(to)),LABEL[to]] as [string,WK,At,(p:Page)=>Promise<unknown>,string]),
+ ...(['tts','stt','jobs','projects'] as const).map(to=>[`:353 ${to==='projects'?'top bar':'sidebar'} to ${LABEL[to]}`,'studio','models',p=>act(p,NAV(to)),LABEL[to]] as [string,WK,At,(p:Page)=>Promise<unknown>,string]),
+ [':329 "Thêm giọng…" next to the voice select','studio','tts',p=>act(p,['button','Thêm giọng…',INSP]),LABEL.models],
+ [':383 palette "Đi tới Thư viện giọng"','studio','stt',paletteOption('Đi tới Thư viện giọng'),LABEL.models],
  [':359 checklist model button ("Xem model giọng đọc")','fresh','tts',p=>act(p,['button','Xem model giọng đọc',FIRST]),AFTER_CHECKLIST_MODEL,undefined,downloads(CHECKLIST_MODEL_DOWNLOADS)],
  [':366 "Thành kịch bản"','studio','stt',p=>act(p,['button','Thành kịch bản',STT]),LABEL.tts],
  [':368 "Tạo dự án TTS từ transcript"','studio','stt',p=>act(p,['button','Tạo dự án TTS từ transcript']),LABEL.tts],

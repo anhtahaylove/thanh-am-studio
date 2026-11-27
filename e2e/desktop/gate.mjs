@@ -61,7 +61,14 @@ async function launch() {
   await page.getByRole('navigation', {name: 'Điều hướng chính'}).waitFor({timeout: 60000});
   return Date.now() - t;
 }
-const nav = (name) => page.getByRole('navigation', {name: 'Điều hướng chính'}).getByRole('button', {name: new RegExp(`^${name}`)}).click(); // the queue button also carries a count badge
+// Four pages are sidebar items (the queue button also carries a count badge); "Dự án" is the top-bar button; "Thư viện giọng" is the section of the models page, opened here.
+const nav = async (name) => {
+  if (name === 'Dự án') return page.locator('.topbar').getByRole('button', {name: 'Dự án', exact: true}).click();
+  if (name !== 'Thư viện giọng') return page.getByRole('navigation', {name: 'Điều hướng chính'}).getByRole('button', {name: new RegExp(`^${name}`)}).click();
+  await nav('Model & cài đặt');
+  const group = page.locator('details.mc-voices');
+  if (await group.getAttribute('open', {timeout: 5000}) === null) await group.locator('summary').click();
+};
 
 // Original synthetic Vietnamese script, ~35-45 words (~8 s) per segment so 500 segments exceed 60 minutes.
 const who = ['Người dẫn chuyện', 'Cô giáo trẻ', 'Bác nông dân', 'Anh kỹ sư', 'Chị bán hàng', 'Cậu học trò', 'Ông cụ', 'Bà ngoại'];

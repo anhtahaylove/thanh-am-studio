@@ -16,7 +16,7 @@ const mock=(rich:boolean)=>{
   case 'plugin:dialog|save':return 'C:/x/ban-xuat.wav';default:return null;}}};
 };
 const nav=(page:Page,name:string)=>page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name,exact:true});
-const openProject=async(page:Page)=>{await nav(page,'Dự án').click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();await expect(page.locator('#audio-dock')).toBeVisible();};
+const openProject=async(page:Page)=>{await page.locator('.topbar').getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();await expect(page.locator('#audio-dock')).toBeVisible();};
 const frames=(page:Page)=>page.evaluate(()=>new Promise<void>(r=>requestAnimationFrame(()=>requestAnimationFrame(()=>requestAnimationFrame(()=>r())))));
 type Rect={l:number;t:number;r:number;b:number};
 type Snap={ind:Rect;dock:Rect;h:number};
