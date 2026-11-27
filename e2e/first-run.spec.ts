@@ -19,7 +19,7 @@ const mock=(d:Setup)=>{
    case 'list_models':w.__polls++;return [{id:'vieneu-v3',name:'VieNeu v3 Turbo',engine:'tts',kind:'model',installed,revision:'r',license:'',description:''},{id:'whisper-small',name:'Whisper Small',engine:'stt',kind:'model',installed:whisper,revision:'r',license:'',description:''},{id:'whisper-turbo',name:'Whisper Large v3 Turbo',engine:'stt',kind:'model',installed:false,revision:'r',license:'',description:''}];
    case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,native_worker_ready:true,python_path:null,ffmpeg_path:null,native_worker_path:null,fallback_count:0,total_memory_mb:null,message:''};
    case 'download_model':{w.__downloads.push(args.id);const j=mk('dl-'+args.id,'model_download','running',{model_id:args.id});jobs.push(j);return j;}
-   case 'plugin:dialog|open':return ['C:/x/phong-van.wav'];case 'import_asset':return {id:'a1',path:args.path,name:'phong-van.wav',duration_ms:5000,sample_rate:16000};
+   case 'plugin:dialog|open':if(w.__hold){await new Promise(r=>{w.__release=r;});return null;}return ['C:/x/phong-van.wav'];case 'import_asset':return {id:'a1',path:args.path,name:'phong-van.wav',duration_ms:5000,sample_rate:16000};
    case 'plugin:dialog|save':return 'C:/x/ban.txt';case 'export_text':w.__exports.push(args.path);return null;
    case 'enqueue_job':{w.__sent.push(args.kind);const j=mk('q'+jobs.length,args.kind,'running',args.payload);jobs.push(j);return j;}
    default:return null;}}};
@@ -259,4 +259,18 @@ test('a set-up STT user is not shown the STT checklist',async({page})=>{
  await page.addInitScript(()=>localStorage.setItem('thanh-am-onboarding-stt','done'));
  await sttPage(page,{installed:true,projects:true,ttsDone:true,whisper:true,sttDone:true,rows:true});
  await polls(page,2);await page.waitForTimeout(300);await expect(guide(page)).toHaveCount(0);
+});
+test('while the app is busy the other steps keep their height and say nothing, their buttons are only disabled',async({page})=>{
+ await open(page,{installed:false,projects:true,ttsDone:false,text:'Xin chào làng chài.'});
+ await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
+ await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toBeVisible();
+ const items=guide(page).locator('li'),height=(i:number)=>items.nth(i).evaluate(e=>e.getBoundingClientRect().height);
+ const model=await height(0),exportStep=await height(2);
+ await page.evaluate(()=>{(window as any).__hold=true;});
+ await page.getByRole('button',{name:'Nhập TXT / SRT / Word'}).click(); // the file dialog stays open: the app is busy
+ await expect(guide(page).getByRole('button',{name:'Tải ngay',exact:true})).toBeDisabled();
+ expect(await height(0)).toBe(model);expect(await height(2)).toBe(exportStep);
+ await expect(items.nth(0)).not.toContainText('Đang xử lý');await expect(items.nth(2)).not.toContainText('Đang xử lý');
+ await page.evaluate(()=>(window as any).__release());
+ await expect(guide(page).getByRole('button',{name:'Tải ngay',exact:true})).toBeEnabled();
 });

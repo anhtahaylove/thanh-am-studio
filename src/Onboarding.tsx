@@ -34,8 +34,8 @@ const focusToolbar=(flow:Flow)=>{requestAnimationFrame(()=>document.querySelecto
 // Not the names of the controls they start ("Xuất audio", "Chọn tệp & chép lời", "Xuất…"): two buttons with one name on a page confuse a screen reader and every locator that looks for the real one.
 const ACTIONS:Record<OnboardingStep['id'],string>={model:'Tải ngay',voice:'Tạo giọng ngay',export:'Xuất ngay',pick:'Chọn tệp ngay',save:'Chọn cách xuất'};
 /** Mount it only after the first poll: the steps it sees on its first render are the baseline, and only a step that flips after that is announced.
- *  `offPage`: also announce while the page of this checklist is not open. The STT checklist stays quiet then, so a Whisper download finished from the Models page is told as a download (see App). `blocks` holds why a step cannot start now. */
-export function FirstRunChecklist({flow,steps,guide,visible,offPage,blocks,onGuide,onNotice,onAction}:{flow:Flow;steps:OnboardingStep[];guide:Guide;visible:boolean;offPage:boolean;blocks:Partial<Record<OnboardingStep['id'],string|null>>;onGuide:(g:Guide)=>void;onNotice:(text:string,step:OnboardingStep)=>void;onAction:(step:OnboardingStep)=>void}){
+ *  `offPage`: also announce while the page of this checklist is not open. The STT checklist stays quiet then, so a Whisper download finished from the Models page is told as a download (see App). `blocks` holds why a step cannot start now (a text under the step); `busy` only disables the buttons, with no text, so the checklist never changes height while the app works. */
+export function FirstRunChecklist({flow,steps,guide,visible,offPage,busy,blocks,onGuide,onNotice,onAction}:{flow:Flow;steps:OnboardingStep[];guide:Guide;visible:boolean;offPage:boolean;busy:boolean;blocks:Partial<Record<OnboardingStep['id'],string|null>>;onGuide:(g:Guide)=>void;onNotice:(text:string,step:OnboardingStep)=>void;onAction:(step:OnboardingStep)=>void}){
  const baseline=useRef(steps.map(s=>s.done)),told=useRef<boolean[]>([]),all=steps.every(s=>s.done),speak=visible||offPage;
 // A hidden or finished checklist announces nothing. This effect runs before the one below that writes `done`, so the step that finishes the list is still announced. A step finished while the checklist keeps quiet is marked told, so it is not announced later.
  useEffect(()=>{if(guide==='hidden'||guide==='done')return;steps.forEach((s,i)=>{if(s.done&&!baseline.current[i]&&!told.current[i]){told.current[i]=true;if(speak)onNotice(`Đã xong bước ${i+1}: ${s.title}`,s);}});});
@@ -47,7 +47,7 @@ export function FirstRunChecklist({flow,steps,guide,visible,offPage,blocks,onGui
    return <li key={s.id} className={s.done?'is-done':''}>
     <span className="first-run-state">{s.done?<Check size={14}/>:<Circle size={14}/>}{s.done?'Đã xong':'Chưa làm'}</span>
     <span className="first-run-title">{s.title}{s.job&&!s.done&&<><progress max={1} value={s.job.progress}/><small className="job-progress">{jobProgressLabel(s.job.kind,s.job.progress,s.job.updated_at)}</small></>}</span>
-    {!s.done&&<button className="outlined" disabled={!busyDownload&&(!!reason||!s.ready)} aria-disabled={busyDownload||undefined} aria-describedby={reason?`first-run-why-${s.id}`:undefined} onClick={()=>{if(!busyDownload)onAction(s);}}>{busyDownload?'Đang tải…':ACTIONS[s.id]}</button>}
+    {!s.done&&<button className="outlined" disabled={!busyDownload&&(busy||!!reason||!s.ready)} aria-disabled={busyDownload||undefined} aria-describedby={reason?`first-run-why-${s.id}`:undefined} onClick={()=>{if(!busyDownload)onAction(s);}}>{busyDownload?'Đang tải…':ACTIONS[s.id]}</button>}
     {reason&&<small id={`first-run-why-${s.id}`}>{reason}</small>}
    </li>;})}</ol>
  </section>;
