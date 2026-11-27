@@ -3,11 +3,11 @@ import type {Page} from '@playwright/test';
 // The first-run checklists, one per job: three steps on the TTS page and three on the STT page, a load gate so a set-up user never sees them, a "Đã xong bước"
 // notice only for steps finished after the first poll, and a stored "hidden" or "done" per page. Tauri is mocked; `__flip()` installs the voice model,
 // `__flipWhisper()` the Whisper one, `__finishDownload(id)` ends a download the page started, `__finishJob(kind)` finishes a job of that kind.
-type Setup={installed:boolean;projects:boolean;ttsDone:boolean;text?:string;renderDone?:boolean;whisper?:boolean;sttDone?:boolean;rows?:boolean};
+type Setup={installed:boolean;projects:boolean;ttsDone:boolean;text?:string;renderDone?:boolean;whisper?:boolean;sttDone?:boolean;rows?:boolean;takes?:boolean};
 const mock=(d:Setup)=>{
  const w=window as any,now='2026-11-22T00:00:00Z';let installed=d.installed,whisper=!!d.whisper;w.isTauri=true;w.__polls=0;w.__sent=[];w.__downloads=[];w.__exports=[];w.__flip=()=>{installed=true;};w.__flipWhisper=()=>{whisper=true;};
  const rows=d.rows?[{id:'r1',start_ms:0,end_ms:2000,text:'Xin chào.',speaker:0}]:[];
- const project={id:'p1',name:'Làng chài',updated_at:now,revision:1,segments:[{id:'s1',text:d.text??'',normalized_text:'',voice_id:null,speaker:'',gap_ms:300,takes:[],selected_take_id:null,trim_start_ms:0,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0,gain_db:0}],transcript:rows,dictionary:{},source_asset_id:null};
+ const project={id:'p1',name:'Làng chài',updated_at:now,revision:1,segments:[{id:'s1',text:d.text??'',normalized_text:'',voice_id:null,speaker:'',gap_ms:300,takes:d.takes?[{id:'t1',asset_id:'a1',path:'/t1.wav',duration_ms:2000,sample_rate:24000,created_at:now}]:[],selected_take_id:d.takes?'t1':null,trim_start_ms:0,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0,gain_db:0}],transcript:rows,dictionary:{},source_asset_id:null};
  const mk=(id:string,kind:string,status:string,payload:object={})=>({id,kind,project_id:'p1',payload,status,progress:status==='succeeded'?1:0.4,error:null,result:null,created_at:now,updated_at:now});
  const jobs:any[]=[...d.ttsDone?[mk('j1','tts','succeeded')]:[],...(d.renderDone??d.ttsDone)?[mk('j2','render','succeeded')]:[],...d.sttDone?[mk('j3','stt','succeeded')]:[]];
  w.__finishJob=(kind:string)=>{const j=jobs.find(x=>x.kind===kind&&x.status!=='succeeded')??(jobs.push(mk('n'+jobs.length,kind,'succeeded')),null);if(j){j.status='succeeded';j.progress=1;}};
@@ -20,7 +20,7 @@ const mock=(d:Setup)=>{
    case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,native_worker_ready:true,python_path:null,ffmpeg_path:null,native_worker_path:null,fallback_count:0,total_memory_mb:null,message:''};
    case 'download_model':{w.__downloads.push(args.id);const j=mk('dl-'+args.id,'model_download','running',{model_id:args.id});jobs.push(j);return j;}
    case 'plugin:dialog|open':if(w.__hold){await new Promise(r=>{w.__release=r;});return null;}return ['C:/x/phong-van.wav'];case 'import_asset':return {id:'a1',path:args.path,name:'phong-van.wav',duration_ms:5000,sample_rate:16000};
-   case 'plugin:dialog|save':return 'C:/x/ban.txt';case 'export_text':w.__exports.push(args.path);return null;
+   case 'plugin:dialog|save':return w.__cancelSave?null:'C:/x/ban.txt';case 'export_text':w.__exports.push(args.path);return null;
    case 'enqueue_job':{w.__sent.push(args.kind);const j=mk('q'+jobs.length,args.kind,'running',args.payload);jobs.push(j);return j;}
    default:return null;}}};
 };
@@ -273,4 +273,68 @@ test('while the app is busy the other steps keep their height and say nothing, t
  await expect(items.nth(0)).not.toContainText('Đang xử lý');await expect(items.nth(2)).not.toContainText('Đang xử lý');
  await page.evaluate(()=>(window as any).__release());
  await expect(guide(page).getByRole('button',{name:'Tải ngay',exact:true})).toBeEnabled();
+});
+
+// Focus: a step that finishes under the focus hands it to the next step's button, or to the heading when none can start.
+const openProject=async(page:Page)=>{await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toBeVisible();};
+test('A: when the download that "Tải ngay" started finishes, the focus goes to the next step that can start',async({page})=>{
+ await open(page,{installed:false,projects:true,ttsDone:false,text:'Xin chào làng chài.'});await openProject(page);
+ const button=guide(page).locator('li').first().getByRole('button');await button.focus();await page.keyboard.press('Enter'); // its name turns into Đang tải…
+ await expect(guide(page).locator('progress')).toHaveCount(1);await expect(button).toBeFocused();
+ await page.evaluate(()=>(window as any).__finishDownload('vieneu-v3'));
+ await expect(guide(page).getByRole('button',{name:'Tạo giọng ngay',exact:true})).toBeFocused({timeout:10000});
+});
+test('B: when the transcription of "Chọn tệp ngay" finishes and no later step can start, the focus goes to the checklist heading',async({page})=>{
+ await sttPage(page,{installed:false,projects:true,ttsDone:false,whisper:true},true);
+ const button=guide(page).getByRole('button',{name:'Chọn tệp ngay',exact:true});await button.focus();await page.keyboard.press('Enter');
+ await expect.poll(()=>page.evaluate(()=>(window as any).__sent)).toContain('stt');await expect(button).toBeFocused();
+ await page.evaluate(()=>(window as any).__finishJob('stt'));
+ await expect(notices(page)).toContainText('Đã xong bước 2',{timeout:10000});
+ await expect(guide(page).getByRole('heading',{name:'Chép lời đầu tiên với Thanh Âm'})).toBeFocused();
+});
+test('C: when the voice of "Tạo giọng ngay" is made, the focus goes to the next step that can start',async({page})=>{
+ await open(page,{installed:true,projects:true,ttsDone:false,text:'Xin chào làng chài.',takes:true});await openProject(page);
+ const button=guide(page).getByRole('button',{name:'Tạo giọng ngay',exact:true});await button.focus();await page.keyboard.press('Enter');
+ await expect.poll(()=>page.evaluate(()=>(window as any).__sent)).toContain('tts');await expect(button).toBeFocused();
+ await page.evaluate(()=>(window as any).__finishJob('tts'));
+ await expect(notices(page)).toContainText('Đã xong bước 2',{timeout:10000});
+ await expect(guide(page).getByRole('button',{name:'Xuất ngay',exact:true})).toBeFocused();
+});
+test('a step that finishes while the focus is elsewhere does not take the focus',async({page})=>{
+ await open(page,{installed:false,projects:true,ttsDone:false,text:'Xin chào làng chài.'});await openProject(page);
+ await guide(page).getByRole('button',{name:'Tải ngay',exact:true}).click();await expect(guide(page).locator('progress')).toHaveCount(1);
+ const text=page.getByRole('textbox',{name:'Nội dung đoạn 1'});await text.focus();
+ await page.evaluate(()=>(window as any).__finishDownload('vieneu-v3'));
+ await expect(notices(page)).toContainText('Đã xong bước 1',{timeout:10000});await expect(text).toBeFocused();
+});
+test('a cancelled save dialog finishes nothing: step 3 stays undone, nothing is stored and nothing is announced',async({page})=>{
+ await sttPage(page,{installed:false,projects:true,ttsDone:false,whisper:true,sttDone:true,rows:true},true);
+ await page.evaluate(()=>{(window as any).__cancelSave=true;});
+ await guide(page).getByRole('button',{name:'Chọn cách xuất',exact:true}).click();
+ await page.getByRole('menuitem',{name:'TXT',exact:true}).click();
+ await page.waitForTimeout(1500);
+ expect(await page.evaluate(()=>(window as any).__exports)).toEqual([]);
+ await expect(guide(page).getByText('Chưa làm',{exact:true})).toHaveCount(1);await expect(guide(page).getByText('Đã xong',{exact:true})).toHaveCount(2);
+ expect(await storedStt(page)).toBeNull();expect((await said(page)).filter(t=>t.includes('Đã xong bước 3'))).toEqual([]);
+});
+test('"Xuất ngay" exports in place: the render is queued and the page stays',async({page})=>{
+ await open(page,{installed:true,projects:true,ttsDone:true,renderDone:false,text:'Xin chào làng chài.',takes:true});await openProject(page);
+ await guide(page).getByRole('button',{name:'Xuất ngay',exact:true}).click();
+ await expect.poll(()=>page.evaluate(()=>(window as any).__sent)).toContain('render');
+ await expect(page.locator('main h1')).toContainText('Tạo giọng đọc');
+});
+test('hiding the STT checklist moves the focus to the first button of the transcript toolbar',async({page})=>{
+ await sttPage(page,NONE);
+ await guide(page).getByRole('button',{name:'Ẩn hướng dẫn'}).click();
+ await expect(guide(page)).toHaveCount(0);await expect(page.locator('.transcript-panel .panel-toolbar').getByRole('button',{name:'Thêm dòng'})).toBeFocused();
+});
+test('two models finishing in one poll are both announced, each by its own checklist',async({page})=>{
+ await open(page,NONE);
+ await guide(page).getByRole('button',{name:'Tải ngay',exact:true}).click();await expect(guide(page).locator('progress')).toHaveCount(1);
+ await gotoStt(page);
+ await guide(page).getByRole('button',{name:'Tải ngay',exact:true}).click();await expect(guide(page).locator('progress')).toHaveCount(1);
+ await page.evaluate(()=>{const w=window as any;w.__finishDownload('vieneu-v3');w.__finishDownload('whisper-small');});
+ await expect(notices(page)).toContainText('Tải Whisper Small (486 MB)',{timeout:10000});
+ await expect(notices(page)).toContainText('Tải VieNeu v3 Turbo (637 MB)');
+ expect((await said(page)).filter(t=>t.includes('Đã tải xong'))).toEqual([]);
 });

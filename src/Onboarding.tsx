@@ -39,10 +39,17 @@ export function FirstRunChecklist({flow,steps,guide,visible,offPage,busy,blocks,
  const baseline=useRef(steps.map(s=>s.done)),told=useRef<boolean[]>([]),all=steps.every(s=>s.done),speak=visible||offPage;
 // A hidden or finished checklist announces nothing. This effect runs before the one below that writes `done`, so the step that finishes the list is still announced. A step finished while the checklist keeps quiet is marked told, so it is not announced later.
  useEffect(()=>{if(guide==='hidden'||guide==='done')return;steps.forEach((s,i)=>{if(s.done&&!baseline.current[i]&&!told.current[i]){told.current[i]=true;if(speak)onNotice(`Đã xong bước ${i+1}: ${s.title}`,s);}});});
+ // A step that finishes removes its own button: if the focus was on it (or inside the checklist and now on <body>), hand it to the next button that can be used, else to the heading.
+ const root=useRef<HTMLElement>(null),heading=useRef<HTMLHeadingElement>(null),inside=useRef(false),was=useRef(steps.map(s=>s.done));
+ useEffect(()=>{
+  const before=was.current;was.current=steps.map(s=>s.done);
+  if(!visible||all||guide==='hidden'||guide==='done'||!inside.current||document.activeElement!==document.body||!steps.some((s,i)=>s.done&&!before[i]))return;
+  (root.current?.querySelector<HTMLElement>('li:not(.is-done) button:not(:disabled):not([aria-disabled=true])')??heading.current)?.focus();
+ });
  useEffect(()=>{if(all&&!guide){writeGuide(flow,'done');onGuide('done');if(visible&&document.activeElement===document.body)focusToolbar(flow);}},[all,guide,onGuide]); // the section was just removed under the focus
  if(!visible||guide==='hidden'||guide==='done'||(all&&!guide))return null;
- return <section className="first-run panel" aria-labelledby="first-run-title">
-  <div className="first-run-head"><h2 id="first-run-title"><ListChecks size={18}/>{flow==='stt'?'Chép lời đầu tiên với Thanh Âm':'Bắt đầu với Thanh Âm'}</h2><button className="quiet" onClick={()=>{writeGuide(flow,'hidden');onGuide('hidden');focusToolbar(flow);}}>Ẩn hướng dẫn</button></div>
+ return <section ref={root} className="first-run panel" aria-labelledby="first-run-title" onFocus={()=>{inside.current=true;}} onBlur={e=>{const to=e.relatedTarget as Node|null,from=e.target as HTMLElement;if(to){if(!root.current!.contains(to))inside.current=false;}else setTimeout(()=>{if(from.isConnected)inside.current=false;});}}>
+  <div className="first-run-head"><h2 id="first-run-title" ref={heading} tabIndex={-1}><ListChecks size={18}/>{flow==='stt'?'Chép lời đầu tiên với Thanh Âm':'Bắt đầu với Thanh Âm'}</h2><button className="quiet" onClick={()=>{writeGuide(flow,'hidden');onGuide('hidden');focusToolbar(flow);}}>Ẩn hướng dẫn</button></div>
   <ol>{steps.map(s=>{const reason=s.done?null:blocks[s.id]??null,busyDownload=!!s.job; // a running download keeps the button focusable (aria-disabled), so the focus stays on it
    return <li key={s.id} className={s.done?'is-done':''}>
     <span className="first-run-state">{s.done?<Check size={14}/>:<Circle size={14}/>}{s.done?'Đã xong':'Chưa làm'}</span>
