@@ -35,7 +35,8 @@ const watch=()=>{
  }}).observe(document,{childList:true,subtree:true,characterData:true});
 };
 const NONE:Setup={installed:false,projects:false,ttsDone:false};
-const open=async(page:Page,d:Setup,width=1440,height=1000)=>{await page.setViewportSize({width,height});await page.addInitScript(watch);await page.addInitScript(mock,d);await page.goto('/');};
+// These tests are about the checklists: the start panel that stands in their place on a fresh profile was put off ("Để sau", thanh-am-start=hidden), see first-run-clicks.spec.ts.
+const open=async(page:Page,d:Setup,width=1440,height=1000)=>{await page.setViewportSize({width,height});await page.addInitScript(()=>localStorage.setItem('thanh-am-start','hidden'));await page.addInitScript(watch);await page.addInitScript(mock,d);await page.goto('/');};
 const polls=(page:Page,n:number)=>page.waitForFunction(k=>(window as any).__polls>=k,n);
 const guide=(page:Page)=>page.locator('.first-run');
 const stored=(page:Page)=>page.evaluate(()=>localStorage.getItem('thanh-am-onboarding'));

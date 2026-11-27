@@ -1,7 +1,7 @@
 import {useEffect,useRef} from 'react';
-import {Check,Circle,ListChecks} from 'lucide-react';
+import {AudioLines,Check,Circle,Download,FileText,ListChecks} from 'lucide-react';
 import {jobProgressLabel} from './domain';
-import {activeDownload} from './ModelCards';
+import {ModelCard,activeDownload} from './ModelCards';
 import {formatBytes,modelSize,sttDefault} from './models';
 import type {Job,ModelInfo} from './types';
 /** '' = show it as the steps allow, 'hidden' = the user hid it, 'done' = every step was done, 'shown' = brought back this session by the palette. */
@@ -57,5 +57,46 @@ export function FirstRunChecklist({flow,steps,guide,visible,offPage,busy,blocks,
     {!s.done&&<button className="outlined" disabled={!busyDownload&&(busy||!!reason||!s.ready)} aria-disabled={busyDownload||undefined} aria-describedby={reason?`first-run-why-${s.id}`:undefined} onClick={()=>{if(!busyDownload)onAction(s);}}>{busyDownload?'Đang tải…':ACTIONS[s.id]}</button>}
     {reason&&<small id={`first-run-why-${s.id}`}>{reason}</small>}
    </li>;})}</ol>
+ </section>;
+}
+/** The start panel's stored choice (`thanh-am-start`): 'hidden' = "Để sau", 'done' = step 3 was reached. The pick at step 2 writes nothing, so a relaunch during that download resumes at step 2. */
+export type StartChoice=''|'hidden'|'done';
+const START_KEY='thanh-am-start';
+export const readStart=():StartChoice=>{try{const v=localStorage.getItem(START_KEY);return v==='hidden'||v==='done'?v:'';}catch{return '';}};
+export const writeStart=(v:'hidden'|'done')=>{try{localStorage.setItem(START_KEY,v);}catch{/* storage is blocked: the choice lasts for this session only */}};
+/** Where the start panel stands: 1 the job choice, 2 the model cards (with `model` picked: a one-line strip with its download), 3 the hand-over to the job's checklist. */
+export interface StartState {step:1|2|3;job?:Flow;model?:string}
+/** What the panel shows at launch, decided once after the first poll: nothing once a choice is stored or a model is installed; the step-2 strip while a starter model picked earlier still downloads (even if its first segment made a project); else step 1 on a profile with no project. */
+export function startAtLaunch({stored,projects,models,jobs,starters}:{stored:StartChoice;projects:number;models:ModelInfo[];jobs:Job[];starters:string[]}):StartState|null{
+ if(stored||models.some(m=>m.kind!=='runtime'&&m.installed))return null;
+ const dl=jobs.find(j=>j.kind==='model_download'&&(j.status==='queued'||j.status==='running')&&starters.includes(String(j.payload.model_id)));
+ if(dl){const model=String(dl.payload.model_id);return {step:2,job:models.find(m=>m.id===model)?.engine==='stt'?'stt':'tts',model};}
+ return projects?null:{step:1};
+}
+const JOBS=[{job:'tts',title:'Đọc văn bản thành giọng nói',text:'Gõ hoặc dán chữ, nghe và lưu thành file audio.',icon:AudioLines},{job:'stt',title:'Chép lời từ file âm thanh',text:'Chọn file ghi âm hoặc video, nhận bản chép lời.',icon:FileText}] as const;
+/** The first-run start panel, where the checklist stands: not a dialog, "Để sau" at every step. The App moves the focus to the step heading (`#start-title`) after a pick, "Quay lại" or the palette;
+ *  step 3, which a finished download reaches by itself, takes the focus only from inside the panel or from <body>, never from the text being typed or the STT button. */
+export function StartPanel({start,page,models,jobs,starters,totalMb,busy,onPick,onDownload,onAll,onBack,onLater}:{start:StartState;page:Flow;models:ModelInfo[];jobs:Job[];starters:string[];totalMb:number|null;busy:boolean;onPick:(job:Flow)=>void;onDownload:(id:string)=>void;onAll:()=>void;onBack:()=>void;onLater:()=>void}){
+ const root=useRef<HTMLElement>(null),heading=useRef<HTMLHeadingElement>(null),was=useRef(start.step);
+ useEffect(()=>{const before=was.current,a=document.activeElement;was.current=start.step;if(start.step===3&&before!==3&&(a===document.body||root.current?.contains(a)))heading.current?.focus();},[start.step]);
+ // The panel is removed under the focus: hand it to the checklist that now stands there, else to the page toolbar.
+ const later=()=>{onLater();requestAnimationFrame(()=>(document.getElementById('first-run-title')??document.querySelector<HTMLElement>(TOOLBAR[page]))?.focus());};
+ const title=(n:number,text:string)=><h2 id="start-title" ref={heading} tabIndex={-1}><span className="start-step">{`Bước ${n}/3`}</span> {text}</h2>;
+ const head=(n:number,text:string)=><div className="start-head">{title(n,text)}<button type="button" className="quiet" onClick={later}>Để sau</button></div>;
+ const model=start.model?models.find(m=>m.id===start.model):undefined,job=start.model?activeDownload(jobs,start.model):undefined;
+ // A picked model shows as a strip while it downloads; one whose download failed or was cancelled goes back to the cards, so it can be started again.
+ if(start.step===3||(start.step===2&&model&&(job||model.installed)))return <section ref={root} className="start-panel start-strip panel" aria-labelledby="start-title">
+  {title(start.step,start.step===3?`Đã tải xong ${model?.name??start.model}.`:`Đang tải ${model?.name??start.model}…`)}
+  {start.step===2&&job&&<div className="start-progress"><progress max={1} value={job.progress}/><small className="job-progress">{jobProgressLabel(job.kind,job.progress,job.updated_at)}</small></div>}
+  <button type="button" className="quiet" onClick={later}>Để sau</button>
+ </section>;
+ if(start.step===2)return <section ref={root} className="start-panel panel" aria-labelledby="start-title">
+  {head(2,'Chọn model')}<p>Model tải trong lúc bạn tiếp tục.</p>
+  <div className="model-grid">{models.filter(m=>starters.includes(m.id)&&m.engine===start.job).map(m=><ModelCard key={m.id} m={m} totalMb={totalMb} job={activeDownload(jobs,m.id)}><button type="button" className="primary full" disabled={busy} onClick={()=>onDownload(m.id)}><Download size={16}/>Tải model</button></ModelCard>)}</div>
+  <div className="start-actions"><button type="button" className="outlined" onClick={onBack}>Quay lại</button><button type="button" className="quiet" onClick={onAll}>Xem tất cả model</button></div>
+ </section>;
+ return <section ref={root} className="start-panel panel" aria-labelledby="start-title">
+  {head(1,'Bạn muốn làm gì trước?')}
+  <div className="start-cards">{JOBS.map(c=><button key={c.job} type="button" className="start-job" aria-labelledby={`start-${c.job}-title`} aria-describedby={`start-${c.job}-text`} onClick={()=>onPick(c.job)}><c.icon size={22}/><strong id={`start-${c.job}-title`}>{c.title}</strong><span id={`start-${c.job}-text`}>{c.text}</span></button>)}</div>
  </section>;
 }
