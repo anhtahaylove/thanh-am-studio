@@ -80,3 +80,13 @@ test('arrowing through every voice option never changes the page or navigates',a
  }
  await expect(select).toBeFocused();
 });
+
+for(const [width,height] of [[1024,720],[1440,1000]])test(`at ${width}x${height} the voice select keeps its full field width and the add-voice button sits under it`,async({page})=>{
+ await page.setViewportSize({width,height});await open(page);await openProject(page);
+ const select=page.getByRole('combobox',{name:'Giọng đoạn 1',exact:true}),add=page.getByRole('button',{name:'Thêm giọng…',exact:true});
+ await expect(add).toBeVisible();
+ const s=await select.boundingBox(),f=await select.locator('xpath=ancestor::fieldset[1]').boundingBox(),b=await add.boundingBox();
+ expect(s!.width,'select width against its field').toBeGreaterThanOrEqual(f!.width*0.95);
+ expect(b!.y,'the button starts below the select').toBeGreaterThanOrEqual(s!.y+s!.height);
+ await select.focus();await page.keyboard.press('Tab');await expect(add,'the button follows the select in tab order').toBeFocused();
+});

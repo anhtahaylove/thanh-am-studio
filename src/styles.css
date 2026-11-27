@@ -184,7 +184,7 @@ main:focus{outline:none}
 .inspector-group{border:0;padding:0;margin:0 0 14px;min-width:0}
 .inspector-group legend{padding:0;margin-bottom:8px;font-size:12px;font-weight:600;color:var(--ink)}
 .inspector-group .field{margin-bottom:10px}
-.inspector-group .field-row{display:flex;align-items:flex-end;gap:8px;margin-bottom:10px}.field-row .field{margin-bottom:0}.field-row .quiet{flex:none;white-space:nowrap}
+.inspector-group .field-row{display:grid;gap:6px;margin-bottom:10px}.field-row .field{margin-bottom:0}.field-row .quiet{justify-self:start}
 .tuning{border-top:1px solid var(--border);padding-top:12px;margin:0 0 14px}.tuning>summary{cursor:pointer;font-size:12px;font-weight:600;color:var(--ink)}.tuning[open]>summary{margin-bottom:10px}
 .segment>.segment-detail{margin-top:14px;padding-top:14px;border-top:1px dashed var(--border)}
 .segment>.segment-detail .field-grid{grid-template-columns:repeat(3,1fr)}
