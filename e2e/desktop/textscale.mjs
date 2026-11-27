@@ -66,8 +66,12 @@ async function close() {
   try { execFileSync('taskkill', ['/PID', String(app.pid), '/T', '/F'], {stdio: 'ignore'}); } catch {}
   for (let i = 0; i < 40; i++) { try { await fetch('http://127.0.0.1:9222/json/version'); await sleep(500); } catch { return; } }
 }
-// Four pages are sidebar items (the queue button also carries a count badge); "Dự án" is the top-bar button; "Thư viện giọng" is the section of the models page, opened here.
+// Three pages are sidebar items, then the queue button (it carries a count badge and opens the queue drawer, not a page); "Dự án" is the top-bar button; "Thư viện giọng" is the section of the models page, opened here.
+// "Hàng đợi" opens the drawer when it is closed; any other name closes it first, as leaving the old queue page did.
 const nav = async (name) => {
+  const queue = page.getByRole('navigation', {name: 'Điều hướng chính'}).getByRole('button', {name: /^Hàng đợi/});
+  if ((await queue.getAttribute('aria-expanded', {timeout: 5000}) === 'true') !== (name === 'Hàng đợi')) await queue.click({timeout: 5000});
+  if (name === 'Hàng đợi') return;
   if (name === 'Dự án') return page.locator('.topbar').getByRole('button', {name: 'Dự án', exact: true}).click({timeout: 5000});
   if (name !== 'Thư viện giọng') return page.getByRole('navigation', {name: 'Điều hướng chính'}).getByRole('button', {name: new RegExp(`^${name}`)}).click({timeout: 5000});
   await nav('Model & cài đặt');

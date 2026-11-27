@@ -36,8 +36,9 @@ test('Ctrl+K opens the palette, filters without tone marks, runs with arrows and
 });
 test('the palette goes to each page, opens the project list and settings, and adds a segment from any page',async({page})=>{
  await page.goto('/');await expect(page.getByRole('navigation')).toBeVisible();
- for(const [query,heading] of [['chep loi','Chép lời'],['thu vien','Model & cài đặt'],['hang doi','Hàng đợi'],['danh sach du an','Dự án'],['cai dat','Model & cài đặt'],['tao giong doc','Tạo giọng đọc']]){
+ for(const [query,heading] of [['chep loi','Chép lời'],['thu vien','Model & cài đặt'],['hang doi','Model & cài đặt'],['danh sach du an','Dự án'],['cai dat','Model & cài đặt'],['tao giong doc','Tạo giọng đọc']]){
   await page.keyboard.press('Control+k');await box(page).fill(query);await page.keyboard.press('Enter');await expect(page.getByRole('heading',{level:1})).toContainText(heading);
+  if(query==='hang doi')await expect(page.getByRole('complementary',{name:'Hàng đợi'})).toBeVisible(); // "Đi tới Hàng đợi" opens the queue drawer on the page the user is on (S3a)
   if(query==='thu vien'){const section=page.locator('details.mc-voices');await expect(section).toHaveAttribute('open','');await expect(section.locator('summary')).toBeFocused();} // "Đi tới Thư viện giọng" opens the voice library
  }
  await page.getByRole('button',{name:'Model & cài đặt',exact:true}).click();await page.keyboard.press('Control+k');await box(page).fill('them doan');await page.keyboard.press('Enter');

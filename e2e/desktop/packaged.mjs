@@ -28,8 +28,12 @@ const shot = async (name) => { try { await page?.screenshot({path: join(out, `${
 const domSnippet = () => !page ? Promise.resolve('(no page yet)') : Promise.race([page.evaluate(() => (document.querySelector('[role=dialog]') ?? document.querySelector('main') ?? document.body).outerHTML.replace(/\s+/g, ' ').slice(0, 900)), new Promise((r) => setTimeout(() => r('(the page did not answer within 3 s)'), 3000))]).catch((e) => `(no snippet: ${String(e).split('\n')[0].slice(0, 120)})`);
 const invoke = (cmd, args = {}) => page.evaluate(([c, a]) => window.__TAURI_INTERNALS__.invoke(c, a), [cmd, args]);
 const dialog = (path) => log('dialog ' + execFileSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', join(here, 'file-dialog.ps1'), '-Path', path], {encoding: 'utf8'}).trim());
-// Four pages are sidebar items (the queue button also carries a count badge); "Dự án" is the top-bar button; "Thư viện giọng" is the section of the models page, opened here.
+// Three pages are sidebar items, then the queue button (it carries a count badge and opens the queue drawer, not a page); "Dự án" is the top-bar button; "Thư viện giọng" is the section of the models page, opened here.
+// "Hàng đợi" opens the drawer when it is closed; any other name closes it first, as leaving the old queue page did.
 const nav = async (name) => {
+  const queue = page.getByRole('navigation', {name: 'Điều hướng chính'}).getByRole('button', {name: /^Hàng đợi/});
+  if ((await queue.getAttribute('aria-expanded', {timeout: 5000}) === 'true') !== (name === 'Hàng đợi')) await queue.click();
+  if (name === 'Hàng đợi') return;
   if (name === 'Dự án') return page.locator('.topbar').getByRole('button', {name: 'Dự án', exact: true}).click();
   if (name !== 'Thư viện giọng') return page.getByRole('navigation', {name: 'Điều hướng chính'}).getByRole('button', {name: new RegExp(`^${name}`)}).click();
   await nav('Model & cài đặt');
@@ -1940,6 +1944,27 @@ ConvertTo-Json -Compress -InputObject $items`));
           await focusIs('Tùy chọn');
         } finally {
           if (await options.getAttribute('aria-expanded', {timeout: 5000}).catch(() => 'false') === 'true') await options.click(); // a failed step must not leave the panel open
+        }
+      }, {baselineExpectFail: true});
+      await nvdaStep('S14 queue drawer', async (r) => {
+        r.input = 'CDP: focus "Hàng đợi"; Enter; Escape';
+        const queue = page.getByRole('navigation', {name: 'Điều hướng chính'}).getByRole('button', {name: /^Hàng đợi/});
+        await nav('Tạo giọng đọc');
+        try {
+          mark();
+          await focus(queue);
+          await hear([['Hàng đợi', 'button', 'collapsed']], 5000);
+          mark();
+          await page.keyboard.press('Enter');
+          await hear([['Hàng đợi', 'complementary']], 5000); // focus moves into the drawer, a landmark named "Hàng đợi"
+          if (!await page.evaluate(() => !!document.activeElement?.closest('#queue-drawer'))) throw Error(`focus is on "${await activeLabel()}", not in the drawer`);
+          mark();
+          await page.keyboard.press('Escape');
+          await hear([['Hàng đợi', 'collapsed']], 5000);
+          const at = await activeLabel();
+          if (!/^Hàng đợi/.test(at)) throw Error(`CDP focus is on "${at}", not on the Queue button`);
+        } finally {
+          if (await queue.getAttribute('aria-expanded', {timeout: 5000}).catch(() => 'false') === 'true') await queue.click(); // a failed step must not leave the drawer open
         }
       }, {baselineExpectFail: true});
     } finally {

@@ -8,8 +8,8 @@ import type {Locator,Page} from '@playwright/test';
 // 3. Shortcuts and the keys PLAN §6 T0 lists, each with its effect.
 // Tauri is mocked as in the other desktop specs; every command is recorded in window.__calls.
 test.describe.configure({mode:'parallel'});
-type At='tts'|'stt'|'jobs'|'projects'|'models';
-type Dest=At|'voices'; // the voice library is a section of the models page, not a page of its own (S2)
+type At='tts'|'stt'|'projects'|'models';
+type Dest=At|'voices'|'jobs'; // the voice library is a section of the models page (S2) and the queue is a drawer beside or over the page (S3a): neither is a page of its own
 type W={models:boolean;projects:boolean;jobs:'none'|'done'|'all'};
 const WORLDS={fresh:{models:false,projects:false,jobs:'none'},studio:{models:true,projects:true,jobs:'done'},busy:{models:true,projects:true,jobs:'all'}} satisfies Record<string,W>;
 type WK=keyof typeof WORLDS;
@@ -75,7 +75,9 @@ const at=(page:Page,[role,name,scope,first]:L):Locator=>{const root=scope?MANY.h
 const act=(page:Page,s:Step)=>Array.isArray(s[0])?at(page,s[0] as L).fill(s[1] as string):at(page,s as L).click();
 const clicks=(path:Step[])=>path.filter(s=>!Array.isArray(s[0])).length;
 const NAVBAR='nav[aria-label="Điều hướng chính"]';
-// Four pages are sidebar items (the queue button also carries a count badge); "Dự án" is the top-bar button (S2); the voice library is a section of the models page (VOICES).
+// Three pages are sidebar items; "Dự án" is the top-bar button (S2); the voice library is a section of the models page (VOICES). The sidebar's queue button (it also carries
+// a count badge) opens the queue drawer, DRAWER, on the page the user is on (S3a).
+const QUEUE:L=['button',/^Hàng đợi/,NAVBAR],DRAWER='#queue-drawer';
 const NAV=(to:At):Step=>to==='projects'?['button','Dự án','.topbar']:['button',new RegExp('^'+LABEL[to]),NAVBAR];
 const H1:Record<Dest,string>={...LABEL,voices:LABEL.models}; // the page heading of each page: the voice library has none of its own
 const read=<T>(page:Page,fn:()=>T)=>page.evaluate(fn);
@@ -189,13 +191,14 @@ const ROWS:[string,WK,At,Step[],L,Step[]?][]=[
  ['voices: Nghe mẫu đã làm sạch','studio','models',[VOICES],['button','Nghe mẫu đã làm sạch']],
  ['voices: consent','studio','models',[VOICES],['checkbox','Tôi có quyền sử dụng và tạo giọng từ mẫu audio này.']],
  ['voices: Lưu mẫu giọng','studio','models',[VOICES],['button','Lưu mẫu giọng']],
- ['jobs: Làm mới','busy','jobs',[],['button','Làm mới']],
- ['jobs: Lưu tất cả chương','busy','jobs',[],['button','Lưu tất cả chương']],
- ['jobs: Hủy','busy','jobs',[],F(['button','Hủy'])],
- ['jobs: Thử lại','busy','jobs',[],['button','Thử lại']],
- ['jobs: Áp dụng transcript','busy','jobs',[],['button','Áp dụng transcript']],
- ['jobs: Mở take','busy','jobs',[],['button','Mở take']],
- ['jobs: Lưu audio','busy','jobs',[],['button','Lưu audio']],
+ ['jobs: Làm mới','busy','tts',[QUEUE],['button','Làm mới',DRAWER]],
+ ['jobs: Lưu tất cả chương','busy','tts',[QUEUE],['button','Lưu tất cả chương',DRAWER]],
+ ['jobs: Hủy','busy','tts',[QUEUE],F(['button','Hủy',DRAWER])],
+ ['jobs: Thử lại','busy','tts',[QUEUE],['button','Thử lại',DRAWER]],
+ ['jobs: Áp dụng transcript','busy','tts',[QUEUE],['button','Áp dụng transcript',DRAWER]],
+ ['jobs: Mở take','busy','tts',[QUEUE],['button','Mở take',DRAWER]],
+ ['jobs: Lưu audio','busy','tts',[QUEUE],['button','Lưu audio',DRAWER]],
+ ['jobs: Đóng hàng đợi','busy','tts',[QUEUE],['button','Đóng hàng đợi',DRAWER]],
  ['projects: Tên dự án mới','studio','projects',[],['label','Tên dự án mới']],
  ['projects: Tạo dự án','studio','projects',[],['button','Tạo dự án']],
  ['projects: Mở dự án','studio','projects',[],['button','Mở dự án','.project-card']],
@@ -223,12 +226,13 @@ for(const [id,world,page,path,target,state] of ROWS)test(`reach ${page} | ${id}`
  expect(clicks(path)+1,'the opening clicks plus the click that uses the control: at most 2 (PLAN §2, criterion 5)').toBeLessThanOrEqual(2);
 });
 test('only the "Giữ nhạc nền" row sets a state up before its counted clicks',()=>{expect(ROWS.filter(r=>r[5]).map(r=>r[0])).toEqual(['dock: Giữ nhạc nền']);});
-// Each page at most 2 clicks from anywhere (criterion 5): Projects is the top-bar button (1), Voices is Models then its section (2); S3a changes the Queue path.
-const PAGE_PATH:Record<Dest,Step[]>={tts:[NAV('tts')],stt:[NAV('stt')],voices:[NAV('models'),VOICES],jobs:[NAV('jobs')],projects:[NAV('projects')],models:[NAV('models')]};
+// Each page at most 2 clicks from anywhere (criterion 5): Projects is the top-bar button (1), Voices is Models then its section (2), the queue is its sidebar button (1).
+const PAGE_PATH:Record<Dest,Step[]>={tts:[NAV('tts')],stt:[NAV('stt')],voices:[NAV('models'),VOICES],jobs:[QUEUE],projects:[NAV('projects')],models:[NAV('models')]};
 for(const from of ['tts','models'] as const)for(const to of Object.keys(LABEL) as Dest[])if(to!==from)test(`page ${LABEL[to]} from ${LABEL[from]}`,async({page})=>{
  await open(page,'studio',from);
  for(const s of PAGE_PATH[to])await act(page,s);
- await expect(page.locator('main h1')).toContainText(H1[to]);
+ if(to==='jobs')await expect(page.locator(DRAWER)).toBeVisible(); // the queue opens on the page the user is on, which stays
+ await expect(page.locator('main h1')).toContainText(to==='jobs'?H1[from]:H1[to]);
  if(to==='voices')await expect(page.locator('details.mc-voices')).toHaveAttribute('open','');
  const n=await read(page,()=>(window as any).__clicks as number);
  expect(n).toBe(clicks(PAGE_PATH[to]));expect(n).toBeLessThanOrEqual(2);
@@ -244,26 +248,28 @@ const downloads=(want:object[])=>async(p:Page)=>{await expect.poll(async()=>(awa
 const CHECKLIST_MODEL_DOWNLOADS:object[]=[{id:'vieneu-v3'}]; // :359 "Tải ngay" downloads in place (main: the button only navigated)
 const SCENARIOS:[id:string,world:WK,from:At,run:(p:Page)=>Promise<unknown>,lands:string,native?:true,effect?:(p:Page)=>Promise<unknown>][]=[
  [':114 openDemo ("Mở dự án mẫu" on an empty Projects page)','fresh','projects',p=>act(p,['button','Mở dự án mẫu','.empty']),LABEL.tts],
- [':226 drop a script file','studio','jobs',drop('C:/x/kich-ban.txt'),LABEL.tts,true],
+ [':226 drop a script file','studio','models',drop('C:/x/kich-ban.txt'),LABEL.tts,true],
  [':226 drop an audio file','studio','tts',drop('C:/x/phong-van.wav'),LABEL.stt,true],
  [':244 newProject ("Tạo dự án")','studio','projects',p=>act(p,['button','Tạo dự án']),LABEL.tts],
  [':269 restoreVersion ("Khôi phục")','studio','stt',async p=>{await act(p,['button','Lịch sử phiên bản',TB]);await act(p,['button',/^Khôi phục trạng thái lúc/,'[role=dialog]']);},LABEL.tts],
- [':281 applyTranscript ("Áp dụng transcript")','studio','jobs',p=>act(p,['button','Áp dụng transcript']),LABEL.stt],
+ [':281 applyTranscript ("Áp dụng transcript" in the queue drawer)','studio','tts',async p=>{await act(p,QUEUE);await act(p,['button','Áp dụng transcript',DRAWER]);},LABEL.stt],
  [':290 render ("Xuất audio")','studio','tts',p=>act(p,['button','Xuất audio',DOCK]),AFTER_RENDER,undefined,queued('render')],
  [':290 render per chapter ("Mỗi chương một file", "Xuất audio")','studio','tts',async p=>{await act(p,['text','Tùy chọn xuất',DOCK]);await act(p,['checkbox','Mỗi chương một file',DOCK]);await act(p,['button','Xuất audio',DOCK]);},AFTER_RENDER,undefined,queued('render')],
- ...(['tts','stt','jobs','projects'] as const).map(to=>[`:353 ${to==='projects'?'top bar':'sidebar'} to ${LABEL[to]}`,'studio','models',p=>act(p,NAV(to)),LABEL[to]] as [string,WK,At,(p:Page)=>Promise<unknown>,string]),
+ ...(['tts','stt','projects'] as const).map(to=>[`:353 ${to==='projects'?'top bar':'sidebar'} to ${LABEL[to]}`,'studio','models',p=>act(p,NAV(to)),LABEL[to]] as [string,WK,At,(p:Page)=>Promise<unknown>,string]),
+ [':353 sidebar "Hàng đợi" opens the queue drawer, the page stays','studio','models',p=>act(p,QUEUE),LABEL.models,undefined,p=>expect(p.locator(DRAWER)).toBeVisible()],
  [':329 "Thêm giọng…" next to the voice select','studio','tts',p=>act(p,['button','Thêm giọng…',INSP]),LABEL.models],
  [':383 palette "Đi tới Thư viện giọng"','studio','stt',paletteOption('Đi tới Thư viện giọng'),LABEL.models],
  [':359 checklist model button ("Tải ngay")','fresh','tts',p=>act(p,['button','Tải ngay',FIRST]),AFTER_CHECKLIST_MODEL,undefined,downloads(CHECKLIST_MODEL_DOWNLOADS)],
  [':359 STT checklist model button ("Tải ngay")','fresh','stt',p=>act(p,['button','Tải ngay',FIRST]),LABEL.stt,undefined,downloads([{id:'whisper-small'}])],
  [':366 "Thành kịch bản"','studio','stt',p=>act(p,['button','Thành kịch bản',STT]),LABEL.tts],
  [':368 "Tạo dự án TTS từ transcript"','studio','stt',p=>act(p,['button','Tạo dự án TTS từ transcript']),LABEL.tts],
- [':370 "Mở take"','studio','jobs',p=>act(p,['button','Mở take']),LABEL.tts],
+ [':370 "Mở take" in the queue drawer','studio','stt',async p=>{await act(p,QUEUE);await act(p,['button','Mở take',DRAWER]);},LABEL.tts],
  [':371 "Mở dự án"','studio','projects',p=>act(p,['button','Mở dự án','.project-card']),LABEL.tts],
  [':372 download ("Tải model")','fresh','models',p=>act(p,F(['button','Tải model'])),AFTER_DOWNLOAD,undefined,downloads([{id:'vieneu-v3'}])],
  [':372 download ("Kiểm tra lại gói")','studio','models',async p=>{await act(p,MORE);await act(p,['button','Kiểm tra lại gói']);},AFTER_DOWNLOAD,undefined,downloads([{id:'separation-runtime'}])],
  [':382 pack consent ("Đồng ý và tải")','fresh','models',async p=>{await act(p,MORE);await act(p,['button','Tải gói']);await act(p,['button','Đồng ý và tải','[role=dialog]']);},AFTER_PACK_CONSENT,undefined,downloads([{id:'separation-runtime',licenseAccepted:true}])],
  ...(['Đi tới Tạo giọng đọc','Thêm đoạn mới','Bật chế độ tập trung','Tạo giọng tất cả','Tạo giọng đoạn đang chọn','Hiện hướng dẫn bắt đầu'] as const).map(n=>[`:383 palette "${n}"`,'studio','stt',paletteOption(n),n==='Hiện hướng dẫn bắt đầu'?LABEL.stt:LABEL.tts] as [string,WK,At,(p:Page)=>Promise<unknown>,string]),
+ [':383 palette "Đi tới Hàng đợi" opens the queue drawer, the page stays','studio','stt',paletteOption('Đi tới Hàng đợi'),LABEL.stt,undefined,p=>expect(p.locator(DRAWER)).toBeVisible()],
  [':384 quick open (Ctrl+P, a project)','studio','stt',async p=>{await p.keyboard.press('Control+p');await p.getByRole('dialog',{name:'Mở nhanh dự án'}).getByRole('option',{name:'Dự án khác',exact:true}).click();},LABEL.tts],
 ];
 for(const [id,world,from,run,lands,native,effect] of SCENARIOS)test(`page log ${id}`,async({page})=>{

@@ -102,7 +102,7 @@ test('the take count pops when a take arrives while the row is on screen, never 
  await open(page,[{segment:'s3',status:'running',progress:0.4}],1440,{s1:1,s2:2});
  await page.waitForTimeout(500);await expect(page.locator('.take-status.pop')).toHaveCount(0);expect(await pops(page)).toEqual([]);
  // Leaving the page and coming back mounts the rows again: still no pop.
- await page.getByRole('button',{name:/^Hàng đợi/}).click();await page.getByRole('button',{name:/^Tạo giọng đọc/}).click();await expect(page.getByRole('textbox',{name:'Nội dung đoạn 7'})).toBeVisible();await page.waitForTimeout(500);expect(await pops(page)).toEqual([]);
+ await page.getByRole('button',{name:'Chép lời',exact:true}).click();await page.getByRole('button',{name:/^Tạo giọng đọc/}).click();await expect(page.getByRole('textbox',{name:'Nội dung đoạn 7'})).toBeVisible();await page.waitForTimeout(500);expect(await pops(page)).toEqual([]);
  await finish(page,'j0');await expect(page.locator('.segment').nth(2).locator('.take-status.pop')).toHaveCount(1,{timeout:10000});
  expect(await page.locator('.segment').nth(2).locator('.take-status').evaluate(e=>getComputedStyle(e).animationName)).toBe('pop-in');
  await expect(page.locator('.segment').nth(2).locator('.take-status')).toHaveText('1 take');expect(await pops(page)).toEqual(['1 take']);

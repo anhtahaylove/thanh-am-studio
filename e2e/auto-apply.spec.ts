@@ -57,9 +57,9 @@ test('the transcript appears when the job finishes, with no click, on the page t
 });
 
 test('a job that finishes while another page is open fills the transcript without changing the page',async({page})=>{
- await open(page,{jobs:[{id:'j1',rows:['Một dòng']}]},'Hàng đợi');
- await expect(page.locator('main h1')).toContainText('Hàng đợi');await finish(page);await settle(page);
- await expect(page.locator('main h1')).toContainText('Hàng đợi');await expect(page.getByRole('button',{name:'Áp dụng transcript'})).toBeVisible();
+ await open(page,{jobs:[{id:'j1',rows:['Một dòng']}]},'Hàng đợi'); // the TTS page, with the queue drawer open on it (S3a)
+ await expect(page.locator('main h1')).toContainText('Tạo giọng đọc');await finish(page);await settle(page);
+ await expect(page.locator('main h1')).toContainText('Tạo giọng đọc');await expect(page.getByRole('complementary',{name:'Hàng đợi'}).getByRole('button',{name:'Áp dụng transcript'})).toBeVisible();
  await nav(page,'Chép lời').click();
  await expect(rows(page)).toHaveCount(1);expect(await texts(page)).toEqual(['Một dòng']);
  expect(await said(page)).toContain('Đã chép lời xong: 1 dòng.');
