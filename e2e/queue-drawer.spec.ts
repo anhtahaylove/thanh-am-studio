@@ -12,7 +12,8 @@ const mock=()=>{
  const job=(id:string,kind:string,status:string,payload:object)=>({id,kind,project_id:'p1',payload,status,progress:status==='running'?.4:status==='succeeded'?1:0,error:null,result:status==='succeeded'?{asset_id:'r'+id}:null,created_at:now,updated_at:now});
  const jobs:any[]=[job('j1','render','succeeded',{format:'wav',name:'Bản cũ'}),job('j2','tts','running',{segment_id:'1',text:'Câu 1.'})];
  w.__TAURI_INTERNALS__={convertFileSrc:(p:string)=>p,transformCallback:()=>1,unregisterCallback:()=>{},metadata:{currentWindow:{label:'main'},currentWebview:{label:'main',windowLabel:'main'}},
-  invoke:async(cmd:string,args:any)=>{calls.push({cmd,args:JSON.parse(JSON.stringify(args??{}))});switch(cmd){
+  invoke:async(cmd:string,args:any)=>{calls.push({cmd,args:JSON.parse(JSON.stringify(args??{}))});if(cmd==='list_jobs')await w.__gate;switch(cmd){
+   case 'cancel_job':{const j=jobs.find(j=>j.id===args.id);if(j)j.status='cancelled';return null;}
    case 'list_projects':return projects.map(p=>({id:p.id,name:p.name,updated_at:now,revision:1}));case 'load_project':return JSON.parse(JSON.stringify(projects.find(p=>p.id===args.id)));
    case 'save_project':return {...args.project,revision:args.project.revision+1};
    case 'list_voices':case 'list_models':return [];case 'get_settings':return {dictionary:{}};
@@ -112,4 +113,45 @@ test('opening another project clears the chapter notice',async({page})=>{
  await exportAudio(page).click();await expect(notice(page)).toBeVisible();
  await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.locator('.project-card',{hasText:'Dự án khác'}).getByRole('button',{name:'Mở dự án',exact:true}).click();
  await expect(page.locator('.topbar')).toContainText('Dự án khác');await expect(notice(page)).toHaveCount(0);
+});
+
+// Review of #341: the drawer must never cover the focused control (WCAG 2.4.11), also after the window narrows from column to overlay width.
+const sweep=async(page:Page,tabs=60)=>{const covered:string[]=[];for(let i=0;i<tabs;i++){await page.keyboard.press('Tab');const name=await page.evaluate(()=>{const a=document.activeElement as HTMLElement,d=document.getElementById('queue-drawer')!;if(d.hidden||d.contains(a)||a===document.body)return '';const r=a.getBoundingClientRect(),q=d.getBoundingClientRect();return r.right>q.left&&r.left<q.right&&r.bottom>q.top&&r.top<q.bottom?(a.getAttribute('aria-label')||a.textContent||a.tagName).trim():'';});if(name)covered.push(name);}return covered;};
+
+test('a drawer open as a column closes when the window narrows to overlay width with focus on the page, and Tab never reaches a control under it',async({page})=>{
+ await open(page);const drawer=drawerOf(page);
+ await queueButton(page).click();await expect(drawer).toBeVisible();
+ await page.getByRole('textbox',{name:'Nội dung đoạn 1'}).focus();await page.setViewportSize({width:1024,height:720});
+ await expect.soft(drawer,'focus is on the page, so the overlay would cover it').toBeHidden();
+ expect(await sweep(page),'controls focused while the drawer covered them').toEqual([]);
+ await page.setViewportSize({width:1440,height:1000});await queueButton(page).click();await expect(drawer).toBeFocused();
+ await page.setViewportSize({width:1024,height:720});await expect(drawer,'focus is in the drawer, so it stays open over the page').toBeVisible();
+ expect(await sweep(page),'controls focused while the drawer covered them').toEqual([]);
+});
+
+test('with the drawer open as a column, the undo toast and the busy indicator sit left of it',async({page})=>{
+ await open(page);const drawer=drawerOf(page);
+ await queueButton(page).click();await expect(drawer).toBeVisible();const d=await box(page,'#queue-drawer');
+ await page.getByRole('button',{name:'Xóa đoạn',exact:true}).first().click();await expect(page.locator('.toast')).toBeVisible();
+ const t=await box(page,'.toast');expect(t.x+t.width,'the toast ends left of the drawer').toBeLessThanOrEqual(d.x);
+ await page.evaluate(()=>{const w=window as any;w.__gate=new Promise(r=>{w.__open=r;});});
+ await drawer.getByRole('button',{name:'Làm mới'}).click();await expect(page.locator('.busy-indicator')).toBeVisible();
+ const b=await box(page,'.busy-indicator');await page.evaluate(()=>(window as any).__open());
+ expect(b.x+b.width,'the busy indicator ends left of the drawer').toBeLessThanOrEqual(d.x);
+});
+
+test('when a focused drawer button goes away ("Hủy" becomes "Thử lại"), focus stays in the drawer, so Escape still closes it',async({page})=>{
+ await open(page);const drawer=drawerOf(page);
+ await queueButton(page).click();await expect(drawer).toBeVisible();
+ await drawer.getByRole('button',{name:'Hủy',exact:true}).focus();await page.keyboard.press('Enter');
+ await expect(drawer.getByRole('button',{name:'Thử lại'})).toBeVisible();await expect(drawer).toBeFocused();
+ await page.keyboard.press('Escape');await expect(drawer).toBeHidden();await expect(queueButton(page)).toBeFocused();
+});
+
+test('at 1024 px a press on a dialog backdrop does not close the drawer behind the dialog',async({page})=>{
+ await page.setViewportSize({width:1024,height:720});await open(page);const drawer=drawerOf(page);
+ await queueButton(page).click();await expect(drawer).toBeFocused();
+ await page.keyboard.press('Control+k');const palette=page.getByRole('dialog',{name:'Bảng lệnh'});await expect(palette).toBeVisible();
+ await page.mouse.click(5,300);await expect(palette).toBeVisible();await expect(drawer).toBeVisible();
+ await page.keyboard.press('Escape');await expect(palette).toBeHidden();await expect(drawer).toBeVisible();
 });
