@@ -16,8 +16,8 @@ const LABEL:Record<At,string>={tts:'Tạo giọng đọc',stt:'Chép lời',voic
 // Forced jumps pinned at main (PLAN §2 rows :290, :359, :372, :382): the page the user is on after the action. Each owner sets its constant to the page the action started from.
 const AFTER_RENDER='Tạo giọng đọc'; // :290 "Xuất audio" (both setPage calls removed by F2): the user stays where the action started
 const AFTER_CHECKLIST_MODEL='Model & cài đặt'; // :359 the checklist's model button; F5 -> 'Tạo giọng đọc'
-const AFTER_DOWNLOAD='Hàng đợi'; // :372 "Tải model" and "Kiểm tra lại gói"; F1 -> 'Model & cài đặt'
-const AFTER_PACK_CONSENT='Hàng đợi'; // :382 "Đồng ý và tải"; F1 -> 'Model & cài đặt'
+const AFTER_DOWNLOAD='Model & cài đặt'; // :372 "Tải model" and "Kiểm tra lại gói": F1 downloads in place
+const AFTER_PACK_CONSENT='Model & cài đặt'; // :382 "Đồng ý và tải": F1 downloads in place
 
 const tone=(()=>{const rate=8000,n=rate*4,b=Buffer.alloc(44+n*2);b.write('RIFF',0);b.writeUInt32LE(36+n*2,4);b.write('WAVEfmt ',8);b.writeUInt32LE(16,16);b.writeUInt16LE(1,20);b.writeUInt16LE(1,22);b.writeUInt32LE(rate,24);b.writeUInt32LE(rate*2,28);b.writeUInt16LE(2,32);b.writeUInt16LE(16,34);b.write('data',36);b.writeUInt32LE(n*2,40);for(let i=0;i<n;i++)b.writeInt16LE(Math.round(Math.sin(i/rate*2*Math.PI*440)*9000),44+i*2);return b;})();
 const mock=(o:W)=>{
