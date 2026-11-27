@@ -23,7 +23,7 @@ test('Escape closes the add-content dialog and keeps what was typed',async({page
  await dialog.getByText('Mỗi dòng là một đoạn',{exact:false}).click();await expect(page.locator('body')).toBeFocused();await page.keyboard.press('Escape');await expect(dialog).toHaveCount(0);
 });
 test('navigation, theme and screen sizes have no overflow',async({page})=>{
- await page.goto('/');for(const name of ['Chép lời','Hàng đợi','Dự án','Model & cài đặt']){await page.getByRole('button',{name,exact:true}).click();await expect(page.getByRole('heading',{level:1})).toContainText(name);}
+ await page.goto('/');for(const name of ['Chép lời','Hàng đợi','Dự án','Model & cài đặt']){await page.getByRole('button',{name,exact:true}).click();if(name==='Hàng đợi')await expect(page.getByRole('complementary',{name})).toBeVisible();else await expect(page.getByRole('heading',{level:1})).toContainText(name);} // the queue is a drawer, not a page (S3a)
  await page.getByText('Thư viện giọng',{exact:true}).click();await expect(page.locator('.voice-form')).toBeVisible(); // the voice library is a section of the models page; it stays open for the overflow checks below
  await page.getByRole('button',{name:'Chuyển giao diện tối'}).click();await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
  for(const width of [1440,1280,960,640]){await page.setViewportSize({width,height:900});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);}

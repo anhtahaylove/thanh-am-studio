@@ -86,6 +86,27 @@ test('no page scrolls sideways at 800 px',async({page})=>{
   expect(await page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth),name).toBeLessThanOrEqual(0);
  }
 });
+// The queue drawer (S3a): at 1200 px and below it lies over the right side of the page, so the focus stays inside it; Tab past its last control closes it and lands on a control
+// that is in view and not under anything. Above 1200 px it is a column beside the page, which narrows the page instead of covering it.
+const queue=async(page:Page)=>{const drawer=page.getByRole('complementary',{name:'Hàng đợi'});await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:/^Hàng đợi/}).click();await expect(drawer).toBeVisible();return drawer;};
+const sideways=(page:Page)=>page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth);
+for(const [width,height] of [[1024,720],[1093,574]])test(`at ${width}x${height} the open queue drawer lies over the page with no sideways scroll and holds the focus, and Tab past its last control closes it onto a visible control`,async({page})=>{
+ await open(page,width,height);const drawer=await queue(page);
+ expect(await drawer.evaluate(d=>d.contains(document.activeElement)),'focus is inside the drawer').toBe(true);
+ expect(await sideways(page)).toBeLessThanOrEqual(0);
+ const m=(await page.locator('main').boundingBox())!,d=(await drawer.boundingBox())!;expect(d.x,'the drawer lies over the page').toBeLessThan(m.x+m.width);
+ await drawer.getByRole('button').last().focus();await page.keyboard.press('Tab');
+ await expect(drawer).toBeHidden();
+ const next=await page.evaluate(()=>{const a=document.activeElement as HTMLElement,r=a.getBoundingClientRect(),hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);
+  return {name:a===document.body?'BODY':(a.getAttribute('aria-label')??a.textContent??'').trim().slice(0,40),inView:r.width>0&&r.top>=0&&r.left>=0&&r.bottom<=innerHeight&&r.right<=innerWidth,uncovered:!!hit&&(hit===a||a.contains(hit))};});
+ expect(next.name,'focus went on to a control').not.toBe('BODY');expect(next,`the control after the drawer, "${next.name}"`).toMatchObject({inView:true,uncovered:true});
+});
+test('at 1280x800 the open queue drawer is a column beside the page: no sideways scroll, and the script column keeps at least 360 px',async({page})=>{
+ await open(page,1280,800);const drawer=await queue(page);
+ expect(await sideways(page)).toBeLessThanOrEqual(0);
+ const m=(await page.locator('main').boundingBox())!,d=(await drawer.boundingBox())!;expect(d.x,'the drawer starts where the page ends').toBeGreaterThanOrEqual(m.x+m.width-1);
+ expect((await page.locator('.script-panel').boundingBox())!.width,'script column width').toBeGreaterThanOrEqual(360);
+});
 test('dialogs fade in, and not when the system asks for reduced motion',async({page})=>{
  await open(page,1280,800);
  await page.getByRole('button',{name:'Thêm nội dung',exact:true}).click();

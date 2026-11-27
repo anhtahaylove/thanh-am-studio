@@ -43,7 +43,8 @@ test('the top-bar Dự án button opens the projects page, which stays reachable
  await projects.click();await expect(h1(page)).toContainText('Dự án');await expect(page.locator('.project-card')).toHaveCount(1);
  await expect(projects).toHaveAttribute('aria-current','page');
  await expect(NAVBAR(page).locator('[aria-current=page]')).toHaveCount(0); // no sidebar item stands for it
- for(const n of ['Hàng đợi','Model & cài đặt']){await NAVBAR(page).getByRole('button',{name:n}).click();await expect(h1(page)).toContainText(n);await projects.click();await expect(h1(page)).toContainText('Dự án');}
+ for(const n of ['Model & cài đặt']){await NAVBAR(page).getByRole('button',{name:n}).click();await expect(h1(page)).toContainText(n);await projects.click();await expect(h1(page)).toContainText('Dự án');}
+ await NAVBAR(page).getByRole('button',{name:'Hàng đợi'}).click();await expect(page.getByRole('complementary',{name:'Hàng đợi'})).toBeVisible();await expect(h1(page)).toContainText('Dự án'); // the queue opens as a drawer on the projects page (S3a)
 });
 
 test('Thư viện giọng is two clicks away: Model & cài đặt, then its section',async({page})=>{

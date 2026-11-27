@@ -108,11 +108,11 @@ test('a render from an earlier session is not saved by itself, and the queue sti
  expect((await of(page,'plugin:dialog|save')).length).toBe(1);
 });
 
-test('one render per chapter is queued without a dialog or a page change, and "Mở hàng đợi" opens the queue',async({page})=>{
+test('one render per chapter is queued without a dialog or a page change, and "Mở hàng đợi" opens the queue drawer',async({page})=>{
  await open(page,{chapters:true});await page.getByText('Tùy chọn xuất',{exact:true}).click();await page.getByRole('checkbox',{name:'Mỗi chương một file'}).check();await exportAudio(page).click();
  await expect(page.getByRole('status').filter({hasText:'Đã thêm 2 chương vào hàng đợi xuất.'})).toBeVisible();
  expect((await of(page,'enqueue_job')).map(a=>a.payload.name)).toEqual(['001-P1','002-P2']);
  expect(await of(page,'plugin:dialog|save')).toEqual([]);await onTts(page);
  await page.getByRole('button',{name:'Mở hàng đợi'}).click();
- await expect(page.locator('main h1')).toContainText('Hàng đợi');
+ await expect(page.getByRole('complementary',{name:'Hàng đợi'})).toBeVisible();await onTts(page); // the queue is a drawer on the page (S3a)
 });
