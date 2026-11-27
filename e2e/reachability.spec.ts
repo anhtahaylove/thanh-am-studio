@@ -212,6 +212,7 @@ for(const [id,world,page,path,target,state] of ROWS)test(`reach ${page} | ${id}`
  expect(n,'trusted clicks on the path').toBe(clicks(path));
  expect(clicks(path)+1,'the opening clicks plus the click that uses the control: at most 2 (PLAN §2, criterion 5)').toBeLessThanOrEqual(2);
 });
+test('only the "Giữ nhạc nền" row sets a state up before its counted clicks',()=>{expect(ROWS.filter(r=>r[5]).map(r=>r[0])).toEqual(['dock: Giữ nhạc nền']);});
 // Each page at most 2 clicks from anywhere (criterion 5): Projects, Voices and Queue change owner in S2 and S3a; edit these paths there.
 const PAGE_PATH:Record<At,Step[]>={tts:[NAV('tts')],stt:[NAV('stt')],voices:[NAV('voices')],jobs:[NAV('jobs')],projects:[NAV('projects')],models:[NAV('models')]};
 for(const from of ['tts','models'] as const)for(const to of Object.keys(LABEL) as At[])if(to!==from)test(`page ${LABEL[to]} from ${LABEL[from]}`,async({page})=>{

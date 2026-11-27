@@ -26,8 +26,8 @@ progress::-webkit-progress-value{background:var(--green)}
 /* The controls keep their size and wrap as a whole; the dub summary takes its own row under them. */
 .export-controls{flex-wrap:wrap;justify-content:flex-end;row-gap:6px}.export-controls>*{flex-shrink:0}.export-controls .check{white-space:nowrap}.waveform>span{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .dub-stats{font-size:12px;color:var(--muted);order:1;flex-basis:100%;text-align:right}.dub-over{color:var(--danger);font-weight:600}
-/* "Tùy chọn xuất" opens inline under its summary; the row keeps its top edge while it is open. */
-.export-options>summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink);padding:8px 4px;white-space:nowrap}.export-options-body{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:2px 4px 4px}.export-controls:has(.export-options[open]){align-items:flex-start}
+/* "Tùy chọn xuất" opens inline as one wrapping row under its summary, so the dock stays low enough for the scroll padding. */
+.export-options>summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink);padding:8px 4px;white-space:nowrap}.export-options[open]{display:contents}.export-options[open]::details-content{flex-basis:100%}.export-options-body{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:6px 16px;padding:0 4px}
 .emotion-bar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}.emotion-bar button{padding:6px 10px;font-size:12px}
 .chapter-chip{font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;color:var(--ok);background:var(--green-soft);white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis}
 .update{background:var(--surface);border:1px solid var(--border);color:var(--ink)}.alert.update>span{flex:1}.alert.update .primary{padding:9px 14px}

@@ -36,7 +36,7 @@ test('dock shows format, Xuất audio, Tùy chọn xuất; options keep values',
  for(const el of [c.normalize,c.srt,c.dub,c.chapters])await expect(el).toBeVisible();
  await expect(c.normalize).toBeChecked();await expect(c.keep).toHaveCount(0);
  await c.normalize.uncheck();await c.dub.check();await expect(c.keep).toBeVisible();
- await group(page).click();await expect(c.normalize).toBeHidden();await group(page).click();
+ await group(page).click();await expect(c.normalize).toBeHidden();await expect(c.keep).toBeHidden();await expect(d.locator('.dub-stats')).toBeVisible();await group(page).click();
  await expect(c.normalize).not.toBeChecked();await expect(c.dub).toBeChecked();await expect(c.keep).toBeVisible();
  await c.dub.uncheck();await d.getByRole('combobox',{name:'Định dạng audio'}).selectOption({label:'MP3'});await d.getByRole('button',{name:'Xuất audio'}).click();
  await expect.poll(async()=>(await sent(page)).length).toBe(1);
@@ -61,4 +61,14 @@ test('the queued-chapters notice shows while Tùy chọn xuất is closed',async
 test('the per-chapter tooltip points at the Chương field in Chỉnh âm',async({page})=>{
  await open(page);await group(page).click();
  await expect(dock(page).locator('label.check',{hasText:'Mỗi chương một file'})).toHaveAttribute('title',/ô Chương trong Chỉnh âm/);
+});
+
+// The dock is sticky and the page keeps 180 px of scroll padding for it (styles.css): an open group must not grow it past that, or focused controls sit under it.
+for(const [width,height] of [[1024,720],[800,720],[1440,1000],[640,720]] as const)test(`the open group keeps the dock low and inside the window at ${width} px`,async({page})=>{
+ await page.setViewportSize({width,height});await open(page);await group(page).click();await controls(page).dub.check();await expect(controls(page).keep).toBeVisible();
+ const m=await page.evaluate(()=>{const d=document.querySelector('#audio-dock')!.getBoundingClientRect(),el=document.documentElement;
+  const right=Math.max(...[...document.querySelectorAll('#audio-dock button,#audio-dock select,#audio-dock label,#audio-dock summary')].map(b=>b.getBoundingClientRect()).filter(r=>r.width>0).map(r=>r.right));
+  return {over:el.scrollWidth-el.clientWidth,right,dockRight:d.right,height:d.height,pad:parseFloat(getComputedStyle(el).scrollPaddingBottom)};});
+ expect(m.over).toBeLessThanOrEqual(0);expect(m.right).toBeLessThanOrEqual(m.dockRight+0.5);
+ if(width>=800){expect(m.height,'dock height with the group open and subtitle timing on').toBeLessThanOrEqual(185);expect(m.height).toBeLessThanOrEqual(m.pad);}
 });
