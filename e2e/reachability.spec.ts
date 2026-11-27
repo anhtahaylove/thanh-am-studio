@@ -16,7 +16,7 @@ type WK=keyof typeof WORLDS;
 const LABEL:Record<Dest,string>={tts:'Tạo giọng đọc',stt:'Chép lời',voices:'Thư viện giọng',jobs:'Hàng đợi',projects:'Dự án',models:'Model & cài đặt'};
 // Forced jumps pinned at main (PLAN §2 rows :290, :359, :372, :382): the page the user is on after the action. Each owner sets its constant to the page the action started from.
 const AFTER_RENDER='Tạo giọng đọc'; // :290 "Xuất audio" (both setPage calls removed by F2): the user stays where the action started
-const AFTER_CHECKLIST_MODEL='Model & cài đặt'; // :359 the checklist's model button; F5 -> 'Tạo giọng đọc'
+const AFTER_CHECKLIST_MODEL='Tạo giọng đọc'; // :359 the checklist's model button ("Tải ngay", F5): downloads in place, the user stays where the action started
 const AFTER_DOWNLOAD='Model & cài đặt'; // :372 "Tải model" and "Kiểm tra lại gói": F1 downloads in place
 const AFTER_PACK_CONSENT='Model & cài đặt'; // :382 "Đồng ý và tải": F1 downloads in place
 
@@ -109,10 +109,14 @@ const ROWS:[string,WK,At,Step[],L,Step[]?][]=[
  ['empty: Viết đoạn đầu tiên','fresh','tts',[],['button','Viết đoạn đầu tiên','.script-empty']],
  ['empty: Mở dự án mẫu','fresh','tts',[],['button','Mở dự án mẫu','.script-empty']],
  ['footer: Thêm đoạn','fresh','tts',[],['button','Thêm đoạn','.script-footer']],
- ['checklist: Xem model giọng đọc','fresh','tts',[],['button','Xem model giọng đọc',FIRST]],
- ['checklist: Mở dự án mẫu','fresh','tts',[],['button','Mở dự án mẫu',FIRST]],
+ ['checklist: Tải ngay','fresh','tts',[],['button','Tải ngay',FIRST]],
  ['checklist: Tạo giọng ngay','fresh','tts',[],['button','Tạo giọng ngay',FIRST]],
+ ['checklist: Xuất ngay','fresh','tts',[],['button','Xuất ngay',FIRST]],
  ['checklist: Ẩn hướng dẫn','fresh','tts',[],['button','Ẩn hướng dẫn',FIRST]],
+ ['stt checklist: Tải ngay','fresh','stt',[],['button','Tải ngay',FIRST]],
+ ['stt checklist: Chọn tệp ngay','fresh','stt',[],['button','Chọn tệp ngay',FIRST]],
+ ['stt checklist: Chọn cách xuất','fresh','stt',[],['button','Chọn cách xuất',FIRST]],
+ ['stt checklist: Ẩn hướng dẫn','fresh','stt',[],['button','Ẩn hướng dẫn',FIRST]],
  ['inspector: Từ điển phát âm','fresh','tts',[],['button','Từ điển phát âm',INSP]],
  ...(['textbox:Từ gốc','textbox:Cách đọc','button:Thêm cách đọc','button:Nhập CSV','button:Xuất CSV'] as const).map(s=>{const [role,name]=s.split(':');return [`inspector dictionary: ${name}`,'fresh','tts',[['button','Từ điển phát âm',INSP]],[role as Role,name,INSP]] as [string,WK,At,Step[],L];}),
  ['inspector dictionary: Xóa TPHCM','studio','tts',[['button','Từ điển phát âm',INSP]],['button','Xóa TPHCM',INSP]],
@@ -237,7 +241,7 @@ const drop=(path:string)=>async(p:Page)=>{await expect.poll(()=>read(p,()=>!!(wi
 // What the action did on the backend, so a flipped row fails when its button does nothing.
 const queued=(kind:string)=>async(p:Page)=>{await expect.poll(async()=>(await calls(p,'enqueue_job')).map(c=>c.args.kind)).toContain(kind);};
 const downloads=(want:object[])=>async(p:Page)=>{await expect.poll(async()=>(await calls(p,'download_model')).map(c=>c.args)).toEqual(want);};
-const CHECKLIST_MODEL_DOWNLOADS:object[]=[]; // :359 at main only navigates; F5 -> [{id:'vieneu-v3'}] ("Tải ngay" downloads in place)
+const CHECKLIST_MODEL_DOWNLOADS:object[]=[{id:'vieneu-v3'}]; // :359 "Tải ngay" downloads in place (main: the button only navigated)
 const SCENARIOS:[id:string,world:WK,from:At,run:(p:Page)=>Promise<unknown>,lands:string,native?:true,effect?:(p:Page)=>Promise<unknown>][]=[
  [':114 openDemo ("Mở dự án mẫu" on an empty Projects page)','fresh','projects',p=>act(p,['button','Mở dự án mẫu','.empty']),LABEL.tts],
  [':226 drop a script file','studio','jobs',drop('C:/x/kich-ban.txt'),LABEL.tts,true],
@@ -250,7 +254,8 @@ const SCENARIOS:[id:string,world:WK,from:At,run:(p:Page)=>Promise<unknown>,lands
  ...(['tts','stt','jobs','projects'] as const).map(to=>[`:353 ${to==='projects'?'top bar':'sidebar'} to ${LABEL[to]}`,'studio','models',p=>act(p,NAV(to)),LABEL[to]] as [string,WK,At,(p:Page)=>Promise<unknown>,string]),
  [':329 "Thêm giọng…" next to the voice select','studio','tts',p=>act(p,['button','Thêm giọng…',INSP]),LABEL.models],
  [':383 palette "Đi tới Thư viện giọng"','studio','stt',paletteOption('Đi tới Thư viện giọng'),LABEL.models],
- [':359 checklist model button ("Xem model giọng đọc")','fresh','tts',p=>act(p,['button','Xem model giọng đọc',FIRST]),AFTER_CHECKLIST_MODEL,undefined,downloads(CHECKLIST_MODEL_DOWNLOADS)],
+ [':359 checklist model button ("Tải ngay")','fresh','tts',p=>act(p,['button','Tải ngay',FIRST]),AFTER_CHECKLIST_MODEL,undefined,downloads(CHECKLIST_MODEL_DOWNLOADS)],
+ [':359 STT checklist model button ("Tải ngay")','fresh','stt',p=>act(p,['button','Tải ngay',FIRST]),LABEL.stt,undefined,downloads([{id:'whisper-small'}])],
  [':366 "Thành kịch bản"','studio','stt',p=>act(p,['button','Thành kịch bản',STT]),LABEL.tts],
  [':368 "Tạo dự án TTS từ transcript"','studio','stt',p=>act(p,['button','Tạo dự án TTS từ transcript']),LABEL.tts],
  [':370 "Mở take"','studio','jobs',p=>act(p,['button','Mở take']),LABEL.tts],
@@ -258,7 +263,7 @@ const SCENARIOS:[id:string,world:WK,from:At,run:(p:Page)=>Promise<unknown>,lands
  [':372 download ("Tải model")','fresh','models',p=>act(p,F(['button','Tải model'])),AFTER_DOWNLOAD,undefined,downloads([{id:'vieneu-v3'}])],
  [':372 download ("Kiểm tra lại gói")','studio','models',async p=>{await act(p,MORE);await act(p,['button','Kiểm tra lại gói']);},AFTER_DOWNLOAD,undefined,downloads([{id:'separation-runtime'}])],
  [':382 pack consent ("Đồng ý và tải")','fresh','models',async p=>{await act(p,MORE);await act(p,['button','Tải gói']);await act(p,['button','Đồng ý và tải','[role=dialog]']);},AFTER_PACK_CONSENT,undefined,downloads([{id:'separation-runtime',licenseAccepted:true}])],
- ...(['Đi tới Tạo giọng đọc','Thêm đoạn mới','Bật chế độ tập trung','Tạo giọng tất cả','Tạo giọng đoạn đang chọn','Hiện hướng dẫn bắt đầu'] as const).map(n=>[`:383 palette "${n}"`,'studio','stt',paletteOption(n),LABEL.tts] as [string,WK,At,(p:Page)=>Promise<unknown>,string]),
+ ...(['Đi tới Tạo giọng đọc','Thêm đoạn mới','Bật chế độ tập trung','Tạo giọng tất cả','Tạo giọng đoạn đang chọn','Hiện hướng dẫn bắt đầu'] as const).map(n=>[`:383 palette "${n}"`,'studio','stt',paletteOption(n),n==='Hiện hướng dẫn bắt đầu'?LABEL.stt:LABEL.tts] as [string,WK,At,(p:Page)=>Promise<unknown>,string]),
  [':384 quick open (Ctrl+P, a project)','studio','stt',async p=>{await p.keyboard.press('Control+p');await p.getByRole('dialog',{name:'Mở nhanh dự án'}).getByRole('option',{name:'Dự án khác',exact:true}).click();},LABEL.tts],
 ];
 for(const [id,world,from,run,lands,native,effect] of SCENARIOS)test(`page log ${id}`,async({page})=>{

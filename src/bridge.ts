@@ -49,9 +49,10 @@ export async function openCsv():Promise<string|null>{
  if(desktop){const [path]=await pickFiles('csv');return path?call<string>('read_text_file',{path}).catch(e=>{throw String(e).includes('UTF8_REQUIRED')?Error(UTF8_HINT):e;}):null;}
  return new Promise((resolve,reject)=>{const input=Object.assign(document.createElement('input'),{type:'file',accept:'.csv,text/csv'});input.addEventListener('change',()=>{const file=input.files?.[0];if(file)file.text().then(resolve,reject);else resolve(null);});input.addEventListener('cancel',()=>resolve(null));input.click();});
 }
-export async function saveText(name:string,content:string):Promise<void>{
- if(!desktop){const url=URL.createObjectURL(new Blob([content],{type:'text/plain;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);return;}
- const path=await save({defaultPath:name,filters:[{name:'Văn bản',extensions:[name.split('.').pop()!]}]});if(path){await call('export_text',{path,content});announceSaved(path);}
+/** True when a file was saved or handed to the browser, false when the dialog was cancelled. */
+export async function saveText(name:string,content:string):Promise<boolean>{
+ if(!desktop){const url=URL.createObjectURL(new Blob([content],{type:'text/plain;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);return true;}
+ const path=await save({defaultPath:name,filters:[{name:'Văn bản',extensions:[name.split('.').pop()!]}]});if(!path)return false;await call('export_text',{path,content});announceSaved(path);return true;
 }
 export async function saveDiagnostics():Promise<void>{
  if(!desktop){await saveText('thanh-am-chan-doan.txt','Bản xem trước giao diện trong trình duyệt: chưa có nhật ký chẩn đoán.');return;}

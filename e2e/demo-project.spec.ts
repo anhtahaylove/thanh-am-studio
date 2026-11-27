@@ -1,6 +1,6 @@
 import {test,expect} from '@playwright/test';
 import type {Page} from '@playwright/test';
-// The "Làng chài · dự án mẫu" demo project: opened from the script-empty page, the projects page, the palette and the first-run checklist.
+// The "Làng chài · dự án mẫu" demo project: opened from the script-empty page, the projects page and the palette.
 // Most tests run in the browser preview (a localStorage store); the desktop tests mock Tauri to watch the commands and to fail a save.
 const NAME='Làng chài · dự án mẫu';
 const nav=(page:Page,label:string)=>(label==='Dự án'?page.locator('.topbar'):page.getByRole('navigation',{name:'Điều hướng chính'})).getByRole('button',{name:label,exact:true}).click(); // Dự án is the top-bar button
@@ -70,11 +70,11 @@ test('opening the demo on the desktop sends no job',async({page})=>{
  expect(await page.evaluate(()=>(window as any).__cmds)).not.toContain('enqueue_job');
  expect(await page.evaluate(()=>(window as any).__names())).toEqual([NAME]);
 });
-test('the first-run checklist offers the demo for its second step',async({page})=>{
+test('the empty card opens the demo, and the checklist, which has no project step, keeps its three steps undone',async({page})=>{
  await desktop(page);
- await page.locator('.first-run').getByRole('button',{name:'Mở dự án mẫu'}).click();
+ await page.locator('.script-empty').getByRole('button',{name:'Mở dự án mẫu'}).click();
  await expect(segments(page)).toHaveCount(8);
- await expect(page.locator('.first-run').getByText('Đã xong',{exact:true})).toHaveCount(1);
+ await expect(page.locator('.first-run').getByText('Chưa làm',{exact:true})).toHaveCount(3);await expect(page.locator('.first-run').getByText('Đã xong',{exact:true})).toHaveCount(0);
 });
 test('a failed first save leaves no demo project behind, shows the error, and a retry opens the full demo',async({page})=>{
  await desktop(page,{failSave:true});
@@ -90,9 +90,9 @@ test('an empty demo project left by an older failed save is filled, not reopened
  await palette(page,DEMO_COMMAND);await expect(segments(page)).toHaveCount(8);
  expect(await page.evaluate(()=>(window as any).__names())).toEqual([NAME]);
 });
-test('a double click on the checklist step creates one demo project, not two',async({page})=>{
+test('a double click on the demo button of the empty card creates one demo project, not two',async({page})=>{
  await desktop(page,{delay:40});
- await page.locator('.first-run').getByRole('button',{name:'Mở dự án mẫu'}).dblclick();
+ await page.locator('.script-empty').getByRole('button',{name:'Mở dự án mẫu'}).dblclick();
  await expect(segments(page)).toHaveCount(8);
  expect(await page.evaluate(()=>(window as any).__names())).toEqual([NAME]);
 });
@@ -110,9 +110,9 @@ test('the first segment has the focus once the demo is open, from each entry poi
  await page.evaluate(()=>localStorage.clear());await page.reload();await nav(page,'Dự án');
  await page.locator('.empty').getByRole('button',{name:'Mở dự án mẫu'}).click();await expect(segments(page)).toHaveCount(8);await expect(first()).toBeFocused();
 });
-test('the first segment has the focus after the checklist opens the demo',async({page})=>{
+test('the first segment has the focus after the empty card opens the demo on the desktop',async({page})=>{
  await desktop(page);
- await page.locator('.first-run').getByRole('button',{name:'Mở dự án mẫu'}).click();
+ await page.locator('.script-empty').getByRole('button',{name:'Mở dự án mẫu'}).click();
  await expect(segments(page)).toHaveCount(8);await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toBeFocused();
 });
 test('a failed save of the open project stops the demo before it creates anything',async({page})=>{

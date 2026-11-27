@@ -47,7 +47,7 @@ export function NumberField({label,value,onChange,min=0,step=1,check}:{label:str
  *  (checkboxes, a pressed toggle) that Tab walks through and that keep the panel open. Escape closes and returns focus to the button; so does a click outside when focus was inside the panel and would otherwise be lost;
  *  Tab out of the panel closes it, but focus moving into a modal does not (the modal gives focus back to the option that opened it). The panel element is always there (hidden when closed) so `aria-controls`
  *  always resolves; its children exist only while it is open. */
-export function MenuButton({kind,label,className='quiet',icon:Icon,tabIndex,onFocus,children}:{kind:'menu'|'disclosure';label:string;className?:string;icon?:LucideIcon;tabIndex?:number;onFocus?:()=>void;children:React.ReactNode}){
+export function MenuButton({kind,label,className='quiet',icon:Icon,tabIndex,onFocus,buttonId,children}:{kind:'menu'|'disclosure';label:string;className?:string;icon?:LucideIcon;tabIndex?:number;onFocus?:()=>void;buttonId?:string;children:React.ReactNode}){
  const [open,setOpen]=useState(false),root=useRef<HTMLDivElement>(null),button=useRef<HTMLButtonElement>(null),from=useRef<'first'|'last'>('first'),inside=useRef(false),id=useId();
  const items=()=>[...root.current!.querySelectorAll<HTMLElement>('[role=menuitem]:not(:disabled)')];
  useEffect(()=>{
@@ -71,7 +71,7 @@ export function MenuButton({kind,label,className='quiet',icon:Icon,tabIndex,onFo
   list[e.key==='Home'?0:e.key==='End'?last:e.key==='ArrowDown'?(at<last?at+1:0):(at>0?at-1:last)]?.focus();
  };
  return <div className="menu-wrap" ref={root} onKeyDown={key} onBlur={e=>{const to=e.relatedTarget as Element|null;if(open&&to&&!root.current!.contains(to)&&!to.closest('[aria-modal="true"]'))setOpen(false);}}>
-  <button ref={button} type="button" className={className} aria-expanded={open} aria-controls={id} aria-haspopup={kind==='menu'?'menu':undefined} aria-label={Icon?label:undefined} title={Icon?label:undefined} tabIndex={tabIndex} onFocus={onFocus} onClick={()=>setOpen(o=>!o)}>{Icon?<Icon size={17}/>:<>{label}<ChevronDown size={14} className="menu-caret"/></>}</button>
+  <button ref={button} id={buttonId} type="button" className={className} aria-expanded={open} aria-controls={id} aria-haspopup={kind==='menu'?'menu':undefined} aria-label={Icon?label:undefined} title={Icon?label:undefined} tabIndex={tabIndex} onFocus={onFocus} onClick={()=>setOpen(o=>!o)}>{Icon?<Icon size={17}/>:<>{label}<ChevronDown size={14} className="menu-caret"/></>}</button>
   <div id={id} className="menu-panel" hidden={!open} role={kind==='menu'?'menu':undefined} aria-label={kind==='menu'?label:undefined} onClickCapture={()=>{inside.current=root.current!.contains(document.activeElement);}} onClick={e=>{
    if(kind!=='menu'||!(e.target as HTMLElement).closest('[role=menuitem]:not([aria-disabled=true])'))return;
    // Focus was inside before the item ran (read in the capture phase: an item that removes the menu at once leaves it on <body>); it goes back to the button unless the item moved it elsewhere.
