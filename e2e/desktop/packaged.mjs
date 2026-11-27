@@ -89,10 +89,22 @@ const saved = async (path) => {
   for (let i = 0; i < 60 && !readable(path); i++) await page.waitForTimeout(500);
   if (!readable(path)) throw Error(existsSync(path) ? `still being written after 30 s: ${path}` : `not saved after 30 s; folder has: ${readdirSync(dirname(path)).join(' | ')}`);
 };
-// The queue UI refreshes every 2.5 s, so pick the row by its text instead of the first button:
-// a stale list would offer an earlier render whose format the save dialog then rejects.
-const jobButton = (text, name) => page.locator('article', {hasText: text}).getByRole('button', {name});
 const done = async (kind) => (await invoke('list_jobs')).filter((j) => j.kind === kind && j.status === 'succeeded').length;
+const rowCount = () => page.locator('.transcript-row').count();
+// A finished transcription fills the transcript by itself only when it was empty at the start (hadRows = rowCount() before the job).
+// Otherwise apply it by hand from the queue; the list refreshes every 2.5 s and the newest job is first.
+const applyStt = async (job, hadRows) => {
+  if (hadRows) {
+    await nav('Hàng đợi');
+    const apply = page.getByRole('button', {name: 'Áp dụng transcript'});
+    const total = await done('stt');
+    for (let i = 0; i < 20 && (await apply.count()) < total; i++) await page.waitForTimeout(500);
+    await apply.first().click();
+    await nav('Chép lời');
+  } else {
+    await page.waitForFunction((n) => document.querySelectorAll('.transcript-row').length === n, job.result.transcript.length, {timeout: 30000});
+  }
+};
 // First channel of a PCM or float WAV, with its sample rate.
 function readWav(path) {
   const b = readFileSync(path);
@@ -265,13 +277,12 @@ async function exportSteps() {
     await nav('Chép lời');
     await page.getByRole('combobox', {name: 'Model STT'}).selectOption('whisper-small');
     const s0 = await done('stt');
+    const hadRows = await rowCount();
     const t = Date.now();
     await page.getByRole('button', {name: 'Chọn tệp & chép lời'}).click();
     dialog(wav);
     const [job] = await waitJobs('stt', s0 + 1, 10 * 60000);
-    await nav('Hàng đợi');
-    await page.getByRole('button', {name: 'Áp dụng transcript'}).first().click();
-    await nav('Chép lời');
+    await applyStt(job, hadRows);
     const text = job.result.transcript.map((s) => s.text).join(' ');
     writeFileSync(join(out, 'stt.txt'), text);
     return `${Date.now() - t} ms: ${text}`;
@@ -439,14 +450,14 @@ try {
       await nav('Chép lời');
       await page.getByRole('combobox', {name: 'Model STT'}).selectOption('whisper-turbo');
       const s0 = await done('stt');
+      const hadRows = await rowCount();
       const t = Date.now();
       await page.getByRole('button', {name: 'Chọn tệp & chép lời'}).click();
       dialog(mp3);
       const jobs = await waitJobs('stt', s0 + 1, 30 * 60000);
       const job = jobs.find((j) => j.payload?.model_id === 'whisper-turbo');
       if (!job) throw Error('no succeeded whisper-turbo STT job');
-      await nav('Hàng đợi');
-      await jobButton('whisper-turbo', 'Áp dụng transcript').click();
+      await applyStt(job, hadRows);
       const text = job.result.transcript.map((s) => s.text).join(' ');
       writeFileSync(join(out, 'stt-turbo.txt'), text);
       return `${Date.now() - t} ms (incl. model load): ${text}`;
@@ -673,14 +684,10 @@ try {
       await nav('Chép lời');
       await page.getByRole('combobox', {name: 'Model STT'}).selectOption('whisper-small');
       const s0 = await done('stt');
+      const hadRows = await rowCount();
       await emit('tauri://drag-drop', [audio]);
       const [job] = await waitJobs('stt', s0 + 1, 10 * 60000);
-      await nav('Hàng đợi');
-      const apply = page.getByRole('button', {name: 'Áp dụng transcript'}); // newest first; STT rows do not show the job id
-      const total = await done('stt');
-      for (let i = 0; i < 20 && (await apply.count()) < total; i++) await page.waitForTimeout(500); // the list refreshes every 2.5 s
-      await apply.first().click();
-      await nav('Chép lời');
+      await applyStt(job, hadRows);
       const rows = job.result.transcript;
       if (rows.length < 2) throw Error(`need at least 2 transcript rows, got ${rows.length}`);
       const playing = () => page.locator('.transcript-row[aria-current="true"]').getAttribute('data-row', {timeout: 5000});
@@ -795,16 +802,12 @@ try {
       await page.getByRole('checkbox', {name: 'Phân biệt người nói'}).check();
       await page.getByRole('combobox', {name: 'Số người nói'}).selectOption('2'); // a known count stops over-splitting
       const s0 = await done('stt');
+      const hadRows = await rowCount();
       await invoke('plugin:event|emit', {event: 'tauri://drag-drop', payload: {paths: [audio], position: {x: 400, y: 300}}});
       const [job] = await waitJobs('stt', s0 + 1, 20 * 60000);
       const speakers = job.result.transcript.map((r) => r.speaker);
       if (job.result.diarize_error || speakers.some((s) => typeof s !== 'number')) throw Error(`no speakers: ${job.result.diarize_error ?? JSON.stringify(speakers)}`);
-      await nav('Hàng đợi');
-      const apply = page.getByRole('button', {name: 'Áp dụng transcript'}); // newest first, but STT rows do not name their file
-      const total = await done('stt');
-      for (let i = 0; i < 20 && (await apply.count()) < total; i++) await page.waitForTimeout(500); // the list refreshes every 2.5 s
-      await apply.first().click();
-      await nav('Chép lời');
+      await applyStt(job, hadRows);
       const chips = await page.locator('select.speaker-chip').count(); // one menu per row; the speaker panel's cards reuse the class
       if (chips !== speakers.length) throw Error(`${chips} speaker chips for ${speakers.length} rows`);
       if (job.payload.num_speakers !== 2 || new Set(speakers).size !== 2) throw Error(`asked for 2 speakers, got ${new Set(speakers).size} (payload ${job.payload.num_speakers})`);
