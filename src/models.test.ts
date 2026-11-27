@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {MODEL_RAM_MB,formatBytes,modelAdvice,modelSize,ramText,sttDefault} from './models';
+import {MODEL_RAM_MB,formatBytes,modelAdvice,modelSize,ramText,starterIds,sttDefault} from './models';
 // A 16 GB machine reports about 15,760 MB of physical memory, an 8 GB one about 7,910 MB.
 const STT=['whisper-small','whisper-turbo'];
 const picks=(total:number|null,ram?:Record<string,number|null>)=>STT.filter(id=>modelAdvice(id,total,ram).badge==='recommended');
@@ -71,5 +71,13 @@ describe('STT default',()=>{
   expect(sttDefault([],15760)).toBe('whisper-turbo');
   expect(sttDefault([],7910)).toBe('whisper-small');
   expect(sttDefault(['vieneu-v3','diarization'],null)).toBe('whisper-small');
+ });
+});
+describe('starter models',()=>{
+ it('are VieNeu and the recommended Whisper of the machine',()=>{
+  expect(starterIds(7910)).toEqual(['vieneu-v3','whisper-small']);
+  expect(starterIds(15760)).toEqual(['vieneu-v3','whisper-turbo']);
+  expect(starterIds(null)).toEqual(['vieneu-v3','whisper-small']);
+  expect(starterIds(undefined)).toEqual(['vieneu-v3','whisper-small']);
  });
 });

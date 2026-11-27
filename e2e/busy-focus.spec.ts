@@ -44,7 +44,7 @@ test('focus given back to "Xuất audio" does not scroll the page to it',async({
 });
 test('a processor select changed with the keyboard gets focus back once its save ends',async({page})=>{
  await start(page);await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:'Model & cài đặt',exact:true}).click();
- await page.getByText('Nâng cao: bộ xử lý').click();
+ await page.getByText('Nâng cao',{exact:true}).click();
  const select=page.locator('.engine-rows label').filter({hasText:'Đọc văn bản'}).locator('select');
  await select.focus();await page.keyboard.press('ArrowDown');
  await expect(select).toBeDisabled();await idle(page);await expect(select).toHaveValue('python');await expect(select).toBeEnabled();

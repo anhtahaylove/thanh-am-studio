@@ -28,6 +28,7 @@ const open=async(page:Page,done=false,names=NAMES,installed:string[]=[])=>{
  await page.addInitScript(mock,{names,done,installed});await page.goto('/');
  await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:'Model & cài đặt',exact:true}).click();
  await expect(page.locator('.model-card')).toHaveCount(Object.keys(names).length);
+ await page.getByText('Thêm model',{exact:true}).click(); // the pack and every non-starter card sit in this fold
 };
 const ALL={...NAMES,...VIENEU};
 const card=(page:Page,id:string)=>page.locator('.model-card').filter({has:page.getByRole('heading',{level:3,name:ALL[id],exact:true})});
@@ -98,6 +99,16 @@ test('after Enter on "Tải model" the focus stays on the card button while it d
  await button.focus();await page.keyboard.press('Enter');
  await expect.poll(()=>downloads(page)).toEqual([{id:'whisper-small'}]);
  await expect(card(page,'whisper-small').locator('progress')).toHaveCount(1);
+ await expect(button).toBeFocused();
+});
+
+test('the focus stays on the card button when the download finishes and the card reads "Đã tải"',async({page})=>{
+ await open(page);
+ const button=card(page,'whisper-small').locator('button.full');
+ await button.focus();await page.keyboard.press('Enter');
+ await expect(card(page,'whisper-small').locator('progress')).toHaveCount(1);
+ await finish(page,'whisper-small');
+ await expect(button).toHaveAccessibleName('Đã tải',{timeout:10000});await expect(button).toBeDisabled();
  await expect(button).toBeFocused();
 });
 
