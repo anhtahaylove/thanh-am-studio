@@ -104,6 +104,14 @@ git add "$f" && git commit -m "Approve the reviewed guarded blobs of #$PR."
 
 ## Acceptance gates (on the installer built from the tagged revision)
 
+**Host checks replace the Sandbox gate (owner decision 2026-11-27).** Windows Sandbox runs (gate 2 and the Sandbox
+parts of the others) are not run until the owner asks for them again: they took 1-1.5 h and starved the shared PC's RAM.
+The release check runs on the maintainer's PC with the draft installer, after `sha256sum -c` on the draft assets:
+the installed previous release is updated with the updater's arguments (`/P /UPDATE /R`), then the install folder, the
+Apps & Features entry, the shortcuts, the reopened window title, worker `health`, `ffmpeg -version`, `startup-errors.log`
+and the Application event log are read, and the data folder must be kept; then `uninstall.exe /S` and a fresh `/S` install
+get the same reads, and the app is left installed. A FAIL burns the tag as before. The Sandbox rules below stay for when it returns.
+
 1. Unit/integration: `npm test`, `npm run test:e2e`, `cargo test --manifest-path src-tauri/Cargo.toml --tests`,
    `python -m unittest discover -s worker/tests`. A release that changes the `vieneu` pin, `clone_window` or the
    denoiser also runs `test_clone_preview_matches_what_synthesis_enrolls` locally (CI has no model) with
