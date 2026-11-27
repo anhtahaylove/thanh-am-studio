@@ -35,7 +35,7 @@ test('a TXT export of a transcript with speakers reads as turns and comes back a
   localStorage.setItem('thanh-am-preview-projects-v1',JSON.stringify([{id:'p1',name:'Phỏng vấn',updated_at:'2026-01-01T00:00:00Z',revision:0,segments:[],transcript:[row('a',0,'Chào chị.',0),row('b',1000,'Chị khỏe không?',0),row('c',2000,'Khỏe, cảm ơn em.',1),row('d',3000,'Vậy bắt đầu nhé.',0)],dictionary:{},source_asset_id:null}]));
  });
  await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();await page.getByRole('button',{name:'Chép lời',exact:true}).click();
- const [download]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:'TXT',exact:true}).click()]);
+ const [download]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:'Xuất…',exact:true}).click().then(()=>page.getByRole('menuitem',{name:'TXT',exact:true}).click())]);
  const txt=await (await import('node:fs/promises')).readFile(await download.path(),'utf8');
  expect(txt).toBe('Người 1: Chào chị. Chị khỏe không?\n\nNgười 2: Khỏe, cảm ơn em.\n\nNgười 1: Vậy bắt đầu nhé.');
  await page.getByRole('button',{name:'Tạo giọng đọc',exact:true}).click();await page.getByRole('button',{name:'Thêm nội dung',exact:true}).click();await page.getByRole('textbox',{name:'Nội dung cần thêm'}).fill(txt);await page.getByRole('button',{name:/^Thêm \d+ đoạn vào kịch bản$/}).click();

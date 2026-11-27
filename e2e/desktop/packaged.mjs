@@ -278,7 +278,8 @@ async function exportSteps() {
   });
   await step('export srt via save dialog', async () => {
     const srt = join(saves, `phụ đề ${Date.now()}.srt`);
-    await page.getByRole('button', {name: 'SRT', exact: true}).first().click();
+    await page.getByRole('button', {name: 'Xuất…', exact: true}).click();
+    await page.getByRole('menuitem', {name: 'SRT', exact: true}).click();
     dialog(srt);
     for (let i = 0; i < 20 && !existsSync(srt); i++) await page.waitForTimeout(500);
     copyFileSync(srt, join(out, 'phụ đề.srt'));
