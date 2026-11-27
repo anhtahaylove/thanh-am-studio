@@ -95,7 +95,9 @@ const open=async(page:Page,world:WK,to:At='tts')=>{
 };
 
 const MORE:L=['text','Thêm model'],ADV:L=['text','Nâng cao'],VOICES:L=['text','Thư viện giọng']; // the folds of the models page (C6, S2): one opening click
-const SEG='.segment',INSP='.inspector',DOCK='#audio-dock',FIRST='.first-run',TB='.topbar-actions',STT='.transcript-panel',TIME=F(['css','.transcript-row .tr-time']);
+const SEG='.segment',INSP='.inspector',DOCK='#audio-dock',FIRST='.first-run',START='.start-panel',TB='.topbar-actions',STT='.transcript-panel',TIME=F(['css','.transcript-row .tr-time']);
+// On a fresh profile the start panel (S1) stands where the checklists do: they are one click away, behind its "Để sau". TTS_JOB is its first-step card that leads to step 2.
+const LATER:L=['button','Để sau',START],TTS_JOB:L=['button','Đọc văn bản thành giọng nói',START];
 // [id, world, page, clicks before the control is there, the control, steps that put the page in the state where the control applies (set up like open(): not counted)]
 const ROWS:[string,WK,At,Step[],L,Step[]?][]=[
  // Global chrome (any page) and the first-run page: no project, no model.
@@ -111,14 +113,21 @@ const ROWS:[string,WK,At,Step[],L,Step[]?][]=[
  ['empty: Viết đoạn đầu tiên','fresh','tts',[],['button','Viết đoạn đầu tiên','.script-empty']],
  ['empty: Mở dự án mẫu','fresh','tts',[],['button','Mở dự án mẫu','.script-empty']],
  ['footer: Thêm đoạn','fresh','tts',[],['button','Thêm đoạn','.script-footer']],
- ['checklist: Tải ngay','fresh','tts',[],['button','Tải ngay',FIRST]],
- ['checklist: Tạo giọng ngay','fresh','tts',[],['button','Tạo giọng ngay',FIRST]],
- ['checklist: Xuất ngay','fresh','tts',[],['button','Xuất ngay',FIRST]],
- ['checklist: Ẩn hướng dẫn','fresh','tts',[],['button','Ẩn hướng dẫn',FIRST]],
- ['stt checklist: Tải ngay','fresh','stt',[],['button','Tải ngay',FIRST]],
- ['stt checklist: Chọn tệp ngay','fresh','stt',[],['button','Chọn tệp ngay',FIRST]],
- ['stt checklist: Chọn cách xuất','fresh','stt',[],['button','Chọn cách xuất',FIRST]],
- ['stt checklist: Ẩn hướng dẫn','fresh','stt',[],['button','Ẩn hướng dẫn',FIRST]],
+ ['start: Đọc văn bản thành giọng nói','fresh','tts',[],TTS_JOB],
+ ['start: Chép lời từ file âm thanh','fresh','tts',[],['button','Chép lời từ file âm thanh',START]],
+ ['start: Để sau','fresh','tts',[],LATER],
+ ['start: Tải model','fresh','tts',[TTS_JOB],['button','Tải model',START]],
+ ['start: Xem tất cả model','fresh','tts',[TTS_JOB],['button','Xem tất cả model',START]],
+ ['start: Quay lại','fresh','tts',[TTS_JOB],['button','Quay lại',START]],
+ ['stt start: Để sau','fresh','stt',[],LATER],
+ ['checklist: Tải ngay','fresh','tts',[LATER],['button','Tải ngay',FIRST]],
+ ['checklist: Tạo giọng ngay','fresh','tts',[LATER],['button','Tạo giọng ngay',FIRST]],
+ ['checklist: Xuất ngay','fresh','tts',[LATER],['button','Xuất ngay',FIRST]],
+ ['checklist: Ẩn hướng dẫn','fresh','tts',[LATER],['button','Ẩn hướng dẫn',FIRST]],
+ ['stt checklist: Tải ngay','fresh','stt',[LATER],['button','Tải ngay',FIRST]],
+ ['stt checklist: Chọn tệp ngay','fresh','stt',[LATER],['button','Chọn tệp ngay',FIRST]],
+ ['stt checklist: Chọn cách xuất','fresh','stt',[LATER],['button','Chọn cách xuất',FIRST]],
+ ['stt checklist: Ẩn hướng dẫn','fresh','stt',[LATER],['button','Ẩn hướng dẫn',FIRST]],
  ['inspector: Từ điển phát âm','fresh','tts',[],['button','Từ điển phát âm',INSP]],
  ...(['textbox:Từ gốc','textbox:Cách đọc','button:Thêm cách đọc','button:Nhập CSV','button:Xuất CSV'] as const).map(s=>{const [role,name]=s.split(':');return [`inspector dictionary: ${name}`,'fresh','tts',[['button','Từ điển phát âm',INSP]],[role as Role,name,INSP]] as [string,WK,At,Step[],L];}),
  ['inspector dictionary: Xóa TPHCM','studio','tts',[['button','Từ điển phát âm',INSP]],['button','Xóa TPHCM',INSP]],
@@ -259,8 +268,11 @@ const SCENARIOS:[id:string,world:WK,from:At,run:(p:Page)=>Promise<unknown>,lands
  [':353 sidebar "Hàng đợi" opens the queue drawer, the page stays','studio','models',p=>act(p,QUEUE),LABEL.models,undefined,p=>expect(p.locator(DRAWER)).toBeVisible()],
  [':329 "Thêm giọng…" next to the voice select','studio','tts',p=>act(p,['button','Thêm giọng…',INSP]),LABEL.models],
  [':383 palette "Đi tới Thư viện giọng"','studio','stt',paletteOption('Đi tới Thư viện giọng'),LABEL.models],
- [':359 checklist model button ("Tải ngay")','fresh','tts',p=>act(p,['button','Tải ngay',FIRST]),AFTER_CHECKLIST_MODEL,undefined,downloads(CHECKLIST_MODEL_DOWNLOADS)],
- [':359 STT checklist model button ("Tải ngay")','fresh','stt',p=>act(p,['button','Tải ngay',FIRST]),LABEL.stt,undefined,downloads([{id:'whisper-small'}])],
+ [':359 checklist model button ("Tải ngay")','fresh','tts',async p=>{await act(p,LATER);await act(p,['button','Tải ngay',FIRST]);},AFTER_CHECKLIST_MODEL,undefined,downloads(CHECKLIST_MODEL_DOWNLOADS)],
+ [':359 STT checklist model button ("Tải ngay")','fresh','stt',async p=>{await act(p,LATER);await act(p,['button','Tải ngay',FIRST]);},LABEL.stt,undefined,downloads([{id:'whisper-small'}])],
+ [':359 start panel job pick ("Chép lời từ file âm thanh")','fresh','tts',p=>act(p,['button','Chép lời từ file âm thanh',START]),LABEL.stt],
+ [':359 start panel "Tải model" (downloads in place)','fresh','tts',async p=>{await act(p,TTS_JOB);await act(p,['button','Tải model',START]);},LABEL.tts,undefined,downloads([{id:'vieneu-v3'}])],
+ [':359 start panel "Xem tất cả model"','fresh','tts',async p=>{await act(p,TTS_JOB);await act(p,['button','Xem tất cả model',START]);},LABEL.models],
  [':366 "Thành kịch bản"','studio','stt',p=>act(p,['button','Thành kịch bản',STT]),LABEL.tts],
  [':368 "Tạo dự án TTS từ transcript"','studio','stt',p=>act(p,['button','Tạo dự án TTS từ transcript']),LABEL.tts],
  [':370 "Mở take" in the queue drawer','studio','stt',async p=>{await act(p,QUEUE);await act(p,['button','Mở take',DRAWER]);},LABEL.tts],

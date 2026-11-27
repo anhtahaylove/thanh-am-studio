@@ -71,6 +71,7 @@ test('opening the demo on the desktop sends no job',async({page})=>{
  expect(await page.evaluate(()=>(window as any).__names())).toEqual([NAME]);
 });
 test('the empty card opens the demo, and the checklist, which has no project step, keeps its three steps undone',async({page})=>{
+ await page.addInitScript(()=>localStorage.setItem('thanh-am-start','hidden')); // the start panel, which stands where the checklist does on a fresh profile, was put off ("Để sau")
  await desktop(page);
  await page.locator('.script-empty').getByRole('button',{name:'Mở dự án mẫu'}).click();
  await expect(segments(page)).toHaveCount(8);

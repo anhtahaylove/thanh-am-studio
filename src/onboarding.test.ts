@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {onboardingSteps} from './Onboarding';
+import {onboardingSteps,readStart,readyModel,startAtLaunch,writeStart} from './Onboarding';
 import type {Job,ModelInfo} from './types';
 const model=(id:string,installed:boolean,name=id):ModelInfo=>({id,name,engine:'x',kind:'model',installed,revision:'r',license:'',description:''});
 const job=(kind:string,status:Job['status'],payload:Record<string,unknown>={}):Job=>({id:kind+status+JSON.stringify(payload),kind,project_id:null,payload,status,progress:1,error:null,result:null,created_at:'',updated_at:''});
@@ -72,5 +72,47 @@ describe('STT checklist',()=>{
  it('a TTS job does not finish an STT step and an STT job does not finish a TTS step',()=>{
   expect(done(stt({jobs:[job('tts','succeeded'),job('render','succeeded')]}))).toEqual([false,false,false]);
   expect(done(tts({jobs:[job('stt','succeeded')]}))).toEqual([false,false,false]);
+ });
+});
+describe('start panel',()=>{
+ const m=(id:string,engine:string,installed=false,kind:'model'|'runtime'='model'):ModelInfo=>({...model(id,installed),engine,kind});
+ const catalog=[m('vieneu-v3','tts'),m('whisper-small','stt'),m('whisper-turbo','stt'),m('separation-runtime','runtime',false,'runtime')];
+ const starters=['vieneu-v3','whisper-small'],fresh={stored:'' as const,projects:0,models:catalog,jobs:[] as Job[],starters};
+ it('opens at step 1 on a fresh profile only',()=>{
+  expect(startAtLaunch(fresh)).toEqual({step:1});
+  expect(startAtLaunch({...fresh,projects:1})).toBeNull();
+  expect(startAtLaunch({...fresh,models:[...catalog.slice(1),m('vieneu-v3','tts',true)]})).toBeNull();
+  for(const stored of ['hidden','done'] as const)expect(startAtLaunch({...fresh,stored})).toBeNull();
+ });
+ it('an installed runtime pack alone does not make the profile set up',()=>expect(startAtLaunch({...fresh,models:[...catalog.slice(0,3),m('separation-runtime','runtime',true,'runtime')]})).toEqual({step:1}));
+ it('resumes the strip at step 2 for a starter model still downloading, with or without a project, for the job of that model',()=>{
+  const dl=(id:string,status:Job['status'])=>job('model_download',status,{model_id:id});
+  for(const status of ['queued','running'] as const){
+   expect(startAtLaunch({...fresh,projects:1,jobs:[dl('vieneu-v3',status)]})).toEqual({step:2,job:'tts',model:'vieneu-v3'});
+   expect(startAtLaunch({...fresh,jobs:[dl('whisper-small',status)]})).toEqual({step:2,job:'stt',model:'whisper-small'});
+  }
+  for(const status of ['succeeded','failed','cancelled','interrupted'] as const)expect(startAtLaunch({...fresh,projects:1,jobs:[dl('vieneu-v3',status)]})).toBeNull();
+  expect(startAtLaunch({...fresh,projects:1,jobs:[dl('whisper-turbo','running')]}),'not a starter model').toBeNull();
+  expect(startAtLaunch({...fresh,stored:'hidden',jobs:[dl('vieneu-v3','running')]})).toBeNull();
+ });
+ it('step 3 is ready once the model the job runs with is installed, however it was downloaded, and not by a speaker-separation model alone',()=>{
+  const with_=(...ids:string[])=>catalog.map(x=>ids.includes(x.id)?{...x,installed:true}:x).concat(ids.includes('diarization')?[m('diarization','stt',true)]:[]);
+  expect(readyModel(catalog,'tts',null)).toBeUndefined();expect(readyModel(catalog,'stt',null)).toBeUndefined();
+  expect(readyModel(with_('vieneu-v3'),'tts',null)).toBe('vieneu-v3');expect(readyModel(with_('vieneu-v3'),'stt',null)).toBeUndefined();
+  expect(readyModel(with_('whisper-small'),'stt',null)).toBe('whisper-small');
+  expect(readyModel(with_('whisper-turbo'),'stt',null)).toBe('whisper-turbo');
+  expect(readyModel(with_('diarization'),'stt',null)).toBeUndefined();
+ });
+ it('stores only "hidden" and "done" under thanh-am-start, and a blocked storage reads as unset',()=>{
+  const data=new Map<string,string>(),g=globalThis as {localStorage?:unknown};
+  g.localStorage={getItem:(k:string)=>data.get(k)??null,setItem:(k:string,v:string)=>{data.set(k,v);}};
+  try{
+   expect(readStart()).toBe('');
+   writeStart('hidden');expect(data.get('thanh-am-start')).toBe('hidden');expect(readStart()).toBe('hidden');
+   writeStart('done');expect(readStart()).toBe('done');
+   data.set('thanh-am-start','shown');expect(readStart()).toBe('');
+   g.localStorage={getItem:()=>{throw Error('blocked');},setItem:()=>{throw Error('blocked');}};
+   expect(readStart()).toBe('');expect(()=>writeStart('done')).not.toThrow();
+  }finally{delete g.localStorage;}
  });
 });
