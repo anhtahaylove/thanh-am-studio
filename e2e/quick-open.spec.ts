@@ -13,7 +13,7 @@ const pick=async(page:Page,query:string)=>{await page.keyboard.press('Control+p'
 const stored=(page:Page,id:string)=>page.evaluate(([k,i])=>JSON.parse(localStorage.getItem(k)!).find((p:{id:string})=>p.id===i).segments[0].text,[KEY,id] as const);
 
 test('Ctrl+P opens "Mở nhanh dự án", labelled by its own heading; whole-word matches come first, then letters in order, each newest first',async({page})=>{
- await seeded(page);const opener=page.getByRole('button',{name:'Thư viện giọng',exact:true});await opener.focus();
+ await seeded(page);const opener=page.getByRole('button',{name:'Model & cài đặt',exact:true});await opener.focus();
  await page.keyboard.press('Control+p');await expect(dialog(page)).toBeVisible();await expect(box(page)).toBeFocused();
  const heading=dialog(page).getByRole('heading'),id=await dialog(page).getAttribute('aria-labelledby');
  expect(id).toBeTruthy();expect(id).not.toBe('palette-title');await expect(heading).toHaveText('Mở nhanh dự án');await expect(heading).toHaveAttribute('id',id!);
@@ -31,7 +31,7 @@ test('"lang" + Enter opens the demo on "Tạo giọng đọc" from another page,
  // Focus lands on the opened project's first segment text, whether Ctrl+P was pressed on a nav button or in the old project's text.
  await pick(page,'ban tin');await expect(page.getByRole('heading',{level:1})).toContainText('Tạo giọng đọc');
  const text=page.getByRole('textbox',{name:'Nội dung đoạn 1'});await expect(text).toHaveValue('Tin đầu tiên.');await expect(text).toBeFocused();
- await text.fill('Tin đầu tiên, sửa chưa lưu.');await page.getByRole('button',{name:'Thư viện giọng',exact:true}).click();
+ await text.fill('Tin đầu tiên, sửa chưa lưu.');await page.getByRole('button',{name:'Model & cài đặt',exact:true}).click();
  await pick(page,'lang');await expect(page.getByRole('heading',{level:1})).toContainText('Tạo giọng đọc');await expect(text).toHaveValue('Sáng sớm, làng chài thức dậy.');await expect(text).toBeFocused();
  await expect.poll(()=>stored(page,'tin')).toBe('Tin đầu tiên, sửa chưa lưu.');
  await pick(page,'ban tin');await expect(text).toHaveValue('Tin đầu tiên, sửa chưa lưu.');await expect(text).toBeFocused();
@@ -57,7 +57,7 @@ test('Ctrl+P is always prevented: over the shortcut sheet or the palette it open
  await seeded(page);
  await page.evaluate(()=>{const w=window as any;w.__prevented=[];window.addEventListener('keydown',e=>{if(e.ctrlKey&&e.key.toLowerCase()==='p')w.__prevented.push(e.defaultPrevented);});});
  const prevented=()=>page.evaluate(()=>(window as any).__prevented);
- await page.getByRole('button',{name:'Thư viện giọng',exact:true}).focus();await page.keyboard.press('Shift+Slash');const sheet=page.getByRole('dialog',{name:'Phím tắt'});await expect(sheet).toBeVisible();
+ await page.getByRole('button',{name:'Model & cài đặt',exact:true}).focus();await page.keyboard.press('Shift+Slash');const sheet=page.getByRole('dialog',{name:'Phím tắt'});await expect(sheet).toBeVisible();
  await expect(sheet).toContainText('Mở nhanh một dự án theo tên (không cần gõ dấu)');
  await page.keyboard.press('Control+p');await expect.poll(prevented).toEqual([true]);await expect(dialog(page)).toHaveCount(0);await expect(page.getByRole('dialog')).toHaveCount(1);
  await page.keyboard.press('Escape');await expect(sheet).toHaveCount(0);
@@ -88,7 +88,7 @@ test('Ctrl+K inside quick-open is prevented and neither closes it nor opens the 
  expect(await page.evaluate(()=>(window as any).__prevented)).toEqual([true,true]);
 });
 test('Ctrl+P inside quick-open closes it, from the filter and from the close button, and focus returns',async({page})=>{
- await seeded(page);const opener=page.getByRole('button',{name:'Thư viện giọng',exact:true});await opener.focus();
+ await seeded(page);const opener=page.getByRole('button',{name:'Model & cài đặt',exact:true});await opener.focus();
  await page.keyboard.press('Control+p');await expect(box(page)).toBeFocused();
  await page.keyboard.press('Control+p');await expect(dialog(page)).toHaveCount(0);await expect(opener).toBeFocused();
  await page.keyboard.press('Control+p');await dialog(page).getByRole('button',{name:'Đóng mở nhanh dự án',exact:true}).focus();

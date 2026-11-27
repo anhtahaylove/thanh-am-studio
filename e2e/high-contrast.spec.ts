@@ -78,7 +78,13 @@ const below=(rows:Measure[],min:number)=>rows.filter(r=>ratio(r.fg,r.bg)<min).ma
 // A computed colour as RGB: one-pixel canvas, so system colours and color-mix() resolve the same way as in the sweep.
 const colourOf=(page:Page,css:string)=>page.evaluate(c=>{const x=document.createElement('canvas').getContext('2d')!;x.fillStyle=c;x.fillRect(0,0,1,1);return [...x.getImageData(0,0,1,1).data.slice(0,3)] as [number,number,number];},css);
 const PAGES=['Tạo giọng đọc','Chép lời','Thư viện giọng','Hàng đợi','Dự án','Model & cài đặt'];
-const goto=async(page:Page,name:string)=>{await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:new RegExp(`^${name}( [(][0-9]+[)])?$`)}).click();await expect(page.getByRole('heading',{level:1})).toBeVisible();};
+// "Dự án" is the top-bar button; "Thư viện giọng" is a section of the models page, opened here.
+const goto=async(page:Page,name:string)=>{
+ if(name==='Dự án')await page.locator('.topbar').getByRole('button',{name,exact:true}).click();
+ else await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:new RegExp(`^${name==='Thư viện giọng'?'Model & cài đặt':name}( [(][0-9]+[)])?$`)}).click();
+ if(name==='Thư viện giọng')await page.getByText(name,{exact:true}).click();
+ await expect(page.getByRole('heading',{level:1})).toBeVisible();
+};
 
 test('a stored contrast choice is dark plus data-contrast on the root before the first frame',async({page})=>{
  await page.emulateMedia({colorScheme:'light'});

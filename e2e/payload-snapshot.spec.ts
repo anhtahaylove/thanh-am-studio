@@ -125,7 +125,7 @@ const scenarios:Record<string,(page:Page)=>Promise<void>>={
  },
  'stt: the defaults, without diarization':async page=>{await go(page,'Chép lời');await transcribe(page);},
  'voice library: clone_preview of a picked sample, then save it as a voice':async page=>{
-  await go(page,'Thư viện giọng');await page.getByRole('button',{name:'Chọn mẫu audio'}).click();await expect(page.getByRole('button',{name:'phỏng vấn.wav'})).toBeVisible();
+  await go(page,'Model & cài đặt');await page.getByText('Thư viện giọng',{exact:true}).click();await page.getByRole('button',{name:'Chọn mẫu audio'}).click();await expect(page.getByRole('button',{name:'phỏng vấn.wav'})).toBeVisible();
   await page.getByRole('button',{name:'Nghe mẫu đã làm sạch'}).click();await expect(page.getByRole('button',{name:'Đang chờ hàng đợi…'})).toBeVisible();
   await page.getByRole('textbox',{name:'Tên hiển thị'}).fill('Giọng phỏng vấn');await check(page,'Tôi có quyền sử dụng và tạo giọng từ mẫu audio này.');
   await page.getByRole('button',{name:'Lưu mẫu giọng'}).click();await expect(page.getByRole('status').filter({hasText:'Đã lưu mẫu giọng.'})).toBeVisible();

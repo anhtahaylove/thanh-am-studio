@@ -14,7 +14,7 @@ test('on the empty script, a cast pasted into a field other than a segment is le
 });
 test('on the empty script, a paste while another dialog is open opens no second dialog',async({page})=>{
  await emptyScript(page);
- await page.getByRole('button',{name:'Thư viện giọng',exact:true}).focus();await page.keyboard.press('Shift+Slash');await expect(sheet(page)).toBeVisible();
+ await page.getByRole('button',{name:'Model & cài đặt',exact:true}).focus();await page.keyboard.press('Shift+Slash');await expect(sheet(page)).toBeVisible();
  expect(await paste(page.locator('body'),CAST)).toBe(true);
  await expect(sheet(page)).toBeVisible();await expect(dialog(page)).toHaveCount(0);
 });

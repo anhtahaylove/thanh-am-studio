@@ -1,5 +1,5 @@
 import {test,expect,type Locator,type Page} from '@playwright/test';
-const pages=['Tạo giọng đọc','Chép lời','Thư viện giọng','Hàng đợi','Dự án','Model & cài đặt'];
+const pages=['Tạo giọng đọc','Chép lời','Model & cài đặt','Hàng đợi'];
 // WCAG contrast of two computed colours; a missing token resolves to the inherited colour, so callers first check that it is defined.
 const ratio=(a:string,b:string)=>{const lum=(c:string)=>{const [r,g,b]=c.match(/[\d.]+/g)!.slice(0,3).map(v=>{const x=Number(v)/255;return x<=0.03928?x/12.92:((x+0.055)/1.055)**2.4;});return 0.2126*r+0.7152*g+0.0722*b;};const [x,y]=[lum(a),lum(b)].sort((p,q)=>q-p);return (x+0.05)/(y+0.05);};
 const tokens=(page:Page,names:string[])=>page.evaluate(names=>{const probe=document.createElement('i');document.body.append(probe);const root=getComputedStyle(document.documentElement);
@@ -11,6 +11,7 @@ test('the narrow rail names every page, marks the current one and keeps the them
  await page.setViewportSize({width:800,height:700});await page.goto('/');
  const nav=page.getByRole('navigation',{name:'Điều hướng chính'});
  for(const name of pages){const button=nav.getByRole('button',{name,exact:true});await expect(button).toBeVisible();await expect(button).toHaveAttribute('title',name);}
+ await expect(page.locator('.topbar').getByRole('button',{name:'Dự án',exact:true})).toBeVisible(); // the top-bar button stands for the Projects page
  await expect(nav.getByRole('button',{name:'Tạo giọng đọc'})).toHaveAttribute('aria-current','page');
  await nav.getByRole('button',{name:'Chép lời',exact:true}).click();await expect(nav.getByRole('button',{name:'Chép lời'})).toHaveAttribute('aria-current','page');await expect(nav.locator('[aria-current]')).toHaveCount(1);
  await page.getByRole('button',{name:'Chuyển giao diện tối'}).click();await expect(page.locator('html')).toHaveAttribute('data-theme','dark');

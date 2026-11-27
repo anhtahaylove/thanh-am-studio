@@ -129,7 +129,7 @@ test('selecting another segment keeps the sample, switching page stops it',async
  await button.click();await expect(button).toHaveAccessibleName('Dừng mẫu giọng của Người dẫn');
  await page.locator('article.segment').nth(1).click();await expect(page.locator('article.segment').nth(1)).toHaveClass(/selected/);
  await expect(button).toHaveAccessibleName('Dừng mẫu giọng của Người dẫn');expect((await voice(page)).paused).toEqual([]);
- await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:'Thư viện giọng'}).click();
+ await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:'Model & cài đặt',exact:true}).click();
  await expect.poll(async()=>(await voice(page)).paused.length).toBe(1);expect((await voice(page)).paused[0]-1.2,'stopped by the page switch, not after 3 s').toBeLessThan(2.5);
  await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:'Tạo giọng đọc'}).click();
  await expect(button).toHaveAccessibleName('Nghe mẫu giọng của Người dẫn');await expect(button).toHaveAttribute('aria-pressed','false');

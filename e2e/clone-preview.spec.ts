@@ -18,15 +18,16 @@ const mock=(o:{voiceModel:boolean;jobs?:any[]})=>{
 };
 const calls=(page:any,cmd:string)=>page.evaluate((c:string)=>(window as any).__calls.filter((x:any)=>x.cmd===c).map((x:any)=>x.args),cmd);
 const setJob=(page:any,patch:object)=>page.evaluate((p:object)=>Object.assign((window as any).__jobs.at(-1),p),patch);
+const voiceLibrary=async(page:any)=>{await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:'Model & cài đặt',exact:true}).click();await page.getByText('Thư viện giọng',{exact:true}).click();}; // the section of the models page: 2 clicks
 const pickSample=async(page:any,o:{voiceModel:boolean;jobs?:any[]})=>{
  await page.addInitScript(mock,o);await page.goto('/');
- await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:'Thư viện giọng'}).click();
+ await voiceLibrary(page);
  await page.getByRole('button',{name:'Chọn mẫu audio'}).click();await expect(page.getByRole('button',{name:'mẫu giọng.wav'})).toBeVisible();
 };
 
 test('the cleaned sample is made once in the queue, plays when it is ready, and plays again without a new job',async({page})=>{
  await page.addInitScript(mock,{voiceModel:true});await page.goto('/');
- await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:'Thư viện giọng'}).click();
+ await voiceLibrary(page);
  const listen=page.getByRole('button',{name:'Nghe mẫu đã làm sạch'});
  await expect(listen).toBeDisabled(); // no sample yet
  await expect(page.getByText('Chỉ dùng 8 giây có âm thanh to và liền mạch nhất của mẫu (nhạc hoặc tiếng ồn to cũng có thể được chọn), đã lọc ồn. Nghe thử: nếu còn nhạc, tiếng ồn hoặc giọng khác, hãy chọn mẫu khác.')).toBeVisible();

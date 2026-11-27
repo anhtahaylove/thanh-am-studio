@@ -122,7 +122,11 @@ for(const [width,height,scale] of [[441,320,' (225 %)'],[668,481,' (150 %)'],[80
  expect(seen.size).toBe(12);
  const nav=page.getByRole('navigation',{name:'Điều hướng chính'});
  for(const name of PAGES){
-  await nav.getByRole('button',{name:new RegExp(`^${name}`)}).click({timeout:5000});await settle(page);
+  // "Dự án" is the top-bar button; "Thư viện giọng" is a section of the models page.
+  if(name==='Dự án')await page.locator('.topbar').getByRole('button',{name,exact:true}).click({timeout:5000});
+  else await nav.getByRole('button',{name:new RegExp(`^${name==='Thư viện giọng'?'Model & cài đặt':name}`)}).click({timeout:5000});
+  if(name==='Thư viện giọng')await page.getByText(name,{exact:true}).click({timeout:5000});
+  await settle(page);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth),`${name} scrolls sideways by`).toBeLessThanOrEqual(0);
  }
  for(const b of await page.locator('.sidebar button').all())await b.click({trial:true,timeout:3000}); // scrolled into view and hit at its centre

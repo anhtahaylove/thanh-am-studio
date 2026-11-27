@@ -286,6 +286,6 @@ test('the skip link reaches the dock in the browser preview',async({page})=>{
 });
 
 test('the skip link is only on the page that has the dock',async({page})=>{
- await open(page);await page.getByRole('button',{name:'Thư viện giọng',exact:true}).click();
+ await open(page);await page.getByRole('button',{name:'Model & cài đặt',exact:true}).click();
  await expect(page.getByRole('link',{name:'Bỏ qua đến Xuất audio'})).toHaveCount(0);
 });

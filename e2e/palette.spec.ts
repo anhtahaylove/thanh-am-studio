@@ -7,10 +7,10 @@ test('? opens the shortcut sheet outside text fields only, lists the real shortc
  await withSegment(page);const text=page.getByRole('textbox',{name:'Nội dung đoạn 1'});
  await text.focus();await page.keyboard.type('Hỏi?');await expect(text).toHaveValue('Hỏi?');await expect(sheet(page)).toHaveCount(0);
  const speaker=page.getByRole('textbox',{name:'Nhân vật đoạn 1'});await speaker.focus();await page.keyboard.type('?');await expect(sheet(page)).toHaveCount(0);
- await page.getByRole('button',{name:'Thư viện giọng',exact:true}).focus();await page.keyboard.press('Shift+Slash');await expect(sheet(page)).toBeVisible();
+ await page.getByRole('button',{name:'Model & cài đặt',exact:true}).focus();await page.keyboard.press('Shift+Slash');await expect(sheet(page)).toBeVisible();
  await expect(sheet(page).locator('dt')).toHaveText(['Ctrl+K','Ctrl+P','?','Ctrl+S','Ctrl+Z','Ctrl+Shift+Z hoặc Ctrl+Y','Esc','Ctrl+V','Space','1–9','Alt+↑ hoặc Alt+↓','Ctrl+Enter','Ctrl+Shift+Enter','Ctrl+Shift+F','← hoặc →','Esc','Ctrl+F','Enter hoặc Shift+Enter','Space','Ctrl+bấm','Ctrl+Enter','Enter hoặc Ctrl+S','Esc']);
  await expect(sheet(page)).toContainText('Mở bảng lệnh');await expect(sheet(page)).toContainText('Tìm trong bản chép lời');
- await page.keyboard.press('Escape');await expect(sheet(page)).toHaveCount(0);await expect(page.getByRole('button',{name:'Thư viện giọng',exact:true})).toBeFocused();
+ await page.keyboard.press('Escape');await expect(sheet(page)).toHaveCount(0);await expect(page.getByRole('button',{name:'Model & cài đặt',exact:true})).toBeFocused();
 });
 test('the shortcuts the sheet lists work: Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z and Ctrl+F on the transcript page',async({page})=>{
  await withSegment(page);const text=page.getByRole('textbox',{name:'Nội dung đoạn 1'}),start=page.getByRole('button',{name:'Viết đoạn đầu tiên'});
@@ -36,8 +36,9 @@ test('Ctrl+K opens the palette, filters without tone marks, runs with arrows and
 });
 test('the palette goes to each page, opens the project list and settings, and adds a segment from any page',async({page})=>{
  await page.goto('/');await expect(page.getByRole('navigation')).toBeVisible();
- for(const [query,heading] of [['chep loi','Chép lời'],['thu vien','Thư viện giọng'],['hang doi','Hàng đợi'],['danh sach du an','Dự án'],['cai dat','Model & cài đặt'],['tao giong doc','Tạo giọng đọc']]){
+ for(const [query,heading] of [['chep loi','Chép lời'],['thu vien','Model & cài đặt'],['hang doi','Hàng đợi'],['danh sach du an','Dự án'],['cai dat','Model & cài đặt'],['tao giong doc','Tạo giọng đọc']]){
   await page.keyboard.press('Control+k');await box(page).fill(query);await page.keyboard.press('Enter');await expect(page.getByRole('heading',{level:1})).toContainText(heading);
+  if(query==='thu vien'){const section=page.locator('details.mc-voices');await expect(section).toHaveAttribute('open','');await expect(section.locator('summary')).toBeFocused();} // "Đi tới Thư viện giọng" opens the voice library
  }
  await page.getByRole('button',{name:'Model & cài đặt',exact:true}).click();await page.keyboard.press('Control+k');await box(page).fill('them doan');await page.keyboard.press('Enter');
  await expect(page.getByRole('heading',{level:1})).toContainText('Tạo giọng đọc');await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toBeVisible();
@@ -62,7 +63,7 @@ test('the palette and the sheet do not open over another dialog',async({page})=>
  // The same keys do work once the dialog is closed, so the checks above are about the dialog and not about dead keys.
  await page.getByRole('button',{name:'Đóng nhập nội dung'}).click();await expect(add).toHaveCount(0);
  await page.keyboard.press('Control+k');await expect(palette(page)).toBeVisible();await page.keyboard.press('Escape');
- await page.getByRole('button',{name:'Thư viện giọng',exact:true}).focus();await page.keyboard.press('Shift+Slash');await expect(sheet(page)).toBeVisible();
+ await page.getByRole('button',{name:'Model & cài đặt',exact:true}).focus();await page.keyboard.press('Shift+Slash');await expect(sheet(page)).toBeVisible();
 });
 test('enabled commands call the existing generate and export handlers',async({page})=>{
  await page.addInitScript(()=>{
@@ -86,7 +87,7 @@ test('enabled commands call the existing generate and export handlers',async({pa
 });
 test('? typed with AltGr (Ctrl+Alt on Windows) opens the sheet, while Ctrl+? or Alt+? alone and AltGr+? in a text field do not',async({page})=>{
  await withSegment(page);await page.getByRole('textbox',{name:'Nội dung đoạn 1'}).focus();await page.keyboard.press('Control+Alt+?');await expect(sheet(page)).toHaveCount(0);
- const nav=page.getByRole('button',{name:'Thư viện giọng',exact:true});await nav.focus();
+ const nav=page.getByRole('button',{name:'Model & cài đặt',exact:true});await nav.focus();
  for(const combo of ['Control+?','Alt+?']){await page.keyboard.press(combo);await expect(sheet(page)).toHaveCount(0);}
  await page.keyboard.press('Control+Alt+?');await expect(sheet(page)).toBeVisible();
  await page.keyboard.press('Escape');await expect(sheet(page)).toHaveCount(0);await expect(nav).toBeFocused();
@@ -101,7 +102,7 @@ test('Ctrl+Alt+K (AltGr+K) neither opens nor closes the palette, and Meta+? does
  await page.keyboard.press('Control+Alt+k');await expect(palette(page)).toHaveCount(0);
  await page.keyboard.press('Control+k');await expect(box(page)).toBeFocused();
  await page.keyboard.press('Control+Alt+k');await expect(palette(page)).toBeVisible();await page.keyboard.press('Control+k');await expect(palette(page)).toHaveCount(0);
- await page.getByRole('button',{name:'Thư viện giọng',exact:true}).focus();await page.keyboard.press('Meta+?');await expect(sheet(page)).toHaveCount(0);
+ await page.getByRole('button',{name:'Model & cài đặt',exact:true}).focus();await page.keyboard.press('Meta+?');await expect(sheet(page)).toHaveCount(0);
  await page.keyboard.press('Shift+Slash');await expect(sheet(page)).toBeVisible();
 });
 test('End highlights the last command and Home the first, and aria-activedescendant follows',async({page})=>{

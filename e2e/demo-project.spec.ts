@@ -3,7 +3,7 @@ import type {Page} from '@playwright/test';
 // The "Làng chài · dự án mẫu" demo project: opened from the script-empty page, the projects page, the palette and the first-run checklist.
 // Most tests run in the browser preview (a localStorage store); the desktop tests mock Tauri to watch the commands and to fail a save.
 const NAME='Làng chài · dự án mẫu';
-const nav=(page:Page,label:string)=>page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:label,exact:true}).click();
+const nav=(page:Page,label:string)=>(label==='Dự án'?page.locator('.topbar'):page.getByRole('navigation',{name:'Điều hướng chính'})).getByRole('button',{name:label,exact:true}).click(); // Dự án is the top-bar button
 const segments=(page:Page)=>page.locator('article.segment');
 const palette=async(page:Page,option:string)=>{await expect(page.getByRole('heading',{level:1})).toBeVisible();await page.keyboard.press('Control+k');await page.getByRole('dialog',{name:'Bảng lệnh'}).getByRole('option',{name:option}).click();};
 const DEMO_COMMAND='Mở dự án mẫu Làng chài';
