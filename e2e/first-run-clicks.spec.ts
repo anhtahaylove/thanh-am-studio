@@ -5,14 +5,14 @@ import type {Page} from '@playwright/test';
 // "Để sau" ("Later" in the test names), each step heading takes the focus, and `thanh-am-start` is written only when step 3 is reached.
 // A click is a trusted mouse click inside the page (detail > 0); a MutationObserver on `main h1` logs each page change and whether a trusted input came just before it.
 // Tauri is mocked: `__finish(kind)` ends every unfinished job of that kind (a download installs its model, a TTS job adds a take, an STT job brings one transcript row).
-type Setup={download?:string;project?:boolean;stored?:string};
+type Setup={download?:string;project?:boolean;stored?:string;installed?:string[]};
 const mock=(d:Setup)=>{
  const w=window as any,now='2026-11-27T00:00:00Z',ipc=(v:unknown)=>JSON.parse(JSON.stringify(v));w.isTauri=true;w.__calls=[];w.__clicks=0;w.__log=[];w.__polls=0;
  if(d.stored)localStorage.setItem('thanh-am-start',d.stored);
  let input:string|null=null,at=0,last='';
  for(const type of ['click','keydown'])addEventListener(type,e=>{if(!e.isTrusted)return;if(type==='click'&&(e as MouseEvent).detail>0)w.__clicks++;input=type;at=performance.now();},true);
  new MutationObserver(()=>{const t=document.querySelector('main h1')?.firstChild?.textContent??'';if(t&&t!==last){w.__log.push({from:last,to:t,input:input&&performance.now()-at<3000?input:null});last=t;input=null;}}).observe(document,{childList:true,subtree:true,characterData:true});
- const installed=new Set<string>(),jobs:any[]=[],store:any[]=[];
+ const installed=new Set<string>(d.installed),jobs:any[]=[],store:any[]=[];
  const seg=(id:string,text:string)=>({id,text,normalized_text:text,voice_id:null,speaker:'Người dẫn',gap_ms:300,takes:[],selected_take_id:null,trim_start_ms:0,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0,gain_db:0});
  const mk=(id:string,name:string,segments:any[]=[])=>({id,name,updated_at:now,revision:1,segments,transcript:[],dictionary:{},source_asset_id:null});
  const job=(kind:string,status:string,payload:object,project_id:string|null=null)=>({id:'j'+jobs.length,kind,project_id,payload,status,progress:status==='succeeded'?1:0.4,error:null,result:null,created_at:now,updated_at:now});
@@ -151,9 +151,47 @@ test('a relaunch while the picked starter model downloads resumes the strip at s
  await expect(heading(page,3)).toBeVisible({timeout:10000});await expect.poll(()=>stored(page)).toBe('done');await expect(checklist(page)).toBeVisible();
 });
 
-for(const d of [{stored:'hidden'},{stored:'done'},{project:true}] as Setup[])test(`no start panel at launch with ${JSON.stringify(d)}`,async({page})=>{
+for(const d of [{stored:'hidden'},{stored:'done'},{project:true},{installed:['vieneu-v3']}] as Setup[])test(`no start panel at launch with ${JSON.stringify(d)}`,async({page})=>{
  await open(page,d);await nextPoll(page);await page.waitForTimeout(300);
  await expect(panel(page)).toHaveCount(0);await expect(checklist(page)).toBeVisible();
+});
+
+// "See all models" leads to the Models page; a starter model downloaded there still moves the panel on, and its step-2 card cannot start a second download.
+const viaModelsPage=async(page:Page)=>{
+ await open(page);await sttCard(page).click();await panel(page).getByRole('button',{name:'Xem tất cả model',exact:true}).click();
+ await expect(page.locator('main h1')).toContainText('Model & cài đặt');
+ await page.locator('article',{has:page.getByRole('heading',{name:'Whisper Small',exact:true})}).getByRole('button',{name:'Tải model',exact:true}).click();
+ await expect.poll(()=>calls(page,'download_model')).toEqual([{id:'whisper-small'}]);
+};
+const gotoStt=(page:Page)=>page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:/^Chép lời/}).click();
+test('a starter model downloaded from the Models page after "See all models" still moves the panel to step 3',async({page})=>{
+ await viaModelsPage(page);
+ await finish(page,'model_download');await nextPoll(page);
+ await gotoStt(page);
+ await expect(heading(page,3)).toHaveAccessibleName('Bước 3/3 Đã tải xong Whisper Small.',{timeout:10000});
+ await expect(checklist(page)).toBeVisible();await expect.poll(()=>stored(page)).toBe('done');
+ expect(await calls(page,'download_model'),'one download').toEqual([{id:'whisper-small'}]);
+});
+test('the step-2 card of a model that is downloading is blocked and starts nothing',async({page})=>{
+ await viaModelsPage(page);await gotoStt(page);
+ await expect(heading(page,2)).toHaveAccessibleName('Bước 2/3 Chọn model');
+ const button=panel(page).locator('.model-card').getByRole('button',{name:'Đang tải…',exact:true});
+ await expect(button).toHaveAttribute('aria-disabled','true');await expect(button).toHaveAccessibleDescription('Đang tải…');
+ await button.focus();await page.keyboard.press('Enter');await nextPoll(page); // a click on an aria-disabled control: Playwright would wait for it to be enabled
+ expect(await calls(page,'download_model'),'no second download').toEqual([{id:'whisper-small'}]);
+});
+// A checklist the user hid earlier comes back with step 3, not under the panel at step 2 (where it would show the same download twice).
+test('after a palette reopen, a hidden checklist of the picked job comes back only at step 3',async({page})=>{
+ await page.addInitScript(()=>localStorage.setItem('thanh-am-onboarding-stt','hidden'));
+ await open(page,{stored:'hidden'});await nextPoll(page);
+ await page.keyboard.press('Control+k');await page.getByRole('dialog',{name:'Bảng lệnh'}).getByRole('option',{name:'Hiện hướng dẫn bắt đầu'}).click();
+ await sttCard(page).click();await expect(heading(page,2)).toHaveAccessibleName('Bước 2/3 Chọn model');
+ await expect(checklist(page),'no checklist under the step-2 cards').toHaveCount(0);
+ await panel(page).getByRole('button',{name:'Tải model',exact:true}).click();await expect(panel(page).locator('progress')).toHaveCount(1);
+ await expect(checklist(page),'no checklist under the step-2 strip').toHaveCount(0);
+ await finish(page,'model_download');
+ await expect(heading(page,3)).toBeVisible({timeout:10000});await expect(checklist(page)).toBeVisible();
+ await expect(checklist(page).getByRole('heading',{name:'Chép lời đầu tiên với Thanh Âm'})).toBeVisible();
 });
 
 for(const width of [800,640])test(`the start panel does not scroll sideways at ${width} px`,async({page})=>{

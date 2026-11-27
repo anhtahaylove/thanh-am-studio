@@ -3,6 +3,7 @@ import {AudioLines,Check,Circle,Download,FileText,ListChecks} from 'lucide-react
 import {jobProgressLabel} from './domain';
 import {ModelCard,activeDownload} from './ModelCards';
 import {formatBytes,modelSize,sttDefault} from './models';
+import {ReasonButton} from './ui';
 import type {Job,ModelInfo} from './types';
 /** '' = show it as the steps allow, 'hidden' = the user hid it, 'done' = every step was done, 'shown' = brought back this session by the palette. */
 export type Guide=''|'hidden'|'done'|'shown';
@@ -73,6 +74,8 @@ export function startAtLaunch({stored,projects,models,jobs,starters}:{stored:Sta
  if(dl){const model=String(dl.payload.model_id);return {step:2,job:models.find(m=>m.id===model)?.engine==='stt'?'stt':'tts',model};}
  return projects?null:{step:1};
 }
+/** The model the job's page runs with once it is installed (the job's checklist step 1 is done), however it was downloaded; undefined while there is none. Reaching it is step 3. */
+export const readyModel=(models:ModelInfo[],job:Flow,totalMb:number|null|undefined)=>{const s=onboardingSteps(job,{models,jobs:[],hasText:false,hasTranscript:false,transcriptSaved:false,totalMb})[0];return s.done?s.model:undefined;};
 const JOBS=[{job:'tts',title:'Đọc văn bản thành giọng nói',text:'Gõ hoặc dán chữ, nghe và lưu thành file audio.',icon:AudioLines},{job:'stt',title:'Chép lời từ file âm thanh',text:'Chọn file ghi âm hoặc video, nhận bản chép lời.',icon:FileText}] as const;
 /** The first-run start panel, where the checklist stands: not a dialog, "Để sau" at every step. The App moves the focus to the step heading (`#start-title`) after a pick, "Quay lại" or the palette;
  *  step 3, which a finished download reaches by itself, takes the focus only from inside the panel or from <body>, never from the text being typed or the STT button. */
@@ -92,7 +95,7 @@ export function StartPanel({start,page,models,jobs,starters,totalMb,busy,onPick,
  </section>;
  if(start.step===2)return <section ref={root} className="start-panel panel" aria-labelledby="start-title">
   {head(2,'Chọn model')}<p>Model tải trong lúc bạn tiếp tục.</p>
-  <div className="model-grid">{models.filter(m=>starters.includes(m.id)&&m.engine===start.job).map(m=><ModelCard key={m.id} m={m} totalMb={totalMb} job={activeDownload(jobs,m.id)}><button type="button" className="primary full" disabled={busy} onClick={()=>onDownload(m.id)}><Download size={16}/>Tải model</button></ModelCard>)}</div>
+  <div className="model-grid">{models.filter(m=>starters.includes(m.id)&&m.engine===start.job).map(m=>{const dl=activeDownload(jobs,m.id);return <ModelCard key={m.id} m={m} totalMb={totalMb} job={dl}><ReasonButton className={m.installed?'outlined full':'primary full'} disabled={busy} blocked={m.installed?'Đã tải':dl?'Đang tải…':null} onClick={()=>onDownload(m.id)}>{m.installed?<><Check size={16}/>Đã tải</>:<><Download size={16}/>{dl?'Đang tải…':'Tải model'}</>}</ReasonButton></ModelCard>;})}</div>
   <div className="start-actions"><button type="button" className="outlined" onClick={onBack}>Quay lại</button><button type="button" className="quiet" onClick={onAll}>Xem tất cả model</button></div>
  </section>;
  return <section ref={root} className="start-panel panel" aria-labelledby="start-title">
