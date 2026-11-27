@@ -199,7 +199,7 @@ add('runtime', 'ONNX Runtime (onnxruntime.dll in sherpa_onnx/lib and Scripts, fr
 
 if no_text: sys.exit('no licence text for: ' + '; '.join(no_text) + ' (add it to NO_LICENSE_FILE)')
 bom = {'bomFormat': 'CycloneDX', 'specVersion': '1.5', 'version': 1,
-       'metadata': {'component': {'type': 'application', 'name': 'Thanh Âm Studio', 'version': app_version, 'licenses': [{'expression': 'Apache-2.0'}]}},
+       'metadata': {'component': {'type': 'application', 'name': 'Thanh Am Studio', 'version': app_version, 'licenses': [{'expression': 'Apache-2.0'}]}},
        'components': components}
 (out / 'sbom.cdx.json').write_text(json.dumps(bom, ensure_ascii=False, indent=1), encoding='utf-8')
 (out / 'THIRD-PARTY-NOTICES.txt').write_text(
