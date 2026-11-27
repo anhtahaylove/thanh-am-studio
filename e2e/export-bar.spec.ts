@@ -10,7 +10,7 @@ test('the export bar keeps its controls on one line each with the subtitle timin
     case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,python_path:null,ffmpeg_path:null,message:''};default:return null;}}};
  });
  await page.goto('/');await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
- await page.getByRole('checkbox',{name:'Theo mốc phụ đề'}).check();await expect(page.locator('.dub-stats')).toContainText('đọc nhanh hơn');await expect(page.getByRole('checkbox',{name:'Giữ nhạc nền'})).toBeVisible();
+ await page.getByText('Tùy chọn xuất',{exact:true}).click();await page.getByRole('checkbox',{name:'Theo mốc phụ đề'}).check();await expect(page.locator('.dub-stats')).toContainText('đọc nhanh hơn');await expect(page.getByRole('checkbox',{name:'Giữ nhạc nền'})).toBeVisible();
  for(const width of [1920,1600,1520,1440,1280,1240,1218,1200,1100,1024,960,800,640]){
   await page.setViewportSize({width,height:900});
   const m=await page.evaluate(()=>{const bar=document.querySelector('.export-controls')!,sel=bar.querySelector('select')!,box=(e:Element)=>e.getBoundingClientRect();
