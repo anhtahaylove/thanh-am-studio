@@ -42,3 +42,5 @@ export function sttDefault(installed:string[],totalMb:number|null|undefined):str
  const recommended=STT_IDS.find(id=>modelAdvice(id,totalMb).badge==='recommended')??STT_IDS[0],have=STT_IDS.filter(id=>installed.includes(id));
  return have.includes(recommended)?recommended:have[0]??recommended;
 }
+/** The models the page shows first: VieNeu and the recommended Whisper for this machine. The others sit behind "Thêm model". */
+export const starterIds=(totalMb:number|null|undefined)=>['vieneu-v3',sttDefault([],totalMb)];

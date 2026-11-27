@@ -89,6 +89,7 @@ const open=async(page:Page,world:WK,to:At='tts')=>{
  await page.evaluate(()=>(window as any).__reset());
 };
 
+const MORE:L=['text','Thêm model'],ADV:L=['text','Nâng cao']; // the folds of the models page (C6): one opening click
 const SEG='.segment',INSP='.inspector',DOCK='#audio-dock',FIRST='.first-run',TB='.topbar-actions',STT='.transcript-panel',TIME=F(['css','.transcript-row .tr-time']);
 // [id, world, page, clicks before the control is there, the control, steps that put the page in the state where the control applies (set up like open(): not counted)]
 const ROWS:[string,WK,At,Step[],L,Step[]?][]=[
@@ -193,11 +194,11 @@ const ROWS:[string,WK,At,Step[],L,Step[]?][]=[
  ['projects: Xóa dự án','studio','projects',[],['button','Xóa dự án Dự án thử','.project-card']],
  ['projects: Mở dự án mẫu','fresh','projects',[],['button','Mở dự án mẫu','.empty']],
  ['models: Tải model','fresh','models',[],F(['button','Tải model'])],
- ['models: Tải gói','fresh','models',[],['button','Tải gói']],
+ ['models: Tải gói','fresh','models',[MORE],['button','Tải gói']],
  ['models: Đã tải','studio','models',[],F(['button','Đã tải'])],
- ['models: Kiểm tra lại gói','studio','models',[],['button','Kiểm tra lại gói']],
- ['models: Nâng cao','studio','models',[['text','Nâng cao: bộ xử lý']],['combobox',/^Đọc văn bản/]],
- ['models: Xuất nhật ký chẩn đoán','studio','models',[],['button','Xuất nhật ký chẩn đoán']],
+ ['models: Kiểm tra lại gói','studio','models',[MORE],['button','Kiểm tra lại gói']],
+ ['models: Nâng cao','studio','models',[ADV],['combobox',/^Đọc văn bản/]],
+ ['models: Xuất nhật ký chẩn đoán','studio','models',[ADV],['button','Xuất nhật ký chẩn đoán']],
  ...(['textbox:Từ gốc','textbox:Cách đọc','button:Thêm cách đọc','button:Nhập CSV','button:Xuất CSV'] as const).map(s=>{const [role,name]=s.split(':');return [`models dictionary: ${name}`,'studio','models',[],[role as Role,name,'.app-dictionary']] as [string,WK,At,Step[],L];}),
  ['models dictionary: Xóa UBND','studio','models',[],['button','Xóa UBND','.app-dictionary']],
  ['models: Tự kiểm tra và tải bản mới','studio','models',[],['checkbox','Tự kiểm tra và tải bản mới']],
@@ -248,8 +249,8 @@ const SCENARIOS:[id:string,world:WK,from:At,run:(p:Page)=>Promise<unknown>,lands
  [':370 "Mở take"','studio','jobs',p=>act(p,['button','Mở take']),LABEL.tts],
  [':371 "Mở dự án"','studio','projects',p=>act(p,['button','Mở dự án','.project-card']),LABEL.tts],
  [':372 download ("Tải model")','fresh','models',p=>act(p,F(['button','Tải model'])),AFTER_DOWNLOAD,undefined,downloads([{id:'vieneu-v3'}])],
- [':372 download ("Kiểm tra lại gói")','studio','models',p=>act(p,['button','Kiểm tra lại gói']),AFTER_DOWNLOAD,undefined,downloads([{id:'separation-runtime'}])],
- [':382 pack consent ("Đồng ý và tải")','fresh','models',async p=>{await act(p,['button','Tải gói']);await act(p,['button','Đồng ý và tải','[role=dialog]']);},AFTER_PACK_CONSENT,undefined,downloads([{id:'separation-runtime',licenseAccepted:true}])],
+ [':372 download ("Kiểm tra lại gói")','studio','models',async p=>{await act(p,MORE);await act(p,['button','Kiểm tra lại gói']);},AFTER_DOWNLOAD,undefined,downloads([{id:'separation-runtime'}])],
+ [':382 pack consent ("Đồng ý và tải")','fresh','models',async p=>{await act(p,MORE);await act(p,['button','Tải gói']);await act(p,['button','Đồng ý và tải','[role=dialog]']);},AFTER_PACK_CONSENT,undefined,downloads([{id:'separation-runtime',licenseAccepted:true}])],
  ...(['Đi tới Tạo giọng đọc','Thêm đoạn mới','Bật chế độ tập trung','Tạo giọng tất cả','Tạo giọng đoạn đang chọn','Hiện hướng dẫn bắt đầu'] as const).map(n=>[`:383 palette "${n}"`,'studio','stt',paletteOption(n),LABEL.tts] as [string,WK,At,(p:Page)=>Promise<unknown>,string]),
  [':384 quick open (Ctrl+P, a project)','studio','stt',async p=>{await p.keyboard.press('Control+p');await p.getByRole('dialog',{name:'Mở nhanh dự án'}).getByRole('option',{name:'Dự án khác',exact:true}).click();},LABEL.tts],
 ];

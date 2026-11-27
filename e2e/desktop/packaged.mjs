@@ -33,6 +33,8 @@ const nav = (name) => page.getByRole('navigation', {name: 'Điều hướng chí
 const openOptions = async () => { const button = page.getByRole('button', {name: 'Tùy chọn', exact: true}); if (await button.getAttribute('aria-expanded', {timeout: 5000}) !== 'true') await button.click(); };
 // The dock's "Chuẩn hóa", "Theo mốc phụ đề", "Giữ nhạc nền", "Mỗi chương một file" and SRT sit in its "Tùy chọn xuất" group, which stays open for the session: open it when it is closed.
 const openExportOptions = async () => { const group = page.locator('#audio-dock details'); if (await group.getAttribute('open', {timeout: 5000}) === null) await group.locator('summary').click(); };
+// The models page keeps every card except VieNeu and the recommended Whisper in "Thêm model", which opens by itself while one of them downloads and then stays open for the session: open it when it is closed.
+const openMoreModels = async () => { const group = page.locator('details.mc-more'); if (await group.getAttribute('open', {timeout: 5000}) === null) await group.locator('summary').click(); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Calls `get` every 500 ms until `ok(its value)` holds and returns that value; for steps that must not touch the page's DOM (a minimised window).
 const until = async (get, ok, ms, what) => {
@@ -180,6 +182,7 @@ async function separationPack() {
   if ((await invoke('list_models')).find((m) => m.id === PACK)?.installed) return 'already installed';
   const before = await done('model_download');
   await nav('Model & cài đặt');
+  await openMoreModels();
   await page.locator('article', {has: page.getByRole('heading', {name: 'Gói chạy tách nhạc nền (Python + PyTorch)', exact: true})}).getByRole('button', {name: 'Tải gói'}).click();
   await page.getByRole('dialog', {name: 'Tải gói chạy tách nhạc nền'}).getByRole('button', {name: 'Đồng ý và tải'}).click();
   await waitJobs('model_download', before + 1, 30 * 60000);
@@ -195,6 +198,7 @@ async function separationPack() {
 async function packRecheck() {
   const before = await done('model_download');
   await nav('Model & cài đặt');
+  await openMoreModels();
   await page.locator('article', {has: page.getByRole('heading', {name: 'Gói chạy tách nhạc nền (Python + PyTorch)', exact: true})}).getByRole('button', {name: 'Kiểm tra lại gói'}).click();
   await waitJobs('model_download', before + 1, 15 * 60000);
   const listed = new Map(readFileSync(join(packDir(), 'MANIFEST.sha256'), 'utf8').split('\n').filter(Boolean).map((l) => { const [, hash, size, rel] = l.match(/^(\w{64}) {2}(\d+) {2}(.+)$/); return [rel, [hash, Number(size)]]; }));
@@ -369,6 +373,7 @@ try {
     await step('download models via UI', async () => {
       for (const name of ['VieNeu v3 Turbo', 'Whisper Small']) {
         await nav('Model & cài đặt');
+        await openMoreModels();
         await page.locator('article', {has: page.getByRole('heading', {name, exact: true})}).getByRole('button', {name: 'Tải model'}).click();
         await page.waitForTimeout(500);
       }
@@ -423,6 +428,7 @@ try {
     await step('download whisper turbo via UI', async () => {
       const before = await done('model_download');
       await nav('Model & cài đặt');
+      await openMoreModels();
       await page.locator('article', {has: page.getByRole('heading', {name: 'Whisper Large v3 Turbo', exact: true})}).getByRole('button', {name: 'Tải model'}).click();
       const t = Date.now();
       await waitJobs('model_download', before + 1, 60 * 60000);
@@ -709,6 +715,7 @@ try {
     await step('download diarization model via UI', async () => {
       if ((await invoke('list_models')).find((m) => m.id === 'diarization')?.installed) return 'already installed';
       await nav('Model & cài đặt');
+      await openMoreModels();
       await page.locator('article', {has: page.getByRole('heading', {name: /^Phân biệt người nói/})}).getByRole('button', {name: 'Tải model'}).click();
       await waitJobs('model_download', 1 + (await invoke('list_jobs')).filter((j) => j.kind === 'model_download' && j.status === 'succeeded').length, 10 * 60000);
       if (!(await invoke('list_models')).find((m) => m.id === 'diarization')?.installed) throw Error('diarization not installed');
@@ -1133,6 +1140,7 @@ try {
       if ((await invoke('list_models')).find((m) => m.id === 'htdemucs')?.installed) return 'already installed';
       const before = await done('model_download');
       await nav('Model & cài đặt');
+      await openMoreModels();
       await page.locator('article', {has: page.getByRole('heading', {name: 'Tách giọng và nhạc nền (HTDemucs)', exact: true})}).getByRole('button', {name: 'Tải model'}).click();
       await waitJobs('model_download', before + 1, 20 * 60000);
       return 'downloaded through the UI';

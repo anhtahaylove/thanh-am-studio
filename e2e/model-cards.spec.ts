@@ -1,7 +1,7 @@
 import {test,expect} from '@playwright/test';
 import type {Page} from '@playwright/test';
 // The model cards on "Model & cài đặt": sizes from models.json, RAM per model, one recommendation per task for the machine's memory
-// (runtime_status.total_memory_mb), and the processor panel behind "Nâng cao". Tauri is mocked like layout.spec.ts.
+// (runtime_status.total_memory_mb), the four non-starter cards behind "Thêm model" and the processor panel behind "Nâng cao". Tauri is mocked like layout.spec.ts.
 const IDS=['vieneu-v3','whisper-small','whisper-turbo','diarization','htdemucs','separation-runtime'];
 const NAMES:Record<string,string>={'vieneu-v3':'VieNeu v3 Turbo','whisper-small':'Whisper Small','whisper-turbo':'Whisper Large v3 Turbo','diarization':'Phân biệt người nói (pyannote + CAM++)','htdemucs':'Tách giọng và nhạc nền (HTDemucs)','separation-runtime':'Gói chạy tách nhạc nền (Python + PyTorch)'};
 const BADGE={recommended:'Đề xuất cho máy bạn',heavy:'Có thể nặng với máy này'};
@@ -18,6 +18,7 @@ const mock=({total,names,engines,none}:{total:number|null;names:Record<string,st
 const open=async(page:Page,total:number|null,width=1440,height=1000,engines:Record<string,string>={},none=false)=>{
  await page.setViewportSize({width,height});await page.addInitScript(mock,{total,names:NAMES,engines,none});await page.goto('/');
  await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:'Model & cài đặt',exact:true}).click();await expect(page.locator('.model-card')).toHaveCount(none?0:IDS.length);
+ if(!none)await page.getByText('Thêm model',{exact:true}).click(); // opened here so every card is on screen; models-starter.spec.ts covers the closed state
 };
 const card=(page:Page,id:string)=>page.locator('.model-card').filter({has:page.getByRole('heading',{level:3,name:NAMES[id],exact:true})});
 const fact=(page:Page,id:string,label:string)=>card(page,id).locator('dt',{hasText:label}).locator('xpath=following-sibling::dd[1]');
@@ -53,11 +54,11 @@ for(const [total,...picks] of ADVICE)test(`the badges and their reasons follow t
  // One STT pick per machine: Small below 16 GB, the measured Turbo from 16 GB; never two STT badges.
  await expect(page.locator('.model-card').filter({has:page.locator('.eyebrow',{hasText:'stt'})}).locator('.mc-badge')).toHaveCount(1);
 });
-test('the cards come before the runtime panel, and the processor selects are reachable only after "Nâng cao"',async({page})=>{
+test('the cards come before the fold with the runtime panel, and the processor selects are reachable only after "Nâng cao"',async({page})=>{
  await open(page,7910);
  const y=async(sel:string)=>(await page.locator(sel).boundingBox())!.y;
- expect(await y('.model-grid')).toBeLessThan(await y('.runtime-panel'));expect(await y('.runtime-panel')).toBeLessThan(await y('details.mc-advanced'));
- const select=page.locator('.engine-rows label').filter({hasText:'Đọc văn bản'}).locator('select'),summary=page.getByText('Nâng cao: bộ xử lý');
+ expect(await y('main>.model-grid')).toBeLessThan(await y('details.mc-more'));expect(await y('details.mc-more')).toBeLessThan(await y('details.mc-advanced'));
+ const select=page.locator('.engine-rows label').filter({hasText:'Đọc văn bản'}).locator('select'),summary=page.getByText('Nâng cao',{exact:true});
  await expect(summary).toBeVisible();await expect(select).toBeHidden();
  await summary.focus();await page.keyboard.press('Enter');await expect(select).toBeVisible();
  await page.keyboard.press('Enter');await expect(select).toBeHidden();
@@ -65,7 +66,7 @@ test('the cards come before the runtime panel, and the processor selects are rea
 for(const width of [800,640])test(`the models page does not scroll sideways at ${width} px`,async({page})=>{
  await open(page,3900,width,800);
  expect(await sideways(page)).toBeLessThanOrEqual(0);
- await page.getByText('Nâng cao: bộ xử lý').click();await expect(page.locator('.engine-rows')).toBeVisible();expect(await sideways(page)).toBeLessThanOrEqual(0);
+ await page.getByText('Nâng cao',{exact:true}).click();await expect(page.locator('.engine-rows')).toBeVisible();expect(await sideways(page)).toBeLessThanOrEqual(0);
  const edge=await page.evaluate(()=>[...document.querySelectorAll('.model-card')].filter(c=>c.scrollWidth>c.clientWidth).length);expect(edge).toBe(0);
 });
 // WCAG AA: 4.5:1 for text under 24 px, in the light and the dark theme, against the card (or the badge) behind it.
@@ -84,14 +85,15 @@ for(const scheme of ['light','dark'] as const)test(`card text and badges reach 4
 });
 test('the cards add no motion when the system asks for reduced motion',async({page})=>{
  await page.emulateMedia({reducedMotion:'reduce'});await open(page,7910);
- const moving=await page.evaluate(()=>[...document.querySelectorAll('.model-card, .model-card *, details.mc-advanced, details.mc-advanced *')].filter(e=>{const s=getComputedStyle(e);return s.animationName!=='none'||s.transitionDuration.split(',').some(d=>parseFloat(d)>0);}).length);
+ const moving=await page.evaluate(()=>[...document.querySelectorAll('.model-card, .model-card *, details.mc-more, details.mc-more *, details.mc-advanced, details.mc-advanced *')].filter(e=>{const s=getComputedStyle(e);return s.animationName!=='none'||s.transitionDuration.split(',').some(d=>parseFloat(d)>0);}).length);
  expect(moving).toBe(0);
 });
-test('the diagnostics button stays outside the fold',async({page})=>{
+test('the diagnostics button sits in the "Nâng cao" fold and shows once it is open',async({page})=>{
  await open(page,7910);
  await expect(page.locator('details.mc-advanced')).not.toHaveAttribute('open','');
- const diag=page.getByRole('button',{name:'Xuất nhật ký chẩn đoán'});await expect(diag).toBeVisible();
- expect(await diag.evaluate(b=>!b.closest('details'))).toBe(true);
+ const diag=page.locator('button',{hasText:'Xuất nhật ký chẩn đoán'});await expect(diag).toBeHidden();
+ expect(await diag.evaluate(b=>!!b.closest('details.mc-advanced'))).toBe(true);
+ await page.getByText('Nâng cao',{exact:true}).click();await expect(diag).toBeVisible();
 });
 test('"Nâng cao" starts open when an engine is set to Python',async({page})=>{
  await open(page,7910,1440,1000,{tts:'python'});
@@ -100,7 +102,7 @@ test('"Nâng cao" starts open when an engine is set to Python',async({page})=>{
 });
 test('the panel the user opened stays open when the last non-default engine goes back to auto',async({page})=>{
  await open(page,7910);
- await page.getByText('Nâng cao: bộ xử lý').click();
+ await page.getByText('Nâng cao',{exact:true}).click();
  const select=page.locator('.engine-rows label').filter({hasText:'Đọc văn bản'}).locator('select');
  await select.selectOption('python');await expect(select).toHaveValue('python');
  await select.selectOption('auto');await expect(select).toHaveValue('auto');
