@@ -1,6 +1,6 @@
 # Thanh Âm Studio status
 
-Last updated 2026-11-22. Evidence below was observed, not inferred; anything not listed is unverified.
+Last updated 2026-11-27. Evidence below was observed, not inferred; anything not listed is unverified.
 
 ## Implemented
 
@@ -1106,6 +1106,37 @@ An interface release, published on 2026-11-26: focus mode for the script (#237),
 | Not run | Sandbox phases `ux`, `dpi`, `nvda` and `hc` (cut to ship sooner); the default runner, `longstt`, `clone`, `ab` and `-Gate 500`; the F1 Turbo run on dense long speech (cut); no listening test (no audio code changed; the FFmpeg build changed and parity stayed identical) |
 
 Evidence: `workelease-v1.0.24-sandbox` (`out1024r1`, `out1024r2-20261126-123610`, `out1024r2`, `run1024.log`), the execution log in `workound-1.0.24PLAN.md` and the published v1.0.24 release notes.
+
+### v1.0.25 release (built by `.github/workflows/release.yml` from tag `v1.0.25` at `5fe747f`)
+
+A maintenance release, published on 2026-11-27: the app and docs point at `huuhungn/thanh-am-studio` (#291), the job-done notice decides "in the background" from the window's native focus state (#298), a second launch shows a message box when the running instance does not answer (#297), focus stays on the list after a narrow-layout keyboard delete and after Undo (#293), the highlighted row and the background choice reset when a version is restored or the project reloads (#294), and the first-render storage reads survive blocked storage (#296). Tests and tooling: #289, #292, #295.
+
+| Check | Result |
+|---|---|
+| Tests | CI green on every PR head and on the tagged commit (45846085616); dry run 45842785314 on `release/1.0.25` passed; the tag run 45846130854 built the draft |
+| Installer SHA-256 | `54f508a82dbe17e077d59b26ea51749f36912cee986570aa532c938993937df8` (220,106,929 bytes) |
+| Clean Sandbox r1, `-Only update -From` the published 1.0.24 | 11 PASS, 0 FAIL |
+| Maintainer's PC | the installed 1.0.23 updated to 1.0.25 with the updater's arguments (`/P /UPDATE /R`): exit 0, worker `health` ready |
+| Update feed | the anonymous `/releases/latest/download/latest.json` names 1.0.25 after publishing |
+| Not run | Sandbox r2 (`full,features,ux,dpi,nvda,hc`): stopped when the maintainer dropped the Sandbox gate on 2026-11-27 (it held 5.9 GB of RAM and left 0.8 GB free) |
+
+Evidence: `work\release-v1.0.25-sandbox` (`out1025r1`, `run1025.log`) and the execution logs in `work\round-1.0.25\PLAN.md` and `work\round-1.0.26\PLAN.md`.
+
+### v1.0.26 release (built by `.github/workflows/release.yml` from tag `v1.0.26` at `0b41232`)
+
+An install-path and simplification release, published on 2026-11-27. The app installs to the ASCII folder `%LOCALAPPDATA%\Thanh Am Studio`; an update moves an install in the old default folder `Thanh Âm Studio` there and deletes the old folder, while an install in a folder the user chose is updated in place (#303). The Start-menu and desktop shortcuts are named "Thanh Am Studio"; the Apps & Features name and the window title stay "Thanh Âm Studio". Fewer page jumps: models download in place (#300), export asks for the file first and stays on the page (#319), a finished transcription fills the open project (#332), and STT selects an installed model (#301). A fresh profile opens a three-step start panel, and upgraders get "Có gì mới" instead (#342). The TTS and STT pages have their own first-run checklists (#339). Projects moved to the top bar and the voice library into the models page (#340). The queue is a drawer (#341) with a status bar (#343). Controls are grouped behind disclosures and menus (#302, #318, #331, #333, #337), and the models page shows two starter cards first (#338). Tests and tooling: #304.
+
+| Check | Result |
+|---|---|
+| Tests | CI green on every PR head and on the tagged commit (45986064442); the tag run 45986206809 built the draft. No separate dry run (maintainer's speed decision): the dry run 45916227865 of the install-path branch had already built the new product name, and nothing under `.github`, `src-tauri`, `scripts` or `package.json` changed after it except the version |
+| Reviews | independent code reviews for #300, #301, #302, #304, #318, #319, #332, #333, #339, #341 and #342; the coordinator reviewed #331, #337, #338, #340 and #343 (UI regrouping, with click-count and fail-before tests). #303 had no separate reviewer: its installer macros passed 57 + 24 checks, the coordinator read the hooks in full and the real installer ran on the maintainer's PC (below) |
+| Installer SHA-256 | `b1642d4df059eb2883069172e50efa7335fc85d3656a2318669e99c60cab3430` (220,069,644 bytes). `sha256sum -c` OK on the draft assets |
+| Update feed | the anonymous `/releases/latest/download/latest.json` is identical to the draft asset (SHA-256 `b1550946…1c66`) and names 1.0.26 |
+| Maintainer's PC, update from the published 1.0.25 | the draft installer with `/P /UPDATE /R` over 1.0.25 in `%LOCALAPPDATA%\Thanh Âm Studio`: exit 0 in 159 s. The folder moved to `Thanh Am Studio` and the old folder is gone; one uninstall entry (ASCII key, DisplayName "Thanh Âm Studio", DisplayVersion 1.0.26, quoted InstallLocation); `HKCU\Software\thanham` holds only the ASCII key; Start-menu and desktop `.lnk` named "Thanh Am Studio" with the toast AUMID `studio.thanham.desktop`, the old `.lnk` gone. The app reopened from the new folder with the title "Thanh Âm Studio"; worker `health` `ready:true`, `ffmpeg -version` exit 0, no `startup-errors.log`, no Application error events; the data folder was kept |
+| Maintainer's PC, uninstall and fresh install | `uninstall.exe /S`: both install folders, the uninstall entry and the shortcuts are gone and the data folder is kept; `HKCU\Software\thanham\Thanh Am Studio` (the install-folder hint) stays, as Tauri's template removes it only when "delete app data" is ticked. A fresh `/S` install gives the same entry, key and shortcuts; the app starts with the same worker, FFmpeg and error-log results |
+| Not run | Windows Sandbox (dropped by the maintainer on 2026-11-27), the packaged desktop harness, NVDA, an update from a 1.0.25 install in a folder the user chose, and pinning the new shortcut to the taskbar |
+
+Evidence: the host logs `r26-*.txt` in the coordinator's `%TEMP%\thanham-host`, the execution log in `work\round-1.0.26\PLAN.md` and the published v1.0.26 release notes.
 
 ## Not verified / known gaps
 
