@@ -93,7 +93,7 @@ test('the same segment finishing twice within 6 s is announced twice, not swallo
 test('with the first-run checklist shown, the first success is announced once, by the checklist, and later ones by the segment line',async({page})=>{
  await open(page,[{segment:'s3',status:'running',progress:0.4},{segment:'s5',status:'running',progress:0.4}]);
  await expect(page.getByRole('heading',{name:'Bắt đầu với Thanh Âm'})).toBeVisible();
- await finish(page,'j0');await expect(page.getByText(/Đã xong bước 3/)).toBeVisible({timeout:8000});
+ await finish(page,'j0');await expect(page.getByText(/Đã xong bước 2/)).toBeVisible({timeout:8000});
  await page.waitForTimeout(3000);expect(await announced(page)).toEqual([]);
  await finish(page,'j1');await expect.poll(()=>announced(page),{timeout:8000}).toEqual(['Đã tạo xong đoạn 5']);
 });
@@ -136,10 +136,10 @@ test('a segment that is running one job keeps showing it when another is queued,
 
 test('with the checklist brought back from the palette, a success it does not announce is announced by the segment line',async({page})=>{
  await open(page,[{segment:'s3',status:'running',progress:0.4},{segment:'s5',status:'running',progress:0.4}]);
- await finish(page,'j0');await expect(page.getByText(/Đã xong bước 3/)).toBeVisible({timeout:8000});
+ await finish(page,'j0');await expect(page.getByText(/Đã xong bước 2/)).toBeVisible({timeout:8000});
  await page.keyboard.press('Control+k');await page.getByRole('dialog',{name:'Bảng lệnh'}).getByRole('option',{name:'Hiện hướng dẫn bắt đầu'}).click();
  await expect(page.getByRole('heading',{name:'Bắt đầu với Thanh Âm'})).toBeVisible();
- await set(page,'j0',{status:'failed'});await expect(page.getByText('Chưa làm',{exact:true})).toHaveCount(1,{timeout:8000}); // step 3 is undone and the checklist has already told it once
+ await set(page,'j0',{status:'failed'});await expect(page.getByText('Chưa làm',{exact:true})).toHaveCount(2,{timeout:8000}); // step 2 (voice) is undone again, the export step was never done, and the checklist has already told step 2 once
  await finish(page,'j1');await expect.poll(()=>announced(page),{timeout:8000}).toEqual(['Đã tạo xong đoạn 5']);
 });
 
@@ -148,7 +148,7 @@ test('a checklist notice that comes late, with no job change, does not swallow t
  await page.getByRole('button',{name:'Ẩn hướng dẫn'}).click();
  await finish(page,'j0');await expect.poll(()=>announced(page),{timeout:8000}).toEqual(['Đã tạo xong đoạn 3']);
  await page.keyboard.press('Control+k');await page.getByRole('dialog',{name:'Bảng lệnh'}).getByRole('option',{name:'Hiện hướng dẫn bắt đầu'}).click();
- await expect(page.getByText(/Đã xong bước 3/)).toBeVisible({timeout:8000}); // the checklist speaks now, on a render that is not a poll
+ await expect(page.getByText(/Đã xong bước 2/)).toBeVisible({timeout:8000}); // the checklist speaks now, on a render that is not a poll
  await finish(page,'j1');await expect.poll(()=>announced(page),{timeout:8000}).toEqual(['Đã tạo xong đoạn 3','Đã tạo xong đoạn 5']);
 });
 

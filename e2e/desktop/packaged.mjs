@@ -1579,8 +1579,8 @@ ConvertTo-Json -Compress -InputObject $items`));
     // popup need OS input (nvda.ps1 -Keys), since CDP reaches neither WebView2's host accelerators nor the popup.
     // nvdaStep() never rethrows, so every S-step runs. THANHAM_NVDA_BASELINE=1 runs it on 1.0.22, a release without these fixes
     // (the phase ABORTs on any other version; never set it in a gate run): a failing step marked baselineExpectFail logs
-    // `NOTE expected-fail-1.0.22`, a passing one logs FAIL, and S7b, the print detector's negative control, runs. Needs THANHAM_UX_AUDIO; S6 needs the first-run checklist done (run `full` first),
-    // since the checklist announces the first take instead of "Đã tạo xong".
+    // `NOTE expected-fail-1.0.22`, a passing one logs FAIL, and S7b, the print detector's negative control, runs. Needs THANHAM_UX_AUDIO; S6 needs the TTS first-run checklist done (run `full` first: it downloads VieNeu,
+    // generates and exports, the checklist's three steps), since the checklist announces the first take ("Đã xong bước 2") instead of "Đã tạo xong".
     const {readNew, speechOf} = await import('./nvdalog.mjs');
     const baseline = process.env.THANHAM_NVDA_BASELINE === '1', nvdaLog = join(out, 'nvda.log'), jsonl = join(out, 'nvda-speech.jsonl');
     const osKeys = (keys) => nvda('-Keys', keys, '-Pid', String(app.pid));
@@ -1804,6 +1804,7 @@ ConvertTo-Json -Compress -InputObject $items`));
       });
       await nvdaStep('S6 Đã tạo xong', async (r) => {
         r.input = 'CDP: focus segment 1 textarea, Ctrl+Enter';
+        if (await page.locator('.first-run').count()) throw Error('S6 needs the TTS checklist done (run full first): it would announce the first take as a step instead of "Đã tạo xong"');
         await focus(segmentText(1));
         mark();
         await page.keyboard.press('Control+Enter');
