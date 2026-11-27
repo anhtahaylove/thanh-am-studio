@@ -102,6 +102,16 @@ test('after Enter on "Tải model" the focus stays on the card button while it d
  await expect(button).toBeFocused();
 });
 
+test('the focus stays on the card button when the download finishes and the card reads "Đã tải"',async({page})=>{
+ await open(page);
+ const button=card(page,'whisper-small').locator('button.full');
+ await button.focus();await page.keyboard.press('Enter');
+ await expect(card(page,'whisper-small').locator('progress')).toHaveCount(1);
+ await finish(page,'whisper-small');
+ await expect(button).toHaveAccessibleName('Đã tải',{timeout:10000});await expect(button).toBeDisabled();
+ await expect(button).toBeFocused();
+});
+
 test('after "Đồng ý và tải" the focus goes back to the pack card button',async({page})=>{
  await open(page);
  await card(page,'separation-runtime').getByRole('button',{name:'Tải gói',exact:true}).click();
