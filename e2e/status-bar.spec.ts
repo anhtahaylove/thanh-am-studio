@@ -58,14 +58,15 @@ test('the bar is not a live region: no aria-live, no status or alert role, and i
  expect(await bar(page).evaluate(el=>el.closest('[aria-live],[role=status],[role=alert]')===null)).toBe(true);
 });
 
-for(const width of [1024,1280]){
- test(`at ${width} px the bar covers neither the audio dock nor the drawer's last control, and the page has no horizontal scroll`,async({page})=>{
-  await page.setViewportSize({width,height:720});await open(page);
+for(const [width,height] of [[1024,720],[1280,720],[1440,900]]){
+ test(`at ${width}x${height} the bar covers neither the audio dock nor the drawer's last control, and the page has no horizontal scroll`,async({page})=>{
+  await page.setViewportSize({width,height});await open(page);
   const b=await box(page,'.status-bar'),dock=await box(page,'#audio-dock');
-  expect(b.y+b.height,'the bar sits on the bottom edge').toBeCloseTo(720,0);
+  expect(b.y+b.height,'the bar sits on the bottom edge').toBeCloseTo(height,0);
   expect(dock.y+dock.height,'the sticky dock rests above the bar').toBeLessThanOrEqual(b.y+1);
   await bar(page).click();await expect(drawer(page)).toBeVisible();
-  const last=await drawer(page).locator('.job-row').last().boundingBox();expect(last!.y+last!.height).toBeLessThanOrEqual(b.y+1);
+  const last=await drawer(page).getByRole('button').last().boundingBox();expect(last!.y+last!.height,"the drawer's last control ends above the bar").toBeLessThanOrEqual(b.y+1);
+  const d=await box(page,'#queue-drawer');expect(d.y+d.height,'the drawer column ends above the bar').toBeLessThanOrEqual(b.y+1);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth)).toBe(true);
  });
 }
