@@ -2,12 +2,16 @@ import {test,expect} from '@playwright/test';
 import type {Page} from '@playwright/test';
 // A model download runs in place: one click on the card, no page change, progress on the card, "Đã tải xong {tên}." in the live region when it ends,
 // and a desktop notice for a long one while the window is in the background. Tauri is mocked as in job-done-notice.spec.ts: window.__calls records every
-// command, window.__finish(id) ends the running download job (and installs the model), window.__notified records every desktop notification asked for.
+// command, window.__finish(id) ends the running download job (and installs the model), window.__notified records every desktop notification asked for,
+// window.__said every text the live regions (the polite sr-only line and the role=status banner) ever showed (a MutationObserver, so a line that clears itself after 6 s is still caught).
 const NAMES:Record<string,string>={'whisper-small':'Whisper Small','separation-runtime':'Gói chạy tách nhạc nền (Python + PyTorch)'};
-const mock=({names,done}:{names:Record<string,string>;done:boolean})=>{
- const w=window as any;w.isTauri=true;w.__calls=[];w.__jobs=[];w.__notified=[];w.__installed=new Set<string>();w.__focus=false;document.hasFocus=()=>w.__focus;
+const VIENEU:Record<string,string>={'vieneu-v3':'VieNeu v3 Turbo'};
+const mock=({names,done,installed}:{names:Record<string,string>;done:boolean;installed:string[]})=>{
+ const w=window as any;w.isTauri=true;w.__calls=[];w.__jobs=[];w.__notified=[];w.__installed=new Set<string>(installed);w.__focus=false;document.hasFocus=()=>w.__focus;w.__said=[];
+ new MutationObserver(()=>{document.querySelectorAll('[aria-live="polite"],[role="status"]').forEach(e=>{const t=(e.textContent??'').trim();if(t&&!w.__said.includes(t))w.__said.push(t);});}).observe(document,{subtree:true,childList:true,characterData:true});
  if(done){w.__installed.add('whisper-small');w.__jobs=[{id:'old',kind:'model_download',project_id:null,payload:{model_id:'whisper-small'},status:'succeeded',progress:1,error:null,result:null,created_at:new Date().toISOString(),updated_at:new Date().toISOString()}];}
  w.__finish=(id:string)=>{const j=w.__jobs.find((x:any)=>x.payload.model_id===id);j.status='succeeded';j.progress=1;w.__installed.add(id);};
+ w.__fail=(id:string)=>{const j=w.__jobs.find((x:any)=>x.payload.model_id===id);j.status='failed';j.error='Không đủ dung lượng ổ đĩa';};
  w.__TAURI_INTERNALS__={convertFileSrc:(p:string)=>p,transformCallback:()=>1,unregisterCallback:()=>{},metadata:{currentWindow:{label:'main'},currentWebview:{label:'main',windowLabel:'main'}},
   invoke:async(cmd:string,args:any)=>{w.__calls.push({cmd,args});switch(cmd){
    case 'plugin:window|is_focused':return w.__focus;
@@ -15,19 +19,22 @@ const mock=({names,done}:{names:Record<string,string>;done:boolean})=>{
    case 'plugin:notification|notify':w.__notified.push(args.options);return null;
    case 'download_model':{const t=new Date(Date.now()-60000).toISOString(),j={id:'dl-'+args.id,kind:'model_download',project_id:null,payload:{model_id:args.id},status:'running',progress:0.4,error:null,result:null,created_at:t,updated_at:t};w.__jobs=[j];return j;}
    case 'list_jobs':return JSON.parse(JSON.stringify(w.__jobs));
-   case 'list_models':return Object.keys(names).map(id=>({id,name:names[id],engine:id==='whisper-small'?'stt':'runtime',kind:id==='separation-runtime'?'runtime':'model',installed:w.__installed.has(id),revision:'9f8e7d6c5b4a3921',license:'MIT',description:'Mô tả ngắn của model.'}));
+   case 'list_models':return Object.keys(names).map(id=>({id,name:names[id],engine:id==='whisper-small'?'stt':id==='vieneu-v3'?'tts':'runtime',kind:id==='separation-runtime'?'runtime':'model',installed:w.__installed.has(id),revision:'9f8e7d6c5b4a3921',license:'MIT',description:'Mô tả ngắn của model.'}));
    case 'list_projects':case 'list_voices':return [];case 'get_settings':return {dictionary:{}};
    case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,python_path:null,ffmpeg_path:null,message:''};
    default:return null;}}};
 };
-const open=async(page:Page,done=false)=>{
- await page.addInitScript(mock,{names:NAMES,done});await page.goto('/');
+const open=async(page:Page,done=false,names=NAMES,installed:string[]=[])=>{
+ await page.addInitScript(mock,{names,done,installed});await page.goto('/');
  await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:'Model & cài đặt',exact:true}).click();
- await expect(page.locator('.model-card')).toHaveCount(2);
+ await expect(page.locator('.model-card')).toHaveCount(Object.keys(names).length);
 };
-const card=(page:Page,id:string)=>page.locator('.model-card').filter({has:page.getByRole('heading',{level:3,name:NAMES[id],exact:true})});
+const ALL={...NAMES,...VIENEU};
+const card=(page:Page,id:string)=>page.locator('.model-card').filter({has:page.getByRole('heading',{level:3,name:ALL[id],exact:true})});
 const downloads=(page:Page)=>page.evaluate(()=>(window as any).__calls.filter((x:any)=>x.cmd==='download_model').map((x:any)=>x.args));
 const finish=(page:Page,id:string)=>page.evaluate(i=>(window as any).__finish(i),id);
+const fail=(page:Page,id:string)=>page.evaluate(i=>(window as any).__fail(i),id);
+const said=(page:Page)=>page.evaluate(()=>((window as any).__said as string[]));
 const live=(page:Page,text:string)=>page.locator('.sr-only[aria-live="polite"]').filter({hasText:text});
 const stays=async(page:Page)=>{await expect(page.locator('main h1')).toContainText('Model & cài đặt');await expect(page.getByText('Công việc gần đây')).toHaveCount(0);};
 
@@ -58,6 +65,7 @@ test('a download already finished when the app opens is not announced',async({pa
  await expect(card(page,'whisper-small').getByRole('button',{name:'Đã tải',exact:true})).toBeVisible();
  await page.waitForTimeout(3000);
  await expect(live(page,'Đã tải xong')).toHaveCount(0);
+ expect((await said(page)).filter(t=>t.includes('Đã tải xong'))).toEqual([]); // the line clears itself after 6 s and toHaveCount(0) passes before the first poll, so the recorded texts are the proof
 });
 
 test('a long download that ends while the window is in the background raises the desktop notice with the model name',async({page})=>{
@@ -82,4 +90,53 @@ test('the separation pack downloads in place after the licence is accepted',asyn
  await finish(page,'separation-runtime');
  await expect(live(page,'Đã tải xong Gói chạy tách nhạc nền (Python + PyTorch).')).toHaveCount(1,{timeout:10000});
  await stays(page);
+});
+
+test('after Enter on "Tải model" the focus stays on the card button while it downloads',async({page})=>{
+ await open(page);
+ const button=card(page,'whisper-small').locator('button.full');
+ await button.focus();await page.keyboard.press('Enter');
+ await expect.poll(()=>downloads(page)).toEqual([{id:'whisper-small'}]);
+ await expect(card(page,'whisper-small').locator('progress')).toHaveCount(1);
+ await expect(button).toBeFocused();
+});
+
+test('after "Đồng ý và tải" the focus goes back to the pack card button',async({page})=>{
+ await open(page);
+ await card(page,'separation-runtime').getByRole('button',{name:'Tải gói',exact:true}).click();
+ await page.getByRole('dialog',{name:'Tải gói chạy tách nhạc nền'}).getByRole('button',{name:'Đồng ý và tải'}).click();
+ await expect.poll(()=>downloads(page)).toEqual([{id:'separation-runtime',licenseAccepted:true}]);
+ await expect(card(page,'separation-runtime').locator('progress')).toHaveCount(1);
+ await expect(card(page,'separation-runtime').locator('button.full')).toBeFocused();
+});
+
+test('a download that fails shows the error on the page and the card offers the download again',async({page})=>{
+ await open(page);
+ await card(page,'whisper-small').getByRole('button',{name:'Tải model',exact:true}).click();
+ await expect(card(page,'whisper-small').locator('progress')).toHaveCount(1);
+ await fail(page,'whisper-small');
+ await expect(page.getByRole('alert').filter({hasText:'Tải Whisper Small không thành công: Không đủ dung lượng ổ đĩa'})).toHaveCount(1,{timeout:10000});
+ await expect(card(page,'whisper-small').getByRole('button',{name:'Tải model',exact:true})).toBeEnabled();
+ expect((await said(page)).filter(t=>t.includes('Đã tải xong'))).toEqual([]);
+ await stays(page);
+});
+
+test('a first-run VieNeu download is announced once, by the checklist step and not again as a download',async({page})=>{
+ await open(page,false,VIENEU);
+ await card(page,'vieneu-v3').getByRole('button',{name:'Tải model',exact:true}).click();
+ await expect(card(page,'vieneu-v3').locator('progress')).toHaveCount(1);
+ await finish(page,'vieneu-v3');
+ await expect(card(page,'vieneu-v3').getByRole('button',{name:'Đã tải',exact:true})).toBeVisible({timeout:10000});
+ await expect.poll(async()=>(await said(page)).some(t=>t.startsWith('Đã xong bước 1')),{timeout:10000}).toBe(true);
+ expect((await said(page)).filter(t=>t.includes('Đã tải xong'))).toEqual([]);
+});
+
+test('"Kiểm tra lại gói" on an installed pack is a check, not a download, and is not announced as one',async({page})=>{
+ await open(page,false,NAMES,['separation-runtime']);
+ await card(page,'separation-runtime').getByRole('button',{name:'Kiểm tra lại gói',exact:true}).click();
+ await expect.poll(()=>downloads(page)).toEqual([{id:'separation-runtime'}]);
+ await expect(card(page,'separation-runtime').locator('progress')).toHaveCount(1);
+ await finish(page,'separation-runtime');
+ await expect(card(page,'separation-runtime').locator('progress')).toHaveCount(0,{timeout:10000});
+ expect((await said(page)).filter(t=>t.includes('Đã tải xong'))).toEqual([]);
 });
