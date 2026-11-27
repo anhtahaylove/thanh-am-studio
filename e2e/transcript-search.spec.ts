@@ -87,5 +87,6 @@ for(const [width,height] of [[1440,900],[800,700],[640,700]])test(`the toolbar k
  const replace=page.getByRole('button',{name:'Thay 13 chỗ (11 chỗ ở dòng đang ẩn)'});await expect(replace).toBeVisible();
  const edges=()=>page.evaluate(()=>{const p=document.querySelector('.transcript-panel')!,pr=p.getBoundingClientRect().right;return {over:[...p.querySelectorAll('.panel-toolbar button')].filter(b=>b.getBoundingClientRect().right>pr+0.5).map(b=>b.textContent),scroll:p.scrollLeft};});
  expect(await edges()).toEqual({over:[],scroll:0});
- await page.getByRole('button',{name:'TXT',exact:true}).focus();expect(await edges()).toEqual({over:[],scroll:0});
+ const exportMenu=page.getByRole('button',{name:'Xuất…',exact:true});await exportMenu.focus();expect(await edges()).toEqual({over:[],scroll:0});
+ await exportMenu.click();await expect(page.getByRole('menuitem',{name:'VTT',exact:true})).toBeVisible();expect(await edges()).toEqual({over:[],scroll:0}); // the open menu stays inside the panel too
 });
