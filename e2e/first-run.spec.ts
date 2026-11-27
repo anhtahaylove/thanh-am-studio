@@ -159,7 +159,7 @@ const sidebar=(page:Page,label:RegExp)=>page.getByRole('navigation',{name:'Đi�
 const gotoStt=async(page:Page)=>{await sidebar(page,/^Chép lời/).click();await expect(page.locator('main h1')).toContainText('Chép lời');};
 const sttPage=async(page:Page,d:Setup,openProject=false)=>{
  await open(page,d);
- if(openProject){await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toBeVisible();}
+ if(openProject){await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toBeVisible();}
  await gotoStt(page);
 };
 const downloads=(page:Page)=>page.evaluate(()=>(window as any).__downloads as string[]);
@@ -262,7 +262,7 @@ test('a set-up STT user is not shown the STT checklist',async({page})=>{
 });
 test('while the app is busy the other steps keep their height and say nothing, their buttons are only disabled',async({page})=>{
  await open(page,{installed:false,projects:true,ttsDone:false,text:'Xin chào làng chài.'});
- await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
+ await page.getByRole('button',{name:'Dự án',exact:true}).click();await page.getByRole('button',{name:'Mở dự án',exact:true}).click();
  await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toBeVisible();
  const items=guide(page).locator('li'),height=(i:number)=>items.nth(i).evaluate(e=>e.getBoundingClientRect().height);
  const model=await height(0),exportStep=await height(2);
