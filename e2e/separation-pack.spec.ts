@@ -12,7 +12,7 @@ const mock=(o:{pack:boolean})=>{
 const downloads=(page:any)=>page.evaluate(()=>(window as any).__calls.filter((x:any)=>x.cmd==='download_model').map((x:any)=>x.args));
 const open=async(page:any,pack:boolean)=>{
  await page.addInitScript(mock,{pack});await page.goto('/');await page.getByRole('button',{name:'Model & cài đặt',exact:true}).click();
- await page.getByText('Thêm model',{exact:true}).click(); // the pack card sits in the "Thêm model" fold
+ if(!pack)await page.getByText('Thêm model',{exact:true}).click(); // the pack card sits in the "Thêm model" fold until it is installed
 };
 
 test('the pack is downloaded only after the oneMKL licence is accepted',async({page})=>{

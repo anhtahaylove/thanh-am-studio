@@ -28,7 +28,7 @@ const open=async(page:Page,done=false,names=NAMES,installed:string[]=[])=>{
  await page.addInitScript(mock,{names,done,installed});await page.goto('/');
  await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:'Model & cài đặt',exact:true}).click();
  await expect(page.locator('.model-card')).toHaveCount(Object.keys(names).length);
- await page.getByText('Thêm model',{exact:true}).click(); // the pack and every non-starter card sit in this fold
+ if(await page.locator('details.mc-more').count())await page.getByText('Thêm model',{exact:true}).click(); // the not-installed non-starter cards sit in this fold; it is absent when everything is installed
 };
 const ALL={...NAMES,...VIENEU};
 const card=(page:Page,id:string)=>page.locator('.model-card').filter({has:page.getByRole('heading',{level:3,name:ALL[id],exact:true})});
@@ -119,6 +119,17 @@ test('after "Đồng ý và tải" the focus goes back to the pack card button',
  await expect.poll(()=>downloads(page)).toEqual([{id:'separation-runtime',licenseAccepted:true}]);
  await expect(card(page,'separation-runtime').locator('progress')).toHaveCount(1);
  await expect(card(page,'separation-runtime').locator('button.full')).toBeFocused();
+});
+
+test('the focus follows a fold card to the main grid when its download finishes',async({page})=>{
+ await open(page);
+ await card(page,'separation-runtime').getByRole('button',{name:'Tải gói',exact:true}).click();
+ await page.getByRole('dialog',{name:'Tải gói chạy tách nhạc nền'}).getByRole('button',{name:'Đồng ý và tải'}).click();
+ await expect(card(page,'separation-runtime').locator('progress')).toHaveCount(1);
+ const button=card(page,'separation-runtime').locator('button.full');await expect(button).toBeFocused();
+ await finish(page,'separation-runtime');
+ await expect(page.locator('main>.model-grid .model-card').filter({has:page.getByRole('heading',{level:3,name:NAMES['separation-runtime'],exact:true})})).toHaveCount(1,{timeout:10000});
+ await expect(button).toHaveAccessibleName('Kiểm tra lại gói');await expect(button).toBeFocused();
 });
 
 test('a download that fails shows the error on the page and the card offers the download again',async({page})=>{

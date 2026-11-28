@@ -12,7 +12,7 @@ export const JobProgress=({job,check}:{job:Job;check?:boolean})=>job.status==='q
 /** One model: what it costs to download and to run, a recommendation for this machine, its running download (job) and its action (children). */
 export function ModelCard({m,totalMb,job,children}:{m:ModelInfo;totalMb:number|null;job?:Job;children:ReactNode}){
  const Icon=ICONS[m.id]??AudioLines,size=modelSize(m.id),ram=MODEL_RAM_MB[m.id]??null,advice=modelAdvice(m.id,totalMb);
- return <article className="panel model-card">
+ return <article className="panel model-card" data-model={m.id}>
   <div className="model-icon"><Icon size={27}/></div>
   <div className="eyebrow">{m.engine}</div><h3>{m.name}</h3>
   {advice.badge&&<span className={`mc-badge ${advice.badge}`}>{advice.badge==='heavy'?<TriangleAlert size={14}/>:<Check size={14}/>}{advice.badge==='heavy'?'Có thể nặng với máy này':'Đề xuất cho máy bạn'}</span>}

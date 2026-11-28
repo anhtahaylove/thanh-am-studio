@@ -3,9 +3,9 @@ import type {Page} from '@playwright/test';
 // "Model & cài đặt" shows two starter cards (VieNeu and the recommended Whisper); "Thêm model" holds the other four and opens by itself while one of them
 // downloads; "Nâng cao" holds the runtime panel, the processor selects and the diagnostics button. Tauri is mocked like model-cards.spec.ts, plus list_jobs.
 const NAMES:Record<string,string>={'vieneu-v3':'VieNeu v3 Turbo','whisper-small':'Whisper Small','whisper-turbo':'Whisper Large v3 Turbo','diarization':'Phân biệt người nói (pyannote + CAM++)','htdemucs':'Tách giọng và nhạc nền (HTDemucs)','separation-runtime':'Gói chạy tách nhạc nền (Python + PyTorch)'};
-const mock=({total,names,jobs}:{total:number|null;names:Record<string,string>;jobs:{model:string;status:string}[]})=>{
+const mock=({total,names,jobs,installed}:{total:number|null;names:Record<string,string>;jobs:{model:string;status:string}[];installed:string[]})=>{
  const w=window as any,now=new Date().toISOString();
- const models=Object.keys(names).map(id=>({id,name:names[id],engine:id.startsWith('whisper')||id==='diarization'?'stt':id==='vieneu-v3'?'tts':id==='htdemucs'?'separation':'runtime',kind:id==='separation-runtime'?'runtime':'model',installed:false,revision:'9f8e7d6c5b4a3921',license:'MIT',description:'Mô tả ngắn của model.'}));
+ const models=Object.keys(names).map(id=>({id,name:names[id],engine:id.startsWith('whisper')||id==='diarization'?'stt':id==='vieneu-v3'?'tts':id==='htdemucs'?'separation':'runtime',kind:id==='separation-runtime'?'runtime':'model',installed:installed.includes(id),revision:'9f8e7d6c5b4a3921',license:'MIT',description:'Mô tả ngắn của model.'}));
  const list=jobs.map((j,i)=>({id:'dl'+i,kind:'model_download',project_id:null,payload:{model_id:j.model},status:j.status,progress:0.4,error:null,result:null,created_at:now,updated_at:now}));
  w.isTauri=true;
  w.__TAURI_INTERNALS__={convertFileSrc:(p:string)=>p,transformCallback:()=>1,unregisterCallback:()=>{},metadata:{currentWindow:{label:'main'},currentWebview:{label:'main',windowLabel:'main'}},
@@ -14,8 +14,8 @@ const mock=({total,names,jobs}:{total:number|null;names:Record<string,string>;jo
    case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,native_worker_ready:true,python_path:null,ffmpeg_path:null,native_worker_path:null,fallback_count:0,total_memory_mb:total,message:'Runtime đã tìm thấy.'};
    default:return null;}}};
 };
-const open=async(page:Page,total:number|null=7910,jobs:{model:string;status:string}[]=[])=>{
- await page.addInitScript(mock,{total,names:NAMES,jobs});await page.goto('/');
+const open=async(page:Page,total:number|null=7910,jobs:{model:string;status:string}[]=[],installed:string[]=[])=>{
+ await page.addInitScript(mock,{total,names:NAMES,jobs,installed});await page.goto('/');
  await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:'Model & cài đặt',exact:true}).click();await expect(page.locator('.model-card')).toHaveCount(6);
 };
 const more=(page:Page)=>page.locator('details.mc-more'),adv=(page:Page)=>page.locator('details.mc-advanced');
@@ -74,4 +74,27 @@ for(const width of [800,640])test(`the models page does not scroll sideways at $
  await page.setViewportSize({width,height:800});await open(page,3900);
  await more(page).locator('summary').click();await adv(page).locator('summary').click();
  expect(await page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+});
+
+// Round 1.0.27 C2: an installed model shows in the main grid with the starters (catalog order); "Thêm model" holds only what is not installed.
+test('an installed non-starter shows with the starters while Thêm model is closed, and the rest stays in the fold',async({page})=>{
+ await open(page,7910,[],['diarization']);
+ expect(await titles(page.locator('main>.model-grid'))).toEqual([NAMES['vieneu-v3'],NAMES['whisper-small'],NAMES.diarization]);
+ await expect(page.locator('main>.model-grid .model-card').filter({hasText:NAMES.diarization})).toBeVisible();
+ await expect(more(page)).not.toHaveAttribute('open','');
+ expect(await titles(more(page))).toEqual([NAMES['whisper-turbo'],NAMES.htdemucs,NAMES['separation-runtime']]);
+ for(const c of await more(page).locator('.model-card').all())await expect(c).toBeHidden();
+});
+test('the main grid keeps catalog order with several installed models',async({page})=>{
+ await open(page,7910,[],['separation-runtime','whisper-turbo']);
+ expect(await titles(page.locator('main>.model-grid'))).toEqual([NAMES['vieneu-v3'],NAMES['whisper-small'],NAMES['whisper-turbo'],NAMES['separation-runtime']]);
+ expect(await titles(more(page))).toEqual([NAMES.diarization,NAMES.htdemucs]);
+});
+test('Thêm model is not rendered when nothing is left for it',async({page})=>{
+ await open(page,7910,[],['vieneu-v3','whisper-small','whisper-turbo','diarization','htdemucs','separation-runtime']);
+ await expect(more(page)).toHaveCount(0);expect(await titles(page.locator('main>.model-grid'))).toHaveLength(6);
+});
+test('a re-check of an installed non-starter does not open Thêm model, a download from the fold still does',async({page})=>{
+ await open(page,7910,[{model:'diarization',status:'running'}],['diarization']);
+ await expect(more(page)).toHaveCount(1);await expect(more(page)).not.toHaveAttribute('open','');
 });

@@ -45,7 +45,7 @@ const openOptions = async () => { const button = page.getByRole('button', {name:
 // The dock's "Chuẩn hóa", "Theo mốc phụ đề", "Giữ nhạc nền", "Mỗi chương một file" and SRT sit in its "Tùy chọn xuất" group, which stays open for the session: open it when it is closed.
 const openExportOptions = async () => { const group = page.locator('#audio-dock details'); if (await group.getAttribute('open', {timeout: 5000}) === null) await group.locator('summary').click(); };
 // The models page keeps every card except VieNeu and the recommended Whisper in "Thêm model", which opens by itself while one of them downloads and then stays open for the session: open it when it is closed.
-const openMoreModels = async () => { const group = page.locator('details.mc-more'); if (await group.getAttribute('open', {timeout: 5000}) === null) await group.locator('summary').click(); };
+const openMoreModels = async () => { const group = page.locator('details.mc-more'); if (!(await group.count())) return; if (await group.getAttribute('open', {timeout: 5000}) === null) await group.locator('summary').click(); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Calls `get` every 500 ms until `ok(its value)` holds and returns that value; for steps that must not touch the page's DOM (a minimised window).
 const until = async (get, ok, ms, what) => {
