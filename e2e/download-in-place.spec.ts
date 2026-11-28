@@ -151,3 +151,57 @@ test('"Kiểm tra lại gói" on an installed pack is a check, not a download, a
  await expect(card(page,'separation-runtime').locator('progress')).toHaveCount(0,{timeout:10000});
  expect((await said(page)).filter(t=>t.includes('Đã tải xong'))).toEqual([]);
 });
+
+const PACK='Gói chạy tách nhạc nền (Python + PyTorch)';
+test('a re-check of an installed pack reads "Đang kiểm tra…" on the button and the progress line, never "Đang tải…" or a percentage',async({page})=>{
+ await open(page,false,NAMES,['separation-runtime']);
+ await card(page,'separation-runtime').getByRole('button',{name:'Kiểm tra lại gói',exact:true}).click();
+ await expect(card(page,'separation-runtime').getByRole('button',{name:'Đang kiểm tra…',exact:true})).toBeDisabled();
+ await expect(card(page,'separation-runtime').locator('.job-progress')).toHaveText('Đang kiểm tra…');
+ await expect(card(page,'separation-runtime').getByRole('button',{name:'Đang tải…'})).toHaveCount(0);
+});
+
+test('a re-check that ends is announced as "Đã kiểm tra xong {name}." and not as a download',async({page})=>{
+ await open(page,false,NAMES,['separation-runtime']);
+ await card(page,'separation-runtime').getByRole('button',{name:'Kiểm tra lại gói',exact:true}).click();
+ await expect(card(page,'separation-runtime').locator('progress')).toHaveCount(1);
+ await finish(page,'separation-runtime');
+ await expect(live(page,`Đã kiểm tra xong ${PACK}.`)).toHaveCount(1,{timeout:10000});
+ expect((await said(page)).filter(t=>t.includes('Đã tải xong'))).toEqual([]);
+});
+
+test('a re-check that fails reads "Kiểm tra {name} không thành công: {error}", not the download wording',async({page})=>{
+ await open(page,false,NAMES,['separation-runtime']);
+ await card(page,'separation-runtime').getByRole('button',{name:'Kiểm tra lại gói',exact:true}).click();
+ await expect(card(page,'separation-runtime').locator('progress')).toHaveCount(1);
+ await fail(page,'separation-runtime');
+ await expect(page.getByRole('alert').filter({hasText:`Kiểm tra ${PACK} không thành công: Không đủ dung lượng ổ đĩa`})).toHaveCount(1,{timeout:10000});
+ await expect(page.getByRole('alert').filter({hasText:'Tải '})).toHaveCount(0);
+});
+
+test('a real download still reads "Đang tải…" with a percentage and ends with "Đã tải xong {name}."',async({page})=>{
+ await open(page);
+ await card(page,'whisper-small').getByRole('button',{name:'Tải model',exact:true}).click();
+ await expect(card(page,'whisper-small').getByRole('button',{name:'Đang tải…',exact:true})).toBeDisabled();
+ await expect(card(page,'whisper-small').locator('.job-progress')).toContainText('40 %');
+ await finish(page,'whisper-small');
+ await expect(live(page,'Đã tải xong Whisper Small.')).toHaveCount(1,{timeout:10000});
+});
+
+test('two announcements from one poll both reach the live region, and a later one replaces them',async({page})=>{
+ test.setTimeout(60000);
+ await open(page,false,NAMES,['separation-runtime']);
+ await card(page,'whisper-small').getByRole('button',{name:'Tải model',exact:true}).click();
+ await expect(card(page,'whisper-small').locator('progress')).toHaveCount(1);
+ // a re-check of the pack runs beside the download; both end between two polls
+ await page.evaluate(()=>{const w=window as any,t=new Date(Date.now()-60000).toISOString();w.__jobs.push({id:'dl-separation-runtime',kind:'model_download',project_id:null,payload:{model_id:'separation-runtime'},status:'running',progress:0.4,error:null,result:null,created_at:t,updated_at:t});});
+ await expect(card(page,'separation-runtime').locator('.job-progress')).toHaveText('Đang kiểm tra…',{timeout:10000});
+ await page.evaluate(()=>{const w=window as any;for(const j of w.__jobs){j.status='succeeded';j.progress=1;w.__installed.add(j.payload.model_id);}});
+ const region=page.locator('.sr-only[aria-live="polite"]');
+ await expect(region).toHaveText(`Đã tải xong Whisper Small. Đã kiểm tra xong ${PACK}.`,{timeout:10000});
+ await page.waitForTimeout(1200);
+ await card(page,'separation-runtime').getByRole('button',{name:'Kiểm tra lại gói',exact:true}).click();
+ await expect(card(page,'separation-runtime').locator('progress')).toHaveCount(1);
+ await finish(page,'separation-runtime');
+ await expect(region).toHaveText(`Đã kiểm tra xong ${PACK}.`,{timeout:10000});
+});
