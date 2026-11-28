@@ -54,7 +54,7 @@ const queueLabel='Hàng đợi'; // the sidebar button that opens the queue draw
 const statusLabel:Record<Job['status'],string>={queued:'Đang chờ',running:'Đang xử lý',succeeded:'Hoàn thành',failed:'Lỗi',cancelled:'Đã hủy',interrupted:'Gián đoạn'};
 type Saying={text:string;n:number};
 let sayingTick:string|null=null;
-const say=(text:string)=>{if(sayingTick===null)setTimeout(()=>{sayingTick=null},0);sayingTick=sayingTick===null?text:`${sayingTick} ${text}`;const joined=sayingTick;return (d:Saying|null):Saying=>({text:joined,n:(d?.n??0)+1});}; // the one live region holds one line: announcements made in the same tick (one poll pass) are joined with a space so none is lost to the overwrite; a later action replaces the line. n makes it a new element, so it is read again
+const say=(text:string)=>{sayingTick=sayingTick===null?text:`${sayingTick} ${text}`;const joined=sayingTick;return (d:Saying|null):Saying=>({text:joined,n:(d?.n??0)+1});}; // the one live region holds one line: announcements made before the render that shows them (one effect pass of one poll) are joined with a space so none is lost to the overwrite; the effect below ends that pass, so a later action replaces the line. n makes it a new element, so it is read again
 // A panel control's name: its aria-label, or the text of the label around it (the number fields and the take select have no aria-label), or its own text (the summary).
 const controlLabel=(c:HTMLElement)=>c.getAttribute('aria-label')??c.closest('label')?.firstChild?.textContent??c.textContent??'';
 // The ids of a project's succeeded tts jobs as one string: the TTS reload runs when it changes, and a restore marks it as seen.
@@ -151,7 +151,7 @@ export default function App(){
   doneSeen.current={project:project.id,status:now};
   if(done.size&&!checklistSaid)setSaying(say(`Đã tạo xong đoạn ${[...done].sort((a,b)=>a-b).join(', ')}`)); // a new object each time, so the same text a second time is announced again and the 6 s clear restarts
  },[jobs,firstPoll,project?.id]);
- useEffect(()=>{if(!saying)return;const t=setTimeout(()=>setSaying(null),6000);return()=>clearTimeout(t);},[saying]);
+ useEffect(()=>{sayingTick=null;if(!saying)return;const t=setTimeout(()=>setSaying(null),6000);return()=>clearTimeout(t);},[saying]);
 // "Đã tải xong …" for a model download this view saw queued or running and now sees succeeded, or an error when it failed; the first poll only sets the baseline, and a re-check of an installed model (installed when first seen) is not a download: it says "Đã kiểm tra xong …" and its failure reads "Kiểm tra … không thành công". A checklist's "Đã xong bước 1" speaks for the model it names when it announces that step on the same poll (as with the voice step), and this line leaves that model out.
  useEffect(()=>{
   const was=dlSeen.current,next=new Map<string,{status:string;installed:boolean}>(),said:string[]=[],checked:string[]=[],told=checklistModel.current,name=(j:Job)=>models.find(m=>m.id===j.payload.model_id)?.name??String(j.payload.model_id);
