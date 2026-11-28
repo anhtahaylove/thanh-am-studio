@@ -5,7 +5,7 @@ import type {Page} from '@playwright/test';
 // "Để sau" ("Later" in the test names), each step heading takes the focus, and `thanh-am-start` is written only when step 3 is reached.
 // A click is a trusted mouse click inside the page (detail > 0); a MutationObserver on `main h1` logs each page change and whether a trusted input came just before it.
 // Tauri is mocked: `__finish(kind)` ends every unfinished job of that kind (a download installs its model, a TTS job adds a take, an STT job brings one transcript row).
-type Setup={download?:string;project?:boolean;stored?:string;installed?:string[]};
+type Setup={download?:string;interrupted?:string;project?:boolean;stored?:string;installed?:string[]};
 const mock=(d:Setup)=>{
  const w=window as any,now='2026-11-27T00:00:00Z',ipc=(v:unknown)=>JSON.parse(JSON.stringify(v));w.isTauri=true;w.__calls=[];w.__clicks=0;w.__log=[];w.__polls=0;
  if(d.stored)localStorage.setItem('thanh-am-start',d.stored);
@@ -17,6 +17,7 @@ const mock=(d:Setup)=>{
  const mk=(id:string,name:string,segments:any[]=[])=>({id,name,updated_at:now,revision:1,segments,transcript:[],dictionary:{},source_asset_id:null});
  const job=(kind:string,status:string,payload:object,project_id:string|null=null)=>({id:'j'+jobs.length,kind,project_id,payload,status,progress:status==='succeeded'?1:0.4,error:null,result:null,created_at:now,updated_at:now});
  if(d.download)jobs.push(job('model_download','running',{model_id:d.download}));
+ if(d.interrupted)jobs.push(job('model_download','interrupted',{model_id:d.interrupted}));
  if(d.project)store.push(mk('p0','Dự án đầu tiên',[seg('s0','Xin chào.')]));
  w.__finish=(kind:string)=>{for(const j of jobs){if(j.kind!==kind||j.status==='succeeded')continue;j.status='succeeded';j.progress=1;
   if(kind==='model_download')installed.add(j.payload.model_id);
@@ -34,6 +35,7 @@ const mock=(d:Setup)=>{
    case 'list_models':return MODELS.map(([id,name,engine])=>({id,name,engine,kind:'model',installed:installed.has(id),revision:'r1abcdef0123456',license:'Apache-2.0',description:''}));
    case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,native_worker_ready:true,python_path:null,ffmpeg_path:null,native_worker_path:null,fallback_count:0,total_memory_mb:null,message:''};
    case 'download_model':{const j=job('model_download','running',{model_id:args.id});jobs.push(j);return ipc(j);}
+   case 'retry_job':{const j=jobs.find(x=>x.id===args.id);j.status='running';return ipc(j);}
    case 'enqueue_job':{const j=job(args.kind,'running',args.payload,args.projectId);jobs.push(j);return ipc(j);}
    case 'plugin:dialog|open':return ['C:/x/phong-van.wav'];case 'plugin:dialog|save':return 'C:/x/ban.wav';
    case 'import_asset':return {id:'src1',path:args.path,name:'phong-van.wav',duration_ms:5000,sample_rate:16000};
@@ -149,6 +151,20 @@ test('a relaunch while the picked starter model downloads resumes the strip at s
  await expect(checklist(page)).toHaveCount(0);expect(await stored(page)).toBeNull();
  await finish(page,'model_download');
  await expect(heading(page,3)).toBeVisible({timeout:10000});await expect.poll(()=>stored(page)).toBe('done');await expect(checklist(page)).toBeVisible();
+});
+
+test('a relaunch that interrupted the picked starter download resumes at step 2 with "Tải tiếp", which retries that job and shows the progress',async({page})=>{
+ await open(page,{interrupted:'vieneu-v3',project:true});
+ await expect(heading(page,2)).toHaveAccessibleName('Bước 2/3 Đang tải VieNeu v3 Turbo…');
+ await expect(panel(page).getByText('Tải bị gián đoạn.')).toBeVisible();
+ await expect(panel(page).locator('progress')).toHaveCount(0);await expect(checklist(page)).toHaveCount(0);expect(await stored(page)).toBeNull();
+ await nextPoll(page);await page.waitForTimeout(300);expect(await calls(page,'retry_job'),'no retry without a click').toEqual([]);
+ await panel(page).getByRole('button',{name:'Tải tiếp',exact:true}).click();
+ expect(await calls(page,'retry_job')).toEqual([{id:'j0'}]);
+ await expect(panel(page).locator('progress')).toHaveJSProperty('value',0.4);
+ await expect(panel(page).getByText('Tải bị gián đoạn.')).toHaveCount(0);await expect(panel(page).getByRole('button',{name:'Tải tiếp'})).toHaveCount(0);
+ await finish(page,'model_download');
+ await expect(heading(page,3)).toBeVisible({timeout:10000});
 });
 
 for(const d of [{stored:'hidden'},{stored:'done'},{project:true},{installed:['vieneu-v3']}] as Setup[])test(`no start panel at launch with ${JSON.stringify(d)}`,async({page})=>{
