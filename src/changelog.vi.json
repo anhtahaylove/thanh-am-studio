@@ -1,4 +1,12 @@
 [
+ {"version": "1.0.28", "date": "2026-11-28", "changes": [
+  "Bấm “Thử lại” trên một việc đã được chạy lại hoặc đã xong giờ báo “Việc này đã được chạy lại hoặc đã xong nên không cần thử lại. Danh sách đã được làm mới.” và làm mới Hàng đợi, thay vì hiện mã lỗi.",
+  "Nhập tệp TXT hay SRT không lưu bằng mã hóa UTF-8 giờ báo cách lưu lại bằng UTF-8 trong Notepad; “Mở thư mục” cho một tệp đã bị chuyển hoặc xóa giờ báo “Không tìm thấy tệp đã lưu”. Trước đây cả hai chỉ hiện mã lỗi.",
+  "Ngay khi một model vừa tải xong, thẻ model không còn thoáng hiện “Đang kiểm tra…”. Việc kiểm tra lại một model đã tải giờ hiện “Đang kiểm tra” cả trên thanh trạng thái, trong Hàng đợi (“Kiểm tra model”) và trong thông báo của Windows (“Đã kiểm tra model xong”), thay vì chữ của việc tải.",
+  "Nhiều lỗi xảy ra cùng lúc, ví dụ hai model tải lỗi trong cùng một lần cập nhật, giờ hiện đủ trong ô báo lỗi thay vì lỗi sau đè mất lỗi trước.",
+  "Nút “Mở take” trong Hàng đợi chọn đúng đoạn của take đó và đặt con trỏ vào ô nội dung của đoạn; dự án đang mở không bị tải lại nên lịch sử Hoàn tác và lựa chọn Giữ nhạc nền vẫn giữ nguyên.",
+  "Dùng bàn phím hoặc trình đọc màn hình không còn bị mất vị trí con trỏ sau khi đóng thông báo, mở, tạo hay xóa dự án, chuyển bản chép lời thành kịch bản hay dự án TTS, xóa dòng chép lời, thêm hay xóa cách đọc, lưu mẫu giọng: con trỏ chuyển tới chỗ hợp lý tiếp theo. Các nút Hoàn tác, Làm lại, “Gộp sau” ở dòng chép lời cuối và “Nghe mẫu đã làm sạch” khi đang làm sạch giờ giữ con trỏ và nói lý do thay vì bị tắt hẳn."
+ ]},
  {"version": "1.0.27", "date": "2026-11-28", "changes": [
   "Trình đọc màn hình đọc đủ các thông báo đến cùng lúc, ví dụ một model tải xong đúng lúc một bước hướng dẫn hoàn thành; trước đây thông báo sau đè mất thông báo trước.",
   "“Kiểm tra lại gói” và việc kiểm tra lại một model đã tải giờ hiện “Đang kiểm tra…” thay vì chữ của việc tải, báo “Đã kiểm tra xong {tên}.” khi xong và “Kiểm tra {tên} không thành công” khi lỗi.",
