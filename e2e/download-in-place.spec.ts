@@ -28,7 +28,7 @@ const open=async(page:Page,done=false,names=NAMES,installed:string[]=[])=>{
  await page.addInitScript(mock,{names,done,installed});await page.goto('/');
  await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:'Model & cài đặt',exact:true}).click();
  await expect(page.locator('.model-card')).toHaveCount(Object.keys(names).length);
- await page.getByText('Thêm model',{exact:true}).click(); // the pack and every non-starter card sit in this fold
+ if(await page.locator('details.mc-more').count())await page.getByText('Thêm model',{exact:true}).click(); // the not-installed non-starter cards sit in this fold; it is absent when everything is installed
 };
 const ALL={...NAMES,...VIENEU};
 const card=(page:Page,id:string)=>page.locator('.model-card').filter({has:page.getByRole('heading',{level:3,name:ALL[id],exact:true})});
