@@ -23,7 +23,8 @@ const mock=(d:Setup)=>{
    case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,native_worker_ready:true,python_path:null,ffmpeg_path:null,native_worker_path:null,fallback_count:0,total_memory_mb:null,message:''};
    case 'download_model':{w.__downloads.push(args.id);const j=mk('dl-'+args.id,'model_download','running',{model_id:args.id});jobs.push(j);return j;}
    case 'plugin:dialog|open':if(w.__hold){await new Promise(r=>{w.__release=r;});return null;}return ['C:/x/phong-van.wav'];case 'import_asset':return {id:'a1',path:args.path,name:'phong-van.wav',duration_ms:5000,sample_rate:16000};
-   case 'plugin:dialog|save':return w.__cancelSave?null:'C:/x/ban.'+String(args?.options?.defaultPath??'x.txt').split('.').pop(); // a path with the extension that was asked for, as the real backend requirescase 'export_text':w.__exports.push(args.path);return null;
+   // the path carries the extension that was asked for, as the real backend requires
+   case 'plugin:dialog|save':return w.__cancelSave?null:'C:/x/ban.'+String(args?.options?.defaultPath??'x.txt').split('.').pop();case 'export_text':w.__exports.push(args.path);return null;
    case 'export_asset':if(w.__exportFail)throw 'DISK_FULL';w.__assets.push(args.path);return null;
    case 'enqueue_job':{w.__sent.push(args.kind);const j=mk('q'+jobs.length,args.kind,'running',args.payload);jobs.push(j);return j;}
    default:return null;}}};
