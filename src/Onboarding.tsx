@@ -69,7 +69,7 @@ export interface StartState {step:1|2|3;job?:Flow;model?:string}
 /** What the panel shows at launch, decided once after the first poll: nothing once a choice is stored or a model is installed; the step-2 strip while a starter model picked earlier still downloads, or its newest download was interrupted by the relaunch (even if its first segment made a project); else step 1 on a profile with no project. */
 export function startAtLaunch({stored,projects,models,jobs,starters}:{stored:StartChoice;projects:number;models:ModelInfo[];jobs:Job[];starters:string[]}):StartState|null{
  if(stored||models.some(m=>m.kind!=='runtime'&&m.installed))return null;
- const mine=jobs.filter(j=>j.kind==='model_download'&&starters.includes(String(j.payload.model_id))),dl=mine.find(j=>j.status==='queued'||j.status==='running')??(mine[0]?.status==='interrupted'?mine[0]:undefined); // jobs are newest first
+ const mine=jobs.filter(j=>j.kind==='model_download'&&starters.includes(String(j.payload.model_id))),dl=mine.find(j=>j.status==='queued'||j.status==='running')??mine.find(j=>j.status==='interrupted'); // jobs are newest first
  if(dl){const model=String(dl.payload.model_id);return {step:2,job:models.find(m=>m.id===model)?.engine==='stt'?'stt':'tts',model};}
  return projects?null:{step:1};
 }
