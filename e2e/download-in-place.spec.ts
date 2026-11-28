@@ -121,6 +121,17 @@ test('after "Đồng ý và tải" the focus goes back to the pack card button',
  await expect(card(page,'separation-runtime').locator('button.full')).toBeFocused();
 });
 
+test('the focus follows a fold card to the main grid when its download finishes',async({page})=>{
+ await open(page);
+ await card(page,'separation-runtime').getByRole('button',{name:'Tải gói',exact:true}).click();
+ await page.getByRole('dialog',{name:'Tải gói chạy tách nhạc nền'}).getByRole('button',{name:'Đồng ý và tải'}).click();
+ await expect(card(page,'separation-runtime').locator('progress')).toHaveCount(1);
+ const button=card(page,'separation-runtime').locator('button.full');await expect(button).toBeFocused();
+ await finish(page,'separation-runtime');
+ await expect(page.locator('main>.model-grid .model-card').filter({has:page.getByRole('heading',{level:3,name:NAMES['separation-runtime'],exact:true})})).toHaveCount(1,{timeout:10000});
+ await expect(button).toHaveAccessibleName('Kiểm tra lại gói');await expect(button).toBeFocused();
+});
+
 test('a download that fails shows the error on the page and the card offers the download again',async({page})=>{
  await open(page);
  await card(page,'whisper-small').getByRole('button',{name:'Tải model',exact:true}).click();
