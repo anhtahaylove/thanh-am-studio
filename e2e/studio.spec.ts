@@ -194,3 +194,15 @@ test('transcript search ignores tone marks, counts matches and marks them in the
  await expect(replace).toBeDisabled();await expect(replace).toHaveAttribute('title',/chỉ khớp đúng dấu/);await expect(texts.nth(0)).toHaveValue('Mua cá thu tươi');
  await box.fill('');await expect(texts).toHaveCount(3);await expect(count).toHaveText('');await expect(marks).toHaveCount(0);
 });
+test('the dictionary add and remove buttons keep focus in the form when pressed with Enter',async({page})=>{
+ await page.goto('/');await page.getByRole('button',{name:'Model & cài đặt',exact:true}).click();
+ const key=page.getByRole('textbox',{name:'Từ gốc',exact:true}),add=page.getByRole('button',{name:'Thêm cách đọc'});
+ for(const [k,v] of [['TP.HCM','Thành phố Hồ Chí Minh'],['HN','Hà Nội']]){
+  await key.fill(k);await page.getByRole('textbox',{name:'Cách đọc',exact:true}).fill(v);await add.focus();await page.keyboard.press('Enter');
+  await expect(page.getByText(`${k} → ${v}`)).toBeVisible();await expect(key).toBeFocused();await expect(key).toHaveValue('');
+ }
+ await page.getByRole('button',{name:'Xóa TP.HCM'}).focus();await page.keyboard.press('Enter');
+ await expect(page.getByText('TP.HCM →')).toHaveCount(0);await expect(page.getByRole('button',{name:'Xóa HN'})).toBeFocused();
+ await page.keyboard.press('Enter');
+ await expect(page.getByText('HN →')).toHaveCount(0);await expect(key).toBeFocused();
+});
