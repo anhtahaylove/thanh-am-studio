@@ -14,6 +14,7 @@ const mock=(d:Setup)=>{
  if((d.renderDone??d.ttsDone)&&!d.legacy)localStorage.setItem('thanh-am-onboarding-saved','1'); // a set-up user saved audio before: step 3 follows the saved file, not the render job
  const jobs:any[]=[...d.ttsDone?[mk('j1','tts','succeeded')]:[],...(d.renderDone??d.ttsDone)?[mk('j2','render','succeeded')]:[],...d.sttDone?[mk('j3','stt','succeeded')]:[]];
  w.__finishJob=(kind:string)=>{const j=jobs.find(x=>x.kind===kind&&x.status!=='succeeded')??(jobs.push(mk('n'+jobs.length,kind,'succeeded')),null);if(j){j.status='succeeded';j.progress=1;if(kind==='render')j.result={asset_id:'ar1'};}};
+ w.__startJob=(kind:string,payload:object)=>{jobs.push(mk('s'+jobs.length,kind,'running',payload));};
  w.__finishDownload=(id:string)=>{const j=jobs.find(x=>x.kind==='model_download'&&x.payload.model_id===id);j.status='succeeded';j.progress=1;if(id==='vieneu-v3')installed=true;else whisper=true;};
  w.__TAURI_INTERNALS__={convertFileSrc:(p:string)=>p,transformCallback:()=>1,unregisterCallback:()=>{},metadata:{currentWindow:{label:'main'},currentWebview:{label:'main',windowLabel:'main'}},
   invoke:async(cmd:string,args:any)=>{switch(cmd){
@@ -399,4 +400,14 @@ test('an upgrader with a finished checklist and no saved key keeps it finished a
  await expect(guide(page)).toBeVisible();await expect(guide(page).getByText('Đã xong',{exact:true})).toHaveCount(3);
  await page.reload();await polls(page,1);await page.waitForTimeout(500);
  await expect(guide(page)).toHaveCount(0);await expect.poll(()=>stored(page)).toBe('done');
+});
+test('a TTS segment and a model download that finish in one poll are both said through the live region, as two sentences',async({page})=>{
+ await page.addInitScript(()=>{localStorage.setItem('thanh-am-onboarding','hidden');localStorage.setItem('thanh-am-onboarding-stt','hidden');});
+ await open(page,{installed:true,projects:true,ttsDone:false,text:'Xin chào làng chài.',takes:true});await openProject(page);
+ await page.evaluate(()=>{const w=window as any;w.__startJob('tts',{segment_id:'s1'});w.__startJob('model_download',{model_id:'whisper-small'});});
+ await page.waitForTimeout(3500); // both are seen running first, so only a flip counts
+ await page.evaluate(()=>{const w=window as any;w.__finishJob('tts');w.__finishDownload('whisper-small');});
+ const region=page.locator('.sr-only[aria-live="polite"]');
+ await expect(region).toContainText('Đã tạo xong đoạn 1',{timeout:10000});await expect(region).toContainText('Đã tải xong Whisper Small.');
+ await expect(region).toHaveText('Đã tạo xong đoạn 1. Đã tải xong Whisper Small.');
 });
