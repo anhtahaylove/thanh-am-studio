@@ -1,7 +1,6 @@
 import {useEffect,useRef} from 'react';
 import {AudioLines,Check,Circle,Download,FileText,ListChecks} from 'lucide-react';
-import {jobProgressLabel} from './domain';
-import {ModelCard,activeDownload} from './ModelCards';
+import {JobProgress,ModelCard,activeDownload} from './ModelCards';
 import {formatBytes,modelSize,sttDefault} from './models';
 import {ReasonButton} from './ui';
 import type {Job,ModelInfo} from './types';
@@ -54,7 +53,7 @@ export function FirstRunChecklist({flow,steps,guide,visible,offPage,busy,blocks,
   <ol>{steps.map(s=>{const reason=s.done?null:blocks[s.id]??null,busyDownload=!!s.job; // a running download keeps the button focusable (aria-disabled), so the focus stays on it
    return <li key={s.id} className={s.done?'is-done':''}>
     <span className="first-run-state">{s.done?<Check size={14}/>:<Circle size={14}/>}{s.done?'Đã xong':'Chưa làm'}</span>
-    <span className="first-run-title">{s.title}{s.job&&!s.done&&<><progress max={1} value={s.job.progress}/><small className="job-progress">{jobProgressLabel(s.job.kind,s.job.progress,s.job.updated_at)}</small></>}</span>
+    <span className="first-run-title">{s.title}{s.job&&!s.done&&<JobProgress job={s.job}/>}</span>
     {!s.done&&<button className="outlined" disabled={!busyDownload&&(busy||!!reason||!s.ready)} aria-disabled={busyDownload||undefined} aria-describedby={reason?`first-run-why-${s.id}`:undefined} onClick={()=>{if(!busyDownload)onAction(s);}}>{busyDownload?'Đang tải…':ACTIONS[s.id]}</button>}
     {reason&&<small id={`first-run-why-${s.id}`}>{reason}</small>}
    </li>;})}</ol>
@@ -90,7 +89,7 @@ export function StartPanel({start,page,models,jobs,starters,totalMb,busy,onPick,
  // A picked model shows as a strip while it downloads; one whose download failed or was cancelled goes back to the cards, so it can be started again.
  if(start.step===3||(start.step===2&&model&&(job||model.installed)))return <section ref={root} className="start-panel start-strip panel" aria-labelledby="start-title">
   {title(start.step,start.step===3?`Đã tải xong ${model?.name??start.model}.`:`Đang tải ${model?.name??start.model}…`)}
-  {start.step===2&&job&&<div className="start-progress"><progress max={1} value={job.progress}/><small className="job-progress">{jobProgressLabel(job.kind,job.progress,job.updated_at)}</small></div>}
+  {start.step===2&&job&&<div className="start-progress"><JobProgress job={job}/></div>}
   <button type="button" className="quiet" onClick={later}>Để sau</button>
  </section>;
  if(start.step===2)return <section ref={root} className="start-panel panel" aria-labelledby="start-title">
