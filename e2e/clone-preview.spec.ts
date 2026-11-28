@@ -58,3 +58,23 @@ test('without the VieNeu model the button is off and says where to get it',async
  const listen=page.getByRole('button',{name:'Nghe mẫu đã làm sạch'});
  await expect(listen).toBeDisabled();await expect(listen).toHaveAttribute('title','Tải VieNeu v3 Turbo trong Model & cài đặt để bật');
 });
+
+test('the waiting button keeps focus while the cleaned sample is made, and says why it is off',async({page})=>{
+ await pickSample(page,{voiceModel:true});
+ const listen=page.getByRole('button',{name:'Nghe mẫu đã làm sạch'});
+ await listen.focus();await page.keyboard.press('Enter');
+ const waiting=page.getByRole('button',{name:'Đang chờ hàng đợi…'});
+ await expect(waiting).toBeFocused();await expect(waiting).toHaveAttribute('aria-disabled','true');await expect(waiting).not.toHaveAttribute('disabled');await expect(waiting).toHaveAccessibleDescription('Đang chờ hàng đợi…');
+ await page.keyboard.press('Enter');expect(await calls(page,'enqueue_job')).toHaveLength(1);
+ await setJob(page,{status:'running',progress:0.5});
+ await expect(page.getByRole('button',{name:'Đang làm sạch…'})).toBeFocused();
+});
+
+test('saving a voice sample gives focus back to its name field',async({page})=>{
+ await pickSample(page,{voiceModel:false});
+ const name=page.getByLabel('Tên hiển thị'),save=page.getByRole('button',{name:'Lưu mẫu giọng'});
+ await name.fill('Giọng kể');await page.getByRole('checkbox',{name:'Tôi có quyền sử dụng và tạo giọng từ mẫu audio này.'}).check();
+ await save.focus();await page.keyboard.press('Enter');
+ await expect(page.getByText('Đã lưu mẫu giọng. Chọn giọng này trong từng đoạn TTS.')).toBeVisible();
+ await expect(name).toBeFocused();await expect(name).toHaveValue('');
+});

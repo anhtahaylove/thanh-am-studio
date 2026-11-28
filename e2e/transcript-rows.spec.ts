@@ -104,3 +104,17 @@ test('a click on another row time button still lands when the open editor closes
  await time(page,1).click();
  await expect(page.getByLabel('Bắt đầu')).toHaveCount(1);await expect(page.getByLabel('Bắt đầu')).toHaveValue('0:03,300');await expect(time(page,0)).toHaveText('0:00,000 – 0:03,900');
 });
+test('Enter on a row delete button keeps focus in the list: the next row text, or the previous one after the last row',async({page})=>{
+ await open(page);const rows=page.locator('.transcript-row'),del=(i:number)=>rows.nth(i).getByRole('button',{name:'Xóa dòng'});
+ await del(0).focus();await page.keyboard.press('Enter');
+ await expect(rows).toHaveCount(5);await expect(rows.nth(0).getByRole('textbox')).toBeFocused();
+ await del(4).focus();await page.keyboard.press('Enter');
+ await expect(rows).toHaveCount(4);await expect(rows.nth(3).getByRole('textbox')).toBeFocused();
+});
+test('Enter on "Gộp sau" of the second-last row keeps focus there while the button turns aria-disabled, and a further Enter merges nothing',async({page})=>{
+ await open(page);const rows=page.locator('.transcript-row'),merge=rows.nth(4).getByRole('button',{name:'Gộp sau',exact:true});
+ await merge.focus();await page.keyboard.press('Enter');
+ await expect(rows).toHaveCount(5);await expect(merge).toBeFocused();await expect(merge).toHaveAttribute('aria-disabled','true');await expect(merge).not.toHaveAttribute('disabled');
+ await expect(merge).toHaveAccessibleDescription('Không có dòng sau để gộp');
+ await page.keyboard.press('Enter');await expect(rows).toHaveCount(5);await expect(merge).toBeFocused();
+});
