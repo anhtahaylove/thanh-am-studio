@@ -1,4 +1,13 @@
 [
+ {"version": "1.0.27", "date": "2026-11-28", "changes": [
+  "Trình đọc màn hình đọc đủ các thông báo đến cùng lúc, ví dụ một model tải xong đúng lúc một bước hướng dẫn hoàn thành; trước đây thông báo sau đè mất thông báo trước.",
+  "“Kiểm tra lại gói” và việc kiểm tra lại một model đã tải giờ hiện “Đang kiểm tra…” thay vì chữ của việc tải, báo “Đã kiểm tra xong {tên}.” khi xong và “Kiểm tra {tên} không thành công” khi lỗi.",
+  "Việc tải còn chờ trong hàng đợi hiện “Đang chờ…” thay vì một thanh tiến độ đứng yên ở 0%, trên thẻ model, trong danh sách các bước đầu tiên và trong bảng Bắt đầu.",
+  "Khi nhóm “Tùy chọn xuất” đang đóng, dòng tiêu đề của nó cho biết tùy chọn nào đang khác mặc định, ví dụ “Tùy chọn xuất · Không chuẩn hóa, Theo mốc phụ đề”.",
+  "Model đã tải, kể cả gói chạy tách nhạc nền, hiện ngay trong danh sách chính của Model & cài đặt; “Thêm model” chỉ còn các model chưa tải và không hiện nữa khi đã tải hết.",
+  "Bước “Lưu file audio” trong danh sách các bước đầu tiên chỉ xong khi file audio đã được lưu thật (kể cả lưu từ Hàng đợi hay lưu theo chương), không còn xong chỉ vì đã tạo audio mà việc lưu bị lỗi hoặc bị hủy; trạng thái này được giữ sau khi mở lại app.",
+  "Mở lại app khi model gợi ý đang tải dở thì bảng Bắt đầu quay lại bước tải, báo “Tải {tên} bị gián đoạn.” và có nút “Tải tiếp” để tải tiếp bằng một lần bấm."
+ ]},
  {"version": "1.0.26", "date": "2026-11-27", "changes": [
   "Thư mục cài đặt mới không dấu: %LOCALAPPDATA%\\Thanh Am Studio. Bản cập nhật tự chuyển bản cài ở thư mục mặc định cũ “Thanh Âm Studio” sang thư mục mới rồi xóa thư mục cũ; dự án, giọng, model và cài đặt giữ nguyên. Bản cài ở thư mục bạn tự chọn vẫn được cập nhật tại chỗ. Lối tắt trong Start Menu đổi tên thành “Thanh Am Studio”; tên trong Ứng dụng của Windows và tiêu đề cửa sổ vẫn là “Thanh Âm Studio”.",
   "Ít bước hơn, không bị chuyển trang: bấm Tải model, Tải gói hay Kiểm tra lại gói thì thẻ model hiện tiến độ ngay tại chỗ và báo khi tải xong; Xuất audio hỏi nơi lưu trước rồi để bạn ở lại trang, tệp được lưu khi xuất xong; chép lời xong cho dự án đang mở thì bản chép lời tự điền vào và báo số dòng; trang Chép lời tự chọn model chép lời đã tải, nút chọn tệp nói lý do khi chưa có model.",
