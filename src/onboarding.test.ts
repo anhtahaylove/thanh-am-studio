@@ -100,6 +100,7 @@ describe('start panel',()=>{
   expect(startAtLaunch({...fresh,projects:1,jobs:[dl('vieneu-v3','interrupted')]})).toEqual({step:2,job:'tts',model:'vieneu-v3'});
   expect(startAtLaunch({...fresh,jobs:[dl('whisper-small','interrupted')]})).toEqual({step:2,job:'stt',model:'whisper-small'});
   expect(startAtLaunch({...fresh,projects:1,jobs:[dl('vieneu-v3','failed'),dl('vieneu-v3','interrupted')]}),'the newest is failed').toBeNull();
+  expect(startAtLaunch({...fresh,projects:1,jobs:[dl('whisper-small','failed'),dl('vieneu-v3','interrupted')]}),'the newest of its own model').toEqual({step:2,job:'tts',model:'vieneu-v3'});
   expect(startAtLaunch({...fresh,projects:1,jobs:[dl('whisper-turbo','interrupted')]}),'not a starter model').toBeNull();
   expect(startAtLaunch({...fresh,stored:'hidden',jobs:[dl('vieneu-v3','interrupted')]})).toBeNull();
  });

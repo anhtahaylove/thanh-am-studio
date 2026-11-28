@@ -5,19 +5,20 @@ import type {Page} from '@playwright/test';
 // "Để sau" ("Later" in the test names), each step heading takes the focus, and `thanh-am-start` is written only when step 3 is reached.
 // A click is a trusted mouse click inside the page (detail > 0); a MutationObserver on `main h1` logs each page change and whether a trusted input came just before it.
 // Tauri is mocked: `__finish(kind)` ends every unfinished job of that kind (a download installs its model, a TTS job adds a take, an STT job brings one transcript row).
-type Setup={download?:string;interrupted?:string;project?:boolean;stored?:string;installed?:string[]};
+type Setup={download?:string;interrupted?:string;failedAfter?:string;project?:boolean;stored?:string;installed?:string[]};
 const mock=(d:Setup)=>{
  const w=window as any,now='2026-11-27T00:00:00Z',ipc=(v:unknown)=>JSON.parse(JSON.stringify(v));w.isTauri=true;w.__calls=[];w.__clicks=0;w.__log=[];w.__polls=0;
  if(d.stored)localStorage.setItem('thanh-am-start',d.stored);
  let input:string|null=null,at=0,last='';
  for(const type of ['click','keydown'])addEventListener(type,e=>{if(!e.isTrusted)return;if(type==='click'&&(e as MouseEvent).detail>0)w.__clicks++;input=type;at=performance.now();},true);
  new MutationObserver(()=>{const t=document.querySelector('main h1')?.firstChild?.textContent??'';if(t&&t!==last){w.__log.push({from:last,to:t,input:input&&performance.now()-at<3000?input:null});last=t;input=null;}}).observe(document,{childList:true,subtree:true,characterData:true});
- const installed=new Set<string>(d.installed),jobs:any[]=[],store:any[]=[];
+ const installed=new Set<string>(d.installed),jobs:any[]=[],store:any[]=[];w.__jobs=jobs;
  const seg=(id:string,text:string)=>({id,text,normalized_text:text,voice_id:null,speaker:'Người dẫn',gap_ms:300,takes:[],selected_take_id:null,trim_start_ms:0,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0,gain_db:0});
  const mk=(id:string,name:string,segments:any[]=[])=>({id,name,updated_at:now,revision:1,segments,transcript:[],dictionary:{},source_asset_id:null});
  const job=(kind:string,status:string,payload:object,project_id:string|null=null)=>({id:'j'+jobs.length,kind,project_id,payload,status,progress:status==='succeeded'?1:0.4,error:null,result:null,created_at:now,updated_at:now});
- if(d.download)jobs.push(job('model_download','running',{model_id:d.download}));
- if(d.interrupted)jobs.push(job('model_download','interrupted',{model_id:d.interrupted}));
+ if(d.download)jobs.unshift(job('model_download','running',{model_id:d.download}));
+ if(d.interrupted)jobs.unshift(job('model_download','interrupted',{model_id:d.interrupted}));
+ if(d.failedAfter)jobs.unshift(job('model_download','failed',{model_id:d.failedAfter})); // jobs are newest first, as list_jobs orders them
  if(d.project)store.push(mk('p0','Dự án đầu tiên',[seg('s0','Xin chào.')]));
  w.__finish=(kind:string)=>{for(const j of jobs){if(j.kind!==kind||j.status==='succeeded')continue;j.status='succeeded';j.progress=1;
   if(kind==='model_download')installed.add(j.payload.model_id);
@@ -34,9 +35,9 @@ const mock=(d:Setup)=>{
    case 'list_jobs':w.__polls++;return ipc(jobs);case 'list_voices':return [];case 'get_settings':return {dictionary:{}};
    case 'list_models':return MODELS.map(([id,name,engine])=>({id,name,engine,kind:'model',installed:installed.has(id),revision:'r1abcdef0123456',license:'Apache-2.0',description:''}));
    case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,native_worker_ready:true,python_path:null,ffmpeg_path:null,native_worker_path:null,fallback_count:0,total_memory_mb:null,message:''};
-   case 'download_model':{const j=job('model_download','running',{model_id:args.id});jobs.push(j);return ipc(j);}
-   case 'retry_job':{const j=jobs.find(x=>x.id===args.id);j.status='running';return ipc(j);}
-   case 'enqueue_job':{const j=job(args.kind,'running',args.payload,args.projectId);jobs.push(j);return ipc(j);}
+   case 'download_model':{const j=job('model_download','running',{model_id:args.id});jobs.unshift(j);return ipc(j);}
+   case 'retry_job':{const j=jobs.find(x=>x.id===args.id);j.status='queued';j.progress=0;return ipc(j);}
+   case 'enqueue_job':{const j=job(args.kind,'running',args.payload,args.projectId);jobs.unshift(j);return ipc(j);}
    case 'plugin:dialog|open':return ['C:/x/phong-van.wav'];case 'plugin:dialog|save':return 'C:/x/ban.wav';
    case 'import_asset':return {id:'src1',path:args.path,name:'phong-van.wav',duration_ms:5000,sample_rate:16000};
    case 'get_asset':return {id:args.id,path:'/src.wav',name:'phong-van.wav',duration_ms:5000,sample_rate:16000};
@@ -161,10 +162,21 @@ test('a relaunch that interrupted the picked starter download resumes at step 2 
  await nextPoll(page);await page.waitForTimeout(300);expect(await calls(page,'retry_job'),'no retry without a click').toEqual([]);
  await panel(page).getByRole('button',{name:'Tải tiếp',exact:true}).click();
  expect(await calls(page,'retry_job')).toEqual([{id:'j0'}]);
- await expect(panel(page).locator('progress')).toHaveJSProperty('value',0.4);
- await expect(heading(page,2)).toHaveAccessibleName('Bước 2/3 Đang tải VieNeu v3 Turbo…');await expect(panel(page).getByRole('button',{name:'Tải tiếp'})).toHaveCount(0);
+ await expect(panel(page).getByText('Đang chờ…')).toBeVisible();await expect(panel(page).locator('progress')).toHaveCount(0);
+ await expect(heading(page,2)).toHaveAccessibleName('Bước 2/3 Đang tải VieNeu v3 Turbo…');await expect(heading(page,2),'the focus stays in the panel when the button goes').toBeFocused();await expect(panel(page).getByRole('button',{name:'Tải tiếp'})).toHaveCount(0);
  await finish(page,'model_download');
  await expect(heading(page,3)).toBeVisible({timeout:10000});
+});
+
+test('an interrupted download older than a failed one is not offered again: a download that fails later goes back to the cards',async({page})=>{
+ await open(page,{interrupted:'vieneu-v3',failedAfter:'vieneu-v3'});
+ await expect(heading(page,1)).toBeVisible();
+ await ttsCard(page).click();await panel(page).getByRole('button',{name:'Tải model',exact:true}).click();
+ await expect(heading(page,2)).toHaveAccessibleName('Bước 2/3 Đang tải VieNeu v3 Turbo…');
+ await page.evaluate(()=>{for(const j of (window as any).__jobs)if(j.status==='running'){j.status='failed';j.error='x';}});
+ await expect(heading(page,2)).toHaveAccessibleName('Bước 2/3 Chọn model',{timeout:10000});
+ await expect(panel(page).getByRole('button',{name:'Tải tiếp'})).toHaveCount(0);await expect(panel(page).getByRole('button',{name:'Tải model',exact:true})).toBeVisible();
+ expect(await calls(page,'retry_job'),'no retry for the old job').toEqual([]);
 });
 
 for(const d of [{stored:'hidden'},{stored:'done'},{project:true},{installed:['vieneu-v3']}] as Setup[])test(`no start panel at launch with ${JSON.stringify(d)}`,async({page})=>{
