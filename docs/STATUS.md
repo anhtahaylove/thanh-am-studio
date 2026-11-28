@@ -1138,6 +1138,22 @@ An install-path and simplification release, published on 2026-11-27. The app ins
 
 Evidence: the host logs `r26-*.txt` in the coordinator's `%TEMP%\thanham-host`, the execution log in `work\round-1.0.26\PLAN.md` and the published v1.0.26 release notes.
 
+### v1.0.27 release (built by `.github/workflows/release.yml` from tag `v1.0.27` at `b125978`)
+
+A fix release for the seven gaps found while testing 1.0.26, published on 2026-11-28. Announcements made in one poll are joined in the single live region instead of overwriting each other, and a re-check of an installed model or pack uses check wording instead of download wording (#347, hardened in #359). A queued job shows a waiting label instead of a 0 % bar (#349). The closed export-options group names the options that differ from their defaults (#350). Installed models show in the main grid of the models page, the more-models fold holds only the rest, and focus follows a card that moves there (#355). The checklist save step needs a saved file, from the dock, the queue or a chapter batch, and survives a relaunch (#348, #359). The start panel resumes at the download step when a starter download was interrupted by a relaunch (#346).
+
+| Check | Result |
+|---|---|
+| Tests | CI green on every PR head and on the release PR head `7b0f729` (46110000665), whose tree is identical to the tagged merge commit; the tag run 46111996165 built the draft. No dry run: nothing under `.github`, `scripts`, `worker` or `worker-rs` changed since v1.0.26, and `src-tauri` changed only in its version fields. Every behaviour change has a fail-before run cited in its PR |
+| Reviews | independent reviews with mutants for #346 (#352, #353), #347 (#356, #357) and #348 (#351, #354), every mutant killed; the coordinator reviewed #349, #350, #355 (one MEDIUM focus finding, fixed before merge), #359 and the review-fix deltas of #346 and #348 |
+| Installer SHA-256 | `4d882a0a69e2cb55f9067ddfd13b0c3afc8c045bc764d5b872a41087381a15da` (220,097,291 bytes). `sha256sum -c` OK on the draft assets |
+| Update feed | the anonymous `/releases/latest/download/latest.json` is identical to the draft asset (SHA-256 `acbff261…8347`) and names 1.0.27; the anonymous installer URL answers 200 with the same size |
+| Maintainer's PC, update from the published 1.0.26 | the draft installer with `/P /UPDATE /R` over 1.0.26 in `%LOCALAPPDATA%\Thanh Am Studio`: exit 0 in 48 s. One uninstall entry (DisplayVersion 1.0.27, quoted InstallLocation), the same `HKCU\Software\thanham` key and the same Start-menu and desktop shortcuts with the AUMID `studio.thanham.desktop`. The app reopened with the title "Thanh Âm Studio"; worker `health` `ready:true`, `ffmpeg -version` exit 0, no `startup-errors.log`, no Application error events; the data folder was kept |
+| Maintainer's PC, uninstall and fresh install | `uninstall.exe /S`: the install folder, the uninstall entry and the shortcuts are gone, the data folder is kept and the install-folder hint stays (as in 1.0.26). A fresh `/S` install exits 0 in 29 s with the same entry, key and shortcuts; the app starts with the same worker, FFmpeg and error-log results. The app is left installed and closed |
+| Not run | Windows Sandbox, the packaged desktop harness, NVDA, an update of an install in a folder the user chose and pinning to the taskbar (the last two skipped by the maintainer for this round), and local Playwright runs (low host memory; CI is the e2e evidence) |
+
+Evidence: the host logs `r27-*.txt` in the coordinator's `%TEMP%\thanham-host` and the execution log in `work\round-1.0.27\PLAN.md`.
+
 ## Not verified / known gaps
 
 - Self-update through GitHub was observed twice, in clean Sandboxes (1.0.11 to 1.0.12 and 1.0.13 to 1.0.15, above); the per-release gate
