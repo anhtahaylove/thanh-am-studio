@@ -72,3 +72,19 @@ for(const [width,height] of [[1024,720],[800,720],[1440,1000],[640,720]] as cons
  expect(m.over).toBeLessThanOrEqual(0);expect(m.right).toBeLessThanOrEqual(m.dockRight+0.5);
  if(width>=800){expect(m.height,'dock height with the group open and subtitle timing on').toBeLessThanOrEqual(185);expect(m.height).toBeLessThanOrEqual(m.pad);}
 });
+
+// Round 1.0.27 C1: the summary names the options that differ from their defaults, whether the group is open or closed.
+test('the summary shows no hint while every option is at its default',async({page})=>{
+ await open(page);await expect(dock(page).locator('.summary-hint')).toHaveCount(0);
+ await group(page).click();await expect(dock(page).locator('.summary-hint')).toHaveCount(0);
+});
+
+test('the summary lists the non-default options in on-screen order, open or closed',async({page})=>{
+ await open(page);const c=controls(page),hint=dock(page).locator('summary .summary-hint');
+ await group(page).click();await c.normalize.uncheck();await expect(hint).toHaveText(' · Không chuẩn hóa');
+ await c.dub.check();await expect(hint).toHaveText(' · Không chuẩn hóa, Theo mốc phụ đề');
+ await group(page).click();await expect(dock(page).locator('details')).not.toHaveAttribute('open','');await expect(hint).toHaveText(' · Không chuẩn hóa, Theo mốc phụ đề');
+ await group(page).click();await c.dub.uncheck();await c.chapters.check();await expect(hint).toHaveText(' · Không chuẩn hóa, Mỗi chương một file');
+ await c.normalize.check();await expect(hint).toHaveText(' · Mỗi chương một file');
+ await c.chapters.uncheck();await expect(hint).toHaveCount(0);
+});
