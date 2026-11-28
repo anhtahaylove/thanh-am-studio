@@ -105,3 +105,11 @@ for(const [width,height] of [[641,720],[1024,720]] as const)test(`the longest hi
   if(width>=800){expect(m.height,'dock height budget').toBeLessThanOrEqual(185);expect(m.height).toBeLessThanOrEqual(m.pad);} // below 800 px the dock wraps to more rows; the existing group test exempts it the same way
  }
 });
+
+test('closing the queued-chapters notice with Enter leaves focus on the page, not on nothing',async({page})=>{
+ await open(page);await group(page).click();await controls(page).chapters.check();await group(page).click();
+ await dock(page).getByRole('button',{name:'Xuất audio'}).click();
+ const notice=page.getByRole('status').filter({hasText:'Đã thêm 2 chương vào hàng đợi xuất.'});await expect(notice).toBeVisible();
+ await notice.getByRole('button',{name:'Đóng thông báo hàng đợi'}).focus();await page.keyboard.press('Enter');
+ await expect(notice).toHaveCount(0);await expect(page.locator('main')).toBeFocused();
+});
