@@ -82,7 +82,7 @@ export const readyModel=(models:ModelInfo[],job:Flow,totalMb:number|null|undefin
 const JOBS=[{job:'tts',title:'Đọc văn bản thành giọng nói',text:'Gõ hoặc dán chữ, nghe và lưu thành file audio.',icon:AudioLines},{job:'stt',title:'Chép lời từ file âm thanh',text:'Chọn file ghi âm hoặc video, nhận bản chép lời.',icon:FileText}] as const;
 /** The first-run start panel, where the checklist stands: not a dialog, "Để sau" at every step. The App moves the focus to the step heading (`#start-title`) after a pick, "Quay lại" or the palette;
  *  step 3, which a finished download reaches by itself, takes the focus only from inside the panel or from <body>, never from the text being typed or the STT button. */
-export function StartPanel({start,page,models,jobs,starters,totalMb,busy,onPick,onDownload,onRetry,onAll,onBack,onLater}:{start:StartState;page:Flow;models:ModelInfo[];jobs:Job[];starters:string[];totalMb:number|null;busy:boolean;onPick:(job:Flow)=>void;onDownload:(id:string)=>void;onRetry:(id:string)=>void;onAll:()=>void;onBack:()=>void;onLater:()=>void}){
+export function StartPanel({start,page,models,jobs,checking,starters,totalMb,busy,onPick,onDownload,onRetry,onAll,onBack,onLater}:{start:StartState;page:Flow;models:ModelInfo[];jobs:Job[];checking:(j:Job,m:ModelInfo)=>boolean;starters:string[];totalMb:number|null;busy:boolean;onPick:(job:Flow)=>void;onDownload:(id:string)=>void;onRetry:(id:string)=>void;onAll:()=>void;onBack:()=>void;onLater:()=>void}){
  const root=useRef<HTMLElement>(null),heading=useRef<HTMLHeadingElement>(null),was=useRef(start.step);
  useEffect(()=>{const before=was.current,a=document.activeElement;was.current=start.step;if(start.step===3&&before!==3&&(a===document.body||root.current?.contains(a)))heading.current?.focus();},[start.step]);
  // The panel is removed under the focus: hand it to the checklist that now stands there, else to the page toolbar.
@@ -94,12 +94,12 @@ export function StartPanel({start,page,models,jobs,starters,totalMb,busy,onPick,
  if(start.step===3||(start.step===2&&model&&(job||stopped||model.installed)))return <section ref={root} className="start-panel start-strip panel" aria-labelledby="start-title">
   {title(start.step,start.step===3?`Đã tải xong ${model?.name??start.model}.`:stopped?`Tải ${model?.name??start.model} bị gián đoạn.`:`Đang tải ${model?.name??start.model}…`)}
   {start.step===2&&stopped&&<div className="start-progress"><button type="button" className="outlined" disabled={busy} onClick={()=>onRetry(stopped.id)}>Tải tiếp</button></div>}
-  {start.step===2&&job&&<div className="start-progress"><JobProgress job={job}/></div>}
+  {start.step===2&&job&&<div className="start-progress"><JobProgress job={job} check={!!model&&checking(job,model)}/></div>}
   <button type="button" className="quiet" onClick={later}>Để sau</button>
  </section>;
  if(start.step===2)return <section ref={root} className="start-panel panel" aria-labelledby="start-title">
   {head(2,'Chọn model')}<p>Model tải trong lúc bạn tiếp tục.</p>
-  <div className="model-grid">{models.filter(m=>starters.includes(m.id)&&m.engine===start.job).map(m=>{const dl=activeDownload(jobs,m.id);return <ModelCard key={m.id} m={m} totalMb={totalMb} job={dl}><ReasonButton className={m.installed?'outlined full':'primary full'} disabled={busy} blocked={m.installed?'Đã tải':dl?'Đang tải…':null} onClick={()=>onDownload(m.id)}>{m.installed?<><Check size={16}/>Đã tải</>:<><Download size={16}/>{dl?'Đang tải…':'Tải model'}</>}</ReasonButton></ModelCard>;})}</div>
+  <div className="model-grid">{models.filter(m=>starters.includes(m.id)&&m.engine===start.job).map(m=>{const dl=activeDownload(jobs,m.id);return <ModelCard key={m.id} m={m} totalMb={totalMb} job={dl} check={!!dl&&checking(dl,m)}><ReasonButton className={m.installed?'outlined full':'primary full'} disabled={busy} blocked={m.installed?'Đã tải':dl?'Đang tải…':null} onClick={()=>onDownload(m.id)}>{m.installed?<><Check size={16}/>Đã tải</>:<><Download size={16}/>{dl?'Đang tải…':'Tải model'}</>}</ReasonButton></ModelCard>;})}</div>
   <div className="start-actions"><button type="button" className="outlined" onClick={onBack}>Quay lại</button><button type="button" className="quiet" onClick={onAll}>Xem tất cả model</button></div>
  </section>;
  return <section ref={root} className="start-panel panel" aria-labelledby="start-title">
