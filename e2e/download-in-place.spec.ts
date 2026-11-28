@@ -210,7 +210,6 @@ test('two announcements from one poll both reach the live region, and a later on
  await page.evaluate(()=>{const w=window as any;for(const j of w.__jobs){j.status='succeeded';j.progress=1;w.__installed.add(j.payload.model_id);}});
  const region=page.locator('.sr-only[aria-live="polite"]');
  await expect(region).toHaveText(`Đã tải xong Whisper Small. Đã kiểm tra xong ${PACK}.`,{timeout:10000});
- await page.waitForTimeout(1200);
  await card(page,'separation-runtime').getByRole('button',{name:'Kiểm tra lại gói',exact:true}).click();
  await expect(card(page,'separation-runtime').locator('progress')).toHaveCount(1);
  await finish(page,'separation-runtime');
