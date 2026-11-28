@@ -86,6 +86,7 @@ export function StartPanel({start,page,models,jobs,starters,totalMb,busy,onPick,
  const title=(n:number,text:string)=><h2 id="start-title" ref={heading} tabIndex={-1}><span className="start-step">{`Bước ${n}/3`}</span> {text}</h2>;
  const head=(n:number,text:string)=><div className="start-head">{title(n,text)}<button type="button" className="quiet" onClick={later}>Để sau</button></div>;
  const model=start.model?models.find(m=>m.id===start.model):undefined,job=start.model?activeDownload(jobs,start.model):undefined,last=start.model?jobs.find(j=>j.kind==='model_download'&&j.payload.model_id===start.model):undefined,stopped=!job&&last?.status==='interrupted'?last:undefined; // jobs are newest first
+ useEffect(()=>{if(stopped)onRetry(stopped.id);},[stopped?.id]);
  // A picked model shows as a strip while it downloads, or with "Tải tiếp" when the relaunch interrupted it; one whose download failed or was cancelled goes back to the cards, so it can be started again.
  if(start.step===3||(start.step===2&&model&&(job||stopped||model.installed)))return <section ref={root} className="start-panel start-strip panel" aria-labelledby="start-title">
   {title(start.step,start.step===3?`Đã tải xong ${model?.name??start.model}.`:`Đang tải ${model?.name??start.model}…`)}
