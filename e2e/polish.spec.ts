@@ -11,6 +11,7 @@ const mock=()=>{
    case 'list_projects':return [project];case 'load_project':return project;case 'list_jobs':case 'list_voices':case 'list_models':return [];case 'get_settings':return {dictionary:{UBND:'ủy ban nhân dân'}};
    case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,python_path:null,ffmpeg_path:null,message:''};
    case 'get_asset':return {id:'src',path:'/tone.wav',name:'phong-van.wav',duration_ms:5000,sample_rate:48000};
+   case 'create_project':return {id:'p2',name:args.name,updated_at:new Date().toISOString(),revision:0,segments:[],transcript:[],dictionary:{},source_asset_id:null};
    case 'plugin:dialog|save':return 'C:\\Users\\a\\Bản xuất\\Từ điển chung.csv';
    case 'save_project':project={...args.project,revision:args.project.revision+1};return project;default:return null;}}};
 };
@@ -39,4 +40,28 @@ test('a saved file can be shown in Explorer',async({page})=>{
  await notice.getByRole('button',{name:'Mở thư mục'}).click();
  await expect.poll(()=>page.evaluate(()=>(window as any).__calls.filter((c:any)=>c.cmd==='reveal_path').map((c:any)=>c.args))).toEqual([{path:'C:\\Users\\a\\Bản xuất\\Từ điển chung.csv'}]);
  await notice.getByRole('button',{name:'Đóng thông báo đã lưu'}).click();await expect(notice).toHaveCount(0);
+});
+
+test('closing the saved-file notice with Enter leaves focus on the page, not on nothing',async({page})=>{
+ await open(page);await page.getByRole('button',{name:'Model & cài đặt'}).click();
+ await page.locator('.app-dictionary').getByRole('button',{name:'Xuất CSV'}).click();
+ const notice=page.getByRole('status').filter({hasText:'Đã lưu Từ điển chung.csv'});await expect(notice).toBeVisible();
+ await notice.getByRole('button',{name:'Đóng thông báo đã lưu'}).focus();await page.keyboard.press('Enter');
+ await expect(notice).toHaveCount(0);await expect(page.locator('main')).toBeFocused();
+});
+
+test('"Thành kịch bản" puts focus on the first segment text, and its notice closes with Enter onto the page',async({page})=>{
+ await open(page);await page.getByRole('button',{name:'Chép lời'}).click();
+ await page.getByRole('button',{name:'Thành kịch bản'}).focus();await page.keyboard.press('Enter');
+ await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toBeFocused();
+ const notice=page.locator('.alert.notice').filter({hasText:/Đã thêm \d+ đoạn vào kịch bản/});await expect(notice).toBeVisible();
+ await notice.getByRole('button',{name:'Đóng thông báo',exact:true}).focus();await page.keyboard.press('Enter');
+ await expect(notice).toHaveCount(0);await expect(page.locator('main')).toBeFocused();
+});
+
+test('"Tạo dự án TTS từ transcript" puts focus on the first segment text of the new project',async({page})=>{
+ await open(page);await page.getByRole('button',{name:'Chép lời'}).click();
+ await page.getByRole('button',{name:'Tạo dự án TTS từ transcript'}).focus();await page.keyboard.press('Enter');
+ await expect(page.getByRole('heading',{level:1})).toContainText('Tạo giọng đọc');
+ await expect(page.getByRole('textbox',{name:'Nội dung đoạn 1'})).toBeFocused();
 });

@@ -49,3 +49,11 @@ test('a successful poll clears only its own failure notice, and the third failur
  await page.evaluate(()=>{(window as any).__fail=true;});
  await expect(alert).toContainText('database is locked',{timeout:12000});
 });
+
+test('closing the failure alert with Enter leaves focus on the page, not on nothing',async({page})=>{
+ test.setTimeout(60000);
+ await breakBackend(page);
+ const alert=page.getByRole('alert');await expect(alert).toContainText('database is locked',{timeout:12000});
+ await alert.getByRole('button',{name:'Đóng lỗi'}).focus();await page.keyboard.press('Enter');
+ await expect(alert).toHaveCount(0);await expect(page.locator('main')).toBeFocused();
+});

@@ -144,3 +144,12 @@ test('closing while a job runs asks first',async({page})=>{
  page.once('dialog',d=>void d.accept());await page.evaluate(()=>(window as any).__fire('tauri://close-requested',null));
  await expect.poll(()=>commands(page,'plugin:window|destroy')).toHaveLength(1);
 });
+
+test('closing a failed update alert with Enter leaves focus on the page, not on nothing',async({page})=>{
+ await page.addInitScript(mock,{found:null,fail:'Could not fetch a valid release JSON from the remote'});await page.goto('/');
+ await expect.poll(()=>commands(page,'update_check'),{timeout:10000}).toHaveLength(1);
+ await page.getByRole('button',{name:'Model & cài đặt'}).click();await page.getByRole('button',{name:'Kiểm tra ngay'}).click();
+ const alert=page.getByRole('alert').filter({hasText:'Không kiểm tra được bản mới'});await expect(alert).toBeVisible();
+ await alert.getByRole('button',{name:'Đóng lỗi cập nhật'}).focus();await page.keyboard.press('Enter');
+ await expect(alert).toHaveCount(0);await expect(page.locator('main')).toBeFocused();
+});
