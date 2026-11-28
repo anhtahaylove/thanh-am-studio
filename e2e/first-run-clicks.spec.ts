@@ -155,14 +155,14 @@ test('a relaunch while the picked starter model downloads resumes the strip at s
 
 test('a relaunch that interrupted the picked starter download resumes at step 2 with "Tải tiếp", which retries that job and shows the progress',async({page})=>{
  await open(page,{interrupted:'vieneu-v3',project:true});
- await expect(heading(page,2)).toHaveAccessibleName('Bước 2/3 Đang tải VieNeu v3 Turbo…');
- await expect(panel(page).getByText('Tải bị gián đoạn.')).toBeVisible();
+ await expect(heading(page,2)).toHaveAccessibleName('Bước 2/3 Tải VieNeu v3 Turbo bị gián đoạn.');
+ await expect(panel(page).getByRole('button',{name:'Tải tiếp',exact:true})).toBeVisible();
  await expect(panel(page).locator('progress')).toHaveCount(0);await expect(checklist(page)).toHaveCount(0);expect(await stored(page)).toBeNull();
  await nextPoll(page);await page.waitForTimeout(300);expect(await calls(page,'retry_job'),'no retry without a click').toEqual([]);
  await panel(page).getByRole('button',{name:'Tải tiếp',exact:true}).click();
  expect(await calls(page,'retry_job')).toEqual([{id:'j0'}]);
  await expect(panel(page).locator('progress')).toHaveJSProperty('value',0.4);
- await expect(panel(page).getByText('Tải bị gián đoạn.')).toHaveCount(0);await expect(panel(page).getByRole('button',{name:'Tải tiếp'})).toHaveCount(0);
+ await expect(heading(page,2)).toHaveAccessibleName('Bước 2/3 Đang tải VieNeu v3 Turbo…');await expect(panel(page).getByRole('button',{name:'Tải tiếp'})).toHaveCount(0);
  await finish(page,'model_download');
  await expect(heading(page,3)).toBeVisible({timeout:10000});
 });

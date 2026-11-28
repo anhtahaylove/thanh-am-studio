@@ -88,8 +88,8 @@ export function StartPanel({start,page,models,jobs,starters,totalMb,busy,onPick,
  const model=start.model?models.find(m=>m.id===start.model):undefined,job=start.model?activeDownload(jobs,start.model):undefined,last=start.model?jobs.find(j=>j.kind==='model_download'&&j.payload.model_id===start.model):undefined,stopped=!job&&last?.status==='interrupted'?last:undefined; // jobs are newest first
  // A picked model shows as a strip while it downloads, or with "Tải tiếp" when the relaunch interrupted it; one whose download failed or was cancelled goes back to the cards, so it can be started again.
  if(start.step===3||(start.step===2&&model&&(job||stopped||model.installed)))return <section ref={root} className="start-panel start-strip panel" aria-labelledby="start-title">
-  {title(start.step,start.step===3?`Đã tải xong ${model?.name??start.model}.`:`Đang tải ${model?.name??start.model}…`)}
-  {start.step===2&&stopped&&<div className="start-progress"><small className="job-progress">Tải bị gián đoạn.</small> <button type="button" className="outlined" disabled={busy} onClick={()=>onRetry(stopped.id)}>Tải tiếp</button></div>}
+  {title(start.step,start.step===3?`Đã tải xong ${model?.name??start.model}.`:stopped?`Tải ${model?.name??start.model} bị gián đoạn.`:`Đang tải ${model?.name??start.model}…`)}
+  {start.step===2&&stopped&&<div className="start-progress"><button type="button" className="outlined" disabled={busy} onClick={()=>onRetry(stopped.id)}>Tải tiếp</button></div>}
   {start.step===2&&job&&<div className="start-progress"><JobProgress job={job}/></div>}
   <button type="button" className="quiet" onClick={later}>Để sau</button>
  </section>;
