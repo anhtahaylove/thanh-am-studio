@@ -3,14 +3,17 @@ import type {Page} from '@playwright/test';
 // The first-run checklists, one per job: three steps on the TTS page and three on the STT page, a load gate so a set-up user never sees them, a "Đã xong bước"
 // notice only for steps finished after the first poll, and a stored "hidden" or "done" per page. Tauri is mocked; `__flip()` installs the voice model,
 // `__flipWhisper()` the Whisper one, `__finishDownload(id)` ends a download the page started, `__finishJob(kind)` finishes a job of that kind.
-type Setup={installed:boolean;projects:boolean;ttsDone:boolean;text?:string;renderDone?:boolean;whisper?:boolean;sttDone?:boolean;rows?:boolean;takes?:boolean};
+type Setup={installed:boolean;projects:boolean;ttsDone:boolean;text?:string;renderDone?:boolean;whisper?:boolean;sttDone?:boolean;rows?:boolean;takes?:boolean;legacy?:boolean};
 const mock=(d:Setup)=>{
- const w=window as any,now='2026-11-22T00:00:00Z';let installed=d.installed,whisper=!!d.whisper;w.isTauri=true;w.__polls=0;w.__sent=[];w.__downloads=[];w.__exports=[];w.__flip=()=>{installed=true;};w.__flipWhisper=()=>{whisper=true;};
+ const w=window as any,now='2026-11-22T00:00:00Z';let installed=d.installed,whisper=!!d.whisper;w.isTauri=true;w.__polls=0;w.__sent=[];w.__downloads=[];w.__exports=[];w.__assets=[];w.__flip=()=>{installed=true;};w.__flipWhisper=()=>{whisper=true;};
  const rows=d.rows?[{id:'r1',start_ms:0,end_ms:2000,text:'Xin chào.',speaker:0}]:[];
  const project={id:'p1',name:'Làng chài',updated_at:now,revision:1,segments:[{id:'s1',text:d.text??'',normalized_text:'',voice_id:null,speaker:'',gap_ms:300,takes:d.takes?[{id:'t1',asset_id:'a1',path:'/t1.wav',duration_ms:2000,sample_rate:24000,created_at:now}]:[],selected_take_id:d.takes?'t1':null,trim_start_ms:0,trim_end_ms:null,fade_in_ms:0,fade_out_ms:0,gain_db:0}],transcript:rows,dictionary:{},source_asset_id:null};
  const mk=(id:string,kind:string,status:string,payload:object={})=>({id,kind,project_id:'p1',payload,status,progress:status==='succeeded'?1:0.4,error:null,result:null,created_at:now,updated_at:now});
+
+ if(d.legacy&&!sessionStorage.getItem('legacy-seeded')){localStorage.setItem('thanh-am-onboarding','done');sessionStorage.setItem('legacy-seeded','1');} // an upgrader whose checklist was finished before the saved key existed: seeded once, not on a reload
+ if((d.renderDone??d.ttsDone)&&!d.legacy)localStorage.setItem('thanh-am-onboarding-saved','1'); // a set-up user saved audio before: step 3 follows the saved file, not the render job
  const jobs:any[]=[...d.ttsDone?[mk('j1','tts','succeeded')]:[],...(d.renderDone??d.ttsDone)?[mk('j2','render','succeeded')]:[],...d.sttDone?[mk('j3','stt','succeeded')]:[]];
- w.__finishJob=(kind:string)=>{const j=jobs.find(x=>x.kind===kind&&x.status!=='succeeded')??(jobs.push(mk('n'+jobs.length,kind,'succeeded')),null);if(j){j.status='succeeded';j.progress=1;}};
+ w.__finishJob=(kind:string)=>{const j=jobs.find(x=>x.kind===kind&&x.status!=='succeeded')??(jobs.push(mk('n'+jobs.length,kind,'succeeded')),null);if(j){j.status='succeeded';j.progress=1;if(kind==='render')j.result={asset_id:'ar1'};}};
  w.__finishDownload=(id:string)=>{const j=jobs.find(x=>x.kind==='model_download'&&x.payload.model_id===id);j.status='succeeded';j.progress=1;if(id==='vieneu-v3')installed=true;else whisper=true;};
  w.__TAURI_INTERNALS__={convertFileSrc:(p:string)=>p,transformCallback:()=>1,unregisterCallback:()=>{},metadata:{currentWindow:{label:'main'},currentWebview:{label:'main',windowLabel:'main'}},
   invoke:async(cmd:string,args:any)=>{switch(cmd){
@@ -20,7 +23,9 @@ const mock=(d:Setup)=>{
    case 'runtime_status':return {python_ready:true,ffmpeg_ready:true,worker_ready:true,native_worker_ready:true,python_path:null,ffmpeg_path:null,native_worker_path:null,fallback_count:0,total_memory_mb:null,message:''};
    case 'download_model':{w.__downloads.push(args.id);const j=mk('dl-'+args.id,'model_download','running',{model_id:args.id});jobs.push(j);return j;}
    case 'plugin:dialog|open':if(w.__hold){await new Promise(r=>{w.__release=r;});return null;}return ['C:/x/phong-van.wav'];case 'import_asset':return {id:'a1',path:args.path,name:'phong-van.wav',duration_ms:5000,sample_rate:16000};
-   case 'plugin:dialog|save':return w.__cancelSave?null:'C:/x/ban.txt';case 'export_text':w.__exports.push(args.path);return null;
+   // the path carries the extension that was asked for, as the real backend requires
+   case 'plugin:dialog|save':return w.__cancelSave?null:'C:/x/ban.'+String(args?.options?.defaultPath??'x.txt').split('.').pop();case 'export_text':w.__exports.push(args.path);return null;
+   case 'export_asset':if(w.__exportFail)throw 'DISK_FULL';w.__assets.push(args.path);return null;
    case 'enqueue_job':{w.__sent.push(args.kind);const j=mk('q'+jobs.length,args.kind,'running',args.payload);jobs.push(j);return j;}
    default:return null;}}};
 };
@@ -237,9 +242,11 @@ test('the STT step 3 opens the transcript export menu, and saving a file finishe
  await expect(notices(page)).toContainText('Đã xong bước 3: Lưu bản chép lời',{timeout:10000});
  await expect(guide(page)).toHaveCount(0);await expect.poll(()=>storedStt(page)).toBe('done');expect(await stored(page)).toBeNull();
 });
-test('the TTS step 3 is announced when an export finishes, and finishes the checklist',async({page})=>{
- await open(page,{installed:true,projects:true,ttsDone:true,renderDone:false});
+test('the TTS step 3 is announced when an export is saved, and finishes the checklist',async({page})=>{
+ await open(page,{installed:true,projects:true,ttsDone:true,renderDone:false,text:'Xin chào làng chài.',takes:true});await openProject(page);
  await expect(guide(page)).toBeVisible();await expect(guide(page).getByText('Đã xong',{exact:true})).toHaveCount(2);
+ await guide(page).getByRole('button',{name:'Xuất ngay',exact:true}).click();
+ await expect.poll(()=>page.evaluate(()=>(window as any).__sent)).toContain('render');
  await page.evaluate(()=>(window as any).__finishJob('render'));
  await expect(notices(page)).toContainText('Đã xong bước 3: Lưu file audio',{timeout:10000});
  await expect(guide(page)).toHaveCount(0);await expect.poll(()=>stored(page)).toBe('done');expect(await storedStt(page)).toBeNull();
@@ -338,4 +345,58 @@ test('two models finishing in one poll are both announced, each by its own check
  await expect(notices(page)).toContainText('Tải Whisper Small (486 MB)',{timeout:10000});
  await expect(notices(page)).toContainText('Tải VieNeu v3 Turbo (637 MB)');
  expect((await said(page)).filter(t=>t.includes('Đã tải xong'))).toEqual([]);
+});
+test('a render that succeeds but whose save fails leaves step 3 not done, with nothing stored or announced',async({page})=>{
+ await open(page,{installed:true,projects:true,ttsDone:true,renderDone:false,text:'Xin chào làng chài.',takes:true});await openProject(page);
+ await page.evaluate(()=>{(window as any).__exportFail=true;});
+ await guide(page).getByRole('button',{name:'Xuất ngay',exact:true}).click();
+ await expect.poll(()=>page.evaluate(()=>(window as any).__sent)).toContain('render');
+ await page.evaluate(()=>(window as any).__finishJob('render'));
+ await expect(page.getByRole('alert').filter({hasText:'DISK_FULL'})).toBeVisible({timeout:10000});
+ await expect(guide(page).getByText('Chưa làm',{exact:true})).toHaveCount(1);await expect(guide(page).getByText('Đã xong',{exact:true})).toHaveCount(2);
+ expect(await page.evaluate(()=>localStorage.getItem('thanh-am-onboarding-saved'))).toBeNull();expect(await stored(page)).toBeNull();
+ expect((await said(page)).filter(t=>t.includes('Đã xong bước 3'))).toEqual([]);
+});
+test('a cancelled audio save dialog leaves step 3 not done',async({page})=>{
+ await open(page,{installed:true,projects:true,ttsDone:true,renderDone:false,text:'Xin chào làng chài.',takes:true});await openProject(page);
+ await page.evaluate(()=>{(window as any).__cancelSave=true;});
+ await guide(page).getByRole('button',{name:'Xuất ngay',exact:true}).click();
+ await page.waitForTimeout(1500);
+ expect(await page.evaluate(()=>(window as any).__sent)).not.toContain('render');
+ await expect(guide(page).getByText('Chưa làm',{exact:true})).toHaveCount(1);
+ expect(await page.evaluate(()=>localStorage.getItem('thanh-am-onboarding-saved'))).toBeNull();
+});
+test('a saved audio file keeps step 3 done after a reload',async({page})=>{
+ await open(page,{installed:false,projects:true,ttsDone:false,renderDone:false,text:'Xin chào làng chài.',takes:true});await openProject(page);
+ await guide(page).getByRole('button',{name:'Xuất ngay',exact:true}).click();
+ await expect.poll(()=>page.evaluate(()=>(window as any).__sent)).toContain('render');
+ await page.evaluate(()=>(window as any).__finishJob('render'));
+ await expect.poll(()=>page.evaluate(()=>(window as any).__assets)).toEqual(['C:/x/ban.wav']);
+ await expect.poll(()=>page.evaluate(()=>localStorage.getItem('thanh-am-onboarding-saved'))).toBe('1');
+ await page.reload();await openProject(page);
+ await expect(guide(page)).toBeVisible();await expect(guide(page).getByText('Đã xong',{exact:true})).toHaveCount(1);
+ await expect(guide(page).getByRole('button',{name:'Xuất ngay',exact:true})).toHaveCount(0);
+});
+test('the queue "Lưu audio" saves a render again after a failed save and finishes step 3',async({page})=>{
+ await open(page,{installed:true,projects:true,ttsDone:true,renderDone:false,text:'Xin chào làng chài.',takes:true});await openProject(page);
+ await page.evaluate(()=>{(window as any).__exportFail=true;});
+ await guide(page).getByRole('button',{name:'Xuất ngay',exact:true}).click();
+ await expect.poll(()=>page.evaluate(()=>(window as any).__sent)).toContain('render');
+ await page.evaluate(()=>(window as any).__finishJob('render'));
+ await expect(page.getByRole('alert').filter({hasText:'DISK_FULL'})).toBeVisible({timeout:10000});
+ await page.evaluate(()=>{(window as any).__exportFail=false;});
+ await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:/^Hàng đợi/}).click();
+ await page.getByRole('complementary',{name:'Hàng đợi'}).getByRole('button',{name:'Lưu audio'}).click();
+ await expect.poll(()=>page.evaluate(()=>(window as any).__assets)).toEqual(['C:/x/ban.wav']);
+ await expect.poll(()=>page.evaluate(()=>localStorage.getItem('thanh-am-onboarding-saved'))).toBe('1');
+ await expect(guide(page)).toHaveCount(0);await expect.poll(()=>stored(page)).toBe('done');
+});
+test('an upgrader with a finished checklist and no saved key keeps it finished after the palette brings it back and a reload',async({page})=>{
+ await open(page,{installed:true,projects:true,ttsDone:true,legacy:true});await polls(page,1);
+ await expect(guide(page)).toHaveCount(0);
+ await page.keyboard.press('Control+k');
+ await page.getByRole('dialog',{name:'Bảng lệnh'}).getByRole('option',{name:'Hiện hướng dẫn bắt đầu'}).click();
+ await expect(guide(page)).toBeVisible();await expect(guide(page).getByText('Đã xong',{exact:true})).toHaveCount(3);
+ await page.reload();await polls(page,1);await page.waitForTimeout(500);
+ await expect(guide(page)).toHaveCount(0);await expect.poll(()=>stored(page)).toBe('done');
 });

@@ -1,9 +1,9 @@
 import {describe,it,expect} from 'vitest';
-import {onboardingSteps,readStart,readyModel,startAtLaunch,writeStart} from './Onboarding';
+import {onboardingSteps,readAudioSaved,readStart,readyModel,startAtLaunch,writeAudioSaved,writeStart} from './Onboarding';
 import type {Job,ModelInfo} from './types';
 const model=(id:string,installed:boolean,name=id):ModelInfo=>({id,name,engine:'x',kind:'model',installed,revision:'r',license:'',description:''});
 const job=(kind:string,status:Job['status'],payload:Record<string,unknown>={}):Job=>({id:kind+status+JSON.stringify(payload),kind,project_id:null,payload,status,progress:1,error:null,result:null,created_at:'',updated_at:''});
-const base={models:[] as ModelInfo[],jobs:[] as Job[],hasText:false,hasTranscript:false,transcriptSaved:false,totalMb:null as number|null};
+const base={models:[] as ModelInfo[],jobs:[] as Job[],hasText:false,hasTranscript:false,transcriptSaved:false,audioSaved:false,totalMb:null as number|null};
 const tts=(args:Partial<typeof base>={})=>onboardingSteps('tts',{...base,...args});
 const stt=(args:Partial<typeof base>={})=>onboardingSteps('stt',{...base,...args});
 const done=(steps:{done:boolean}[])=>steps.map(s=>s.done);
@@ -27,15 +27,15 @@ describe('TTS checklist',()=>{
   expect(done(tts({jobs:[job('tts','succeeded')]}))).toEqual([false,true,false]);
   for(const j of [job('tts','running'),job('tts','failed'),job('tts','queued'),job('render','succeeded'),job('stt','succeeded')])expect(tts({jobs:[j]})[1].done,j.kind+j.status).toBe(j.kind==='tts'&&j.status==='succeeded');
  });
- it('step 3 is done by a succeeded export (render) job only',()=>{
-  expect(done(tts({jobs:[job('render','succeeded')]}))).toEqual([false,false,true]);
-  for(const j of [job('render','running'),job('render','failed'),job('render','queued'),job('tts','succeeded'),job('stt','succeeded')])expect(tts({jobs:[j]})[2].done,j.kind+j.status).toBe(false);
+ it('step 3 is done by a saved audio file only, not by a succeeded render job',()=>{
+  expect(done(tts({audioSaved:true}))).toEqual([false,false,true]);
+  for(const j of [job('render','succeeded'),job('render','running'),job('render','failed'),job('render','queued'),job('tts','succeeded'),job('stt','succeeded')])expect(tts({jobs:[j]})[2].done,j.kind+j.status).toBe(false);
  });
  it('step 2 can only be started when a segment has text, the other steps always can',()=>{
   expect(tts({hasText:false}).map(s=>s.ready)).toEqual([true,false,true]);
   expect(tts({hasText:true}).map(s=>s.ready)).toEqual([true,true,true]);
  });
- it('is all done for a set-up user',()=>expect(done(tts({models:[model('vieneu-v3',true)],jobs:[job('tts','succeeded'),job('render','succeeded')]}))).toEqual([true,true,true]));
+ it('is all done for a set-up user',()=>expect(done(tts({models:[model('vieneu-v3',true)],jobs:[job('tts','succeeded'),job('render','succeeded')],audioSaved:true}))).toEqual([true,true,true]));
 });
 describe('STT checklist',()=>{
  it('names the three steps with the default Whisper model and its size',()=>{
@@ -122,6 +122,18 @@ describe('start panel',()=>{
    data.set('thanh-am-start','shown');expect(readStart()).toBe('');
    g.localStorage={getItem:()=>{throw Error('blocked');},setItem:()=>{throw Error('blocked');}};
    expect(readStart()).toBe('');expect(()=>writeStart('done')).not.toThrow();
+  }finally{delete g.localStorage;}
+ });
+ it('remembers a saved audio file under thanh-am-onboarding-saved, counts a finished checklist, and a blocked storage reads as unsaved',()=>{
+  const data=new Map<string,string>(),g=globalThis as {localStorage?:unknown};
+  g.localStorage={getItem:(k:string)=>data.get(k)??null,setItem:(k:string,v:string)=>{data.set(k,v);}};
+  try{
+   expect(readAudioSaved()).toBe(false);
+   data.set('thanh-am-onboarding','hidden');expect(readAudioSaved()).toBe(false);
+   data.set('thanh-am-onboarding','done');expect(readAudioSaved()).toBe(true);
+   data.clear();writeAudioSaved();expect(data.get('thanh-am-onboarding-saved')).toBe('1');expect(readAudioSaved()).toBe(true);
+   g.localStorage={getItem:()=>{throw Error('blocked');},setItem:()=>{throw Error('blocked');}};
+   expect(readAudioSaved()).toBe(false);expect(()=>writeAudioSaved()).not.toThrow();
   }finally{delete g.localStorage;}
  });
 });

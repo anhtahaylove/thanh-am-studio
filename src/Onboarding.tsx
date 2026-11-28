@@ -11,15 +11,19 @@ export type Flow='tts'|'stt';
 const KEYS:Record<Flow,string>={tts:'thanh-am-onboarding',stt:'thanh-am-onboarding-stt'};
 export const readGuide=(flow:Flow):Guide=>{try{const v=localStorage.getItem(KEYS[flow]);return v==='hidden'||v==='done'?v:'';}catch{return '';}};
 export const writeGuide=(flow:Flow,v:Guide)=>{try{if(v==='hidden'||v==='done')localStorage.setItem(KEYS[flow],v);else localStorage.removeItem(KEYS[flow]);}catch{/* storage is blocked: the choice lasts for this session only */}};
+const AUDIO_KEY='thanh-am-onboarding-saved';
+/** Whether an audio file was ever saved on this profile (the TTS step 3). A finished checklist counts: an upgrader who already completed it keeps the step done if the palette brings it back. */
+export const readAudioSaved=():boolean=>{try{return localStorage.getItem(AUDIO_KEY)==='1'||localStorage.getItem(KEYS.tts)==='done';}catch{return false;}};
+export const writeAudioSaved=()=>{try{localStorage.setItem(AUDIO_KEY,'1');}catch{/* storage is blocked: the step stays done for this session only */}};
 export interface OnboardingStep {id:'model'|'voice'|'export'|'pick'|'save';title:string;done:boolean;ready:boolean;/** The model a download step fetches, and its running download. */model?:string;job?:Job}
 const sized=(title:string,id:string)=>{const size=modelSize(id);return size==null?title:`${title} (${formatBytes(size)})`;};
-/** The three first-run steps of a job. `ready` is whether the step can be started: the first sentence needs a segment with text, the transcript export needs rows. */
-export function onboardingSteps(flow:Flow,{models,jobs,hasText,hasTranscript,transcriptSaved,totalMb}:{models:ModelInfo[];jobs:Job[];hasText:boolean;hasTranscript:boolean;transcriptSaved:boolean;totalMb:number|null|undefined}):OnboardingStep[]{
+/** The three first-run steps of a job. `audioSaved` and `transcriptSaved`: a file was really saved (the render alone is not). `ready` is whether the step can be started: the first sentence needs a segment with text, the transcript export needs rows. */
+export function onboardingSteps(flow:Flow,{models,jobs,hasText,hasTranscript,transcriptSaved,audioSaved,totalMb}:{models:ModelInfo[];jobs:Job[];hasText:boolean;hasTranscript:boolean;transcriptSaved:boolean;audioSaved:boolean;totalMb:number|null|undefined}):OnboardingStep[]{
  const ok=(kind:string)=>jobs.some(j=>j.kind===kind&&j.status==='succeeded');
  if(flow==='tts')return [
   {id:'model',title:sized('Tải VieNeu v3 Turbo','vieneu-v3'),done:models.some(m=>m.id==='vieneu-v3'&&m.installed),ready:true,model:'vieneu-v3',job:activeDownload(jobs,'vieneu-v3')},
   {id:'voice',title:'Tạo giọng cho đoạn đầu tiên',done:ok('tts'),ready:hasText},
-  {id:'export',title:'Lưu file audio',done:ok('render'),ready:true},
+  {id:'export',title:'Lưu file audio',done:audioSaved,ready:true},
  ];
  const installed=models.filter(m=>m.installed).map(m=>m.id),id=sttDefault(installed,totalMb); // the model the STT page selects: an installed one, else the recommended one
  return [
@@ -74,7 +78,7 @@ export function startAtLaunch({stored,projects,models,jobs,starters}:{stored:Sta
  return projects?null:{step:1};
 }
 /** The model the job's page runs with once it is installed (the job's checklist step 1 is done), however it was downloaded; undefined while there is none. Reaching it is step 3. */
-export const readyModel=(models:ModelInfo[],job:Flow,totalMb:number|null|undefined)=>{const s=onboardingSteps(job,{models,jobs:[],hasText:false,hasTranscript:false,transcriptSaved:false,totalMb})[0];return s.done?s.model:undefined;};
+export const readyModel=(models:ModelInfo[],job:Flow,totalMb:number|null|undefined)=>{const s=onboardingSteps(job,{models,jobs:[],hasText:false,hasTranscript:false,transcriptSaved:false,audioSaved:false,totalMb})[0];return s.done?s.model:undefined;};
 const JOBS=[{job:'tts',title:'Đọc văn bản thành giọng nói',text:'Gõ hoặc dán chữ, nghe và lưu thành file audio.',icon:AudioLines},{job:'stt',title:'Chép lời từ file âm thanh',text:'Chọn file ghi âm hoặc video, nhận bản chép lời.',icon:FileText}] as const;
 /** The first-run start panel, where the checklist stands: not a dialog, "Để sau" at every step. The App moves the focus to the step heading (`#start-title`) after a pick, "Quay lại" or the palette;
  *  step 3, which a finished download reaches by itself, takes the focus only from inside the panel or from <body>, never from the text being typed or the STT button. */
