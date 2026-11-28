@@ -215,3 +215,49 @@ test('two announcements from one poll both reach the live region, and a later on
  await finish(page,'separation-runtime');
  await expect(region).toHaveText(`Đã kiểm tra xong ${PACK}.`,{timeout:10000});
 });
+
+// The worker writes installed.json before the host marks the download job succeeded, so a poll can see the model installed while its job still runs.
+const polls=(page:Page)=>page.evaluate(()=>(window as any).__calls.filter((x:any)=>x.cmd==='list_models').length);
+const pollsAfter=async(page:Page)=>{const n=await polls(page);await expect.poll(()=>polls(page),{timeout:10000}).toBeGreaterThanOrEqual(n+2);}; // two more polls: the first may have been in flight, the second has seen the change
+test('a download whose model is installed before the job ends keeps "Đang tải…" and the percentage on the card',async({page})=>{
+ await open(page);
+ await card(page,'whisper-small').getByRole('button',{name:'Tải model',exact:true}).click();
+ await expect(card(page,'whisper-small').locator('.job-progress')).toContainText('40 %');
+ await page.evaluate(()=>(window as any).__installed.add('whisper-small')); // installed, job still running
+ await pollsAfter(page);
+ await expect(card(page,'whisper-small').getByRole('button',{name:'Đang tải…',exact:true})).toBeDisabled();
+ await expect(card(page,'whisper-small').locator('.job-progress')).toContainText('40 %');
+ await expect(card(page,'whisper-small').getByRole('button',{name:'Đang kiểm tra…'})).toHaveCount(0);
+ await finish(page,'whisper-small');
+ await expect(live(page,'Đã tải xong Whisper Small.')).toHaveCount(1,{timeout:10000});
+});
+
+test('a re-check of an installed pack keeps "Đang kiểm tra…" over later polls',async({page})=>{
+ await open(page,false,NAMES,['separation-runtime']);
+ await card(page,'separation-runtime').getByRole('button',{name:'Kiểm tra lại gói',exact:true}).click();
+ await expect(card(page,'separation-runtime').locator('.job-progress')).toHaveText('Đang kiểm tra…');
+ await pollsAfter(page);
+ await expect(card(page,'separation-runtime').getByRole('button',{name:'Đang kiểm tra…',exact:true})).toBeDisabled();
+ await expect(card(page,'separation-runtime').locator('.job-progress')).toHaveText('Đang kiểm tra…');
+});
+
+test('two downloads that fail in one poll show both messages in the alert, a later failure replaces them, and the close button still clears it',async({page})=>{
+ test.setTimeout(60000);
+ await open(page,false,ALL);
+ await card(page,'whisper-small').getByRole('button',{name:'Tải model',exact:true}).click();
+ await expect(card(page,'whisper-small').locator('progress')).toHaveCount(1);
+ await page.evaluate(()=>{const w=window as any,t=new Date(Date.now()-60000).toISOString();w.__jobs.push({id:'dl-vieneu-v3',kind:'model_download',project_id:null,payload:{model_id:'vieneu-v3'},status:'running',progress:0.4,error:null,result:null,created_at:t,updated_at:t});});
+ await expect(card(page,'vieneu-v3').locator('progress')).toHaveCount(1,{timeout:10000});
+ await page.evaluate(()=>{const w=window as any;for(const j of w.__jobs){j.status='failed';j.error='Không đủ dung lượng ổ đĩa';}});
+ const alert=page.getByRole('alert');
+ await expect(alert).toContainText('Tải VieNeu v3 Turbo không thành công: Không đủ dung lượng ổ đĩa',{timeout:10000});
+ await expect(alert).toContainText('Tải Whisper Small không thành công: Không đủ dung lượng ổ đĩa');
+ // a new job that fails in a later poll replaces the line
+ await page.evaluate(()=>{const w=window as any,t=new Date(Date.now()-60000).toISOString();w.__jobs.unshift({id:'dl-again',kind:'model_download',project_id:null,payload:{model_id:'whisper-small'},status:'running',progress:0.4,error:null,result:null,created_at:t,updated_at:t});});
+ await expect(card(page,'whisper-small').locator('progress')).toHaveCount(1,{timeout:10000});
+ await page.evaluate(()=>{const w=window as any;const j=w.__jobs.find((x:any)=>x.id==='dl-again');j.status='failed';j.error='Mất kết nối mạng';});
+ await expect(alert).toHaveText(/Mất kết nối mạng/,{timeout:10000});
+ await expect(alert).not.toContainText('Tải VieNeu v3 Turbo');
+ await alert.getByRole('button',{name:'Đóng lỗi'}).click();
+ await expect(alert).toHaveCount(0);
+});
