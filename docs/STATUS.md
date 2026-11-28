@@ -1154,6 +1154,22 @@ A fix release for the seven gaps found while testing 1.0.26, published on 2026-1
 
 Evidence: the host logs `r27-*.txt` in the coordinator's `%TEMP%\thanham-host` and the execution log in `work\round-1.0.27\PLAN.md`.
 
+### v1.0.28 release (built by `.github/workflows/release.yml` from tag `v1.0.28` at `e5a216c`)
+
+A fix release for the three gaps left after 1.0.27 and nine small bugs from a read-only audit of 1.0.27, published on 2026-11-28. Retry on a job that cannot be retried shows a sentence and refreshes the jobs, and the UTF8_REQUIRED and NOT_FOUND codes get sentences (#361). The check wording follows whether the model was installed when its job was first seen, so a real download no longer flips to check wording for one poll, and a re-check uses check wording in the status bar, the queue row and the desktop notice; errors set in one pass are joined instead of overwriting each other (#362). Focus stays on the page after transcript row deletes and merges and after dictionary and voice form actions (#363), after closing notices and opening, creating or deleting projects; undo and redo stay focusable at the end of history (#365). The queue open-take button opens the job's own segment without reloading the open project, so undo history and the keep-background choice survive (#364). Deferred to 1.0.29: the Updates check-now focus and label, long-input INVALID_NAME/INVALID_SETTINGS texts, applying another project's transcript, and the checklist step 2 busy text.
+
+| Check | Result |
+|---|---|
+| Tests | CI-first on every lane: a tests-only commit with its red CI run cited per test in each PR (#361: 46140810103, 46141705711; #362: 46140894424, 46141748178; #363: 46141904183; #364: 46143903951; #365: 46142519807), then CI green on the exact head of every PR, on the release PR head `39cbf49` (46145939484) and on main after each merge. The tag run 46148220588 built the draft. No dry run: nothing under `.github`, `scripts`, `worker` or `worker-rs` changed since v1.0.27, and `src-tauri` changed only in its version fields. No existing assertion was changed |
+| Reviews | coordinator review of every PR diff against the audit (`work\round-1.0.28\audit-Z.md`); #364 was stacked on #365 to avoid a second rebase round |
+| Installer SHA-256 | `de1a6adff32000e577fa8e53d5b462a20bf9b465fcadf6f77d409e81918bf3dd` (220,108,497 bytes). `sha256sum -c` OK on the draft assets |
+| Update feed | the anonymous `/releases/latest/download/latest.json` is identical to the draft asset (SHA-256 `9935bba0…e891`) and names 1.0.28; the anonymous installer URL answers 200 with the same size |
+| Maintainer's PC, update from the published 1.0.27 | the draft installer with `/P /UPDATE /R` over 1.0.27 in `%LOCALAPPDATA%\Thanh Am Studio`: exit 0 in 49 s. One uninstall entry (DisplayVersion 1.0.28, quoted InstallLocation), the same `HKCU\Software\thanham` key and the same Start-menu and desktop shortcuts with the AUMID `studio.thanham.desktop`. The app reopened with the title "Thanh Âm Studio"; worker `health` `ready:true`, `ffmpeg -version` exit 0, no `startup-errors.log`, no Application error events; the data folder was kept |
+| Maintainer's PC, uninstall and fresh install | `uninstall.exe /S`: the install folder, the uninstall entry and the shortcuts are gone, the data folder is kept and the install-folder hint stays. A fresh `/S` install exits 0 in 33 s with the same entry and shortcuts; the app starts with the same worker, FFmpeg and error-log results. The app is left installed and closed |
+| Not run | Windows Sandbox, the packaged desktop harness, NVDA (the new aria-disabled buttons and focus moves are checked only by Playwright), an update of an install in a folder the user chose, pinning to the taskbar, and local Playwright runs (low host memory; CI is the e2e evidence) |
+
+Evidence: the host logs `r28-*.txt` in the coordinator's `%TEMP%\thanham-host` and the execution log in `work\round-1.0.28\PLAN.md`.
+
 ## Not verified / known gaps
 
 - Self-update through GitHub was observed twice, in clean Sandboxes (1.0.11 to 1.0.12 and 1.0.13 to 1.0.15, above); the per-release gate
