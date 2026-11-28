@@ -78,17 +78,18 @@ export const readyModel=(models:ModelInfo[],job:Flow,totalMb:number|null|undefin
 const JOBS=[{job:'tts',title:'Đọc văn bản thành giọng nói',text:'Gõ hoặc dán chữ, nghe và lưu thành file audio.',icon:AudioLines},{job:'stt',title:'Chép lời từ file âm thanh',text:'Chọn file ghi âm hoặc video, nhận bản chép lời.',icon:FileText}] as const;
 /** The first-run start panel, where the checklist stands: not a dialog, "Để sau" at every step. The App moves the focus to the step heading (`#start-title`) after a pick, "Quay lại" or the palette;
  *  step 3, which a finished download reaches by itself, takes the focus only from inside the panel or from <body>, never from the text being typed or the STT button. */
-export function StartPanel({start,page,models,jobs,starters,totalMb,busy,onPick,onDownload,onAll,onBack,onLater}:{start:StartState;page:Flow;models:ModelInfo[];jobs:Job[];starters:string[];totalMb:number|null;busy:boolean;onPick:(job:Flow)=>void;onDownload:(id:string)=>void;onAll:()=>void;onBack:()=>void;onLater:()=>void}){
+export function StartPanel({start,page,models,jobs,starters,totalMb,busy,onPick,onDownload,onRetry,onAll,onBack,onLater}:{start:StartState;page:Flow;models:ModelInfo[];jobs:Job[];starters:string[];totalMb:number|null;busy:boolean;onPick:(job:Flow)=>void;onDownload:(id:string)=>void;onRetry:(id:string)=>void;onAll:()=>void;onBack:()=>void;onLater:()=>void}){
  const root=useRef<HTMLElement>(null),heading=useRef<HTMLHeadingElement>(null),was=useRef(start.step);
  useEffect(()=>{const before=was.current,a=document.activeElement;was.current=start.step;if(start.step===3&&before!==3&&(a===document.body||root.current?.contains(a)))heading.current?.focus();},[start.step]);
  // The panel is removed under the focus: hand it to the checklist that now stands there, else to the page toolbar.
  const later=()=>{onLater();requestAnimationFrame(()=>(document.getElementById('first-run-title')??document.querySelector<HTMLElement>(TOOLBAR[page]))?.focus());};
  const title=(n:number,text:string)=><h2 id="start-title" ref={heading} tabIndex={-1}><span className="start-step">{`Bước ${n}/3`}</span> {text}</h2>;
  const head=(n:number,text:string)=><div className="start-head">{title(n,text)}<button type="button" className="quiet" onClick={later}>Để sau</button></div>;
- const model=start.model?models.find(m=>m.id===start.model):undefined,job=start.model?activeDownload(jobs,start.model):undefined;
- // A picked model shows as a strip while it downloads; one whose download failed or was cancelled goes back to the cards, so it can be started again.
- if(start.step===3||(start.step===2&&model&&(job||model.installed)))return <section ref={root} className="start-panel start-strip panel" aria-labelledby="start-title">
+ const model=start.model?models.find(m=>m.id===start.model):undefined,job=start.model?activeDownload(jobs,start.model):undefined,last=start.model?jobs.find(j=>j.kind==='model_download'&&j.payload.model_id===start.model):undefined,stopped=!job&&last?.status==='interrupted'?last:undefined; // jobs are newest first
+ // A picked model shows as a strip while it downloads, or with "Tải tiếp" when the relaunch interrupted it; one whose download failed or was cancelled goes back to the cards, so it can be started again.
+ if(start.step===3||(start.step===2&&model&&(job||stopped||model.installed)))return <section ref={root} className="start-panel start-strip panel" aria-labelledby="start-title">
   {title(start.step,start.step===3?`Đã tải xong ${model?.name??start.model}.`:`Đang tải ${model?.name??start.model}…`)}
+  {start.step===2&&stopped&&<div className="start-progress"><small className="job-progress">Tải bị gián đoạn.</small> <button type="button" className="outlined" disabled={busy} onClick={()=>onRetry(stopped.id)}>Tải tiếp</button></div>}
   {start.step===2&&job&&<div className="start-progress"><JobProgress job={job}/></div>}
   <button type="button" className="quiet" onClick={later}>Để sau</button>
  </section>;
