@@ -170,6 +170,10 @@ test('a re-check of an installed pack reads "Đang kiểm tra…" on the button 
  await expect(card(page,'separation-runtime').getByRole('button',{name:'Đang kiểm tra…',exact:true})).toBeDisabled();
  await expect(card(page,'separation-runtime').locator('.job-progress')).toHaveText('Đang kiểm tra…');
  await expect(card(page,'separation-runtime').getByRole('button',{name:'Đang tải…'})).toHaveCount(0);
+ // the status bar says it too: a check with no percentage, never "Đang tải"
+ await expect(page.locator('.status-bar')).toContainText(`Đang kiểm tra ${PACK}`);
+ await expect(page.locator('.status-bar')).not.toContainText('Đang tải');
+ await expect(page.locator('.status-bar')).not.toContainText('%');
 });
 
 test('a re-check that ends is announced as "Đã kiểm tra xong {name}." and not as a download',async({page})=>{
@@ -260,4 +264,28 @@ test('two downloads that fail in one poll show both messages in the alert, a lat
  await expect(alert).not.toContainText('Tải VieNeu v3 Turbo');
  await alert.getByRole('button',{name:'Đóng lỗi'}).click();
  await expect(alert).toHaveCount(0);
+});
+
+const queueRow=(page:Page)=>page.getByRole('complementary',{name:'Hàng đợi'}).locator('.job-main');
+const openQueue=(page:Page)=>page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button',{name:/^Hàng đợi/}).click();
+test('a re-check of an installed pack reads "Kiểm tra model" in the queue and raises the "Đã kiểm tra model xong" notice, not the download ones',async({page})=>{
+ test.setTimeout(60000);
+ await open(page,false,NAMES,['separation-runtime']);
+ await card(page,'separation-runtime').getByRole('button',{name:'Kiểm tra lại gói',exact:true}).click();
+ await expect(card(page,'separation-runtime').locator('progress')).toHaveCount(1);
+ await openQueue(page);
+ await expect(queueRow(page).locator('strong')).toHaveText('Kiểm tra model');
+ await expect(queueRow(page).locator('.job-progress')).not.toContainText('%');
+ await finish(page,'separation-runtime');
+ await expect.poll(()=>page.evaluate(()=>(window as any).__notified),{timeout:10000}).toEqual([{title:'Đã kiểm tra model xong',body:`${PACK} · 1 phút`}]);
+ await expect(queueRow(page).locator('strong')).toHaveText('Kiểm tra model');
+});
+
+test('a real download keeps "Tải model" in the queue and "Đang tải {name} 40%" in the status bar',async({page})=>{
+ await open(page);
+ await card(page,'whisper-small').getByRole('button',{name:'Tải model',exact:true}).click();
+ await expect(card(page,'whisper-small').locator('progress')).toHaveCount(1);
+ await expect(page.locator('.status-bar')).toContainText('Đang tải Whisper Small 40%');
+ await openQueue(page);
+ await expect(queueRow(page).locator('strong')).toHaveText('Tải model');
 });
