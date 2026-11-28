@@ -10,7 +10,7 @@ const announceSaved=(path:string)=>window.dispatchEvent(new CustomEvent(SAVED_EV
 const KEY='thanh-am-preview-projects-v1',SETTINGS_KEY='thanh-am-preview-settings-v1';
 function projects():Project[]{try{return JSON.parse(localStorage.getItem(KEY)||'[]');}catch{return [];}}
 const persist=(list:Project[])=>localStorage.setItem(KEY,JSON.stringify(list));
-const ERRORS:Record<string,string>={INVALID_DOCX:'Không đọc được tệp Word này. Hãy mở bằng Word rồi lưu lại dạng .docx.',DOCX_TOO_LARGE:'Tệp quá lớn: phần chữ vượt 10 MB.',TEXT_FILE_TOO_LARGE:'Tệp quá lớn: phần chữ vượt 10 MB.',UNSUPPORTED_TEXT:'Định dạng tệp không được hỗ trợ.',INVALID_MEDIA:'Không đọc được âm thanh trong tệp này: tệp bị hỏng, không có âm thanh hoặc ghép từ các phần khác tần số lấy mẫu hay số kênh. Nếu tệp vẫn nghe được trong trình phát, hãy chuyển sang WAV rồi thử lại.'};
+const ERRORS:Record<string,string>={INVALID_DOCX:'Không đọc được tệp Word này. Hãy mở bằng Word rồi lưu lại dạng .docx.',DOCX_TOO_LARGE:'Tệp quá lớn: phần chữ vượt 10 MB.',TEXT_FILE_TOO_LARGE:'Tệp quá lớn: phần chữ vượt 10 MB.',UNSUPPORTED_TEXT:'Định dạng tệp không được hỗ trợ.',UTF8_REQUIRED:'Tệp cần mã hóa UTF-8. Trong Notepad, chọn Lưu thành và đặt Mã hóa là UTF-8 rồi mở lại.',NOT_FOUND:'Không tìm thấy tệp đã lưu: tệp đã bị chuyển hoặc xóa.',INVALID_JOB_STATE:'Việc này đã được chạy lại hoặc đã xong nên không cần thử lại. Danh sách đã được làm mới.',INVALID_MEDIA:'Không đọc được âm thanh trong tệp này: tệp bị hỏng, không có âm thanh hoặc ghép từ các phần khác tần số lấy mẫu hay số kênh. Nếu tệp vẫn nghe được trong trình phát, hãy chuyển sang WAV rồi thử lại.'};
 const known=(e:unknown)=>Object.keys(ERRORS).find(k=>String(e).startsWith(k));
 const friendly=(e:unknown)=>{const code=known(e);return code?Error(ERRORS[code]):e;};
 /** A failed transcription's `CODE: message` as the short Vietnamese message for its code, else as it is (the INVALID_MEDIA text
@@ -46,7 +46,7 @@ export async function pickFiles(kind:'text'|'audio'|'csv',multiple=false):Promis
 }
 /** Content of one CSV the user picks, or null when cancelled. The browser preview has no file paths, so it reads through a file input. */
 export async function openCsv():Promise<string|null>{
- if(desktop){const [path]=await pickFiles('csv');return path?call<string>('read_text_file',{path}).catch(e=>{throw String(e).includes('UTF8_REQUIRED')?Error(UTF8_HINT):e;}):null;}
+ if(desktop){const [path]=await pickFiles('csv');return path?call<string>('read_text_file',{path}).catch(e=>{throw e instanceof Error&&e.message===ERRORS.UTF8_REQUIRED?Error(UTF8_HINT):e;}):null;}
  return new Promise((resolve,reject)=>{const input=Object.assign(document.createElement('input'),{type:'file',accept:'.csv,text/csv'});input.addEventListener('change',()=>{const file=input.files?.[0];if(file)file.text().then(resolve,reject);else resolve(null);});input.addEventListener('cancel',()=>resolve(null));input.click();});
 }
 /** True when a file was saved or handed to the browser, false when the dialog was cancelled. */
